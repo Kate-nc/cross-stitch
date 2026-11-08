@@ -13,7 +13,7 @@ Ranked by user-visible stall × how often it happens. Times are emulated (see [M
 
 | # | Finding | Evidence (fresh) | When | Fix direction (not done here) |
 |---|---|---|---|---|
-| 1 | **Reopening an unchanged project reads it twice and rewrites it twice before the chart can draw.** Every Tracker unload (`beforeunload` *and* `pagehide`) writes a recovery journal (the whole `done` array in localStorage), a progress record, a full save and the legacy `auto_save` copy, changed or not. On open, `ProjectStorage.get` first runs `_recoverProgress`, which applies that journal through the legacy path (`TrackingSync.record` over the whole chart) and puts the whole project back; then applies the progress record (`withDelta`, whole chart again). The header calls `getActiveProject()` for its badge at the same moment, so all of it runs twice. Then `processLoadedProject` runs `TrackingSync.merge(project, {})` over the whole chart only to normalise `halfDone`. | Large 50%, phone: first chart paint **12.2 / 13.0 / 14.4 s** (3 runs), longest task 3.8-5.2 s, 9-13 s blocked in the first 10 s; 2 reads and 2 full puts every run. Huge: **41.8 s**. Desktop, no throttle: large 3.4 s, huge 7.1 s. Profile (large 50%, phone): `_recoverProgress` 2.2 s + 3.6 s, `get`'s read and `rememberProgressBase` ~1.0 s, `TrackingSync.merge` in `processLoadedProject` 1.45 s (2.4 s unprofiled with probes), `rtThreadUsage` 0.33 s, thread-usage snapshot ~0.5 s. Transient heap on huge, desktop: 903 MB before GC, 274 MB after | Every open of a large project, every reload, every return from another tool | Header reads `project_meta`, not the project; one in-flight `get` per id; skip the journal and full writes on unload when nothing changed since the last save; normalise `halfDone` without a full merge. Each touches durability, so each needs the recovery and cross-tab tests run against it |
+| 1 | **Reopening an unchanged project reads it twice and rewrites it twice before the chart can draw.** *Partly fixed: the rewrites and the save after opening are gone, see [Follow-up](#follow-up-opening-an-unchanged-project-writes-nothing); the double read and the whole-chart merge remain.* Every Tracker unload (`beforeunload` *and* `pagehide`) writes a recovery journal (the whole `done` array in localStorage), a progress record, a full save and the legacy `auto_save` copy, changed or not. On open, `ProjectStorage.get` first runs `_recoverProgress`, which applies that journal through the legacy path (`TrackingSync.record` over the whole chart) and puts the whole project back; then applies the progress record (`withDelta`, whole chart again). The header calls `getActiveProject()` for its badge at the same moment, so all of it runs twice. Then `processLoadedProject` runs `TrackingSync.merge(project, {})` over the whole chart only to normalise `halfDone`. | Large 50%, phone: first chart paint **12.2 / 13.0 / 14.4 s** (3 runs), longest task 3.8-5.2 s, 9-13 s blocked in the first 10 s; 2 reads and 2 full puts every run. Huge: **41.8 s**. Desktop, no throttle: large 3.4 s, huge 7.1 s. Profile (large 50%, phone): `_recoverProgress` 2.2 s + 3.6 s, `get`'s read and `rememberProgressBase` ~1.0 s, `TrackingSync.merge` in `processLoadedProject` 1.45 s (2.4 s unprofiled with probes), `rtThreadUsage` 0.33 s, thread-usage snapshot ~0.5 s. Transient heap on huge, desktop: 903 MB before GC, 274 MB after | Every open of a large project, every reload, every return from another tool | Header reads `project_meta`, not the project; one in-flight `get` per id; skip the journal and full writes on unload when nothing changed since the last save; normalise `halfDone` without a full merge. Each touches durability, so each needs the recovery and cross-tab tests run against it |
 | 2 | **A sync folder export blocks the main thread for seconds.** It flushes a full save, reads every project back, rebuilds library thread demand, and compresses the file with pako on the main thread. | Huge, phone: 19.7 s end to end, longest task 5.4 s (compress 4.4 s; save 5.0 s; thread demand 3.3 s; read 2.5 s). Large + 150 projects: one **10.1-10.4 s** task (compress). Desktop: 4.5 s / 1.0 s and 4.9 s / 2.2 s | With a sync folder connected (desktop Chrome or Edge; iPad Safari and Android Chrome have no folder access), at most every 30 s after a save | Compress in a worker (pako runs there); export changed projects only (incremental mode exists in `exportSync`) |
 | 3 | **Every full save recomputes the project's library thread demand stitch by stitch.** `ProjectStorage.save`'s completion handler calls `projectThreadEntries`, which does an `Object.assign` and a `JSON.stringify` key per stitch. The result depends on the pattern, not the marks. | 3.3 s of one task on the huge chart at 4× (`tx.oncomplete` > `projectThreadEntries` > `add`) | Every full save of a `proj_` project: the open-time save, unload, flushes, the idle autosave | Cache by `chartRevision`, or key by palette index instead of per-stitch JSON |
 | 4 | **On a mixed-stitch chart most taps repaint the whole tile**, and the live thread accounting re-estimates the non-full kinds on each tap. | Every run: 9 full and 7 clipped paints for 8 taps (full-cross: 0 and 8). Large mixed: tap p95 336-464 ms, handler up to 175-198 ms. Profile: `ThreadAccounting.sync` > `restOf` > `addRest` 74 + 35 ms per tap | Every tap on a chart with half stitches, backstitch, knots, beads or specialty stitches | Route the mixed mark through the clipped repaint; re-estimate only the changed kind |
@@ -27,7 +27,7 @@ Ranked by user-visible stall × how often it happens. Times are emulated (see [M
 |---|---|
 | Taps at 90% wait 1.2-1.6 s behind the progress write | **Resolved.** 64-88 ms median, no long task (progress record holds only changed registers) |
 | A long thread-usage history slows taps (~1.9 s) | **Resolved.** 72-96 ms |
-| Opening a project schedules a full save ~5 s later even when nothing changed | **Still true**, and now the smallest part of opening: on large charts it fires 5 s after the chart appears, so outside the 10 s window on the phone profile (inferred, ~17 s; not measured). Measured inside the window on the small and desktop-large runs (the third full put, a `ProjectStorage.save` with no change behind it) |
+| Opening a project schedules a full save ~5 s later even when nothing changed | **Fixed since** (see [Follow-up](#follow-up-opening-an-unchanged-project-writes-nothing)). Was true at this baseline, and the smallest part of opening: on large charts it fires 5 s after the chart appears, so outside the 10 s window on the phone profile (inferred, ~17 s; not measured). Measured inside the window on the small and desktop-large runs (the third full put, a `ProjectStorage.save` with no change behind it) |
 | Full save on large charts rebuilds sync metadata for the whole chart | **Still true**, but it waits for a minute without marking (fix #8). It costs more on the save's completion side (finding 3) |
 | A second tab pays for the first tab's marking | **No.** The watching tab ran no long task and read no project while the other tab marked 7 stitches |
 | Work area and overlays cost extra per tap | **No.** Work area taps 72-88 ms; overlay view taps 80-144 ms, with pan frames as without overlays |
@@ -184,9 +184,11 @@ Re-checked in passing: `pan-large.spec.js` "right edge" gives 6 paints in 120 fr
 | | Handler median | 4-7 ms | `< 100 ms` |
 | | Tap-to-paint median | 72-104 ms | `< 250 ms` |
 | | Slowest tap | 96-256 ms | `< 1 200 ms` |
-| `open-cost.spec.js` (new): reopen large 50% unchanged | Full project reads before first paint | 2, 2 | `≤ 2` (ratchet, finding 1) |
-| | Full project writes before first paint | 2, 2 | `≤ 2` (ratchet) |
-| | First chart paint | 12.2, 13.0, 14.4 s | `< 30 s` |
+| `open-cost.spec.js` (new): reopen large 50% unchanged | Full project reads before first paint | 2, 2 (after the follow-up: 2) | `≤ 2` (ratchet, finding 1) |
+| | Full project writes before first paint | 2, 2 (after: 0) | `0` |
+| | First chart paint | 12.2, 13.0, 14.4 s (after: 9.2-9.4 s) | `< 20 s` |
+| `desktop-open-save.spec.js` (follow-up) | Full saves and full-project writes in the 12 s after reopening an unchanged small, large or mixed project | 0 | `0` |
+| | Writes still made when a load changes durable data: migration, progress-record marks, backed-up sessions, marks right after opening, a switched-away project, a failed save | as listed | at least one, and the data survives a reload |
 | `tests/trackProbes.test.js` (Jest, runs in CI) | The counters count what the budgets assume: full vs clipped paints, kept tile moves, React commits through the DevTools hook, IndexedDB and localStorage writes, spans, Event Timing reduction, percentiles, windowing | – | exact |
 
 The ratchets pin today's figures so a regression fails; they should be lowered as findings 1 and 4 are fixed. CI runs Jest only, so the browser budgets are run by hand (`npm run test:mobile-audit`, or with `PW_OFFLINE_CDN=1` where cdnjs is unreachable); none of them can make CI flaky.
@@ -198,6 +200,52 @@ The ratchets pin today's figures so a regression fails; they should be lowered a
 - **WebDAV and relay sync** were not measured; only the folder export.
 - **Pinch zoom and two-finger pans** are not in this matrix; `pan-large.spec.js` covers them by counted work.
 - The overlay row marked 6 of 12 taps (see notes above).
+- **Existing browser specs that fail here, before and after the follow-up alike** (checked on a worktree of the commit before it): `cross-tab-merge.spec.js` (3 tests: a conflict dialog appears where a silent merge is expected), `autosave-marks-deferral.spec.js` "any other change still saves within the normal few seconds", and `desktop-work-area.spec.js` "the colour list shows only the area's colours", "mark all done marks only the stitches inside the area" and "finishing the area says so". Not investigated in this work; worth a separate look, the first group especially, since it covers cross-tab conflict handling.
+
+## Follow-up: opening an unchanged project writes nothing
+
+**Reproduced first.** Reopening an unchanged project (small or large, desktop) made 1 full Tracker save and 3 full-project writes within 12 s: two from `ProjectStorage.get` materialising the recovery journal every unload leaves (one per concurrent read, Tracker and header), and the autosave ~5 s after the load, which treated its first run as a change.
+
+**What changed.**
+
+- `ProjectStorage.get` drops a recovery journal that holds exactly the marks the project and its progress record already show, instead of rewriting the whole project for it (`sameMarks`; a journal with any differing mark, an unpick included, is still written). The check compares marks only, with no sync registers rebuilt. `ProjectStorage.loadedWithProgress(project)` says whether the project it returned has marks or sync registers that only a progress record holds.
+- The Tracker loads a stored project with `{stored:true}` (the Tracker's own load, the project picker, Stats, the Creator's hand-over by id). `processLoadedProject` lists what the load changes that only a full save keeps:
+  - a minted id, a format version other than 11, or the compact or legacy pattern format;
+  - petite and long stitch migration, re-keyed half-stitch marks, or an original palette created on load;
+  - dropped park markers, deleted snapshots filtered out;
+  - backed-up sessions, or sessions migrated, patched or recovered from a checkpoint.
+
+  It also records exactly what it hands to each saved piece of state. The autosave's first run with that pattern takes it as the baseline, and schedules nothing, only when that list is empty and every input is still exactly what the load installed. An edit that lands before the load renders (a tap, a cross-tab merge) is therefore never taken as loaded data. Marks that differ from the loaded ones (a progress record's, or such a tap) are a marks-only change, saved as any other, deferred on charts over 40 000 stitches as before. A clean load also counts as written for the tab-hidden save and the save badge.
+- Imports, hand-offs, share links and the Creator's project hand-over are saved as before. Loads whose marks do not fit the pattern still hold every save until answered.
+- The active-project pointer, which the save after opening used to set on the by-id path, is set explicitly there.
+
+**Measured** (same runner and harness, `OPEN_WINDOW_MS=30000` from navigation so the old save is inside the window on the phone profile too, 2 runs each; [open-save-before.json](track-mode-baseline/open-save-before.json), [open-save-after.json](track-mode-baseline/open-save-after.json)):
+
+| Scenario | First chart paint | Total blocking | Long tasks | Full-project writes | Full saves |
+|---|---:|---:|---:|---:|---:|
+| large 50%, phone | 12.3-12.9 s to **9.2 s** | 15.6-16.0 s to **8.0 s** | 16-17 to 11 | 3 to **0** | 1 to 0 |
+| huge 50%, phone | 38.1-38.4 s to **27.5-28.0 s** | 32.2-33.8 s to 26.2-26.6 s | 8 to 12-13 (now loaded inside the window) | 2 to 0 | 0 to 0 |
+| large 50%, 50k history, phone | 11.6-12.5 s to 8.0-8.4 s | 16.3-16.9 s to 7.6-8.4 s | 20-22 to 12-16 | 3 to 0 | 1 to 0 |
+| large 50%, 150 projects, phone | 11.9-12.7 s to 8.0 s | 15.1-16.1 s to 6.8-6.9 s | 15-17 to 11-12 | 3 to 0 | 1 to 0 |
+| huge 50%, desktop | 8.2-8.7 s to 5.9-6.3 s | 10.5 s to 5.0-5.1 s | 13 to 7 | 3 to 0 | 1 to 0 |
+| large 50%, desktop | 2.9-3.0 s to 2.1-2.2 s | 2.6-2.7 s to 1.2-1.3 s | 11 to 6 | 3 to 0 | 1 to 0 |
+| small 50%, phone | ~1.3 s, unchanged | 0.35-0.46 s to 0.25-0.27 s | 7-10 to 5-6 | 3 to 0 | 1 to 0 |
+
+The **longest task is unchanged** (about 4 s on the large chart and 14-15 s on the huge one at 4x, 2.4-3 s huge on desktop): it is the whole-chart `TrackingSync.merge` in `processLoadedProject`, run only to re-key half-stitch marks, together with the header's second full read. Those are what is left of finding 1.
+
+**Durability, checked** (`tests/mobile-audit/desktop-open-save.spec.js`, 10 browser tests, all pass):
+
+- reopening unchanged small, large and mixed-stitch projects writes nothing;
+- a version 8 record without an original palette and with an unpatched session is migrated and saved;
+- marks only a progress record held are folded into the full record and survive a reload;
+- a session backed up before the tab closed is saved and its backup cleared;
+- two marks made straight after opening (small and large) survive a reload;
+- in a quick A to B to A project switch, the unchanged project is never written and the changed one keeps its mark and the session it started;
+- with every full save failing, a mark stays unsaved until saving works again, and the tab-hidden save then writes it.
+
+Mutation checks: disabling the journal comparison fails 2 of the new `ProjectStorage` tests; ignoring a progress record's marks in the baseline fails the progress-record browser test. `tests/trackerLoadBaseline.test.js` (Jest, CI) holds the structure: which calls may start clean, each reason a load must save, the input names against the autosave's list, that the baseline is reset on every load and taken only with its own pattern, and that a clean load leaves nothing for the tab-hidden save. The existing browser specs touching saving and reload (`desktop-pan-large`, `tracker-load-sessions`, `track-history-accounting`, `autosave-marks-deferral` except its one test that also fails before, `tap-cost`, `open-cost`) pass.
+
+**Not changed, noted for later:** every unload (`beforeunload` and `pagehide`) still writes a progress record, the journal, a full save and the legacy `auto_save` copy, changed or not. That is durability-critical (it finalises the running session) and needs its own change and tests. Home's weekly figures for a project come from its last save, so a project only opened, never changed, keeps last save's week until it is next saved.
 
 ## Validating on an iPad or Android device
 

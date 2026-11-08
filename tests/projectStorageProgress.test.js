@@ -170,6 +170,64 @@ test('restore and deletion clear navigation journals', async () => {
   expect(ProjectStorage.saveProgressRecovery('proj_p', { done: new Array(N).fill(1) })).toBe(false);
 });
 
+// Every Tracker unload leaves a journal, changed or not (reports/track-mode-performance-baseline.md,
+// finding 1). One that holds exactly what is stored must not rewrite the whole project on open.
+const StoreProto = require('fake-indexeddb/lib/FDBObjectStore').prototype;
+const countProjectPuts = async (fn) => {
+  const put = StoreProto.put;
+  let n = 0;
+  StoreProto.put = function () { if (this.name === 'projects') n++; return put.apply(this, arguments); };
+  try { await fn(); } finally { StoreProto.put = put; }
+  return n;
+};
+test('a journal that matches the stored marks is dropped without rewriting the project', async () => {
+  await ProjectStorage.save(proj({ done: [1, 0, 1, 0, 0, 0], knotsDone: ['1,1'] }));
+  const b = await base('proj_p');
+  ProjectStorage.saveProgressRecovery('proj_p', { done: Uint8Array.from([1, 0, 1, 0, 0, 0]), knotsDone: ['1,1'], baseWriteAt: b });
+  let p;
+  expect(await countProjectPuts(async () => { p = await ProjectStorage.get('proj_p'); })).toBe(0);
+  expect(p.done).toEqual([1, 0, 1, 0, 0, 0]);
+  expect(localStorage.getItem(journalKey('proj_p'))).toBeNull();
+  expect(ProjectStorage.loadedWithProgress(p)).toBe(false);
+});
+test('a journal that matches a newer progress record adds nothing either; the record still applies', async () => {
+  await ProjectStorage.save(proj());
+  const b = await base('proj_p');
+  await ProjectStorage.saveProgress('proj_p', { done: Uint8Array.from([0, 1, 1, 0, 0, 0]), baseWriteAt: b });
+  ProjectStorage.saveProgressRecovery('proj_p', { done: [0, 1, 1, 0, 0, 0], baseWriteAt: b });
+  let p;
+  expect(await countProjectPuts(async () => { p = await ProjectStorage.get('proj_p'); })).toBe(0);
+  expect(p.done).toEqual([0, 1, 1, 0, 0, 0]);
+  // Those marks are only in the progress record: the Tracker must fold them into a full save.
+  expect(ProjectStorage.loadedWithProgress(p)).toBe(true);
+  expect(localStorage.getItem(journalKey('proj_p'))).toBeNull();
+});
+test('a journal with any mark the store lacks is still written into the project', async () => {
+  await ProjectStorage.save(proj({ done: [1, 0, 0, 0, 0, 0] }));
+  const b = await base('proj_p');
+  ProjectStorage.saveProgressRecovery('proj_p', { done: [1, 0, 0, 0, 0, 1], baseWriteAt: b });
+  expect(await countProjectPuts(() => ProjectStorage.get('proj_p'))).toBe(1);
+  expect((await rawProject('proj_p')).done).toEqual([1, 0, 0, 0, 0, 1]);
+  // An unpick is a difference too.
+  ProjectStorage.saveProgressRecovery('proj_p', { done: [0, 0, 0, 0, 0, 1], baseWriteAt: b });
+  expect(await countProjectPuts(() => ProjectStorage.get('proj_p'))).toBe(1);
+  expect((await rawProject('proj_p')).done).toEqual([0, 0, 0, 0, 0, 1]);
+});
+test('loadedWithProgress: only a read whose progress record adds marks or sync registers', async () => {
+  await ProjectStorage.save(proj());
+  const b = await base('proj_p');
+  expect(ProjectStorage.loadedWithProgress(await ProjectStorage.get('proj_p'))).toBe(false);   // no record
+  await ProjectStorage.saveProgress('proj_p', { done: new Uint8Array(N), baseWriteAt: b });
+  expect(ProjectStorage.loadedWithProgress(await ProjectStorage.get('proj_p'))).toBe(false);   // same marks, empty delta
+  await ProjectStorage.saveProgress('proj_p', { done: Uint8Array.from([1, 0, 0, 0, 0, 0]), baseWriteAt: b });
+  const withMark = await ProjectStorage.get('proj_p');
+  expect(withMark.done[0]).toBe(1);
+  expect(ProjectStorage.loadedWithProgress(withMark)).toBe(true);
+  await ProjectStorage.save(withMark);                                                          // a full save retires the record
+  expect(ProjectStorage.loadedWithProgress(await ProjectStorage.get('proj_p'))).toBe(false);
+  expect(ProjectStorage.loadedWithProgress(null)).toBe(false);
+});
+
 test('a delayed older progress write cannot undo recovered marks', async () => {
   await ProjectStorage.save(proj());
   const b = await base('proj_p');

@@ -163,6 +163,31 @@ const ProjectStorage = (() => {
     } catch (_) {}
   }
 
+  // Whether a progress record (or a recovery journal) holds exactly the marks a
+  // project already has: every mark field the record supplies is equal, and it
+  // carries no sync registers of its own (a non-empty delta, or a full
+  // trackingSync, is new information even when the marks match: it records when
+  // and where they changed). Conservative: arrays in another order, a typed
+  // `done` against a missing one, anything unexpected all count as different.
+  const MARK_SETS = ["halfDone", "knotsDone", "beadsDone", "bsDone", "partialDone", "specialtyDone"];
+  function sameMarks(project, rec) {
+    if (!project || !rec || !rec.done || !project.done) return false;
+    if (rec.trackingSync) return false;
+    const delta = rec.trackingSyncDelta;
+    if (delta && delta.marks && Object.keys(delta.marks).length) return false;
+    const a = project.done, b = rec.done;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if ((a[i] ? 1 : 0) !== (b[i] ? 1 : 0)) return false;
+    const norm = v => (Array.isArray(v) && v.length) ? JSON.stringify(v) : "[]";
+    for (const f of MARK_SETS) if (Array.isArray(rec[f]) && norm(rec[f]) !== norm(project[f])) return false;
+    return true;
+  }
+  // Projects get() returned with marks or sync registers that only a progress
+  // record holds (not yet in the full record). The Tracker folds those into its
+  // next full save; a project read with nothing new needs no write (see
+  // loadedWithProgress and the Tracker's load baseline).
+  const loadedWithProgressSet = new WeakSet();
+
   // Overlay a progress record onto a project record if, and only if, it is still
   // current: same project write it was based on, and the same pattern size.
   // Returns the project unchanged otherwise. Never mutates its arguments.
@@ -899,7 +924,9 @@ const ProjectStorage = (() => {
         if (project && typeof id === "string" && id.startsWith("proj_")) {
           try {
             const rec = await this._readProgress(db, id);
-            return applyProgressRecord(project, rec);
+            const out = applyProgressRecord(project, rec);
+            if (out !== project && !sameMarks(project, rec)) loadedWithProgressSet.add(out);
+            return out;
           } catch (e) { /* the full record is still right, just up to a few seconds old */ }
         }
         return project;
@@ -1098,7 +1125,16 @@ const ProjectStorage = (() => {
         const recover = () => {
           if (++ready !== 2) return;
           const project = p.result;
-          let next = applyProgressRecord(project, rec, applyProgressRecord(project, r.result));
+          // Every Tracker unload leaves a journal, changed or not. One that holds
+          // exactly the marks the project and its progress record already show adds
+          // nothing: rewriting the whole project for it cost seconds on every open
+          // of a large chart. It is still removed below. (Marks only, no sync
+          // registers, so neither check rebuilds them: a journal carries none.)
+          const quick = { skipTracking: true };
+          if (applyProgressRecord(project, rec, undefined, quick) !== project
+              && sameMarks(applyProgressRecord(project, r.result, undefined, quick), rec)) return;
+          const view = applyProgressRecord(project, r.result);
+          let next = applyProgressRecord(project, rec, view);
           if (next === project) return;
           // A later normal progress write wins, including an unpick.
           const newer = r.result;
@@ -1473,6 +1509,12 @@ const ProjectStorage = (() => {
 
     // Internal set of project IDs deleted during this page session.
     _deletedIds: new Set(),
+
+    // True when get() returned this project with marks or sync registers taken
+    // from its progress record that the full record does not have yet: the
+    // Tracker must fold them into a full save. False for a project read as it
+    // was stored (or with a progress record that matches it exactly).
+    loadedWithProgress(project) { return !!project && loadedWithProgressSet.has(project); },
 
     // Generate a new unique project ID. Single canonical source — every callsite
     // (Creator, Tracker, importers) should use this rather than re-implementing

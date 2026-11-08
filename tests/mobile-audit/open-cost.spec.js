@@ -7,18 +7,19 @@
    ~12 s after navigation (huge: ~42 s), because before anything is drawn:
 
      - every Tracker unload writes a recovery journal and a progress record,
-       whether or not anything changed, so ProjectStorage.get() materialises
-       the journal into the stored project (a full-record put) before it
-       reads the project, and applies the progress record (rebuilding the
-       whole sync metadata, TrackingSync.withDelta) after;
+       whether or not anything changed, and ProjectStorage.get() used to
+       materialise that journal into the stored project (a full-record put)
+       even when it held exactly the stored marks; it now drops such a journal
+       without writing (desktop-open-save.spec.js);
      - the header asks for the same project through getActiveProject() at the
-       same time, so all of that runs twice, including the put.
+       same time, so the read and the progress overlay run twice;
+     - the whole-chart TrackingSync.merge in processLoadedProject.
 
    These are ratchets on counted work, not targets: they pin today's figures so
-   a change that adds a third read or another full write fails, and they are to
-   be lowered when the fix lands. Time to first paint is logged and held to a
-   loose ceiling (about 2x the measured figure) only. See trackProbes.js for what is
-   counted and why counts, not times, carry the weight here. */
+   a change that adds another read or a full write fails, and they are to be
+   lowered as the rest is fixed. Time to first paint is logged and held to a
+   loose ceiling (about 2x the measured figure) only. See trackProbes.js for
+   what is counted and why counts, not times, carry the weight here. */
 const { test, expect } = require('@playwright/test');
 const { fixtureFor } = require('../_helpers/trackerFixture');
 const { suppressOnboarding } = require('../_helpers/deviceEmulation');
@@ -26,10 +27,11 @@ const { waitForSaved, cpuThrottle } = require('../_helpers/perfProbes');
 const { installTrackProbes, readTrackProbes, summarise } = require('../_helpers/trackProbes');
 const { routeCdnLocally } = require('../_helpers/offlineCdn');
 
-// Measured 2026-11-08 (build 1.0.240), large 400 x 500 at 50%, Pixel 5 at 4x.
+// Large 400 x 500 at 50%, Pixel 5 at 4x. Build 1.0.240: 2 reads, 2 full puts,
+// first paint 12.2-14.4 s. With the unchanged-open fix: 2 reads, 0 puts, ~9.2 s.
 const GETS_ON_OPEN = 2;           // the Tracker's load and the header's badge
-const FULL_PUTS_ON_OPEN = 2;      // one recovery materialisation per get
-const FIRST_PAINT_CEILING_MS = 30000;   // measured 12.2, 13.0 and 14.4 s
+const FULL_PUTS_ON_OPEN = 0;      // nothing changed, so nothing is written
+const FIRST_PAINT_CEILING_MS = 20000;
 
 test('reopening an unchanged large project: reads, writes and time to first paint', async ({ page }) => {
   test.setTimeout(300000);

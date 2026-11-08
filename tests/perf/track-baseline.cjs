@@ -34,6 +34,9 @@ const { suppressOnboarding } = require('../_helpers/deviceEmulation');
 const { installTrackProbes, readTrackProbes, summarise, dist } = require('../_helpers/trackProbes');
 
 const ROOT = path.join(__dirname, '..', '..');
+// How long the open scenarios watch after navigation (OPEN_WINDOW_MS=30000 also
+// catches a save that lands ~5 s after a slow chart first paints).
+const OPEN_WINDOW_MS = +process.env.OPEN_WINDOW_MS || 10000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* ── Environment ─────────────────────────────────────────────────────────── */
@@ -321,11 +324,11 @@ async function runOpen(ctx, spec) {
   await anchorProfile(ctx);
   await ctx.page.waitForSelector('.tracker-chart-layer canvas', { timeout: 180000 });
   const sinceNav = Date.now() - t0;
-  await sleep(Math.max(0, 10000 - sinceNav));
+  await sleep(Math.max(0, OPEN_WINDOW_MS - sinceNav));
   const r = await readTrackProbes(ctx.page, 0);
-  const prof = await stopProfile(ctx, r.loafs.filter((f) => f.t <= 10000));
+  const prof = await stopProfile(ctx, r.loafs.filter((f) => f.t <= OPEN_WINDOW_MS));
   const nav = await ctx.page.evaluate(() => { const n = performance.getEntriesByType('navigation')[0]; return n ? { domContentLoaded: Math.round(n.domContentLoadedEventEnd), load: Math.round(n.loadEventEnd) } : null; });
-  const s = summarise(r, { lineOf, t0: 0, t1: 10000 });
+  const s = summarise(r, { lineOf, t0: 0, t1: OPEN_WINDOW_MS });
   // The chart may not have painted inside the window: keep waiting (up to a
   // minute) so the report can say when it did, and what ran until then.
   let firstPaint = r.fullPaints.length ? r.fullPaints[0] : null, untilPaint = null;
@@ -344,6 +347,7 @@ async function runOpen(ctx, spec) {
     firstFullPaintMs: firstPaint == null ? null : Math.round(firstPaint),
     untilFirstPaint: untilPaint,
     fullSavesStarted: (s.spans['ProjectStorage.save'] || { n: 0 }).n,
+    windowMs: OPEN_WINDOW_MS,
     heapMb: await heap(ctx.cdp, false), heapAfterGcMb: await heap(ctx.cdp, true),
     cpuProfile: prof,
     cpuProbeMs: await cpuProbe(ctx.page),

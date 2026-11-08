@@ -1,0 +1,5271 @@
+{
+ "kind": "track-mode-baseline",
+ "startedAt": "2026-11-08T17:41:40.746Z",
+ "build": {
+  "appVersion": "1.0.240",
+  "commit": "faff611799e5f8d8496bc3583faf70515767af61",
+  "dirtyFiles": 2,
+  "swCache": "cross-stitch-cache-v71",
+  "swBuildId": "9580854d2ce9283d7af63b22e2eb2e3bbe39a1e042d7ee76d707467738c67ea9",
+  "served": "working tree via serve.js (not dist/); service workers blocked"
+ },
+ "environment": {
+  "browser": "Chromium 153.0.8010.12 (headless)",
+  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "host": "Linux 6.18.44-fc-v310, 4 x Intel(R) Xeon(R) Processor @ 2.30GHz, 16 GB",
+  "node": "v22.23.4",
+  "profiling": false,
+  "profiles": {
+   "phone": "Pixel 5 emulation (393 x 851, DPR 2.75, touch), 4x CPU throttle",
+   "desktop": "1440 x 900, DPR 1, no throttle"
+  },
+  "caveat": "Emulated. Canvases are drawn in software; CPU throttling scales script, not GPU or raster. Not a physical-device measurement."
+ },
+ "scenarios": {
+  "open-small-50": [
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "small",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 38,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 7,
+     "tbtMs": 346,
+     "longestMs": 166,
+     "top": [
+      166,
+      128,
+      93,
+      91,
+      84
+     ]
+    },
+    "frames": {
+     "n": 1584,
+     "over50": 9,
+     "over100": 3,
+     "worstMs": 183
+    },
+    "react": {
+     "commits": 17
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 8,
+     "scriptMs": 599,
+     "forcedLayoutMs": 2,
+     "renderMs": 82,
+     "totalMs": 1240,
+     "longest": [
+      {
+       "t": 24,
+       "d": 540,
+       "blocking": 0,
+       "renderMs": 4,
+       "scripts": [
+        {
+         "d": 8,
+         "invoker": "http://127.0.0.1:34953/symbol-glyphs.js",
+         "type": "classic-script",
+         "fn": "",
+         "at": "symbol-glyphs.js:1"
+        },
+        {
+         "d": 5,
+         "invoker": "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
+         "type": "classic-script",
+         "fn": "",
+         "at": "ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 1095,
+       "d": 138,
+       "blocking": 79,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 128,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 7,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 1310,
+       "d": 135,
+       "blocking": 26,
+       "renderMs": 8,
+       "scripts": [
+        {
+         "d": 69,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 787,
+       "d": 99,
+       "blocking": 45,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 94,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 892,
+       "d": 95,
+       "blocking": 42,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 91,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 6520,
+       "d": 87,
+       "blocking": 36,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 85,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 88.3,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 0.8,
+       "maxMs": 0.4
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0.3,
+       "maxMs": 0.1
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 2.7,
+       "maxMs": 1.4
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 70.1,
+       "maxMs": 25
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 2.2,
+       "maxMs": 0.9
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 1.3,
+       "maxMs": 0.7
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0.4,
+       "maxMs": 0.4
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 0.8,
+       "maxMs": 0.7
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 66,
+      "p75": 167,
+      "p95": 223,
+      "max": 223
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 58,
+     "localStorageBytes": 1719
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 2.3,
+      "maxSyncMs": 1,
+      "settleMs": 399.9,
+      "maxSettleMs": 246.6
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 941.2,
+      "maxSettleMs": 402.5
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 86,
+      "maxSettleMs": 69.6
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 52,
+      "maxSyncMs": 27.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 70.2,
+      "maxSyncMs": 21.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 46,
+      "maxSyncMs": 46,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 13.4,
+      "maxSyncMs": 13.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0.6,
+      "maxSyncMs": 0.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.3,
+      "settleMs": 538.8,
+      "maxSettleMs": 538.8
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 11.8,
+      "maxSyncMs": 11.8,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.7,
+      "maxSyncMs": 0.7,
+      "settleMs": 335.2,
+      "maxSettleMs": 335.2
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 185.9,
+      "maxSettleMs": 185.9
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 0.9,
+      "maxSyncMs": 0.9,
+      "settleMs": 305.7,
+      "maxSettleMs": 207.7
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.4,
+      "maxMs": 0.4,
+      "rtt": {
+       "n": 1,
+       "p50": 6,
+       "p75": 6,
+       "p95": 6,
+       "max": 6
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0,
+      "maxMs": 0,
+      "rtt": {
+       "n": 1,
+       "p50": 6,
+       "p75": 6,
+       "p95": 6,
+       "max": 6
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 642,
+     "load": 684
+    },
+    "firstFullPaintMs": 1353,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 14.2,
+    "heapAfterGcMb": 12.2,
+    "cpuProfile": null,
+    "cpuProbeMs": 22
+   },
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "small",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 38,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 10,
+     "tbtMs": 462,
+     "longestMs": 176,
+     "top": [
+      176,
+      146,
+      114,
+      101,
+      94
+     ]
+    },
+    "frames": {
+     "n": 1429,
+     "over50": 10,
+     "over100": 4,
+     "worstMs": 200
+    },
+    "react": {
+     "commits": 17
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 11,
+     "scriptMs": 834,
+     "forcedLayoutMs": 3,
+     "renderMs": 92,
+     "totalMs": 1657,
+     "longest": [
+      {
+       "t": 26,
+       "d": 672,
+       "blocking": 8,
+       "renderMs": 6,
+       "scripts": [
+        {
+         "d": 8,
+         "invoker": "http://127.0.0.1:34953/symbol-glyphs.js",
+         "type": "classic-script",
+         "fn": "",
+         "at": "symbol-glyphs.js:1"
+        }
+       ]
+      },
+      {
+       "t": 1524,
+       "d": 156,
+       "blocking": 56,
+       "renderMs": 7,
+       "scripts": [
+        {
+         "d": 73,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 1284,
+       "d": 156,
+       "blocking": 98,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 147,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 7,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 6827,
+       "d": 117,
+       "blocking": 66,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 114,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 923,
+       "d": 104,
+       "blocking": 53,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 102,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 1041,
+       "d": 97,
+       "blocking": 44,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 94,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 90.1,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 1.4,
+       "maxMs": 0.7
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 1,
+       "maxMs": 0.7
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 2.2,
+       "maxMs": 1.5
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 77.5,
+       "maxMs": 26.8
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 0.5,
+       "maxMs": 0.4
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 0.9,
+       "maxMs": 0.8
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 1.3,
+       "maxMs": 1.1
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 86,
+      "p75": 226,
+      "p95": 235,
+      "max": 235
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 58,
+     "localStorageBytes": 1719
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 1.4,
+      "maxSyncMs": 0.9,
+      "settleMs": 409.6,
+      "maxSettleMs": 273.7
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 1.6,
+      "maxSyncMs": 0.8,
+      "settleMs": 1072.5,
+      "maxSettleMs": 437
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 80.5,
+      "maxSettleMs": 57.2
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 55.3,
+      "maxSyncMs": 25.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 83.2,
+      "maxSyncMs": 23.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 57.5,
+      "maxSyncMs": 57.5,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 24,
+      "maxSyncMs": 24,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0.5,
+      "maxSyncMs": 0.5,
+      "settleMs": 576.6,
+      "maxSettleMs": 576.6
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 11.2,
+      "maxSyncMs": 11.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.8,
+      "maxSyncMs": 0.8,
+      "settleMs": 451,
+      "maxSettleMs": 451
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 239.5,
+      "maxSettleMs": 239.5
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 410.3,
+      "maxSettleMs": 266.8
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 1,
+      "maxMs": 1,
+      "rtt": {
+       "n": 1,
+       "p50": 3,
+       "p75": 3,
+       "p95": 3,
+       "max": 3
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0,
+      "maxMs": 0,
+      "rtt": {
+       "n": 1,
+       "p50": 2,
+       "p75": 2,
+       "p95": 2,
+       "max": 2
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 800,
+     "load": 839
+    },
+    "firstFullPaintMs": 1569,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 13.8,
+    "heapAfterGcMb": 12.2,
+    "cpuProfile": null,
+    "cpuProbeMs": 22
+   }
+  ],
+  "open-large-50": [
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 41,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 17,
+     "tbtMs": 15626,
+     "longestMs": 4015,
+     "top": [
+      4015,
+      2922,
+      2357,
+      2046,
+      1043
+     ]
+    },
+    "frames": {
+     "n": 776,
+     "over50": 15,
+     "over100": 14,
+     "worstMs": 4050
+    },
+    "react": {
+     "commits": 14
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 15,
+     "scriptMs": 16210,
+     "forcedLayoutMs": 3,
+     "renderMs": 134,
+     "totalMs": 17066,
+     "longest": [
+      {
+       "t": 7684,
+       "d": 4056,
+       "blocking": 3965,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 4014,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 38,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 18921,
+       "d": 2923,
+       "blocking": 2873,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2922,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 3102,
+       "d": 2364,
+       "blocking": 2307,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 2357,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 1035,
+       "d": 2054,
+       "blocking": 1998,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2047,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 17429,
+       "d": 1060,
+       "blocking": 995,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1043,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 6362,
+       "d": 913,
+       "blocking": 860,
+       "renderMs": 3,
+       "scripts": [
+        {
+         "d": 908,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 2350.6,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0.7,
+       "maxMs": 0.7
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 31.3,
+       "maxMs": 16.4
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 2306.1,
+       "maxMs": 817
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 0.3,
+       "maxMs": 0.1
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 2,
+       "maxMs": 1
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 1.5,
+       "maxMs": 0.7
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 32,
+      "p75": 2948,
+      "p95": 4467,
+      "max": 4467
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 56,
+     "localStorageBytes": 1702
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 1.6,
+      "maxSyncMs": 0.8,
+      "settleMs": 831,
+      "maxSettleMs": 719.3
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 1.8,
+      "maxSyncMs": 0.9,
+      "settleMs": 15456.9,
+      "maxSettleMs": 7223.6
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 102.5,
+      "maxSettleMs": 82.8
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 1343.9,
+      "maxSyncMs": 512.7,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 2044.3,
+      "maxSyncMs": 435.8,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 2045.5,
+      "maxSyncMs": 2045.5,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 541.6,
+      "maxSyncMs": 541.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0.6,
+      "maxSyncMs": 0.6,
+      "settleMs": 1018.7,
+      "maxSettleMs": 1018.7
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 126.3,
+      "maxSyncMs": 126.3,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.8,
+      "maxSyncMs": 0.8,
+      "settleMs": 4758.4,
+      "maxSettleMs": 4758.4
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0.5,
+      "maxSyncMs": 0.5,
+      "settleMs": 3270.3,
+      "maxSettleMs": 3270.3
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 2.1,
+      "maxSyncMs": 1.9,
+      "settleMs": 122.6,
+      "maxSettleMs": 75.9
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0,
+      "maxMs": 0,
+      "rtt": {
+       "n": 1,
+       "p50": 5,
+       "p75": 5,
+       "p95": 5,
+       "max": 5
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0.3,
+      "maxMs": 0.3,
+      "rtt": {
+       "n": 1,
+       "p50": 5,
+       "p75": 5,
+       "p95": 5,
+       "max": 5
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 870,
+     "load": 917
+    },
+    "firstFullPaintMs": 12308,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 306.2,
+    "heapAfterGcMb": 126.9,
+    "cpuProfile": null,
+    "cpuProbeMs": 22
+   },
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 41,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 16,
+     "tbtMs": 15984,
+     "longestMs": 4065,
+     "top": [
+      4065,
+      2725,
+      2595,
+      2046,
+      1098
+     ]
+    },
+    "frames": {
+     "n": 756,
+     "over50": 16,
+     "over100": 14,
+     "worstMs": 4100
+    },
+    "react": {
+     "commits": 15
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 15,
+     "scriptMs": 16609,
+     "forcedLayoutMs": 1,
+     "renderMs": 134,
+     "totalMs": 17466,
+     "longest": [
+      {
+       "t": 8244,
+       "d": 4091,
+       "blocking": 4016,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 4065,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 22,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 3097,
+       "d": 2738,
+       "blocking": 2676,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2725,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 19632,
+       "d": 2600,
+       "blocking": 2547,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2596,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 1026,
+       "d": 2050,
+       "blocking": 1998,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2047,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 18036,
+       "d": 1120,
+       "blocking": 1050,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1098,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 6836,
+       "d": 992,
+       "blocking": 939,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 987,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 2450.2,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 1.4,
+       "maxMs": 0.9
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0.6,
+       "maxMs": 0.6
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0.9,
+       "maxMs": 0.5
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 34.5,
+       "maxMs": 18
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 2399.3,
+       "maxMs": 841.3
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 2.2,
+       "maxMs": 1.1
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 1.7,
+       "maxMs": 0.8
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 1.6,
+       "maxMs": 0.9
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 22,
+      "p75": 2612,
+      "p95": 4859,
+      "max": 4859
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 58,
+     "localStorageBytes": 1719
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 2.1,
+      "maxSyncMs": 1,
+      "settleMs": 804.2,
+      "maxSettleMs": 709
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 16697.3,
+      "maxSettleMs": 7799.6
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 76.8,
+      "maxSettleMs": 66.1
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 1444.7,
+      "maxSyncMs": 598.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 2226.4,
+      "maxSyncMs": 499.3,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 2037.2,
+      "maxSyncMs": 2037.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 474,
+      "maxSyncMs": 474,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0.8,
+      "maxSyncMs": 0.8,
+      "settleMs": 1034,
+      "maxSettleMs": 1034
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 137.9,
+      "maxSyncMs": 137.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 4536.1,
+      "maxSettleMs": 4536.1
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 1.6,
+      "maxSyncMs": 1.6,
+      "settleMs": 2938.3,
+      "maxSettleMs": 2938.3
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 2.1,
+      "maxSyncMs": 1.3,
+      "settleMs": 61.7,
+      "maxSettleMs": 39.9
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.5,
+      "maxMs": 0.5,
+      "rtt": {
+       "n": 1,
+       "p50": 13,
+       "p75": 13,
+       "p95": 13,
+       "max": 13
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0.4,
+      "maxMs": 0.4,
+      "rtt": {
+       "n": 1,
+       "p50": 12,
+       "p75": 12,
+       "p95": 12,
+       "max": 12
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 884,
+     "load": 938
+    },
+    "firstFullPaintMs": 12902,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 426.2,
+    "heapAfterGcMb": 126.9,
+    "cpuProfile": null,
+    "cpuProbeMs": 21
+   }
+  ],
+  "open-huge-50": [
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "huge",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 57,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 8,
+     "tbtMs": 32181,
+     "longestMs": 14621,
+     "top": [
+      14621,
+      5974,
+      5067,
+      2612,
+      2584
+     ]
+    },
+    "frames": {
+     "n": 26,
+     "over50": 5,
+     "over100": 5,
+     "worstMs": 5967
+    },
+    "react": {
+     "commits": 5
+    },
+    "paints": {
+     "full": 0,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 9,
+     "scriptMs": 32623,
+     "forcedLayoutMs": 0,
+     "renderMs": 15,
+     "totalMs": 33399,
+     "longest": [
+      {
+       "t": 18933,
+       "d": 14701,
+       "blocking": 14597,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 14621,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 76,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 6477,
+       "d": 5983,
+       "blocking": 5927,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 5975,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 1384,
+       "d": 5071,
+       "blocking": 5019,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 5067,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 15090,
+       "d": 2614,
+       "blocking": 2564,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2612,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 12490,
+       "d": 2600,
+       "blocking": 2534,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 2584,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 17712,
+       "d": 1221,
+       "blocking": 1169,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 1218,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 4162.5,
+     "byStore": {
+      "manager_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "project_meta.getAll": {
+       "n": 1,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0.8,
+       "maxMs": 0.7
+      },
+      "projects.get": {
+       "n": 4,
+       "ms": 0.2,
+       "maxMs": 0.2
+      },
+      "pendingImports.get": {
+       "n": 4,
+       "ms": 0.6,
+       "maxMs": 0.5
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 70.3,
+       "maxMs": 35.8
+      },
+      "projects.put": {
+       "n": 2,
+       "ms": 4083.2,
+       "maxMs": 2181.3
+      },
+      "project_meta.put": {
+       "n": 2,
+       "ms": 1.2,
+       "maxMs": 0.7
+      },
+      "stats_summaries.put": {
+       "n": 2,
+       "ms": 1.2,
+       "maxMs": 0.7
+      },
+      "project_meta.get": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      }
+     },
+     "writeTx": 3,
+     "writeTxMs": {
+      "n": 3,
+      "p50": 5130,
+      "p75": 11117,
+      "p95": 11117,
+      "max": 11117
+     },
+     "writeTxByStore": {
+      "manager_state": 1,
+      "projects,project_meta,stats_summaries,pendingImports": 2
+     },
+     "localStorageWrites": 39,
+     "localStorageBytes": 531
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 106,
+      "maxSettleMs": 106
+     },
+     "ProjectStorage.get": {
+      "n": 2,
+      "syncMs": 1.8,
+      "maxSyncMs": 1.7,
+      "settleMs": 36478.9,
+      "maxSettleMs": 18812
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 98.4,
+      "maxSettleMs": 98.4
+     },
+     "TrackingSync.record": {
+      "n": 2,
+      "syncMs": 2209.4,
+      "maxSyncMs": 1209.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 3,
+      "syncMs": 3380.2,
+      "maxSyncMs": 1193.5,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 7142.7,
+      "maxSyncMs": 7142.7,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {},
+    "nav": {
+     "domContentLoaded": 1200,
+     "load": 1242
+    },
+    "firstFullPaintMs": 38095,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 0,
+    "windowMs": 30000,
+    "heapMb": 911.8,
+    "heapAfterGcMb": 272.9,
+    "cpuProfile": null,
+    "cpuProbeMs": 21
+   },
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "huge",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 56,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 8,
+     "tbtMs": 33789,
+     "longestMs": 15462,
+     "top": [
+      15462,
+      6471,
+      5542,
+      2687,
+      2491
+     ]
+    },
+    "frames": {
+     "n": 28,
+     "over50": 6,
+     "over100": 5,
+     "worstMs": 6450
+    },
+    "react": {
+     "commits": 5
+    },
+    "paints": {
+     "full": 0,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 9,
+     "scriptMs": 34217,
+     "forcedLayoutMs": 0,
+     "renderMs": 11,
+     "totalMs": 34933,
+     "longest": [
+      {
+       "t": 19766,
+       "d": 15462,
+       "blocking": 15412,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 15462,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        }
+       ]
+      },
+      {
+       "t": 6802,
+       "d": 6475,
+       "blocking": 6423,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 6471,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 1220,
+       "d": 5545,
+       "blocking": 5495,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 5543,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 15806,
+       "d": 2692,
+       "blocking": 2639,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2688,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 13299,
+       "d": 2506,
+       "blocking": 2442,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2491,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 18498,
+       "d": 1178,
+       "blocking": 1126,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1175,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 4525.6,
+     "byStore": {
+      "manager_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "project_meta.getAll": {
+       "n": 1,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "projects.get": {
+       "n": 4,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 4,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 72.4,
+       "maxMs": 41.1
+      },
+      "projects.put": {
+       "n": 2,
+       "ms": 4446.7,
+       "maxMs": 2312.3
+      },
+      "project_meta.put": {
+       "n": 2,
+       "ms": 0.5,
+       "maxMs": 0.4
+      },
+      "stats_summaries.put": {
+       "n": 2,
+       "ms": 1.8,
+       "maxMs": 1
+      },
+      "project_meta.get": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      }
+     },
+     "writeTx": 3,
+     "writeTxMs": {
+      "n": 3,
+      "p50": 5600,
+      "p75": 12090,
+      "p95": 12090,
+      "max": 12090
+     },
+     "writeTxByStore": {
+      "manager_state": 1,
+      "projects,project_meta,stats_summaries,pendingImports": 2
+     },
+     "localStorageWrites": 39,
+     "localStorageBytes": 531
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 1,
+      "syncMs": 0.9,
+      "maxSyncMs": 0.9,
+      "settleMs": 102.5,
+      "maxSettleMs": 102.5
+     },
+     "ProjectStorage.get": {
+      "n": 2,
+      "syncMs": 1.1,
+      "maxSyncMs": 1,
+      "settleMs": 38494.4,
+      "maxSettleMs": 19922.3
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 94.6,
+      "maxSettleMs": 94.6
+     },
+     "TrackingSync.record": {
+      "n": 2,
+      "syncMs": 2473,
+      "maxSyncMs": 1329.5,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 3,
+      "syncMs": 3530.6,
+      "maxSyncMs": 1243.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 7452.2,
+      "maxSyncMs": 7452.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {},
+    "nav": {
+     "domContentLoaded": 1019,
+     "load": 1084
+    },
+    "firstFullPaintMs": 38428,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 0,
+    "windowMs": 30000,
+    "heapMb": 320.1,
+    "heapAfterGcMb": 272.9,
+    "cpuProfile": null,
+    "cpuProbeMs": 22
+   }
+  ],
+  "open-large-50-history": [
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 50000,
+    "collection": null,
+    "wallS": 41,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 22,
+     "tbtMs": 16935,
+     "longestMs": 4155,
+     "top": [
+      4155,
+      2715,
+      2280,
+      2028,
+      1083
+     ]
+    },
+    "frames": {
+     "n": 693,
+     "over50": 19,
+     "over100": 16,
+     "worstMs": 4200
+    },
+    "react": {
+     "commits": 14
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 19,
+     "scriptMs": 17686,
+     "forcedLayoutMs": 2,
+     "renderMs": 182,
+     "totalMs": 18555,
+     "longest": [
+      {
+       "t": 7730,
+       "d": 4196,
+       "blocking": 4106,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 4155,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 38,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 19200,
+       "d": 2724,
+       "blocking": 2667,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2716,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 2993,
+       "d": 2290,
+       "blocking": 2230,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 2280,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 945,
+       "d": 2039,
+       "blocking": 1980,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2029,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        },
+        {
+         "d": 5,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 17696,
+       "d": 1086,
+       "blocking": 1034,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1084,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 5295,
+       "d": 1030,
+       "blocking": 973,
+       "renderMs": 3,
+       "scripts": [
+        {
+         "d": 1020,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 2595.1,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 0.5,
+       "maxMs": 0.5
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.7,
+       "maxMs": 0.7
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 36.9,
+       "maxMs": 19.3
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 2290.5,
+       "maxMs": 860.3
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 0.8,
+       "maxMs": 0.6
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 1.6,
+       "maxMs": 0.9
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 260.1,
+       "maxMs": 259.3
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 1252,
+      "p75": 2730,
+      "p95": 4359,
+      "max": 4359
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 56,
+     "localStorageBytes": 1702
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 1.7,
+      "maxSyncMs": 1,
+      "settleMs": 836.1,
+      "maxSettleMs": 746.2
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.2,
+      "settleMs": 15678.8,
+      "maxSettleMs": 7309.8
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 170,
+      "maxSettleMs": 104.2
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 1325.7,
+      "maxSyncMs": 492,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 2095.8,
+      "maxSyncMs": 484.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 2039.3,
+      "maxSyncMs": 2039.3,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 525,
+      "maxSyncMs": 525,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 7.7,
+      "maxSyncMs": 7.7,
+      "settleMs": 2277.2,
+      "maxSettleMs": 2277.2
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 96,
+      "maxSyncMs": 96,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 74.3,
+      "maxSyncMs": 74.3,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 104,
+      "maxSyncMs": 59,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 182.8,
+      "maxSyncMs": 182.8,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 4587.2,
+      "maxSettleMs": 4587.2
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 3074.1,
+      "maxSettleMs": 3074.1
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 0.8,
+      "maxSyncMs": 0.8,
+      "settleMs": 54.7,
+      "maxSettleMs": 37.4
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.4,
+      "maxMs": 0.4,
+      "rtt": {
+       "n": 1,
+       "p50": 9,
+       "p75": 9,
+       "p95": 9,
+       "max": 9
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0.2,
+      "maxMs": 0.2,
+      "rtt": {
+       "n": 1,
+       "p50": 9,
+       "p75": 9,
+       "p95": 9,
+       "max": 9
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 819,
+     "load": 852
+    },
+    "firstFullPaintMs": 12512,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 264.6,
+    "heapAfterGcMb": 142.3,
+    "cpuProfile": null,
+    "cpuProbeMs": 22
+   },
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 50000,
+    "collection": null,
+    "wallS": 41,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 20,
+     "tbtMs": 16252,
+     "longestMs": 3823,
+     "top": [
+      3823,
+      2736,
+      2067,
+      1676,
+      1156
+     ]
+    },
+    "frames": {
+     "n": 737,
+     "over50": 17,
+     "over100": 17,
+     "worstMs": 3800
+    },
+    "react": {
+     "commits": 12
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 19,
+     "scriptMs": 16963,
+     "forcedLayoutMs": 2,
+     "renderMs": 167,
+     "totalMs": 17752,
+     "longest": [
+      {
+       "t": 7111,
+       "d": 3825,
+       "blocking": 3775,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 3823,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        }
+       ]
+      },
+      {
+       "t": 18473,
+       "d": 2738,
+       "blocking": 2688,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2736,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 2575,
+       "d": 2073,
+       "blocking": 2017,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 2067,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 881,
+       "d": 1679,
+       "blocking": 1628,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 1676,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 16816,
+       "d": 1159,
+       "blocking": 1108,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1157,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 5644,
+       "d": 1038,
+       "blocking": 985,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1033,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 2424.2,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 1.7,
+       "maxMs": 0.7
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 1.4,
+       "maxMs": 0.8
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 32.7,
+       "maxMs": 17.3
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 2139.7,
+       "maxMs": 811.7
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 1.3,
+       "maxMs": 0.7
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 2.1,
+       "maxMs": 1.1
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 1.1,
+       "maxMs": 0.9
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 240.7,
+       "maxMs": 239.7
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 1244,
+      "p75": 2771,
+      "p95": 3796,
+      "max": 3796
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 56,
+     "localStorageBytes": 1702
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 1,
+      "maxSyncMs": 0.8,
+      "settleMs": 958.2,
+      "maxSettleMs": 865.9
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 0.4,
+      "maxSyncMs": 0.3,
+      "settleMs": 14634.5,
+      "maxSettleMs": 6743.4
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 120.5,
+      "maxSettleMs": 60.3
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 1117.7,
+      "maxSyncMs": 422.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 2071.8,
+      "maxSyncMs": 451.7,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 1963.9,
+      "maxSyncMs": 1963.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 449.1,
+      "maxSyncMs": 449.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 1,
+      "maxSyncMs": 1,
+      "settleMs": 2361.5,
+      "maxSettleMs": 2361.5
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 74.6,
+      "maxSyncMs": 74.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 67.8,
+      "maxSyncMs": 67.8,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 76.9,
+      "maxSyncMs": 42.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 198.6,
+      "maxSyncMs": 198.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.3,
+      "settleMs": 4751.5,
+      "maxSettleMs": 4751.5
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 1.1,
+      "maxSyncMs": 1.1,
+      "settleMs": 3111.5,
+      "maxSettleMs": 3111.5
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 2,
+      "maxSyncMs": 1.2,
+      "settleMs": 62.7,
+      "maxSettleMs": 37.1
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.9,
+      "maxMs": 0.9,
+      "rtt": {
+       "n": 1,
+       "p50": 15,
+       "p75": 15,
+       "p95": 15,
+       "max": 15
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0,
+      "maxMs": 0,
+      "rtt": {
+       "n": 1,
+       "p50": 14,
+       "p75": 14,
+       "p95": 14,
+       "max": 14
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 749,
+     "load": 788
+    },
+    "firstFullPaintMs": 11618,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 150.6,
+    "heapAfterGcMb": 142.3,
+    "cpuProfile": null,
+    "cpuProbeMs": 22
+   }
+  ],
+  "open-large-50-collection": [
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": {
+     "n": 150,
+     "side": 120
+    },
+    "wallS": 45,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 17,
+     "tbtMs": 16107,
+     "longestMs": 4146,
+     "top": [
+      4146,
+      2654,
+      2489,
+      1882,
+      1265
+     ]
+    },
+    "frames": {
+     "n": 746,
+     "over50": 16,
+     "over100": 14,
+     "worstMs": 4200
+    },
+    "react": {
+     "commits": 15
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 16,
+     "scriptMs": 16731,
+     "forcedLayoutMs": 2,
+     "renderMs": 142,
+     "totalMs": 17572,
+     "longest": [
+      {
+       "t": 7885,
+       "d": 4190,
+       "blocking": 4097,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 4146,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 40,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 19608,
+       "d": 2656,
+       "blocking": 2605,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2654,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 2876,
+       "d": 2498,
+       "blocking": 2440,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 2489,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 979,
+       "d": 1887,
+       "blocking": 1833,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1882,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 17841,
+       "d": 1267,
+       "blocking": 1216,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1265,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 6370,
+       "d": 1039,
+       "blocking": 986,
+       "renderMs": 3,
+       "scripts": [
+        {
+         "d": 1033,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 2434.4,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 1.3,
+       "maxMs": 0.9
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0.5,
+       "maxMs": 0.4
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0.5,
+       "maxMs": 0.5
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 34.7,
+       "maxMs": 17.8
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 2369.7,
+       "maxMs": 844.1
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 1.2,
+       "maxMs": 0.8
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 1.7,
+       "maxMs": 1.1
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0.8,
+       "maxMs": 0.8
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 13.2,
+       "maxMs": 7.7
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 36,
+      "p75": 2702,
+      "p95": 4431,
+      "max": 4431
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 56,
+     "localStorageBytes": 1702
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 1.1,
+      "maxSyncMs": 0.9,
+      "settleMs": 916,
+      "maxSettleMs": 775
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 1.1,
+      "maxSyncMs": 1,
+      "settleMs": 16195,
+      "maxSettleMs": 7430.3
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 109.3,
+      "maxSettleMs": 87.9
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 1326.9,
+      "maxSyncMs": 466.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 2112.8,
+      "maxSyncMs": 454.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 2160.9,
+      "maxSyncMs": 2160.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 514.7,
+      "maxSyncMs": 514.7,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 1.1,
+      "maxSyncMs": 1.1,
+      "settleMs": 1055,
+      "maxSettleMs": 1055
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 173.5,
+      "maxSyncMs": 173.5,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 1,
+      "maxSyncMs": 1,
+      "settleMs": 4815.6,
+      "maxSettleMs": 4815.6
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 1.1,
+      "maxSyncMs": 1.1,
+      "settleMs": 3066.5,
+      "maxSettleMs": 3066.5
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 1.1,
+      "maxSyncMs": 0.6,
+      "settleMs": 152.7,
+      "maxSettleMs": 94
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.1,
+      "maxMs": 0.1,
+      "rtt": {
+       "n": 1,
+       "p50": 9,
+       "p75": 9,
+       "p95": 9,
+       "max": 9
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0,
+      "maxMs": 0,
+      "rtt": {
+       "n": 1,
+       "p50": 8,
+       "p75": 8,
+       "p95": 8,
+       "max": 8
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 810,
+     "load": 850
+    },
+    "firstFullPaintMs": 12677,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 236.4,
+    "heapAfterGcMb": 127.2,
+    "cpuProfile": null,
+    "cpuProbeMs": 22
+   },
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": {
+     "n": 150,
+     "side": 120
+    },
+    "wallS": 45,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 15,
+     "tbtMs": 15122,
+     "longestMs": 4071,
+     "top": [
+      4071,
+      2636,
+      2061,
+      1882,
+      1068
+     ]
+    },
+    "frames": {
+     "n": 806,
+     "over50": 15,
+     "over100": 14,
+     "worstMs": 4116
+    },
+    "react": {
+     "commits": 15
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 16,
+     "scriptMs": 15849,
+     "forcedLayoutMs": 2,
+     "renderMs": 125,
+     "totalMs": 16647,
+     "longest": [
+      {
+       "t": 7276,
+       "d": 4108,
+       "blocking": 4022,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 4071,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 33,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 18698,
+       "d": 2655,
+       "blocking": 2587,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2636,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 2818,
+       "d": 2071,
+       "blocking": 2013,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2062,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 922,
+       "d": 1889,
+       "blocking": 1833,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1882,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 17058,
+       "d": 1091,
+       "blocking": 1020,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1068,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 4913,
+       "d": 978,
+       "blocking": 928,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 976,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 2188.4,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 1.2,
+       "maxMs": 1.1
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 1,
+       "maxMs": 0.7
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0.5,
+       "maxMs": 0.3
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 34.8,
+       "maxMs": 17.5
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 2126.7,
+       "maxMs": 786.4
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 1,
+       "maxMs": 0.6
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 1.8,
+       "maxMs": 0.8
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0.3,
+       "maxMs": 0.2
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 15.6,
+       "maxMs": 8.4
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 30,
+      "p75": 2694,
+      "p95": 4004,
+      "max": 4004
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 56,
+     "localStorageBytes": 1702
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 806.3,
+      "maxSettleMs": 690.9
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.1,
+      "settleMs": 14887.2,
+      "maxSettleMs": 6814.6
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 91.8,
+      "maxSettleMs": 72.3
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 1088.6,
+      "maxSyncMs": 376.8,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 2087,
+      "maxSyncMs": 502.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 2087.8,
+      "maxSyncMs": 2087.8,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 460.3,
+      "maxSyncMs": 460.3,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 1,
+      "maxSyncMs": 1,
+      "settleMs": 952.3,
+      "maxSettleMs": 952.3
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 133.9,
+      "maxSyncMs": 133.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 4683,
+      "maxSettleMs": 4683
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 1.9,
+      "maxSyncMs": 1.9,
+      "settleMs": 3045.5,
+      "maxSettleMs": 3045.5
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 152.3,
+      "maxSettleMs": 104.2
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.1,
+      "maxMs": 0.1,
+      "rtt": {
+       "n": 1,
+       "p50": 7,
+       "p75": 7,
+       "p95": 7,
+       "max": 7
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0,
+      "maxMs": 0,
+      "rtt": {
+       "n": 1,
+       "p50": 7,
+       "p75": 7,
+       "p95": 7,
+       "max": 7
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 757,
+     "load": 823
+    },
+    "firstFullPaintMs": 11931,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 230.9,
+    "heapAfterGcMb": 127.2,
+    "cpuProfile": null,
+    "cpuProbeMs": 21
+   }
+  ],
+  "open-huge-50-desktop": [
+   {
+    "profile": "desktop",
+    "fixture": {
+     "size": "huge",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 47,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 13,
+     "tbtMs": 10464,
+     "longestMs": 3078,
+     "top": [
+      3078,
+      1622,
+      1285,
+      907,
+      843
+     ]
+    },
+    "frames": {
+     "n": 1107,
+     "over50": 13,
+     "over100": 12,
+     "worstMs": 3067
+    },
+    "react": {
+     "commits": 13
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 13,
+     "scriptMs": 11383,
+     "forcedLayoutMs": 0,
+     "renderMs": 24,
+     "totalMs": 11802,
+     "longest": [
+      {
+       "t": 4770,
+       "d": 3078,
+       "blocking": 3028,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 3078,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        }
+       ]
+      },
+      {
+       "t": 14719,
+       "d": 1630,
+       "blocking": 1573,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 1617,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 2051,
+       "d": 1286,
+       "blocking": 1235,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 1285,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 9,
+       "d": 977,
+       "blocking": 534,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 316,
+         "invoker": "DOMWindow.onpagehide",
+         "type": "event-listener",
+         "fn": "handleBeforeUnload",
+         "at": "compiled/tracker-app.compiled.js:1043"
+        },
+        {
+         "d": 280,
+         "invoker": "IDBOpenDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "helpers.js:649"
+        },
+        {
+         "d": 26,
+         "invoker": "#document.onvisibilitychange",
+         "type": "event-listener",
+         "fn": "onVisibility",
+         "at": "compiled/tracker-app.compiled.js:1077"
+        }
+       ]
+      },
+      {
+       "t": 1095,
+       "d": 910,
+       "blocking": 858,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 908,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 7849,
+       "d": 866,
+       "blocking": 815,
+       "renderMs": 22,
+       "scripts": [
+        {
+         "d": 843,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 1093.3,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 15.4,
+       "maxMs": 8.6
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 1075.6,
+       "maxMs": 378.5
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 0.5,
+       "maxMs": 0.2
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 0.3,
+       "maxMs": 0.1
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 20,
+      "p75": 1671,
+      "p95": 2291,
+      "max": 2291
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 56,
+     "localStorageBytes": 1698
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.2,
+      "settleMs": 965.4,
+      "maxSettleMs": 915.3
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 0.4,
+      "maxSyncMs": 0.2,
+      "settleMs": 8447.4,
+      "maxSettleMs": 3924.4
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 33,
+      "maxSettleMs": 21.8
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 561.7,
+      "maxSyncMs": 204.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 984.8,
+      "maxSyncMs": 220.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 1561.6,
+      "maxSyncMs": 1561.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 389.9,
+      "maxSyncMs": 389.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 987.9,
+      "maxSettleMs": 987.9
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 104.4,
+      "maxSyncMs": 104.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 3233.3,
+      "maxSettleMs": 3233.3
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 2400.5,
+      "maxSettleMs": 2400.5
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.2,
+      "settleMs": 53.2,
+      "maxSettleMs": 31.8
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0,
+      "maxMs": 0,
+      "rtt": {
+       "n": 1,
+       "p50": 5,
+       "p75": 5,
+       "p95": 5,
+       "max": 5
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0.1,
+      "maxMs": 0.1,
+      "rtt": {
+       "n": 1,
+       "p50": 5,
+       "p75": 5,
+       "p95": 5,
+       "max": 5
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 1039,
+     "load": 1059
+    },
+    "firstFullPaintMs": 8740,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 305.3,
+    "heapAfterGcMb": 285.7,
+    "cpuProfile": null,
+    "cpuProbeMs": 5
+   },
+   {
+    "profile": "desktop",
+    "fixture": {
+     "size": "huge",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 47,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 13,
+     "tbtMs": 10510,
+     "longestMs": 2956,
+     "top": [
+      2956,
+      1826,
+      1280,
+      1019,
+      872
+     ]
+    },
+    "frames": {
+     "n": 1110,
+     "over50": 14,
+     "over100": 13,
+     "worstMs": 2967
+    },
+    "react": {
+     "commits": 14
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 15,
+     "scriptMs": 11168,
+     "forcedLayoutMs": 0,
+     "renderMs": 26,
+     "totalMs": 11822,
+     "longest": [
+      {
+       "t": 4344,
+       "d": 2972,
+       "blocking": 2907,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2957,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 14,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 14229,
+       "d": 1835,
+       "blocking": 1777,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 1827,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 1576,
+       "d": 1293,
+       "blocking": 1230,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 1280,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 510,
+       "d": 1027,
+       "blocking": 970,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 1019,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 7316,
+       "d": 895,
+       "blocking": 844,
+       "renderMs": 22,
+       "scripts": [
+        {
+         "d": 873,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 16070,
+       "d": 825,
+       "blocking": 747,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 797,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:612"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 1274.7,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 0.4,
+       "maxMs": 0.2
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0.3,
+       "maxMs": 0.1
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 14.2,
+       "maxMs": 7.3
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 1256.5,
+       "maxMs": 439.9
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 0.3,
+       "maxMs": 0.1
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 0.4,
+       "maxMs": 0.2
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 0.3,
+       "maxMs": 0.1
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 14,
+      "p75": 1884,
+      "p95": 2412,
+      "max": 2412
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 58,
+     "localStorageBytes": 1715
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 0.5,
+      "maxSyncMs": 0.3,
+      "settleMs": 983.5,
+      "maxSettleMs": 949.3
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.1,
+      "settleMs": 8774.2,
+      "maxSettleMs": 4069.4
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 31.6,
+      "maxSettleMs": 19.9
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 607.8,
+      "maxSyncMs": 213.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 966.8,
+      "maxSyncMs": 221.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 1468.3,
+      "maxSyncMs": 1468.3,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 382.1,
+      "maxSyncMs": 382.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 1017.4,
+      "maxSettleMs": 1017.4
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 112.2,
+      "maxSyncMs": 112.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 3527.5,
+      "maxSettleMs": 3527.5
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 2680.8,
+      "maxSettleMs": 2680.8
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 55.8,
+      "maxSettleMs": 31.7
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.1,
+      "maxMs": 0.1,
+      "rtt": {
+       "n": 1,
+       "p50": 4,
+       "p75": 4,
+       "p95": 4,
+       "max": 4
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0.2,
+      "maxMs": 0.2,
+      "rtt": {
+       "n": 1,
+       "p50": 4,
+       "p75": 4,
+       "p95": 4,
+       "max": 4
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 463,
+     "load": 490
+    },
+    "firstFullPaintMs": 8238,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 304.8,
+    "heapAfterGcMb": 285.7,
+    "cpuProfile": null,
+    "cpuProbeMs": 10
+   }
+  ],
+  "open-large-50-desktop": [
+   {
+    "profile": "desktop",
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 41,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 11,
+     "tbtMs": 2637,
+     "longestMs": 791,
+     "top": [
+      791,
+      536,
+      466,
+      415,
+      218
+     ]
+    },
+    "frames": {
+     "n": 1599,
+     "over50": 11,
+     "over100": 8,
+     "worstMs": 800
+    },
+    "react": {
+     "commits": 15
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 13,
+     "scriptMs": 3223,
+     "forcedLayoutMs": 0,
+     "renderMs": 19,
+     "totalMs": 3702,
+     "longest": [
+      {
+       "t": 1992,
+       "d": 802,
+       "blocking": 743,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 792,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 9,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 901,
+       "d": 545,
+       "blocking": 487,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 536,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 8284,
+       "d": 473,
+       "blocking": 417,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 467,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 468,
+       "d": 416,
+       "blocking": 365,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 415,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 9,
+       "d": 366,
+       "blocking": 0,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 12,
+         "invoker": "#document.onvisibilitychange",
+         "type": "event-listener",
+         "fn": "onVisibility",
+         "at": "compiled/tracker-app.compiled.js:1077"
+        },
+        {
+         "d": 11,
+         "invoker": "DOMWindow.onpagehide",
+         "type": "event-listener",
+         "fn": "handleBeforeUnload",
+         "at": "compiled/tracker-app.compiled.js:1043"
+        }
+       ]
+      },
+      {
+       "t": 7970,
+       "d": 228,
+       "blocking": 167,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 217,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 410.8,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.5,
+       "maxMs": 0.2
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 7.2,
+       "maxMs": 3.9
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 400.5,
+       "maxMs": 168.3
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 0.3,
+       "maxMs": 0.1
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 0.3,
+       "maxMs": 0.1
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 0.3,
+       "maxMs": 0.1
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 17,
+      "p75": 478,
+      "p95": 999,
+      "max": 999
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 58,
+     "localStorageBytes": 1715
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.2,
+      "settleMs": 170.3,
+      "maxSettleMs": 144.9
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 3505.8,
+      "maxSettleMs": 1639.7
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 17.8,
+      "maxSettleMs": 11.2
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 233,
+      "maxSyncMs": 102.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 381,
+      "maxSyncMs": 84.8,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 393.6,
+      "maxSyncMs": 393.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 106.1,
+      "maxSyncMs": 106.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 211.8,
+      "maxSettleMs": 211.8
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 38.7,
+      "maxSyncMs": 38.7,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 877,
+      "maxSettleMs": 877
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 558.5,
+      "maxSettleMs": 558.5
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.2,
+      "settleMs": 42,
+      "maxSettleMs": 31.4
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.1,
+      "maxMs": 0.1,
+      "rtt": {
+       "n": 1,
+       "p50": 4,
+       "p75": 4,
+       "p95": 4,
+       "max": 4
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0.1,
+      "maxMs": 0.1,
+      "rtt": {
+       "n": 1,
+       "p50": 4,
+       "p75": 4,
+       "p95": 4,
+       "max": 4
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 424,
+     "load": 448
+    },
+    "firstFullPaintMs": 2922,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 136.3,
+    "heapAfterGcMb": 127.7,
+    "cpuProfile": null,
+    "cpuProbeMs": 5
+   },
+   {
+    "profile": "desktop",
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 41,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 11,
+     "tbtMs": 2705,
+     "longestMs": 812,
+     "top": [
+      812,
+      503,
+      461,
+      411,
+      237
+     ]
+    },
+    "frames": {
+     "n": 1587,
+     "over50": 12,
+     "over100": 8,
+     "worstMs": 817
+    },
+    "react": {
+     "commits": 15
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 14,
+     "scriptMs": 3295,
+     "forcedLayoutMs": 0,
+     "renderMs": 29,
+     "totalMs": 3882,
+     "longest": [
+      {
+       "t": 1983,
+       "d": 822,
+       "blocking": 764,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 813,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 9,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 8386,
+       "d": 511,
+       "blocking": 454,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 504,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 930,
+       "d": 463,
+       "blocking": 411,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 461,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 499,
+       "d": 419,
+       "blocking": 362,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 412,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 8,
+       "d": 381,
+       "blocking": 0,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 13,
+         "invoker": "#document.onvisibilitychange",
+         "type": "event-listener",
+         "fn": "onVisibility",
+         "at": "compiled/tracker-app.compiled.js:1077"
+        },
+        {
+         "d": 12,
+         "invoker": "DOMWindow.onpagehide",
+         "type": "event-listener",
+         "fn": "handleBeforeUnload",
+         "at": "compiled/tracker-app.compiled.js:1043"
+        }
+       ]
+      },
+      {
+       "t": 1644,
+       "d": 239,
+       "blocking": 188,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 238,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 427.3,
+     "byStore": {
+      "manager_state.get": {
+       "n": 11,
+       "ms": 0.3,
+       "maxMs": 0.1
+      },
+      "project_meta.getAll": {
+       "n": 4,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "projects.get": {
+       "n": 6,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 6,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 8.5,
+       "maxMs": 5.3
+      },
+      "projects.put": {
+       "n": 3,
+       "ms": 415.7,
+       "maxMs": 154.8
+      },
+      "project_meta.put": {
+       "n": 3,
+       "ms": 0.5,
+       "maxMs": 0.3
+      },
+      "stats_summaries.put": {
+       "n": 3,
+       "ms": 0.4,
+       "maxMs": 0.2
+      },
+      "project_meta.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.put": {
+       "n": 4,
+       "ms": 0.4,
+       "maxMs": 0.2
+      }
+     },
+     "writeTx": 7,
+     "writeTxMs": {
+      "n": 7,
+      "p50": 8,
+      "p75": 513,
+      "p95": 918,
+      "max": 918
+     },
+     "writeTxByStore": {
+      "manager_state": 4,
+      "projects,project_meta,stats_summaries,pendingImports": 3
+     },
+     "localStorageWrites": 58,
+     "localStorageBytes": 1715
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 4,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.2,
+      "settleMs": 263.4,
+      "maxSettleMs": 234.2
+     },
+     "ProjectStorage.get": {
+      "n": 3,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 3416.6,
+      "maxSettleMs": 1587.3
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 18.5,
+      "maxSettleMs": 14.7
+     },
+     "TrackingSync.record": {
+      "n": 3,
+      "syncMs": 256.7,
+      "maxSyncMs": 111.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 5,
+      "syncMs": 408.5,
+      "maxSyncMs": 94.7,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 389.4,
+      "maxSyncMs": 389.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 120.2,
+      "maxSyncMs": 120.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.3,
+      "settleMs": 290.2,
+      "maxSettleMs": 290.2
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 44.2,
+      "maxSyncMs": 44.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.2,
+      "maxSyncMs": 0.2,
+      "settleMs": 921.3,
+      "maxSettleMs": 921.3
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 594.8,
+      "maxSettleMs": 594.8
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 2,
+      "syncMs": 0.3,
+      "maxSyncMs": 0.2,
+      "settleMs": 44,
+      "maxSettleMs": 31.6
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.1,
+      "maxMs": 0.1,
+      "rtt": {
+       "n": 1,
+       "p50": 4,
+       "p75": 4,
+       "p95": 4,
+       "max": 4
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0,
+      "maxMs": 0,
+      "rtt": {
+       "n": 1,
+       "p50": 4,
+       "p75": 4,
+       "p95": 4,
+       "max": 4
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 445,
+     "load": 475
+    },
+    "firstFullPaintMs": 3014,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 1,
+    "windowMs": 30000,
+    "heapMb": 136.2,
+    "heapAfterGcMb": 127.7,
+    "cpuProfile": null,
+    "cpuProbeMs": 6
+   }
+  ]
+ }
+}
