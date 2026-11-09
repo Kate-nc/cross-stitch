@@ -12,7 +12,9 @@ function block(a, b) {
 }
 
 test('the tracker hands the header a real save status, not the static default', () => {
-  expect(src).toMatch(/<Header page="tracker"[^\n]*saveStatus=\{saveStatus\} savedAt=\{savedAt\} saveError=\{saveError\} onRetrySave=\{retrySave\}/);
+  expect(src).toMatch(/<TrackerSaveHeader saveStore=\{saveStore\} page="tracker"[^\n]*onRetrySave=\{retrySave\}/);
+  expect(src).toContain("React.useSyncExternalStore(saveStore.subscribe,saveStore.getSnapshot,saveStore.getSnapshot)");
+  expect(src).toMatch(/<Header \{\.\.\.props\} saveStatus=\{saveStatus\} savedAt=\{savedAt\} saveError=\{saveError\}/);
 });
 
 describe('status derivation', () => {

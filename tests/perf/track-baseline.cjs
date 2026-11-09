@@ -520,7 +520,7 @@ const SCENARIOS = [
 
 /* ── Main ───────────────────────────────────────────────────────────────── */
 
-(async () => {
+if (require.main === module) (async () => {
   const only = (process.env.ONLY || '').split(',').filter(Boolean);
   const list = SCENARIOS.filter((s) => !only.length || only.some((o) => s.id.includes(o)));
   const repeats = +process.env.REPEATS || 1;
@@ -574,4 +574,4 @@ const SCENARIOS = [
   console.log('wrote ' + path.relative(ROOT, out));
 })().catch((e) => { console.error(e); process.exit(1); });
 
-module.exports = { dist };
+module.exports = { dist, startServer, newCtx, runMarking, buildInfo };

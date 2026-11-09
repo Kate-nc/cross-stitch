@@ -128,14 +128,15 @@ describe('tracker-app.js wiring', () => {
     expect(chip).toContain('Mark all done');
     expect(chip).not.toMatch(/>\s*\{?" ?Undo/);
     expect(chip).not.toMatch(/Icons\.undo/);
-    expect(chip).toContain('confirmAndMarkColour(p,!complete)');
+    expect(chip).toContain('actions("mark",p,!complete)');
+    expect(trackerSrc).toContain('mark:confirmAndMarkColour');
     // The accessible name carries the full text and the colour.
     expect(chip).toMatch(/aria-label=\{\(complete\?"Mark all not done: ":"Mark all done: "\)\+colourDoneName\(p\)\}/);
   });
 
   test('the chip click is separate from selecting the colour', () => {
     expect(trackerSrc).toMatch(/className="ppal-tile-actions" onClick=\{e=>e\.stopPropagation\(\)\}/);
-    expect(trackerSrc).toMatch(/onClick=\{e=>\{e\.stopPropagation\(\);confirmAndMarkColour\(p,!complete\);\}\}/);
+    expect(trackerSrc).toMatch(/onClick=\{e=>\{e\.stopPropagation\(\);actions\("mark",p,!complete\);\}\}/);
   });
 
   test('the confirmation uses the styled dialog and then the existing catch-up flow', () => {
@@ -226,7 +227,8 @@ describe('review follow-ups', () => {
   test('the Lines chip asks first, is named for what it does and offers Undo', () => {
     const start = trackerSrc.indexOf('className="ppal-tile-done-btn ppal-tile-bs-btn"');
     const chip = trackerSrc.slice(start, trackerSrc.indexOf('</button>}', start));
-    expect(chip).toContain('confirmAndMarkBsOfColour(p)');
+    expect(chip).toContain('actions("backstitch",p)');
+    expect(trackerSrc).toContain('backstitch:confirmAndMarkBsOfColour');
     expect(chip).toContain('Mark all lines not done');
     expect(chip).toContain('Mark all lines done');
     expect(chip).not.toMatch(/>\s*\{" Lines"\}/);

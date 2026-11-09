@@ -59,7 +59,8 @@ describe('Multi-colour parking — source assertions', () => {
   test('the palette P badge goes to where the thread is parked', () => {
     // A badge that looked like a status chip but hid the markers was easy
     // to misread; Markup R-XP uses its P to say where a thread is parked.
-    expect(src).toMatch(/className="ppal-tile-park-btn"\s*onClick=\{e=>\{e\.stopPropagation\(\);goToParkedThread\(p\.id\);\}\}/);
+    expect(src).toMatch(/className="ppal-tile-park-btn"\s*onClick=\{e=>\{e\.stopPropagation\(\);actions\("park",p\);\}\}/);
+    expect(src).toContain("park:p=>goToParkedThread(p.id)");
   });
 
   test('Option C: Clear all removes every marker (undoably) and resets parkLayers', () => {
