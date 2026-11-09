@@ -378,3 +378,4 @@ test('a full record written by a build that does not know overlays retires the o
   const rows = ProjectStorage.backupProgressRows(await raw('projects', 'proj_o'), await raw('pendingImports', 'progress:proj_o'), null, await raw('pendingImports', 'overlay:proj_o'));
   expect(rows === null || rows.project.name === 'Older build').toBe(true);
 });
+

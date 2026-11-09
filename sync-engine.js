@@ -751,8 +751,12 @@ const SyncEngine = (() => {
     Object.defineProperty(entry, "__hints", { value: hit.hints, enumerable: false });
     return entry;
   }
-  async function _exportEntry(meta, includeSourceImages) {
+  // unsettled: ProjectStorage.unsettledProjects(), ids that must be read
+  // through get() now (a navigation journal to recover, an open session
+  // checkpoint): their metadata does not say what get() will return.
+  async function _exportEntry(meta, includeSourceImages, unsettled) {
     var key = _exportKey(meta, includeSourceImages);
+    if (unsettled && unsettled.has(meta.id)) key = null;
     var hit = key && _exportCache.get(meta.id);
     if (hit && hit.key === key) return _cachedEntry(hit);
     var p = await ProjectStorage.get(meta.id);
@@ -780,6 +784,10 @@ const SyncEngine = (() => {
       fingerprint: computeFingerprint(p),
       data: data
     };
+    // Only an entry with no open session checkpoints is kept: with none open
+    // get() lists none, which the key can then vouch for.
+    if (key && p.sessionCheckpoints && p.sessionCheckpoints.length) key = null;
+    if (!key && _exportCache.has(meta.id)) { _exportCacheChars -= _exportCache.get(meta.id).json.length; _exportCache.delete(meta.id); }
     if (key) {
       var json = JSON.stringify(entry);
       var hints = { id: p.id, imgData: includeSourceImages ? p.imgData : undefined, settings: { traceImage: !!(p.settings && p.settings.traceImage) } };
@@ -880,8 +888,13 @@ const SyncEngine = (() => {
       projectCount = metaList.length;
       var since = (mode === "incremental" && lastExport) ? new Date(lastExport) : null;
       var chosen = since ? metaList.filter(function (m) { return !m.updatedAt || new Date(m.updatedAt) > since; }) : metaList;
+      // Projects get() would read differently from their stored rows (a journal
+      // to recover, an open session checkpoint): never taken from the cache.
+      // Without the helper (an older storage script), nothing is.
+      var unsettled = ProjectStorage.unsettledProjects ? await ProjectStorage.unsettledProjects() : null;
+      var useCache = !!unsettled;
       // PERF (perf-5 #1): read the ones not cached in parallel.
-      projectsToExport = await Promise.all(chosen.map(function (m) { return _exportEntry(m, includeSourceImages); }));
+      projectsToExport = await Promise.all(chosen.map(function (m) { return _exportEntry(useCache ? m : { id: m.id }, includeSourceImages, unsettled); }));
     } catch (e) {
       console.error("SyncEngine.export: failed to read projects:", e);
       throw new Error("Could not read projects from database.");

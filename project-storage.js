@@ -1080,6 +1080,31 @@ const ProjectStorage = (() => {
       return p ? { id: id, lastWriteAt: p.lastWriteAt, lastWriteTabId: p.lastWriteTabId } : null;
     },
 
+    // Projects whose get() may currently read differently from their stored
+    // rows: a navigation journal not yet recovered (get() folds it in), or a
+    // session checkpoint still open (get() lists it in sessionCheckpoints,
+    // depending on whether a live tab holds its lock). Neither changes the
+    // metadata row, so a reader that keys on metadata (the sync export cache)
+    // must read these through get(). One read of the session rows.
+    async unsettledProjects() {
+      const out = new Set();
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(RECOVERY_PREFIX)) out.add(k.slice(RECOVERY_PREFIX.length));
+        }
+      } catch (_) {}
+      const db = await getDB();
+      if (!db.objectStoreNames.contains("pendingImports")) return out;
+      const rows = await new Promise((resolve, reject) => {
+        const q = db.transaction("pendingImports", "readonly").objectStore("pendingImports")
+          .getAll(IDBKeyRange.bound(SESSION_PREFIX, SESSION_PREFIX + "\uffff"));
+        q.onsuccess = () => resolve(q.result || []); q.onerror = () => reject(q.error);
+      });
+      rows.forEach(r => { if (r && !r.closed && typeof r.projectId === "string") out.add(r.projectId); });
+      return out;
+    },
+
     // Load a single project by ID. Returns null if not found.
     // Read a review base from one consistent transaction, including progress and
     // session journals. The token covers bytes rather than timestamps alone.

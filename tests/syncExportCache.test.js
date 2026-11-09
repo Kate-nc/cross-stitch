@@ -13,7 +13,8 @@ function device(id) {
   const c = { console, indexedDB: new IDBFactory(), IDBKeyRange, Blob, crypto, pako, TextEncoder, TextDecoder,
     structuredClone, Uint8Array, ArrayBuffer, setTimeout, clearTimeout, setInterval, clearInterval,
     btoa: s => Buffer.from(s, 'binary').toString('base64'), atob: s => Buffer.from(s, 'base64').toString('binary'),
-    localStorage: { getItem: k => values.get(k) || null, setItem: (k, v) => values.set(k, String(v)), removeItem: k => values.delete(k) },
+    localStorage: { getItem: k => values.get(k) || null, setItem: (k, v) => values.set(k, String(v)), removeItem: k => values.delete(k),
+      key: i => [...values.keys()][i] || null, get length() { return values.size; } },
     ensurePersistence() {}, dispatchEvent() {}, addEventListener() {}, CustomEvent: class {},
     Beads: require('../beads'), ProgressUnits: require('../progress-units') };
   c.window = c; c.globalThis = c;
@@ -175,4 +176,37 @@ test('the compression worker writes a zlib stream the import side reads', async 
   self.onmessage({ data: { id: 8 } });
   await new Promise(r => setTimeout(r, 10));
   expect(posted[1]).toMatchObject({ id: 8, ok: false });
+});
+
+test('a navigation journal written between exports reaches the next one, with no read in between', async () => {
+  const a = device('A');
+  await library(a, 2);
+  const p = await a.ProjectStorage.get('proj_1');
+  await a.SyncEngine.exportSync();                           // proj_1 is now cached
+  // Another tab closed after journalling its marks, before its IndexedDB writes finished.
+  a.localStorage.setItem('crossstitch_progress_recovery:proj_1', JSON.stringify({ projectId: 'proj_1', v: 1, done: [1, 1, 0, 0, 0, 1], baseWriteAt: p.lastWriteAt, updatedAt: Date.now() }));
+  const gets = countGets(a);
+  let file;
+  try { file = json(await a.SyncEngine.exportSync()); } finally { gets.restore(); }
+  expect(gets.ids).toEqual(['proj_1']);                      // read through get(), which recovers it
+  expect(file.projects.find(e => e.id === 'proj_1').data.done).toEqual([1, 1, 0, 0, 0, 1]);
+  // Recovered into the record: later exports are cached again, and still carry it.
+  const again = json(await a.SyncEngine.exportSync());
+  expect(again.projects.find(e => e.id === 'proj_1').data.done).toEqual([1, 1, 0, 0, 0, 1]);
+});
+
+test('an open session checkpoint is exported as get() lists it, before and after it closes', async () => {
+  const a = device('A');
+  await library(a, 2);
+  await a.SyncEngine.exportSync();                           // both cached, no checkpoints
+  const cp = { v: 1, projectId: 'proj_0', sessionId: 'sess_live', checkpointAt: Date.now(), revision: 1,
+    records: [{ id: 'sess_live', date: '2026-11-09', durationSeconds: 120 }] };
+  await a.ProjectStorage.saveSessionCheckpoint('proj_0', cp);
+  const fresh = await a.ProjectStorage.get('proj_0');
+  expect(fresh.sessionCheckpoints).toHaveLength(1);
+  let file = json(await a.SyncEngine.exportSync());
+  expect(file.projects.find(e => e.id === 'proj_0').data.sessionCheckpoints).toEqual(json(fresh.sessionCheckpoints));
+  await a.ProjectStorage.retireSessionCheckpoint('proj_0', 'sess_live');
+  file = json(await a.SyncEngine.exportSync());
+  expect(file.projects.find(e => e.id === 'proj_0').data.sessionCheckpoints).toEqual([]);
 });
