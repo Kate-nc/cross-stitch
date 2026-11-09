@@ -86,8 +86,9 @@ test('zero stock observations never create debt against later additions; correct
 });
 test('aborted transaction rolls back stock and immutable history; retry commits once',async()=>{
   await a.migrateToLatest();const db=await dbFor(idb),proto=Object.getPrototypeOf(db.transaction('manager_state').objectStore('manager_state')),put=proto.put;
-  const spy=jest.spyOn(proto,'put').mockImplementation(function(v,k){const r=put.call(this,v,k);if(k===A.KEY)this.transaction.abort();return r;});
-  await expect(a.applyConsumptionEvents('p',{},[op(1)])).rejects.toThrow();spy.mockRestore();db.close();
+  // The history is stored a record per event: abort as the event row is written.
+  const spy=jest.spyOn(proto,'put').mockImplementation(function(v,k){const r=put.call(this,v,k);if(typeof k==='string'&&k.startsWith('tc2:e|'))this.transaction.abort();return r;});
+  try{await expect(a.applyConsumptionEvents('p',{},[op(1)])).rejects.toThrow();}finally{spy.mockRestore();db.close();}
   expect(await stock()).toBe(1);expect((await store(idb))[A.KEY]).toBeUndefined();
   await a.applyConsumptionEvents('p',{},[op(1)]);expect(await stock()).toBeCloseTo(1-cost,14);expect(await history()).toHaveLength(1);
 });

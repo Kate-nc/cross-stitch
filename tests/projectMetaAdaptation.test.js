@@ -9,7 +9,7 @@ const path = require('path');
 
 // Extract buildMeta from project-storage.js by grabbing the function source.
 const src = fs.readFileSync(path.join(__dirname, '..', 'project-storage.js'), 'utf8');
-const start = src.indexOf('function buildMeta(p)');
+const start = src.indexOf('function buildMeta(p, stamps)');
 if (start < 0) throw new Error('buildMeta not found in project-storage.js');
 // Find matching closing brace by counting.
 let depth = 0, i = start, end = -1;

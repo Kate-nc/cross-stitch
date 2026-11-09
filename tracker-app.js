@@ -2850,7 +2850,8 @@ const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitc
 const[rtMarkedKeys,setRtMarkedKeys]=useState([]);
 const rtConsumption=useMemo(()=>{
   const out={},ctx=rtContextRef.current;
-  const used=ctx&&ctx.accounting?window.ThreadAccounting.totals(ctx.accounting,ctx.projectId):{};
+  // A commit returns a summary with the project's running totals; the history view reads its events.
+  const used=ctx&&ctx.accounting?(ctx.accounting.summary?(ctx.accounting.totals||{}):window.ThreadAccounting.totals(ctx.accounting,ctx.projectId)):{};
   new Set([...rtMarkedKeys,...Object.keys(used)]).forEach(key=>{const owned=globalStash[key]?StashBridge.stashEffectiveQty(globalStash[key]):null;
     out[key]={key,skeinsConsumed:used[key]||0,ownedSkeins:owned,skeinsRemaining:owned};});
   return out;
@@ -2870,9 +2871,13 @@ const flushRtStashWrite=useCallback(async(captured)=>{
     while(ctx.outbox.length){
       // Two recovery keys may contain the same operation after a peer copied
       // an outbox. Deduplicate before allocating sequences, not just at commit.
-      const batch=Array.from(new Map(ctx.outbox.map(c=>[c.token,c])).values()),heads=window.ThreadAccounting.sequences(ctx.accounting,ctx.projectId);
+      const batch=Array.from(new Map(ctx.outbox.map(c=>[c.token,c])).values());
+      // The stored heads of just these units and these tokens' receipts (not the whole history).
+      const unnumbered=batch.filter(c=>!c.seq);
+      const look=await StashBridge.consumptionLookup(ctx.projectId,unnumbered.map(c=>c.unit),batch.map(c=>c.token));
+      const heads=look.sequences;
       batch.forEach(c=>{
-        const receipt=ctx.accounting.receipts&&ctx.accounting.receipts[c.token];
+        const receipt=look.receipts[c.token];
         if(receipt)c.seq=JSON.parse(receipt)[2];
         if(!c.seq){c.seq=Math.max(ctx.sequences[c.unit]||0,heads[c.unit]||0)+1;}
         ctx.sequences[c.unit]=Math.max(ctx.sequences[c.unit]||0,c.seq);c.projectId=ctx.projectId;
@@ -2907,7 +2912,7 @@ const openConsumptionHistory=useCallback(async()=>{
   const ctx=rtContextRef.current;if(!ctx)return;
   try{
     await flushRtStashWriteRef.current(ctx).catch(()=>{});
-    const ledger=await StashBridge.getConsumptionAccounting();
+    const ledger=await StashBridge.getConsumptionAccounting(ctx.projectId);
     if(rtContextRef.current!==ctx)return;
     ctx.accounting=ledger;setRtAccountingVersion(v=>v+1);setModal('rt_history');
   }catch(e){if(window.Toast)window.Toast.show({message:'Could not read consumption history. Please try again.',type:'warning'});}
@@ -3987,15 +3992,19 @@ function resolveReconcile(choice){
   window.Toast&&Toast.show({message:cand?('Kept '+kept.toLocaleString('en-GB')+' of '+rc.oldMarks.toLocaleString('en-GB')+' stitches'+(cand.lost?'; '+cand.lost.toLocaleString('en-GB')+' fell outside the new pattern.':'.')+' Your earlier marks are saved in Stats > Compare.'):('Progress started again. Your earlier '+rc.oldMarks.toLocaleString('en-GB')+' stitches are saved in Stats > Compare.'),type:'info',duration:8000});
 }
 
-function persistProjectRecord(project){
+// options.overlay: the routine saves (autosave, flush, unload) may leave an
+// unchanged chart unwritten and store the rest beside it (ProjectStorage's
+// overlay save). Hand-offs and imports write the whole record.
+function persistProjectRecord(project,options){
   if(savesBlockedRef.current)return Promise.resolve({ok:false,reason:'held'});
   // What was just written is what the next cross-tab merge starts from.
   const remember=function(res){if(res&&res.ok!==false&&res.reason!=='merged')mergeBaseRef.current=project;return res;};
   if(window.CrossTabResolution&&typeof window.CrossTabResolution.saveWithConflictResolution==='function'){
-    return window.CrossTabResolution.saveWithConflictResolution(project).then(remember);
+    return window.CrossTabResolution.saveWithConflictResolution(project,options).then(remember);
   }
-  return ProjectStorage.save(project).then(function(id){ProjectStorage.setActiveProject(id);return remember({ok:true,id:id});});
+  return ProjectStorage.save(project,options).then(function(id){ProjectStorage.setActiveProject(id);return remember({ok:true,id:id});});
 }
+const ROUTINE_SAVE={overlay:true};
 
 // Another tab saved this project: fold its marks and sessions into this tab's instead of
 // asking which tab to throw away. Resolves true when it did, false to leave the question
@@ -5027,6 +5036,8 @@ useEffect(() => {
 // expensive snapshot serialisation until the 5-second debounce timer fires.
 // lastSnapshotRef is rebuilt lazily by buildSnapshot() for beforeunload.
 const buildSnapshotRef = useRef(null);
+// Which project this page last wrote the legacy "auto_save" copy for (see __flushProjectToIDB).
+const legacyCopyRef = useRef(null);
 const buildSnapshot = () => {
   const statsSessions=statsSessionsRef.current;
   if (!pat || !pal) return null;
@@ -5325,7 +5336,7 @@ useEffect(() => {
     let _ended = false;
     const _epoch = beginSave();
     const endOnce = (ok, err) => { if (_ended) return; _ended = true; endSave(ok, _uiGen, err, _epoch); };
-    persistProjectRecord(project).then(function(saveResult){
+    persistProjectRecord(project, ROUTINE_SAVE).then(function(saveResult){
       const _ok = !!(saveResult && saveResult.ok !== false && !noWriteReason(saveResult.reason));
       if(!_ok&&_hadOther)autoSaveOtherDirtyRef.current=true;
       if(_ok){flushedGenRef.current=Math.max(flushedGenRef.current,_gen);
@@ -5472,7 +5483,9 @@ useEffect(() => {
       }
     }
     lastSnapshotRef.current = projectToSave;
-    ProjectStorage.save(projectToSave)
+    // The overlay save writes far less than the whole chart, so it is also far
+    // more likely to finish before the browser stops the page.
+    ProjectStorage.save(projectToSave, ROUTINE_SAVE)
       .then(id => ProjectStorage.setActiveProject(id))
       .catch(err => console.error("Tracker unload auto-save failed:", err));
     saveProjectToDB(projectToSave)
@@ -5516,6 +5529,13 @@ useEffect(() => {
   window.__flushProjectToIDB = async function() {
     if (isUnloadingRef.current || window.__restoringBackup > Date.now()) throw new Error("Project saving is paused.");
     await flushRtStashWriteRef.current();
+    // Nothing changed since the last write that succeeded (a sync export right
+    // after the autosave that triggered it, a backup, a second hide): what is
+    // stored is already this. Writing it again cost a full save on a large
+    // chart for nothing. A save still in flight has not counted yet, so this
+    // flush still writes; a held save still reports why below.
+    if (!savesBlockedRef.current && autoSaveGenRef.current === flushedGenRef.current && projectIdRef.current)
+      return { ok: true, id: projectIdRef.current, clean: true };
     const project = snapshotNow();
     if (!project) return;
     lastSnapshotRef.current = project;
@@ -5523,13 +5543,20 @@ useEffect(() => {
     const _uiGen = uiGenRef.current;
     const _epoch = beginSave();
     let saveResult;
-    try { saveResult = await persistProjectRecord(project); }
+    try { saveResult = await persistProjectRecord(project, ROUTINE_SAVE); }
     catch (err) { endSave(false, _uiGen, err, _epoch); throw err; }
     const _flushOk = !!(saveResult && saveResult.ok !== false && !noWriteReason(saveResult.reason));
     if (_flushOk) flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
     endSave(_flushOk ? true : (saveResult && noWriteReason(saveResult.reason) ? null : false), _uiGen, saveResult && saveResult.reason, _epoch);
     if (!_flushOk) throw new Error("The current project was not saved: " + (saveResult && saveResult.reason || "unknown failure"));
-    await saveProjectToDB(project, { strict: true });
+    // The legacy "auto_save" copy: every page opens the project record instead
+    // when the copy names a stored project (loadProjectFromDB), so it only has
+    // to name this one. Written once per project per page; leaving the page and
+    // handing off to the Creator still refresh it in full.
+    if (legacyCopyRef.current !== project.id) {
+      await saveProjectToDB(project, { strict: true });
+      legacyCopyRef.current = project.id;
+    }
     // Retire the queued autosave only after both writes succeed, and only
     // while this is still the same project's unchanged generation. A later
     // mark must keep its own dirty flag and timer.
@@ -5548,7 +5575,7 @@ useEffect(() => {
     var last = snapshotNow();
     window.__flushProjectToIDB = async function() {
       if (last) {
-        const saveResult = await persistProjectRecord(last);
+        const saveResult = await persistProjectRecord(last, ROUTINE_SAVE);
         if (!saveResult || saveResult.ok === false || noWriteReason(saveResult.reason)) throw new Error("The current project was not saved.");
         await saveProjectToDB(last, { strict: true });
         return saveResult;
@@ -10759,8 +10786,10 @@ return(
           (async()=>{
             if(ctx.ready)await ctx.ready.catch(()=>{});
             await flushRtStashWriteRef.current();
-            const A=window.ThreadAccounting,units=new Set([...Object.keys(ctx.initialMarks),...Object.values(ctx.accounting.events).filter(e=>e.projectId===ctx.projectId).map(e=>e.unit)]);
-            const ops=[];units.forEach(unit=>{const st=A.state(ctx.accounting,ctx.projectId,unit);if(Object.values(st.debits).some(v=>v>0)){
+            // This project's whole history: the correction credits every debit it recorded.
+            const history=await StashBridge.getConsumptionAccounting(ctx.projectId);
+            const A=window.ThreadAccounting,units=new Set([...Object.keys(ctx.initialMarks),...Object.values(history.events).filter(e=>e.projectId===ctx.projectId).map(e=>e.unit)]);
+            const ops=[];units.forEach(unit=>{const st=A.state(history,ctx.projectId,unit);if(Object.values(st.debits).some(v=>v>0)){
               const seq=st.seq+1;ctx.sequences[unit]=seq;ops.push({projectId:ctx.projectId,unit,seq,kind:'correct-project',estimate:st.estimate});}});
             const result=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.baselineMarks,ops);
             if(rtContextRef.current!==ctx)return;

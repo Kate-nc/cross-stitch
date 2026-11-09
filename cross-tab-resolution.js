@@ -172,8 +172,10 @@
   //      whether to reload or keep local edits.
   //   3. If the user keeps local edits, perform a plain save() to intentionally
   //      overwrite the remote version.
+  // options: passed to ProjectStorage.save (e.g. { overlay: true }, the
+  // Tracker's save that may leave an unchanged chart unwritten).
   // Returns Promise<{ ok, id, reason?, resolvedConflict?, decision? }>.
-  function saveWithConflictResolution(project) {
+  function saveWithConflictResolution(project, options) {
     if (!window.ProjectStorage || typeof window.ProjectStorage.save !== "function") {
       return Promise.reject(new Error("ProjectStorage.save is unavailable"));
     }
@@ -189,7 +191,7 @@
     }
 
     function plainSave(meta) {
-      return storage.save(project).then(function (id) {
+      return storage.save(project, options).then(function (id) {
         activate(id);
         return {
           ok: true,
@@ -204,7 +206,7 @@
       return plainSave();
     }
 
-    return storage.saveChecked(project).then(function (result) {
+    return storage.saveChecked(project, options).then(function (result) {
       if (!result || result.ok !== false) {
         var id = activate((result && result.id) || project.id || null);
         return { ok: true, id: id };

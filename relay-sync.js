@@ -248,7 +248,7 @@
     if (p.hadPartner && (restore || (needsUpload(p) && (forceUpload || opts.uploadOnly || uploadWait() === 0)))) {
       var snapshot = await SyncEngine.exportSync({ mode: 'full', encryptWith: pass });
       if (signal.aborted) throw err('cancelled');
-      var payload = SyncEngine.compress(snapshot);
+      var payload = SyncEngine.compressAsync ? await SyncEngine.compressAsync(snapshot) : SyncEngine.compress(snapshot);
       if (payload.length > MAX_FILE) throw err('too-large');
       var conditions = { 'Content-Type': 'application/octet-stream' };
       if (own) conditions['If-Match'] = '"' + own.etag + '"'; else conditions['If-None-Match'] = '*';

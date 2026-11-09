@@ -389,9 +389,12 @@
     });
     return {values:values, valueSync:{version:1,fields:fields}, conflicts:conflicts};
   }
-  var recordMarks = record;
-  record = function(base,next,author,from) {
-    var out = recordMarks(base,next,author,from), fields = {};
+  // The value half of record(): the value fields `next` leaves out are taken
+  // from `base`, and valueSync gets a new register for each value that changed.
+  // Writes into `out`. Shared by record() and by ProjectStorage's overlay save,
+  // which records values without touching the chart's mark registers.
+  function recordValuesInto(out, base, next, author) {
+    var fields = {};
     valueFields.forEach(function(f) { if (!own(next,f) && base && own(base,f)) out[f] = base[f]; });
     var beforeValues = valuesOf(base), nextValues = valuesOf(next);
     fieldsOf(base,next).forEach(function(f) {
@@ -401,8 +404,17 @@
     });
     out.valueSync = {version:1,fields:fields};
     return out;
+  }
+  function recordValues(base, next, author) { return recordValuesInto({}, base, next, author); }
+  var recordMarks = record;
+  record = function(base,next,author,from) {
+    return recordValuesInto(recordMarks(base,next,author,from), base, next, author);
   };
-  var api = { record: record, recordDelta: recordDelta, withDelta: withDelta, deltaFrom: deltaFrom, merge: merge, marks: marks, mergeValues: mergeValues, valueRecord: valueRecord, valueFrontier: valueFrontier, canonical: canonical, valuesOf: valuesOf };
+  // Every top-level project field the value registers read (valuesOf and the
+  // valueSync they are kept in): what a caller must keep of a base project to
+  // call recordValues() on it later.
+  var VALUE_KEYS = valueFields.concat(['statsSessions', 'sessions', 'valueSync']);
+  var api = { record: record, recordDelta: recordDelta, withDelta: withDelta, deltaFrom: deltaFrom, merge: merge, marks: marks, mergeValues: mergeValues, valueRecord: valueRecord, valueFrontier: valueFrontier, canonical: canonical, valuesOf: valuesOf, recordValues: recordValues, VALUE_KEYS: VALUE_KEYS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TrackingSync = api;
 })(typeof window !== 'undefined' ? window : this);

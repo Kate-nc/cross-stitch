@@ -130,7 +130,7 @@
       var version = revision;
       var snapshot = await SyncEngine.exportSync({mode:'full'});
       if (!active(s)) throw error('cancelled');
-      var payload = SyncEngine.compress(snapshot);
+      var payload = SyncEngine.compressAsync ? await SyncEngine.compressAsync(snapshot) : SyncEngine.compress(snapshot);
       if (payload.length > MAX_FILE) throw error('size');
       var conditions = {'Content-Type':'application/octet-stream'};
       conditions[s.etag ? 'If-Match' : 'If-None-Match'] = s.etag || '*';

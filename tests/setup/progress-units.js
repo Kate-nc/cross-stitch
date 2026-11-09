@@ -33,3 +33,10 @@ global.PdfPicturePixels = require('../../pdf-picture-pixels.js');
 
 // Pages load the colour key reader before pdf-importer.js, whose parseKeyEntries delegates to it by global name.
 global.PdfKeyReader = require('../../pdf-key-reader.js');
+
+// Every browser has IDBKeyRange beside indexedDB; storage code reads key ranges
+// (sync attachments, the stored thread-usage ledger). Tests that bring their own
+// fake indexedDB without it get fake-indexeddb's.
+if (typeof globalThis.IDBKeyRange === 'undefined') {
+  try { globalThis.IDBKeyRange = require('fake-indexeddb/lib/FDBKeyRange'); } catch (e) { /* not installed */ }
+}

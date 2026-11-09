@@ -25,13 +25,23 @@ async function markRow(page, row, from, to) {
   await page.mouse.up();
   await page.waitForTimeout(150);
 }
-// The project record as stored (not as ProjectStorage.get() presents it, which also applies the
-// small progress record): these tests are about what the full save has written.
+// What the Tracker's save wrote (not as ProjectStorage.get() presents it, which also applies the
+// small progress record on its own): these tests are about the save. A save that left an
+// unchanged chart unwritten (ProjectStorage's overlay save) keeps the rest in "overlay:<id>"
+// and its marks in the progress record beside it, both fenced to the full record; its marks
+// count only while that overlay is current.
 const stored = page => page.evaluate(async () => {
   const id = localStorage.getItem('crossstitch_active_project');
   const db = await getDB();
-  const p = await new Promise(r => { const q = db.transaction('projects').objectStore('projects').get(id); q.onsuccess = () => r(q.result); });
-  return p ? { hasPattern: !!p.pattern, patternLen: p.pattern && p.pattern.length, done: p.done ? p.done.filter(v => v === 1).length : null } : null;
+  const [p, ov, pr] = await new Promise(r => {
+    const tx = db.transaction(['projects', 'pendingImports']);
+    const a = tx.objectStore('projects').get(id), b = tx.objectStore('pendingImports').get('overlay:' + id), c = tx.objectStore('pendingImports').get('progress:' + id);
+    tx.oncomplete = () => r([a.result, b.result, c.result]);
+  });
+  if (!p) return null;
+  const overlay = !!(ov && ov.baseWriteAt === p.lastWriteAt && pr && pr.baseWriteAt === p.lastWriteAt);
+  const done = overlay ? pr.done : p.done;
+  return { hasPattern: !!p.pattern, patternLen: p.pattern && p.pattern.length, overlay, done: done ? Array.from(done).filter(v => v === 1).length : null };
 });
 async function reopen(page) {
   await page.reload({ waitUntil: 'domcontentloaded' });

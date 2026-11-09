@@ -1,5 +1,7 @@
 const fs=require('fs');
 const FDBFactory=require('fake-indexeddb/lib/FDBFactory');
+// The bridge and the sync engine use IDBKeyRange as a page global.
+global.IDBKeyRange=global.IDBKeyRange||require('fake-indexeddb/lib/FDBKeyRange');
 const A=require('../../thread-accounting');
 global.ProgressUnits=require('../../progress-units');
 const clone=x=>JSON.parse(JSON.stringify(x));
@@ -12,7 +14,9 @@ function bridge(indexedDB,window={}) {
   return new Function('window','indexedDB','console',fs.readFileSync('stash-bridge.js','utf8').replace(/\/\/ Auto-run migrations on script load[\s\S]*$/, '')+'\nreturn StashBridge;')(window,indexedDB,{warn(){},error(){},log(){}});
 }
 async function dbFor(idb){return new Promise((res,rej)=>{const r=idb.open('stitch_manager_db');r.onupgradeneeded=()=>r.result.createObjectStore('manager_state');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
-async function store(idb,entries){const db=await dbFor(idb);try{return await new Promise((res,rej)=>{const tx=db.transaction('manager_state',entries?'readwrite':'readonly'),s=tx.objectStore('manager_state');let out={};if(entries)Object.entries(entries).forEach(([k,v])=>s.put(v,k));else{const r=s.openCursor();r.onsuccess=()=>{const c=r.result;if(c){out[c.key]=c.value;c.continue();}};}tx.oncomplete=()=>res(out);tx.onabort=()=>rej(tx.error||Error('aborted'));tx.onerror=()=>rej(tx.error);});}finally{db.close();}}
+// The manager_state rows as their readers see them: the thread-usage ledger
+// (stored as a record per event) whole, under ThreadAccounting.KEY.
+async function store(idb,entries){const db=await dbFor(idb);try{return await new Promise((res,rej)=>{const tx=db.transaction('manager_state',entries?'readwrite':'readonly'),s=tx.objectStore('manager_state');let out={};if(entries)Object.entries(entries).forEach(([k,v])=>s.put(v,k));else{const r=s.openCursor();r.onsuccess=()=>{const c=r.result;if(c){out[c.key]=c.value;c.continue();}};}tx.oncomplete=()=>res(entries?out:A.fromRows(out));tx.onabort=()=>rej(tx.error||Error('aborted'));tx.onerror=()=>rej(tx.error);});}finally{db.close();}}
 function op(seq,kind='mark',unit='d:0',est=estimate,pid='p'){return {projectId:pid,unit,seq,kind,estimate:est,enabled:true};}
 function syncEngine(window,idb,storage){return new Function('window','localStorage','pako','indexedDB','ProjectStorage',fs.readFileSync('sync-engine.js','utf8')+'\nreturn SyncEngine;')(window,{getItem(){return null;},setItem(){},removeItem(){}},require('pako'),idb,storage||{listProjects:async()=>[],get:async()=>null});}
 module.exports={A,bridge,dbFor,store,op,marks,estimate,cost,key,syncEngine,clone,prefs};

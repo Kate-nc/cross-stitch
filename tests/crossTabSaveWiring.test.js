@@ -141,13 +141,17 @@ describe('INT-7 wiring: Creator and Tracker save paths use the shared helper', (
   });
 
   test('tracker defines persistProjectRecord via CrossTabResolution.saveWithConflictResolution', () => {
-    expect(TRACKER_SRC).toMatch(/function persistProjectRecord\(project\)/);
+    expect(TRACKER_SRC).toMatch(/function persistProjectRecord\(project,options\)/);
+    // The options reach the conflict-checked save.
+    expect(TRACKER_SRC).toMatch(/saveWithConflictResolution\(project,options\)/);
     expect(TRACKER_SRC).toMatch(/CrossTabResolution\.saveWithConflictResolution/);
   });
 
   test('tracker autosave, flush, handoff, and import saves route through persistProjectRecord', () => {
-    expect(TRACKER_SRC).toMatch(/const saveTimer = setTimeout\(\(\) => \{[\s\S]*?persistProjectRecord\(project\)/);
-    expect(TRACKER_SRC).toMatch(/window\.__flushProjectToIDB = async function\(\)[\s\S]*?persistProjectRecord\(project\)/);
+    // The routine saves may leave an unchanged chart unwritten (overlay save).
+    expect(TRACKER_SRC).toMatch(/const saveTimer = setTimeout\(\(\) => \{[\s\S]*?persistProjectRecord\(project, ROUTINE_SAVE\)/);
+    expect(TRACKER_SRC).toMatch(/window\.__flushProjectToIDB = async function\(\)[\s\S]*?persistProjectRecord\(project, ROUTINE_SAVE\)/);
+    expect(TRACKER_SRC).toMatch(/const ROUTINE_SAVE=\{overlay:true\}/);
     expect(TRACKER_SRC).toMatch(/handleEditInCreator\(\)[\s\S]*?persistProjectRecord\(project\)/);
     expect(TRACKER_SRC).toMatch(/persistProjectRecord\(projectData\)/);
     expect(TRACKER_SRC).toMatch(/persistProjectRecord\(project\)\.catch\(err => console\.error\("Import save failed:"/);

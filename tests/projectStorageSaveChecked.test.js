@@ -17,8 +17,12 @@ const SRC = fs.readFileSync(
 // ────────────────────────────────────────────────────────────────────────────
 
 describe('INT-7 Phase B-2: saveChecked() structural shape', () => {
-  test('declares an async saveChecked(project) method', () => {
-    expect(SRC).toMatch(/async\s+saveChecked\(project\)\s*\{/);
+  test('declares an async saveChecked(project, options) method', () => {
+    // options (e.g. { overlay: true }) are passed through to save().
+    expect(SRC).toMatch(/async\s+saveChecked\(project, options\)\s*\{/);
+  });
+  test('compares the stored write stamps without loading the whole project', () => {
+    expect(SRC).toMatch(/current = await this\.writeStamp\(project\.id\)/);
   });
   test('short-circuits projects with no id (delegates to save → ok)', () => {
     expect(SRC).toMatch(/!project\.id[\s\S]{0,200}return\s*\{\s*ok:\s*true,\s*id:\s*id\s*\}/);
@@ -57,7 +61,7 @@ describe('INT-7 Phase B-2: saveChecked() structural shape', () => {
 function extractSaveChecked() {
   // Pull the method body out of project-storage.js by locating the
   // `async saveChecked(project) {` opener and brace-matching to its close.
-  const start = SRC.indexOf('async saveChecked(project) {');
+  const start = SRC.indexOf('async saveChecked(project, options) {');
   expect(start).toBeGreaterThan(-1);
   let depth = 0, i = SRC.indexOf('{', start), end = -1;
   for (; i < SRC.length; i++) {
@@ -70,7 +74,7 @@ function extractSaveChecked() {
   // Wrap it as a plain async function bound via .call(thisArg).
   // The body references `window` from outer scope, so we accept it as a
   // closure variable.
-  return new Function('project', '__win', 'var window = __win; return (async () => {' + body + '})();');
+  return new Function('project', '__win', 'var window = __win; var options; return (async () => {' + body + '})();');
 }
 
 function mkProject(overrides) {
@@ -90,11 +94,15 @@ describe('INT-7 Phase B-2: saveChecked() runtime decisions', () => {
   }
 
   function mkThis(overrides) {
-    return Object.assign({
+    const ctx = Object.assign({
       _deletedIds: new Set(),
       get: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockResolvedValue('proj_x')
     }, overrides || {});
+    // The real writeStamp reads the stamps from the metadata row, falling back
+    // to get(); here it reports what the mocked stored record says.
+    if (!ctx.writeStamp) ctx.writeStamp = function (id) { return this.get(id); };
+    return ctx;
   }
 
   test('no id → delegates to save() and returns { ok: true, id }', async () => {

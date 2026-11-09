@@ -606,7 +606,6 @@ const StashBridge = (() => {
     }
   }
 
-  let _ledgerCompacted = false;
   async function _withThreadsWrite(opLabel, mutate, options) {
     const opts = options || {};
     await migrateToLatest(3);
@@ -842,17 +841,78 @@ const StashBridge = (() => {
       });}finally{db.close();}
     },
 
-    async getConsumptionAccounting() {
+    // The thread-usage ledger in its whole form (ThreadAccounting's KEY shape).
+    // projectId: only that project's baseline and events (no receipts), read
+    // from its own range: what the history view and the project correction
+    // need, without the rest of the history.
+    async getConsumptionAccounting(projectId) {
+      const A=window.ThreadAccounting;
       const db=await openManagerDB();
       try{return await new Promise((resolve,reject)=>{
-        const tx=db.transaction('manager_state','readonly');
-        const req=tx.objectStore('manager_state').get(window.ThreadAccounting.KEY);
-        req.onsuccess=()=>resolve(req.result||window.ThreadAccounting.empty());
-        req.onerror=()=>reject(req.error);
+        const tx=db.transaction('manager_state','readonly'),store=tx.objectStore('manager_state');
+        const legacy=store.get(A.KEY);
+        const range=projectId?A.storedKeys.projectRange(projectId):A.storedKeys.all;
+        const r=IDBKeyRange.bound(range[0],range[1]);
+        const keys=store.getAllKeys(r),values=store.getAll(r);
+        const row=projectId?store.get(A.storedKeys.project(projectId)):null;
+        tx.oncomplete=()=>{
+          try{
+            const rows=keys.result.map((k,i)=>[k,values.result[i]]);
+            if(row&&row.result)rows.push([A.storedKeys.project(projectId),row.result]);
+            let ledger=A.combineStored(A.assemble(rows),legacy.result||null)||A.empty();
+            if(projectId){
+              const own=A.empty();
+              if(ledger.projects[projectId])own.projects[projectId]=ledger.projects[projectId];
+              Object.keys(ledger.events).forEach(id=>{if(ledger.events[id].projectId===projectId)own.events[id]=ledger.events[id];});
+              ledger=own;
+            }
+            resolve(ledger);
+          }catch(e){reject(e);}
+        };
+        tx.onerror=()=>reject(tx.error);
+      });}finally{db.close();}
+    },
+
+    // The newest sequence number of each unit, and the event each receipt token
+    // names: what the Tracker needs to number a batch of operations. Reads only
+    // those units' and tokens' rows. { sequences: {unit: seq}, receipts: {token: id} }
+    async consumptionLookup(projectId, units, tokens) {
+      const A=window.ThreadAccounting;
+      const db=await openManagerDB();
+      try{return await new Promise((resolve,reject)=>{
+        const tx=db.transaction('manager_state','readonly'),store=tx.objectStore('manager_state');
+        const out={sequences:{},receipts:{}};
+        const legacy=store.get(A.KEY);
+        Array.from(new Set(units||[])).forEach(unit=>{
+          const r=A.storedKeys.unitRange(projectId,unit),c=store.openCursor(IDBKeyRange.bound(r[0],r[1]),'prev');
+          c.onsuccess=()=>{if(c.result&&c.result.value)out.sequences[unit]=c.result.value.seq;};
+        });
+        Array.from(new Set((tokens||[]).filter(Boolean))).forEach(t=>{
+          const q=store.get(A.storedKeys.receipt(t));q.onsuccess=()=>{if(q.result)out.receipts[t]=q.result.id;};
+        });
+        tx.oncomplete=()=>{
+          // Not folded in yet (an older build or a restore wrote the whole ledger): count from it too.
+          const l=legacy.result;
+          if(l&&l.events){
+            const seqs=A.sequences(l,projectId);
+            (units||[]).forEach(u=>{if(seqs[u]>(out.sequences[u]||0))out.sequences[u]=seqs[u];});
+            (tokens||[]).forEach(t=>{if(t&&l.receipts&&l.receipts[t]&&!out.receipts[t])out.receipts[t]=l.receipts[t];});
+          }
+          resolve(out);
+        };
+        tx.onerror=()=>reject(tx.error);
       });}finally{db.close();}
     },
 
     // Consumption history and inventory are one atomic manager_state write.
+    // The commit reads, for this project, its row (baseline and running
+    // totals) and, for each operation, its unit's newest event, the event at
+    // its sequence and its receipt; ThreadAccounting.apply() runs over just
+    // those, exactly as over the whole ledger (it only ever looks at them), and
+    // the commit writes the events and receipts it adds and the project row.
+    // Returns { accounting, threads }: accounting is a summary of this project
+    // ({ summary: true, projectId, projects, totals, sequences, receipts,
+    // events: {} }), never the whole history.
     async applyConsumptionEvents(projectId, initialMarks, operations) {
       if(!projectId)throw new Error('A saved project id is required');
       const A=window.ThreadAccounting;
@@ -862,37 +922,149 @@ const StashBridge = (() => {
       const projects=R&&ids.length?await this.materialProjects(ids):[];
       const prefs=window.UserPrefs?window.UserPrefs.get('rtWastePrefs')||{}:{};
       if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
-      let compactedHere=false;   // counted as done only once the write commits
-      return _withThreadsWrite('consumption-events',function(threads,ctx){
-        if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
-        const ledger=ctx.record||A.empty();
-        // Once a session, share equal event parts (thread-accounting.js compact()):
-        // the ledger holds an event per stitch ever marked and is read and written
-        // whole, and sharing roughly halves that. Shared parts stay shared when read
-        // back, so later writes need not repeat it.
-        if(!_ledgerCompacted&&typeof A.compact==='function'){A.compact(ledger);compactedHere=true;}
-        // The baseline is written with the first operation, not when a project is
-        // opened (the Tracker calls this with none on load). It still records the
-        // marks on load, which are what this session's operations follow from. A
-        // device that only opened a project then keeps no baseline of its own to
-        // differ from another device's, so syncing adopts the other one.
-        if((operations||[]).length)A.baseline(ledger,projectId,initialMarks,ctx.legacy,ctx.now);
-        const requests=ctx.reservations||(R&&R.empty());
-        if(R&&Object.keys(requests.projects).some(id=>requests.projects[id].enabled&&!ids.includes(id)))throw new Error('Reservations changed while saving consumption. Retry the pending save.');
-        const plan=R?R.plan(threads,requests,projects.filter(p=>requests.projects[p.id]&&requests.projects[p.id].enabled),prefs):null;
-        const own=plan&&plan.groups.find(p=>p.id===projectId);
-        const protectedStock={};
-        if(plan)Object.entries(plan.reserved).forEach(([k,n])=>{protectedStock[k]=Math.max(0,n-((own&&own.rows.find(r=>r.key===k)||{}).reserved||0));});
-        const mapped=(operations||[]).map(op=>{
-          const request=requests&&requests.projects[projectId];
-          if(!R||!op.estimate||!request)return op;
-          return {...op,estimate:{...op.estimate,amounts:R.remap(op.estimate.amounts,request),substitutions:request.substitutions}};
-        });
-        const changed=A.apply(ledger,threads,mapped,ctx.now,protectedStock);
-        return {record:ledger,value:{accounting:ledger,threads},changedKeys:changed};
-      },{recordKey:A.KEY,legacyKey:'rt_deduction:'+projectId,invalidateStats:true}).then(function(value){
-        if(compactedHere)_ledgerCompacted=true;
-        return value;
+      const ops=operations||[];
+      await migrateToLatest(3);
+      return _withManagerWriteLock('consumption-events', async function () {
+        const db = await openManagerDB();
+        try {
+          return await new Promise((resolve, reject) => {
+            const tx = db.transaction("manager_state", "readwrite");
+            const store = tx.objectStore("manager_state");
+            let settled=false,result,changedKeys=[],threadsOut;
+            const fail=err=>{if(settled)return;settled=true;try{tx.abort();}catch(_){}reject(err);};
+            tx.onerror = () => fail(tx.error || new Error('Transaction failed'));
+            tx.onabort = () => { if(!settled){settled=true;reject(tx.error || new Error('Transaction aborted'));} };
+            tx.oncomplete = () => {
+              if(settled)return;settled=true;
+              if (typeof invalidateStatsCache === 'function') invalidateStatsCache();
+              _noteSeenThreadKeys(threadsOut, changedKeys);
+              _dispatchStashChanged();
+              resolve(result);
+            };
+            const got={},want=(k,name)=>{const q=store.get(k);q.onsuccess=()=>{got[name||k]=q.result;step();};};
+            let pending=0;const step=()=>{if(--pending===0)run();};
+            const read=(k,name)=>{pending++;want(k,name);};
+            read('threads');read('thread_reservations_v1');read('rt_deduction:'+projectId);
+            read(A.KEY,'legacyLedger');read(A.storedKeys.project(projectId),'projectRow');
+            const heads={},exact={},receipts={};
+            ops.forEach(op=>{
+              if(!op)return;
+              const pid=op.projectId||projectId,u=op.unit;
+              const hk=pid+'\u0000'+u;
+              if(!(hk in heads)&&typeof pid==='string'&&typeof u==='string'){
+                heads[hk]=null;pending++;
+                const r=A.storedKeys.unitRange(pid,u),c=store.openCursor(IDBKeyRange.bound(r[0],r[1]),'prev');
+                c.onsuccess=()=>{if(c.result)heads[hk]=c.result.value;step();};
+              }
+              if(typeof pid==='string'&&typeof u==='string'&&Number.isSafeInteger(op.seq)&&op.seq>0){
+                const ek=A.storedKeys.event(pid,u,op.seq);
+                if(!(ek in exact)){exact[ek]=null;pending++;const q=store.get(ek);q.onsuccess=()=>{exact[ek]=q.result||null;step();};}
+              }
+              if(op.token&&!(op.token in receipts)){receipts[op.token]=null;pending++;const q=store.get(A.storedKeys.receipt(op.token));q.onsuccess=()=>{receipts[op.token]=q.result?q.result.id:null;step();};}
+            });
+            function run(){
+              try{
+                if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
+                const threads=threadsOut=got.threads||{};
+                const now=new Date().toISOString();
+                let ledger,whole=false;
+                if(got.legacyLedger){
+                  // A whole ledger under the old key (first run after updating, a
+                  // restore, a sync import of the old kind): fold it and anything
+                  // already stored into the stored form, in this transaction.
+                  whole=true;
+                  ledger=null;
+                }else{
+                  ledger=A.empty();
+                  if(got.projectRow&&got.projectRow.record)ledger.projects[projectId]=got.projectRow.record;
+                  Object.values(heads).concat(Object.values(exact)).forEach(e=>{if(e)ledger.events[e.id]=e;});
+                  Object.keys(receipts).forEach(t=>{if(receipts[t])ledger.receipts[t]=receipts[t];});
+                }
+                const finish=(ledger,before)=>{
+                  if(ops.length)A.baseline(ledger,projectId,initialMarks,got['rt_deduction:'+projectId],now);
+                  const requests=got.thread_reservations_v1||(R&&R.empty());
+                  if(R&&Object.keys(requests.projects).some(id=>requests.projects[id].enabled&&!ids.includes(id)))throw new Error('Reservations changed while saving consumption. Retry the pending save.');
+                  const plan=R?R.plan(threads,requests,projects.filter(p=>requests.projects[p.id]&&requests.projects[p.id].enabled),prefs):null;
+                  const own=plan&&plan.groups.find(p=>p.id===projectId);
+                  const protectedStock={};
+                  if(plan)Object.entries(plan.reserved).forEach(([k,n])=>{protectedStock[k]=Math.max(0,n-((own&&own.rows.find(r=>r.key===k)||{}).reserved||0));});
+                  const mapped=ops.map(op=>{
+                    const request=requests&&requests.projects[projectId];
+                    if(!R||!op.estimate||!request)return op;
+                    return {...op,estimate:{...op.estimate,amounts:R.remap(op.estimate.amounts,request),substitutions:request.substitutions}};
+                  });
+                  changedKeys=A.apply(ledger,threads,mapped,now,protectedStock);
+                  return ledger;
+                };
+                if(whole){
+                  // Read every stored row too (still in this transaction), combine, apply, rewrite.
+                  const r=IDBKeyRange.bound(A.storedKeys.all[0],A.storedKeys.all[1]);
+                  const kq=store.getAllKeys(r),vq=store.getAll(r);
+                  vq.onsuccess=()=>{
+                    try{
+                      const stored=A.assemble(kq.result.map((k,i)=>[k,vq.result[i]]));
+                      const l=finish(A.combineStored(stored,got.legacyLedger));
+                      store.delete(r);store.delete(A.KEY);
+                      A.toRows(l).forEach(([k,v])=>store.put(v,k));
+                      store.put(threads,'threads');
+                      const row=A.toRows(l).find(([k])=>k===A.storedKeys.project(projectId));
+                      result={accounting:summaryOf(l,row&&row[1]),threads};
+                    }catch(e){fail(e);}
+                  };
+                  return;
+                }
+                const before=new Set(Object.keys(ledger.events)),receiptsBefore=new Set(Object.keys(ledger.receipts));
+                const hadRecord=!!ledger.projects[projectId];
+                finish(ledger);
+                // What apply() added: write it, and the project's running totals.
+                const row=got.projectRow?Object.assign({},got.projectRow,{totals:Object.assign({},got.projectRow.totals)}):{projectId,record:null,totals:{},events:0};
+                let rowChanged=!hadRecord&&!!ledger.projects[projectId];
+                row.record=ledger.projects[projectId]||row.record||null;
+                const rows={};
+                Object.keys(ledger.events).forEach(id=>{
+                  if(before.has(id))return;
+                  const e=ledger.events[id];
+                  if(e.projectId!==projectId){
+                    // Operations for another project in the same call: keep its row too.
+                    const k=A.storedKeys.project(e.projectId);
+                    (rows[k]||(rows[k]={others:[]})).others.push(e);
+                  }else{
+                    row.totals=Object.assign({},row.totals);
+                    Object.keys(Object.assign({},e.debit,e.credit)).forEach(k=>{row.totals[k]=(row.totals[k]||[]).slice();});
+                    A.addEventTotals(row.totals,e);row.events++;rowChanged=true;
+                  }
+                  store.put(e,A.storedKeys.eventId(e));
+                });
+                Object.keys(ledger.receipts).forEach(t=>{if(!receiptsBefore.has(t))store.put({token:t,id:ledger.receipts[t]},A.storedKeys.receipt(t));});
+                const others=Object.keys(rows);
+                if(rowChanged)store.put(row,A.storedKeys.project(projectId));
+                store.put(threads,'threads');
+                store.put({t:'meta',format:1},A.META_KEY);
+                const done=()=>{result={accounting:summaryOf(ledger,row),threads};};
+                if(!others.length){done();return;}
+                // Rare: rows of other projects named by these operations.
+                let left=others.length;
+                others.forEach(k=>{const q=store.get(k);q.onsuccess=()=>{
+                  const r0=q.result||{projectId:rows[k].others[0].projectId,record:null,totals:{},events:0};
+                  const r1=Object.assign({},r0,{totals:Object.assign({},r0.totals),record:ledger.projects[r0.projectId]||r0.record||null});
+                  rows[k].others.forEach(e=>{Object.keys(Object.assign({},e.debit,e.credit)).forEach(t=>{r1.totals[t]=(r1.totals[t]||[]).slice();});A.addEventTotals(r1.totals,e);r1.events++;});
+                  store.put(r1,k);if(--left===0)done();
+                };});
+              }catch(err){fail(err);}
+            }
+            function summaryOf(l,row){
+              const out={version:2,summary:true,projectId,projects:{},events:{},receipts:{},sequences:{},
+                totals:A.totalsValue(row&&row.totals)};
+              if(l.projects[projectId])out.projects[projectId]=l.projects[projectId];
+              ops.forEach(op=>{if(!op)return;if(op.token&&l.receipts[op.token])out.receipts[op.token]=l.receipts[op.token];});
+              Object.values(l.events).forEach(e=>{if(e.projectId===projectId&&ops.some(op=>op&&op.unit===e.unit))out.sequences[e.unit]=Math.max(out.sequences[e.unit]||0,e.seq);});
+              return out;
+            }
+            if(pending===0)run();
+          });
+        } finally {
+          try { db.close(); } catch (_) { /* swallow */ }
+        }
       });
     },
 

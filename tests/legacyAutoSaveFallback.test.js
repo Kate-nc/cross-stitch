@@ -61,9 +61,10 @@ test('the periodic autosave writes only the project record; unload and flush sti
   const start = TRACKER.indexOf('const project = buildSnapshotRef.current ? buildSnapshotRef.current() : null;\n    if (!project) {');
   expect(start).toBeGreaterThan(0);
   const body = TRACKER.slice(start, TRACKER.indexOf('}, _autoSaveDelay);', start));
-  expect(body).toMatch(/persistProjectRecord\(project\)/);
+  expect(body).toMatch(/persistProjectRecord\(project, ROUTINE_SAVE\)/);
   expect(body).not.toMatch(/saveProjectToDB\(/);
   expect(body).toMatch(/__updateCreatorTrackerFields/);   // the Creator hand-over still runs
   expect(TRACKER).toMatch(/const handleBeforeUnload = \(\) => \{[\s\S]*?saveProjectToDB\(projectToSave\)/);
-  expect(TRACKER).toMatch(/window\.__flushProjectToIDB = async function\(\) \{[\s\S]*?await saveProjectToDB\(project, \{ strict: true \}\)/);
+  // The flush writes it once per project per page (it only has to name the open project).
+  expect(TRACKER).toMatch(/window\.__flushProjectToIDB = async function\(\) \{[\s\S]*?if \(legacyCopyRef\.current !== project\.id\) \{\s*await saveProjectToDB\(project, \{ strict: true \}\)/);
 });

@@ -24,6 +24,8 @@ Project IDs are authoritative in version 2. Identical chart content does not pro
 
 Causal values retain their competing alternatives in metadata. Explicit choices create a subsequent event observing both alternatives, so a stale file cannot undo the choice. Legacy unequal values have no causal evidence and are conservatively reviewed. Missing fields are omission, not deletion. Legacy parking remains an additive union until authored removal history exists. Legacy session keys fall back to start/date; ambiguous identical keys require review instead of silently losing notes.
 
+On the device, consumption history is stored as one `manager_state` record per event, per project and per receipt token (`tc2:` keys, see `thread-accounting.js` "Stored form"), so a commit reads and writes only what it touches. Sync files, backups and the import merge always use the whole `thread_consumption_v2` form; a whole ledger written under that key (an import, a restore, an older build) is combined with the stored one by the next write, keeping this device's history where the two contradict, as the import merge does. A project's own record may likewise be split into the full record, its progress record and its overlay row (`project-storage.js` "Overlay"); exports read it through `ProjectStorage.get()`, which folds them together, so a file always carries whole projects.
+
 Derived thumbnails and the optional original source image retain the existing prefer-present behaviour. Work-area focus retains its existing field-specific rule. Portable preferences retain the existing review gate. These are not new distributed accounting operations.
 
 ## Attachments

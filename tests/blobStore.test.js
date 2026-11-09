@@ -97,7 +97,8 @@ describe('drafts stay out of projects, stats, backups and sync', () => {
     // The one exception is the Tracker's progress record ("progress:<id>", read by id in
     // _readProgress); nothing lists or scans the store.
     expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.(getAll|openCursor)\(/);
-    expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.get\((?!PROGRESS_PREFIX)/);
+    // and its overlay row ("overlay:<id>", the rest of an overlay save), both read by id.
+    expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.get\((?!PROGRESS_PREFIX|OVERLAY_PREFIX)/);
     expect(storage).toMatch(/tx\.objectStore\("pendingImports"\)\.delete\("trace:" \+ id\)/);
   });
 });
