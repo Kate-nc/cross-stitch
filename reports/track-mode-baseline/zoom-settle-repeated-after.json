@@ -1,9 +1,9 @@
 {
  "kind": "zoom-settle",
- "startedAt": "2026-11-09T19:45:26.991Z",
+ "startedAt": "2026-11-09T20:18:53.991Z",
  "build": {
-  "commit": "08c78b4fa3d6e02974eacc43cc7b4cbc004c64c5",
-  "dirtyFiles": 26
+  "commit": "2ff1494e045446a7b08d21e479629b3de23e81f7",
+  "dirtyFiles": 5
  },
  "environment": {
   "browser": "Chromium 153.0.8010.12 (headless, software raster)",
@@ -13,18 +13,18 @@
  "cases": {
   "phone-full-30": {
    "phases": {
-    "setup": 0.1,
-    "backgrounds": 10.2,
-    "cellLoop": 15.1,
+    "setup": 0.8,
+    "backgrounds": 6.2,
+    "cellLoop": 6.4,
     "glyphMs": 0,
-    "outlines": 1.3,
+    "outlines": 0.9,
     "texture": 0,
-    "gridLines": 0.1,
+    "gridLines": 0.7,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 30.2,
-    "rasterMs": 186.2,
+    "totalMs": 14.9,
+    "rasterMs": 115.6,
     "symbolsDrawn": 0,
     "cells": 32039,
     "tier": 2,
@@ -36,21 +36,35 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 58,
+    "commitTaskMs": 56,
     "commitFrameMs": 17,
     "laterTaskMs": 0,
     "worstFrameMs": 150,
-    "loafMs": 111,
+    "loafMs": 116,
     "rows": [
      {
-      "commitTaskMs": 60,
+      "commitTaskMs": 56,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 150,
-      "loafMs": 121
+      "worstFrameMs": 117,
+      "loafMs": 104
      },
      {
-      "commitTaskMs": 58,
+      "commitTaskMs": 0,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 105
+     },
+     {
+      "commitTaskMs": 51,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 98
+     },
+     {
+      "commitTaskMs": 54,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 150,
@@ -60,57 +74,43 @@
       "commitTaskMs": 55,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 133,
+      "worstFrameMs": 117,
       "loafMs": 102
      },
      {
-      "commitTaskMs": 55,
+      "commitTaskMs": 61,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 133,
       "loafMs": 111
      },
      {
-      "commitTaskMs": 59,
+      "commitTaskMs": 77,
       "commitFrameMs": 33,
       "laterTaskMs": 0,
       "worstFrameMs": 150,
-      "loafMs": 125
+      "loafMs": 208
      },
      {
-      "commitTaskMs": 135,
+      "commitTaskMs": 73,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 167,
+      "loafMs": 139
+     },
+     {
+      "commitTaskMs": 51,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 150,
-      "loafMs": 61
+      "loafMs": 119
      },
      {
-      "commitTaskMs": 67,
+      "commitTaskMs": 65,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 133,
-      "loafMs": 117
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 117,
-      "loafMs": 86
-     },
-     {
-      "commitTaskMs": 50,
-      "commitFrameMs": 17,
-      "laterTaskMs": 192,
-      "worstFrameMs": 200,
-      "loafMs": 95
-     },
-     {
-      "commitTaskMs": 54,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 117,
-      "loafMs": 103
+      "worstFrameMs": 167,
+      "loafMs": 137
      }
     ]
    },
@@ -119,18 +119,18 @@
   },
   "phone-full-100": {
    "phases": {
-    "setup": 0.6,
-    "backgrounds": 1.7,
-    "cellLoop": 18,
-    "glyphMs": 12.8,
+    "setup": 0.1,
+    "backgrounds": 1.2,
+    "cellLoop": 19.5,
+    "glyphMs": 14.2,
     "outlines": 0.1,
     "texture": 0,
     "gridLines": 0.2,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 21.6,
-    "rasterMs": 84.5,
+    "totalMs": 22.8,
+    "rasterMs": 80.7,
     "symbolsDrawn": 2989,
     "cells": 2989,
     "tier": 3,
@@ -142,81 +142,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 64,
+    "commitTaskMs": 67,
     "commitFrameMs": 17,
-    "laterTaskMs": 87,
-    "worstFrameMs": 117,
-    "loafMs": 127,
+    "laterTaskMs": 85,
+    "worstFrameMs": 133,
+    "loafMs": 125,
     "rows": [
      {
-      "commitTaskMs": 58,
+      "commitTaskMs": 80,
       "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 117,
-      "loafMs": 114
+      "laterTaskMs": 83,
+      "worstFrameMs": 133,
+      "loafMs": 137
      },
      {
-      "commitTaskMs": 67,
+      "commitTaskMs": 78,
       "commitFrameMs": 17,
-      "laterTaskMs": 91,
-      "worstFrameMs": 133,
-      "loafMs": 127
+      "laterTaskMs": 100,
+      "worstFrameMs": 150,
+      "loafMs": 146
      },
      {
       "commitTaskMs": 70,
       "commitFrameMs": 17,
-      "laterTaskMs": 107,
-      "worstFrameMs": 150,
-      "loafMs": 137
+      "laterTaskMs": 87,
+      "worstFrameMs": 133,
+      "loafMs": 125
      },
      {
-      "commitTaskMs": 76,
+      "commitTaskMs": 58,
       "commitFrameMs": 17,
-      "laterTaskMs": 97,
-      "worstFrameMs": 150,
-      "loafMs": 140
+      "laterTaskMs": 85,
+      "worstFrameMs": 117,
+      "loafMs": 116
      },
      {
-      "commitTaskMs": 57,
+      "commitTaskMs": 132,
+      "commitFrameMs": 17,
+      "laterTaskMs": 81,
+      "worstFrameMs": 250,
+      "loafMs": 215
+     },
+     {
+      "commitTaskMs": 59,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 117,
-      "loafMs": 111
+      "loafMs": 113
      },
      {
-      "commitTaskMs": 73,
+      "commitTaskMs": 59,
       "commitFrameMs": 17,
-      "laterTaskMs": 124,
-      "worstFrameMs": 167,
-      "loafMs": 167
-     },
-     {
-      "commitTaskMs": 60,
-      "commitFrameMs": 17,
-      "laterTaskMs": 69,
-      "worstFrameMs": 100,
-      "loafMs": 105
-     },
-     {
-      "commitTaskMs": 61,
-      "commitFrameMs": 17,
-      "laterTaskMs": 87,
+      "laterTaskMs": 83,
       "worstFrameMs": 117,
-      "loafMs": 306
+      "loafMs": 114
      },
      {
       "commitTaskMs": 64,
       "commitFrameMs": 17,
-      "laterTaskMs": 76,
-      "worstFrameMs": 117,
-      "loafMs": 111
+      "laterTaskMs": 88,
+      "worstFrameMs": 133,
+      "loafMs": 192
      },
      {
-      "commitTaskMs": 57,
+      "commitTaskMs": 67,
       "commitFrameMs": 17,
-      "laterTaskMs": 71,
-      "worstFrameMs": 100,
-      "loafMs": 102
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 117
+     },
+     {
+      "commitTaskMs": 65,
+      "commitFrameMs": 17,
+      "laterTaskMs": 95,
+      "worstFrameMs": 133,
+      "loafMs": 123
      }
     ]
    },
@@ -225,18 +225,18 @@
   },
   "phone-mixed-30": {
    "phases": {
-    "setup": 0.1,
+    "setup": 0,
     "backgrounds": 6.7,
-    "cellLoop": 20.6,
+    "cellLoop": 25.5,
     "glyphMs": 0,
-    "outlines": 1,
+    "outlines": 1.3,
     "texture": 0,
-    "gridLines": 0,
-    "specialty": 21.5,
+    "gridLines": 0.1,
+    "specialty": 20.6,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 50.8,
-    "rasterMs": 144.7,
+    "totalMs": 58.9,
+    "rasterMs": 158.8,
     "symbolsDrawn": 0,
     "cells": 30429,
     "tier": 2,
@@ -248,81 +248,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 74,
+    "commitTaskMs": 80,
     "commitFrameMs": 17,
     "laterTaskMs": 0,
     "worstFrameMs": 167,
-    "loafMs": 149,
+    "loafMs": 157,
     "rows": [
      {
-      "commitTaskMs": 74,
+      "commitTaskMs": 80,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 150,
-      "loafMs": 136
+      "loafMs": 140
      },
      {
-      "commitTaskMs": 85,
+      "commitTaskMs": 77,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 183,
-      "loafMs": 174
-     },
-     {
-      "commitTaskMs": 57,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 133,
-      "loafMs": 123
-     },
-     {
-      "commitTaskMs": 73,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 150,
-      "loafMs": 279
-     },
-     {
-      "commitTaskMs": 62,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 150,
-      "loafMs": 130
+      "worstFrameMs": 167,
+      "loafMs": 151
      },
      {
       "commitTaskMs": 75,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 167,
-      "loafMs": 149
+      "loafMs": 141
      },
      {
-      "commitTaskMs": 99,
+      "commitTaskMs": 97,
       "commitFrameMs": 17,
-      "laterTaskMs": 99,
-      "worstFrameMs": 183,
-      "loafMs": 171
+      "laterTaskMs": 0,
+      "worstFrameMs": 167,
+      "loafMs": 157
      },
      {
-      "commitTaskMs": 73,
+      "commitTaskMs": 64,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 129
+     },
+     {
+      "commitTaskMs": 72,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 200,
+      "loafMs": 170
+     },
+     {
+      "commitTaskMs": 107,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 200,
+      "loafMs": 177
+     },
+     {
+      "commitTaskMs": 128,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 300,
+      "loafMs": 267
+     },
+     {
+      "commitTaskMs": 85,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 167,
       "loafMs": 148
      },
      {
-      "commitTaskMs": 61,
+      "commitTaskMs": 80,
       "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 133,
-      "loafMs": 128
-     },
-     {
-      "commitTaskMs": 167,
-      "commitFrameMs": 50,
-      "laterTaskMs": 77,
-      "worstFrameMs": 217,
-      "loafMs": 157
+      "laterTaskMs": 165,
+      "worstFrameMs": 183,
+      "loafMs": 168
      }
     ]
    },
@@ -331,18 +331,18 @@
   },
   "phone-mixed-100": {
    "phases": {
-    "setup": 0.5,
+    "setup": 0.1,
     "backgrounds": 1,
-    "cellLoop": 16.7,
-    "glyphMs": 10.6,
-    "outlines": 0.2,
+    "cellLoop": 21.7,
+    "glyphMs": 12.6,
+    "outlines": 0.1,
     "texture": 0,
-    "gridLines": 0.1,
-    "specialty": 4.6,
+    "gridLines": 0.7,
+    "specialty": 5.1,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 24.4,
-    "rasterMs": 72.1,
+    "totalMs": 28.8,
+    "rasterMs": 83,
     "symbolsDrawn": 2842,
     "cells": 2842,
     "tier": 3,
@@ -354,81 +354,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 74,
+    "commitTaskMs": 67,
     "commitFrameMs": 17,
-    "laterTaskMs": 83,
-    "worstFrameMs": 133,
-    "loafMs": 131,
+    "laterTaskMs": 87,
+    "worstFrameMs": 150,
+    "loafMs": 138,
     "rows": [
      {
-      "commitTaskMs": 108,
+      "commitTaskMs": 86,
       "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 183,
-      "loafMs": 173
+      "laterTaskMs": 95,
+      "worstFrameMs": 150,
+      "loafMs": 151
      },
      {
-      "commitTaskMs": 74,
+      "commitTaskMs": 61,
       "commitFrameMs": 17,
-      "laterTaskMs": 83,
+      "laterTaskMs": 84,
+      "worstFrameMs": 117,
+      "loafMs": 119
+     },
+     {
+      "commitTaskMs": 66,
+      "commitFrameMs": 17,
+      "laterTaskMs": 96,
       "worstFrameMs": 133,
       "loafMs": 131
      },
      {
+      "commitTaskMs": 81,
+      "commitFrameMs": 17,
+      "laterTaskMs": 52,
+      "worstFrameMs": 150,
+      "loafMs": 143
+     },
+     {
+      "commitTaskMs": 67,
+      "commitFrameMs": 17,
+      "laterTaskMs": 87,
+      "worstFrameMs": 133,
+      "loafMs": 126
+     },
+     {
+      "commitTaskMs": 61,
+      "commitFrameMs": 17,
+      "laterTaskMs": 81,
+      "worstFrameMs": 117,
+      "loafMs": 115
+     },
+     {
       "commitTaskMs": 74,
       "commitFrameMs": 17,
-      "laterTaskMs": 88,
-      "worstFrameMs": 133,
-      "loafMs": 135
+      "laterTaskMs": 99,
+      "worstFrameMs": 150,
+      "loafMs": 138
      },
      {
       "commitTaskMs": 86,
       "commitFrameMs": 17,
-      "laterTaskMs": 88,
+      "laterTaskMs": 52,
+      "worstFrameMs": 150,
+      "loafMs": 147
+     },
+     {
+      "commitTaskMs": 55,
+      "commitFrameMs": 17,
+      "laterTaskMs": 87,
+      "worstFrameMs": 117,
+      "loafMs": 115
+     },
+     {
+      "commitTaskMs": 61,
+      "commitFrameMs": 17,
+      "laterTaskMs": 112,
       "worstFrameMs": 150,
       "loafMs": 145
-     },
-     {
-      "commitTaskMs": 57,
-      "commitFrameMs": 17,
-      "laterTaskMs": 78,
-      "worstFrameMs": 117,
-      "loafMs": 110
-     },
-     {
-      "commitTaskMs": 59,
-      "commitFrameMs": 17,
-      "laterTaskMs": 76,
-      "worstFrameMs": 117,
-      "loafMs": 109
-     },
-     {
-      "commitTaskMs": 56,
-      "commitFrameMs": 17,
-      "laterTaskMs": 53,
-      "worstFrameMs": 133,
-      "loafMs": 122
-     },
-     {
-      "commitTaskMs": 84,
-      "commitFrameMs": 17,
-      "laterTaskMs": 89,
-      "worstFrameMs": 150,
-      "loafMs": 220
-     },
-     {
-      "commitTaskMs": 57,
-      "commitFrameMs": 17,
-      "laterTaskMs": 85,
-      "worstFrameMs": 117,
-      "loafMs": 114
-     },
-     {
-      "commitTaskMs": 52,
-      "commitFrameMs": 17,
-      "laterTaskMs": 53,
-      "worstFrameMs": 117,
-      "loafMs": 111
      }
     ]
    },
@@ -437,18 +437,18 @@
   },
   "phone-area-30": {
    "phases": {
-    "setup": 0,
-    "backgrounds": 7.2,
-    "cellLoop": 6.8,
+    "setup": 0.2,
+    "backgrounds": 7.9,
+    "cellLoop": 8.6,
     "glyphMs": 0,
-    "outlines": 0.9,
+    "outlines": 1.3,
     "texture": 0,
     "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 16.2,
-    "rasterMs": 86.7,
+    "totalMs": 19.4,
+    "rasterMs": 103.9,
     "symbolsDrawn": 0,
     "cells": 27300,
     "tier": 2,
@@ -460,81 +460,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 56,
+    "commitTaskMs": 60,
     "commitFrameMs": 17,
     "laterTaskMs": 0,
     "worstFrameMs": 100,
-    "loafMs": 139,
+    "loafMs": 101,
     "rows": [
      {
-      "commitTaskMs": 51,
+      "commitTaskMs": 60,
       "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 100,
-      "loafMs": 89
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 100,
-      "loafMs": 164
-     },
-     {
-      "commitTaskMs": 129,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 183,
-      "loafMs": 169
-     },
-     {
-      "commitTaskMs": 65,
-      "commitFrameMs": 17,
-      "laterTaskMs": 69,
-      "worstFrameMs": 83,
-      "loafMs": 155
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 100,
-      "loafMs": 86
-     },
-     {
-      "commitTaskMs": 75,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 100,
-      "loafMs": 151
-     },
-     {
-      "commitTaskMs": 56,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
+      "laterTaskMs": 58,
       "worstFrameMs": 117,
+      "loafMs": 108
+     },
+     {
+      "commitTaskMs": 63,
+      "commitFrameMs": 17,
+      "laterTaskMs": 53,
+      "worstFrameMs": 100,
       "loafMs": 97
      },
      {
-      "commitTaskMs": 56,
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 100,
+      "loafMs": 83
+     },
+     {
+      "commitTaskMs": 73,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 100,
+      "loafMs": 94
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 83,
+      "loafMs": 79
+     },
+     {
+      "commitTaskMs": 50,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 67,
       "loafMs": 69
      },
      {
-      "commitTaskMs": 51,
+      "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 83,
-      "loafMs": 69
+      "worstFrameMs": 100,
+      "loafMs": 266
      },
      {
-      "commitTaskMs": 73,
+      "commitTaskMs": 63,
+      "commitFrameMs": 17,
+      "laterTaskMs": 66,
+      "worstFrameMs": 100,
+      "loafMs": 108
+     },
+     {
+      "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 83,
-      "loafMs": 139
+      "worstFrameMs": 117,
+      "loafMs": 101
+     },
+     {
+      "commitTaskMs": 80,
+      "commitFrameMs": 17,
+      "laterTaskMs": 60,
+      "worstFrameMs": 117,
+      "loafMs": 122
      }
     ]
    },
@@ -544,17 +544,17 @@
   "phone-area-100": {
    "phases": {
     "setup": 0.1,
-    "backgrounds": 1.6,
-    "cellLoop": 17.4,
-    "glyphMs": 12.7,
-    "outlines": 0.9,
+    "backgrounds": 0.9,
+    "cellLoop": 16.6,
+    "glyphMs": 12.2,
+    "outlines": 0.1,
     "texture": 0,
-    "gridLines": 0.2,
+    "gridLines": 0.9,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 27.8,
-    "rasterMs": 68.5,
+    "totalMs": 19.6,
+    "rasterMs": 67.5,
     "symbolsDrawn": 2695,
     "cells": 2695,
     "tier": 3,
@@ -566,81 +566,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 62,
+    "commitTaskMs": 69,
     "commitFrameMs": 17,
-    "laterTaskMs": 65,
-    "worstFrameMs": 100,
-    "loafMs": 96,
+    "laterTaskMs": 0,
+    "worstFrameMs": 117,
+    "loafMs": 123,
     "rows": [
      {
-      "commitTaskMs": 56,
+      "commitTaskMs": 0,
       "commitFrameMs": 17,
-      "laterTaskMs": 68,
+      "laterTaskMs": 0,
       "worstFrameMs": 100,
-      "loafMs": 101
+      "loafMs": 95
      },
      {
-      "commitTaskMs": 51,
+      "commitTaskMs": 66,
       "commitFrameMs": 17,
-      "laterTaskMs": 75,
-      "worstFrameMs": 100,
-      "loafMs": 96
+      "laterTaskMs": 73,
+      "worstFrameMs": 117,
+      "loafMs": 115
      },
      {
-      "commitTaskMs": 82,
+      "commitTaskMs": 90,
       "commitFrameMs": 17,
-      "laterTaskMs": 68,
+      "laterTaskMs": 60,
       "worstFrameMs": 133,
-      "loafMs": 126
+      "loafMs": 127
      },
      {
-      "commitTaskMs": 72,
+      "commitTaskMs": 91,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 100,
-      "loafMs": 96
+      "worstFrameMs": 117,
+      "loafMs": 97
      },
      {
-      "commitTaskMs": 62,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 83,
-      "loafMs": 87
-     },
-     {
-      "commitTaskMs": 59,
+      "commitTaskMs": 57,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 67,
-      "loafMs": 77
+      "loafMs": 144
      },
      {
       "commitTaskMs": 63,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 83,
-      "loafMs": 82
+      "loafMs": 78
      },
      {
-      "commitTaskMs": 51,
+      "commitTaskMs": 67,
       "commitFrameMs": 17,
-      "laterTaskMs": 71,
-      "worstFrameMs": 100,
-      "loafMs": 98
+      "laterTaskMs": 95,
+      "worstFrameMs": 133,
+      "loafMs": 139
      },
      {
-      "commitTaskMs": 60,
+      "commitTaskMs": 69,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 67,
-      "loafMs": 71
+      "worstFrameMs": 100,
+      "loafMs": 273
      },
      {
-      "commitTaskMs": 62,
+      "commitTaskMs": 84,
       "commitFrameMs": 17,
-      "laterTaskMs": 65,
-      "worstFrameMs": 100,
-      "loafMs": 101
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 123
+     },
+     {
+      "commitTaskMs": 69,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 83,
+      "loafMs": 90
      }
     ]
    },
@@ -649,18 +649,18 @@
   },
   "phone-overlays-30": {
    "phases": {
-    "setup": 0,
-    "backgrounds": 4.2,
-    "cellLoop": 7.8,
+    "setup": 0.9,
+    "backgrounds": 3.6,
+    "cellLoop": 6,
     "glyphMs": 0,
     "outlines": 1,
     "texture": 0,
-    "gridLines": 0.1,
-    "specialty": 0.1,
+    "gridLines": 0,
+    "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 17.9,
-    "rasterMs": 102.1,
+    "totalMs": 12.5,
+    "rasterMs": 103.5,
     "symbolsDrawn": 0,
     "cells": 29785,
     "tier": 2,
@@ -672,81 +672,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 70,
+    "commitTaskMs": 67,
     "commitFrameMs": 33,
     "laterTaskMs": 0,
-    "worstFrameMs": 167,
-    "loafMs": 136,
+    "worstFrameMs": 150,
+    "loafMs": 123,
     "rows": [
      {
-      "commitTaskMs": 100,
+      "commitTaskMs": 87,
       "commitFrameMs": 33,
-      "laterTaskMs": 52,
-      "worstFrameMs": 200,
-      "loafMs": 161
+      "laterTaskMs": 50,
+      "worstFrameMs": 183,
+      "loafMs": 151
      },
      {
-      "commitTaskMs": 101,
-      "commitFrameMs": 33,
-      "laterTaskMs": 0,
-      "worstFrameMs": 217,
-      "loafMs": 204
-     },
-     {
-      "commitTaskMs": 85,
+      "commitTaskMs": 68,
       "commitFrameMs": 33,
       "laterTaskMs": 0,
       "worstFrameMs": 167,
-      "loafMs": 139
+      "loafMs": 194
      },
      {
-      "commitTaskMs": 65,
+      "commitTaskMs": 96,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 167,
-      "loafMs": 136
+      "loafMs": 150
+     },
+     {
+      "commitTaskMs": 67,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 121
+     },
+     {
+      "commitTaskMs": 51,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 104
      },
      {
       "commitTaskMs": 0,
       "commitFrameMs": 33,
       "laterTaskMs": 0,
       "worstFrameMs": 133,
-      "loafMs": 99
+      "loafMs": 190
      },
      {
-      "commitTaskMs": 66,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 150,
-      "loafMs": 238
-     },
-     {
-      "commitTaskMs": 70,
-      "commitFrameMs": 17,
-      "laterTaskMs": 61,
-      "worstFrameMs": 150,
-      "loafMs": 126
-     },
-     {
-      "commitTaskMs": 65,
+      "commitTaskMs": 59,
       "commitFrameMs": 33,
-      "laterTaskMs": 0,
+      "laterTaskMs": 79,
       "worstFrameMs": 133,
-      "loafMs": 126
+      "loafMs": 112
      },
      {
-      "commitTaskMs": 68,
+      "commitTaskMs": 53,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 106
+     },
+     {
+      "commitTaskMs": 72,
+      "commitFrameMs": 17,
+      "laterTaskMs": 215,
+      "worstFrameMs": 217,
+      "loafMs": 121
+     },
+     {
+      "commitTaskMs": 63,
       "commitFrameMs": 33,
       "laterTaskMs": 0,
       "worstFrameMs": 150,
-      "loafMs": 132
-     },
-     {
-      "commitTaskMs": 74,
-      "commitFrameMs": 33,
-      "laterTaskMs": 0,
-      "worstFrameMs": 167,
-      "loafMs": 136
+      "loafMs": 123
      }
     ]
    },
@@ -755,18 +755,18 @@
   },
   "phone-overlays-100": {
    "phases": {
-    "setup": 0.7,
-    "backgrounds": 0.9,
-    "cellLoop": 27.9,
-    "glyphMs": 16.8,
-    "outlines": 0.2,
+    "setup": 0.2,
+    "backgrounds": 1,
+    "cellLoop": 27.5,
+    "glyphMs": 13.9,
+    "outlines": 0.1,
     "texture": 0,
-    "gridLines": 0.3,
+    "gridLines": 0.9,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 31.6,
-    "rasterMs": 67.9,
+    "totalMs": 30.9,
+    "rasterMs": 68.4,
     "symbolsDrawn": 1904,
     "cells": 2744,
     "tier": 3,
@@ -778,81 +778,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 67,
+    "commitTaskMs": 70,
     "commitFrameMs": 17,
-    "laterTaskMs": 87,
-    "worstFrameMs": 133,
-    "loafMs": 120,
+    "laterTaskMs": 92,
+    "worstFrameMs": 150,
+    "loafMs": 147,
     "rows": [
      {
-      "commitTaskMs": 89,
+      "commitTaskMs": 83,
       "commitFrameMs": 17,
-      "laterTaskMs": 57,
-      "worstFrameMs": 183,
-      "loafMs": 149
+      "laterTaskMs": 104,
+      "worstFrameMs": 167,
+      "loafMs": 147
      },
      {
-      "commitTaskMs": 74,
+      "commitTaskMs": 70,
       "commitFrameMs": 17,
-      "laterTaskMs": 92,
+      "laterTaskMs": 53,
       "worstFrameMs": 150,
-      "loafMs": 130
+      "loafMs": 132
      },
      {
-      "commitTaskMs": 63,
+      "commitTaskMs": 70,
       "commitFrameMs": 17,
-      "laterTaskMs": 87,
+      "laterTaskMs": 89,
       "worstFrameMs": 133,
-      "loafMs": 115
+      "loafMs": 121
      },
      {
-      "commitTaskMs": 63,
+      "commitTaskMs": 55,
       "commitFrameMs": 17,
-      "laterTaskMs": 102,
-      "worstFrameMs": 133,
-      "loafMs": 122
-     },
-     {
-      "commitTaskMs": 52,
-      "commitFrameMs": 17,
-      "laterTaskMs": 84,
+      "laterTaskMs": 52,
       "worstFrameMs": 117,
-      "loafMs": 99
+      "loafMs": 109
+     },
+     {
+      "commitTaskMs": 53,
+      "commitFrameMs": 17,
+      "laterTaskMs": 93,
+      "worstFrameMs": 117,
+      "loafMs": 171
      },
      {
       "commitTaskMs": 62,
       "commitFrameMs": 17,
-      "laterTaskMs": 113,
-      "worstFrameMs": 150,
-      "loafMs": 120
-     },
-     {
-      "commitTaskMs": 67,
-      "commitFrameMs": 17,
-      "laterTaskMs": 79,
-      "worstFrameMs": 117,
-      "loafMs": 112
-     },
-     {
-      "commitTaskMs": 66,
-      "commitFrameMs": 17,
-      "laterTaskMs": 87,
+      "laterTaskMs": 94,
       "worstFrameMs": 133,
-      "loafMs": 117
+      "loafMs": 116
      },
      {
-      "commitTaskMs": 81,
+      "commitTaskMs": 68,
+      "commitFrameMs": 17,
+      "laterTaskMs": 93,
+      "worstFrameMs": 133,
+      "loafMs": 125
+     },
+     {
+      "commitTaskMs": 59,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 100,
-      "loafMs": 90
+      "worstFrameMs": 150,
+      "loafMs": 308
      },
      {
-      "commitTaskMs": 85,
+      "commitTaskMs": 139,
       "commitFrameMs": 17,
-      "laterTaskMs": 96,
-      "worstFrameMs": 150,
-      "loafMs": 140
+      "laterTaskMs": 83,
+      "worstFrameMs": 267,
+      "loafMs": 229
+     },
+     {
+      "commitTaskMs": 95,
+      "commitFrameMs": 17,
+      "laterTaskMs": 92,
+      "worstFrameMs": 167,
+      "loafMs": 151
      }
     ]
    },
@@ -862,17 +862,17 @@
   "desktop-dpr1-full-30": {
    "phases": {
     "setup": 0.1,
-    "backgrounds": 4.4,
-    "cellLoop": 6.5,
+    "backgrounds": 4,
+    "cellLoop": 6.7,
     "glyphMs": 0,
-    "outlines": 0.7,
+    "outlines": 0.5,
     "texture": 0,
     "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 12.7,
-    "rasterMs": 10.8,
+    "totalMs": 11.8,
+    "rasterMs": 11.5,
     "symbolsDrawn": 0,
     "cells": 56400,
     "tier": 2,
@@ -894,14 +894,14 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
@@ -968,17 +968,17 @@
   "desktop-dpr1-full-100": {
    "phases": {
     "setup": 0.1,
-    "backgrounds": 0.3,
-    "cellLoop": 8.2,
-    "glyphMs": 6.8,
+    "backgrounds": 0.4,
+    "cellLoop": 11.1,
+    "glyphMs": 7.9,
     "outlines": 0,
     "texture": 0,
     "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 8.7,
-    "rasterMs": 9.7,
+    "totalMs": 12.2,
+    "rasterMs": 9.6,
     "symbolsDrawn": 5185,
     "cells": 5185,
     "tier": 3,
@@ -1073,18 +1073,18 @@
   },
   "desktop-dpr1-mixed-30": {
    "phases": {
-    "setup": 0,
-    "backgrounds": 3.4,
-    "cellLoop": 15.7,
+    "setup": 0.1,
+    "backgrounds": 2.1,
+    "cellLoop": 11.1,
     "glyphMs": 0,
-    "outlines": 0.4,
+    "outlines": 0.3,
     "texture": 0,
     "gridLines": 0.1,
-    "specialty": 7.9,
+    "specialty": 7.3,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 26.9,
-    "rasterMs": 16.7,
+    "totalMs": 20.8,
+    "rasterMs": 15.8,
     "symbolsDrawn": 0,
     "cells": 56400,
     "tier": 2,
@@ -1120,29 +1120,8 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
       "worstFrameMs": 17,
       "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 51
      },
      {
       "commitTaskMs": 0,
@@ -1169,8 +1148,29 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
       "worstFrameMs": 17,
       "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 56
      }
     ]
    },
@@ -1179,18 +1179,18 @@
   },
   "desktop-dpr1-mixed-100": {
    "phases": {
-    "setup": 0,
+    "setup": 0.1,
     "backgrounds": 0.4,
-    "cellLoop": 8.2,
-    "glyphMs": 5.3,
+    "cellLoop": 7.5,
+    "glyphMs": 4.8,
     "outlines": 0.1,
     "texture": 0,
-    "gridLines": 0,
+    "gridLines": 0.1,
     "specialty": 1.3,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 10,
-    "rasterMs": 10.7,
+    "totalMs": 9.6,
+    "rasterMs": 11.2,
     "symbolsDrawn": 5185,
     "cells": 5185,
     "tier": 3,
@@ -1212,7 +1212,7 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
@@ -1261,8 +1261,8 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
-      "loafMs": 0
+      "worstFrameMs": 50,
+      "loafMs": 57
      },
      {
       "commitTaskMs": 0,
@@ -1286,17 +1286,17 @@
   "desktop-dpr1-area-30": {
    "phases": {
     "setup": 0,
-    "backgrounds": 2.4,
-    "cellLoop": 6.8,
+    "backgrounds": 3.1,
+    "cellLoop": 4.3,
     "glyphMs": 0,
-    "outlines": 0.7,
+    "outlines": 0.4,
     "texture": 0,
-    "gridLines": 0.1,
+    "gridLines": 0,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 10.1,
-    "rasterMs": 6.3,
+    "totalMs": 10.4,
+    "rasterMs": 4.8,
     "symbolsDrawn": 0,
     "cells": 40170,
     "tier": 2,
@@ -1332,14 +1332,7 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 17,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
@@ -1354,6 +1347,13 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 33,
+      "loafMs": 55
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
       "loafMs": 0
      },
      {
@@ -1392,17 +1392,17 @@
   "desktop-dpr1-area-100": {
    "phases": {
     "setup": 0,
-    "backgrounds": 0.4,
-    "cellLoop": 6.8,
-    "glyphMs": 5.6,
+    "backgrounds": 0.6,
+    "cellLoop": 9.8,
+    "glyphMs": 7.2,
     "outlines": 0.1,
     "texture": 0,
     "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 7.5,
-    "rasterMs": 6.4,
+    "totalMs": 10.8,
+    "rasterMs": 9.6,
     "symbolsDrawn": 5185,
     "cells": 5185,
     "tier": 3,
@@ -1498,17 +1498,17 @@
   "desktop-dpr2-full-30": {
    "phases": {
     "setup": 0,
-    "backgrounds": 2.9,
-    "cellLoop": 3.3,
+    "backgrounds": 2.4,
+    "cellLoop": 2.4,
     "glyphMs": 0,
-    "outlines": 0.4,
+    "outlines": 0.3,
     "texture": 0,
-    "gridLines": 0,
+    "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 7,
-    "rasterMs": 22,
+    "totalMs": 5.4,
+    "rasterMs": 22.7,
     "symbolsDrawn": 0,
     "cells": 56400,
     "tier": 2,
@@ -1537,14 +1537,42 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
@@ -1566,34 +1594,6 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 17,
       "loafMs": 0
      }
     ]
@@ -1604,17 +1604,17 @@
   "desktop-dpr2-full-100": {
    "phases": {
     "setup": 0.1,
-    "backgrounds": 0.4,
-    "cellLoop": 7,
-    "glyphMs": 5.6,
+    "backgrounds": 0.3,
+    "cellLoop": 8.4,
+    "glyphMs": 5.2,
     "outlines": 0.1,
     "texture": 0,
     "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 8,
-    "rasterMs": 18.8,
+    "totalMs": 9.2,
+    "rasterMs": 23.5,
     "symbolsDrawn": 5185,
     "cells": 5185,
     "tier": 3,
@@ -1671,20 +1671,6 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 50,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
       "worstFrameMs": 33,
       "loafMs": 0
      },
@@ -1700,7 +1686,21 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 50,
-      "loafMs": 57
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
      }
     ]
    },

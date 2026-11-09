@@ -11,16 +11,18 @@ Ten settles per case, each a zoom under the 1.6x rebase, medians (phone: Pixel 5
 
 | Phone, 400 x 500 chart | Task ending the pinch, before | after | Worst frame around it, before | after | Long-frame time, before | after |
 |---|---:|---:|---:|---:|---:|---:|
-| Full stitches, 30% (6 px stitches) | 68 ms | **58 ms** | 233 ms | **150 ms** | 202 ms | **111 ms** |
-| Full stitches, 100% (symbols) | 84 ms | **64 ms** | 167 ms | **117 ms** | 164 ms | **127 ms** |
-| Mixed stitches, 30% | 111 ms | **74 ms** | 283 ms | **167 ms** | 258 ms | **149 ms** |
-| Mixed stitches, 100% | 80 ms | **74 ms** | 183 ms | **133 ms** | 174 ms | **131 ms** |
-| Work area, 30% | 57 ms | 56 ms | 150 ms | **100 ms** | 170 ms | **139 ms** |
-| Work area, 100% | 71 ms | **62 ms** | 150 ms | **100 ms** | 140 ms | **96 ms** |
-| Highlight, counting aids and Spotlight on, 30% | 76 ms | 70 ms | 233 ms | **167 ms** | 200 ms | **136 ms** |
-| The same, 100% | 90 ms | **67 ms** | 183 ms | **133 ms** | 173 ms | **120 ms** |
+| Full stitches, 30% (6 px stitches) | 62 ms | **56 ms** | 217 ms | **150 ms** | 188 ms | **116 ms** |
+| Full stitches, 100% (symbols) | 69 ms | 67 ms | 150 ms | **133 ms** | 149 ms | **125 ms** |
+| Mixed stitches, 30% | 96 ms | **80 ms** | 267 ms | **167 ms** | 256 ms | **157 ms** |
+| Mixed stitches, 100% | 77 ms | **67 ms** | 183 ms | **150 ms** | 172 ms | **138 ms** |
+| Work area, 30% | 77 ms | **60 ms** | 183 ms | **100 ms** | 192 ms | **101 ms** |
+| Work area, 100% | 59 ms | 69 ms | 133 ms | **117 ms** | 140 ms | **123 ms** |
+| Highlight, counting aids and Spotlight on, 30% | 81 ms | **67 ms** | 250 ms | **150 ms** | 205 ms | **123 ms** |
+| The same, 100% | 90 ms | **70 ms** | 200 ms | **150 ms** | 181 ms | **147 ms** |
 
-The worst frame is the one the stitcher sees stall as the chart sharpens. It fell by 30-40% in every phone case, and the per-run spread barely overlaps (full stitches at 30%: 183-283 ms before, 117-200 ms after; mixed at 30%: 233-350 ms before, 133-217 ms after). Tasks over 50 ms in the second after a settle, the strips included, did not grow: none at 30%, and at 100% one that follows the zoom both before and after (96-112 ms before, 65-87 ms after). On desktop (1440 x 900, no throttle) the settle was already under 50 ms; its worst frame went from 17-67 ms to 17-33 ms (DPR 2: 67 to 33 ms and 50 to 33 ms).
+The worst frame is the one the stitcher sees stall as the chart sharpens. It fell in every phone case: by 31-45% at 30% zoom, where the tile holds the most stitches, and by 11-25% at 100%. At 30% the per-run spread barely overlaps (full stitches: 150-250 ms before, 117-167 ms after; mixed: 217-317 ms before, 150-300 ms after). The task that ends the pinch fell in 7 of 8 cases (the work area at 100% went from 59 to 69 ms, within run-to-run noise). Tasks over 50 ms in the second after a settle, the strips included, did not grow: none at 30%, and at 100% one that follows any zoom (96-125 ms before, 0-92 ms after). On desktop (1440 x 900, no throttle) the settle was already under 50 ms; its worst frame went from 17-50 ms to 17-33 ms.
+
+*Measurement note.* The first version of this table took frame gaps from the first frame after the gesture ended, which a review rightly pointed out leaves out the interval holding the commit if it lands in the very next frame. The harness now starts from the last frame before; the table above is that re-run, both builds again. The commit lands a few frames after the measured end (the touch is dispatched over the DevTools protocol), so the earlier table had caught the stall too, and the two runs agree within run-to-run noise.
 
 Raw results: [zoom-settle-repeated-before.json](track-mode-baseline/zoom-settle-repeated-before.json) / [-after.json](track-mode-baseline/zoom-settle-repeated-after.json) (the table), [zoom-settle-before.json](track-mode-baseline/zoom-settle-before.json) / [-after.json](track-mode-baseline/zoom-settle-after.json) (paint breakdown and whole gestures). `npm run perf:zoom-settle` reruns them (`SETTLE_ONLY=1 SETTLES=10` for the table alone).
 
@@ -48,14 +50,14 @@ Raw results: [zoom-settle-repeated-before.json](track-mode-baseline/zoom-settle-
 (Markers: the chart border, work-area fade and park markers, under 0.1 ms everywhere. Texture is off by default.)
 
 - **On the phone profile the raster dominates**: 68-152 ms against 20-60 ms of script. Raster cost is set by how many device pixels are painted (4.1-4.6 million for a phone tile, which renders at 2x), not by what is in them. That is why painting less of the tile at the settle helps, and why making any one phase cheaper could not: the biggest script phase, symbols at 100%, is 11-21 ms.
-- **Overlays** (the Highlight outline, counting aids, Spotlight) are separate canvases, redrawn whole when the tile changes, so at every commit. The breakdown's repaint keeps the tile and does not redraw them; their cost shows in the table above as the gap between "Highlight, counting aids and Spotlight on" and "Full stitches": 6-8 ms more on the commit task. Unchanged here.
+- **Overlays** (the Highlight outline, counting aids, Spotlight) are separate canvases, redrawn whole when the tile changes, so at every commit. The breakdown's repaint keeps the tile and does not redraw them; their cost shows in the table above as the gap between "Highlight, counting aids and Spotlight on" and "Full stitches": about 20 ms more on the commit task. Unchanged here.
 - **Software raster.** The emulated phone draws canvases on the CPU and the 4x throttle slows that too. On a phone's GPU the raster share is likely smaller and the gain from painting less smaller with it. **Device hypothesis, untested.**
 
 ## What was weighed
 
 | Option | Measured or reasoned | Taken? |
 |---|---|---|
-| **Paint the view first, the overscan after** | Settle paint covers 25-56% of the tile; worst frame -30 to -40% (table above) | **Yes**, for the final commit |
+| **Paint the view first, the overscan after** | Settle paint covers 25-56% of the tile; worst frame -11 to -45% (table above) | **Yes**, for the final commit |
 | ...also for rebases mid-gesture | A view-only rebase left a pinch that reverses (spread, then back) with less to scale into, so it rebased again sooner: an extra full paint, and its longest task went from 150-222 ms to 197-313 ms, worse in 5 of 6 phone cases; and the wheel's strips ran between wheel events | No: rebases paint the whole tile, as before |
 | Smaller overscan for good | The overscan exists so a pan or fling finds stitches drawn; shrinking it moves the cost to every tile move during a pan | No: the overscan is the same size, just painted later |
 | Drop symbols while zooming (detail reduction) | Symbols are 11-21 ms of recording at 4x in a 65-150 ms paint; the raster saving would be the glyph pixels only. A rebase's paint is shown, scaled, for the rest of the gesture, so dropping symbols there makes them blink out and back | No |

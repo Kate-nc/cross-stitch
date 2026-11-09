@@ -1,6 +1,6 @@
 {
  "kind": "zoom-settle",
- "startedAt": "2026-11-09T19:36:18.915Z",
+ "startedAt": "2026-11-09T20:09:47.124Z",
  "build": {
   "commit": null,
   "dirtyFiles": 0
@@ -14,17 +14,17 @@
   "phone-full-30": {
    "phases": {
     "setup": 0.1,
-    "backgrounds": 6.9,
-    "cellLoop": 7.6,
+    "backgrounds": 10.3,
+    "cellLoop": 10.9,
     "glyphMs": 0,
-    "outlines": 0.9,
+    "outlines": 1.8,
     "texture": 0,
-    "gridLines": 0.1,
+    "gridLines": 0.3,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 17.2,
-    "rasterMs": 104,
+    "totalMs": 25.9,
+    "rasterMs": 127,
     "symbolsDrawn": 0,
     "cells": 32039,
     "tier": 2,
@@ -36,81 +36,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 68,
+    "commitTaskMs": 62,
     "commitFrameMs": 17,
     "laterTaskMs": 0,
-    "worstFrameMs": 233,
-    "loafMs": 202,
+    "worstFrameMs": 217,
+    "loafMs": 188,
     "rows": [
      {
-      "commitTaskMs": 67,
-      "commitFrameMs": 17,
-      "laterTaskMs": 157,
-      "worstFrameMs": 233,
-      "loafMs": 198
-     },
-     {
-      "commitTaskMs": 68,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 217,
-      "loafMs": 202
-     },
-     {
-      "commitTaskMs": 69,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 217,
-      "loafMs": 183
-     },
-     {
-      "commitTaskMs": 63,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 217,
-      "loafMs": 191
-     },
-     {
-      "commitTaskMs": 53,
+      "commitTaskMs": 56,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 183,
       "loafMs": 169
      },
      {
-      "commitTaskMs": 89,
-      "commitFrameMs": 33,
-      "laterTaskMs": 0,
-      "worstFrameMs": 283,
-      "loafMs": 252
-     },
-     {
-      "commitTaskMs": 78,
+      "commitTaskMs": 62,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 233,
-      "loafMs": 298
-     },
-     {
-      "commitTaskMs": 132,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 283,
-      "loafMs": 254
+      "worstFrameMs": 167,
+      "loafMs": 182
      },
      {
       "commitTaskMs": 53,
-      "commitFrameMs": 17,
+      "commitFrameMs": 33,
       "laterTaskMs": 0,
       "worstFrameMs": 183,
-      "loafMs": 152
+      "loafMs": 167
      },
      {
-      "commitTaskMs": 65,
+      "commitTaskMs": 62,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 233,
+      "loafMs": 197
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 143
+     },
+     {
+      "commitTaskMs": 60,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 233,
+      "loafMs": 207
+     },
+     {
+      "commitTaskMs": 77,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 217,
+      "loafMs": 185
+     },
+     {
+      "commitTaskMs": 63,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 200,
+      "loafMs": 188
+     },
+     {
+      "commitTaskMs": 117,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 250,
-      "loafMs": 236
+      "loafMs": 222
+     },
+     {
+      "commitTaskMs": 85,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 233,
+      "loafMs": 211
      }
     ]
    },
@@ -120,17 +120,17 @@
   "phone-full-100": {
    "phases": {
     "setup": 0.1,
-    "backgrounds": 1,
-    "cellLoop": 18.9,
-    "glyphMs": 13.6,
+    "backgrounds": 1.3,
+    "cellLoop": 15.7,
+    "glyphMs": 11.4,
     "outlines": 0.1,
     "texture": 0,
-    "gridLines": 0.1,
+    "gridLines": 0.7,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 22.1,
-    "rasterMs": 69,
+    "totalMs": 20,
+    "rasterMs": 70.5,
     "symbolsDrawn": 2989,
     "cells": 2989,
     "tier": 3,
@@ -142,53 +142,39 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 84,
+    "commitTaskMs": 69,
     "commitFrameMs": 17,
-    "laterTaskMs": 111,
-    "worstFrameMs": 167,
-    "loafMs": 164,
+    "laterTaskMs": 107,
+    "worstFrameMs": 150,
+    "loafMs": 149,
     "rows": [
      {
-      "commitTaskMs": 117,
+      "commitTaskMs": 85,
       "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 200,
-      "loafMs": 200
+      "laterTaskMs": 151,
+      "worstFrameMs": 217,
+      "loafMs": 201
      },
      {
-      "commitTaskMs": 71,
+      "commitTaskMs": 66,
       "commitFrameMs": 17,
-      "laterTaskMs": 122,
-      "worstFrameMs": 167,
-      "loafMs": 164
-     },
-     {
-      "commitTaskMs": 84,
-      "commitFrameMs": 17,
-      "laterTaskMs": 108,
-      "worstFrameMs": 167,
-      "loafMs": 160
-     },
-     {
-      "commitTaskMs": 70,
-      "commitFrameMs": 17,
-      "laterTaskMs": 111,
+      "laterTaskMs": 107,
       "worstFrameMs": 150,
-      "loafMs": 155
+      "loafMs": 146
      },
      {
-      "commitTaskMs": 92,
+      "commitTaskMs": 65,
       "commitFrameMs": 17,
-      "laterTaskMs": 162,
-      "worstFrameMs": 233,
-      "loafMs": 214
+      "laterTaskMs": 104,
+      "worstFrameMs": 150,
+      "loafMs": 140
      },
      {
-      "commitTaskMs": 79,
+      "commitTaskMs": 69,
       "commitFrameMs": 17,
-      "laterTaskMs": 129,
-      "worstFrameMs": 183,
-      "loafMs": 179
+      "laterTaskMs": 118,
+      "worstFrameMs": 167,
+      "loafMs": 236
      },
      {
       "commitTaskMs": 91,
@@ -198,25 +184,39 @@
       "loafMs": 111
      },
      {
-      "commitTaskMs": 124,
+      "commitTaskMs": 52,
+      "commitFrameMs": 17,
+      "laterTaskMs": 107,
+      "worstFrameMs": 133,
+      "loafMs": 131
+     },
+     {
+      "commitTaskMs": 75,
+      "commitFrameMs": 17,
+      "laterTaskMs": 107,
+      "worstFrameMs": 167,
+      "loafMs": 149
+     },
+     {
+      "commitTaskMs": 56,
+      "commitFrameMs": 17,
+      "laterTaskMs": 113,
+      "worstFrameMs": 150,
+      "loafMs": 326
+     },
+     {
+      "commitTaskMs": 67,
+      "commitFrameMs": 17,
+      "laterTaskMs": 76,
+      "worstFrameMs": 117,
+      "loafMs": 118
+     },
+     {
+      "commitTaskMs": 129,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 233,
-      "loafMs": 221
-     },
-     {
-      "commitTaskMs": 77,
-      "commitFrameMs": 17,
-      "laterTaskMs": 100,
-      "worstFrameMs": 150,
-      "loafMs": 150
-     },
-     {
-      "commitTaskMs": 68,
-      "commitFrameMs": 17,
-      "laterTaskMs": 112,
-      "worstFrameMs": 150,
-      "loafMs": 157
+      "loafMs": 231
      }
     ]
    },
@@ -225,18 +225,18 @@
   },
   "phone-mixed-30": {
    "phases": {
-    "setup": 0.1,
-    "backgrounds": 6.3,
-    "cellLoop": 24,
+    "setup": 0.6,
+    "backgrounds": 6.7,
+    "cellLoop": 19.6,
     "glyphMs": 0,
     "outlines": 1.2,
     "texture": 0,
-    "gridLines": 0.5,
-    "specialty": 22.3,
+    "gridLines": 0.1,
+    "specialty": 20.9,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 59.5,
-    "rasterMs": 157.2,
+    "totalMs": 55.1,
+    "rasterMs": 148.2,
     "symbolsDrawn": 0,
     "cells": 30429,
     "tier": 2,
@@ -248,81 +248,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 111,
+    "commitTaskMs": 96,
     "commitFrameMs": 17,
     "laterTaskMs": 0,
-    "worstFrameMs": 283,
-    "loafMs": 258,
+    "worstFrameMs": 267,
+    "loafMs": 256,
     "rows": [
      {
-      "commitTaskMs": 110,
+      "commitTaskMs": 77,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 317,
-      "loafMs": 299
-     },
-     {
-      "commitTaskMs": 127,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 350,
-      "loafMs": 324
-     },
-     {
-      "commitTaskMs": 78,
-      "commitFrameMs": 17,
-      "laterTaskMs": 157,
       "worstFrameMs": 233,
-      "loafMs": 210
+      "loafMs": 200
      },
      {
-      "commitTaskMs": 302,
+      "commitTaskMs": 101,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 300,
-      "loafMs": 122
+      "loafMs": 283
      },
      {
-      "commitTaskMs": 80,
+      "commitTaskMs": 72,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 233,
-      "loafMs": 215
-     },
-     {
-      "commitTaskMs": 124,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 300,
-      "loafMs": 404
-     },
-     {
-      "commitTaskMs": 116,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 267,
-      "loafMs": 240
-     },
-     {
-      "commitTaskMs": 111,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 283,
-      "loafMs": 268
-     },
-     {
-      "commitTaskMs": 84,
-      "commitFrameMs": 17,
-      "laterTaskMs": 139,
-      "worstFrameMs": 233,
-      "loafMs": 202
+      "worstFrameMs": 217,
+      "loafMs": 200
      },
      {
       "commitTaskMs": 96,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 283,
-      "loafMs": 258
+      "loafMs": 256
+     },
+     {
+      "commitTaskMs": 92,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 250,
+      "loafMs": 214
+     },
+     {
+      "commitTaskMs": 98,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 300,
+      "loafMs": 379
+     },
+     {
+      "commitTaskMs": 100,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 267,
+      "loafMs": 234
+     },
+     {
+      "commitTaskMs": 103,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 267,
+      "loafMs": 257
+     },
+     {
+      "commitTaskMs": 96,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 233,
+      "loafMs": 218
+     },
+     {
+      "commitTaskMs": 60,
+      "commitFrameMs": 67,
+      "laterTaskMs": 119,
+      "worstFrameMs": 317,
+      "loafMs": 281
      }
     ]
    },
@@ -331,18 +331,18 @@
   },
   "phone-mixed-100": {
    "phases": {
-    "setup": 0.1,
-    "backgrounds": 1.7,
-    "cellLoop": 23.2,
-    "glyphMs": 14.1,
-    "outlines": 0.1,
+    "setup": 0.7,
+    "backgrounds": 0.9,
+    "cellLoop": 22.8,
+    "glyphMs": 15,
+    "outlines": 0.2,
     "texture": 0,
     "gridLines": 0.1,
-    "specialty": 5,
+    "specialty": 5.5,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 31,
-    "rasterMs": 86.1,
+    "totalMs": 36.2,
+    "rasterMs": 101.8,
     "symbolsDrawn": 2842,
     "cells": 2842,
     "tier": 3,
@@ -354,81 +354,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 80,
+    "commitTaskMs": 77,
     "commitFrameMs": 17,
-    "laterTaskMs": 110,
+    "laterTaskMs": 125,
     "worstFrameMs": 183,
-    "loafMs": 174,
+    "loafMs": 172,
     "rows": [
      {
-      "commitTaskMs": 86,
+      "commitTaskMs": 83,
       "commitFrameMs": 17,
-      "laterTaskMs": 119,
+      "laterTaskMs": 125,
       "worstFrameMs": 183,
-      "loafMs": 174
+      "loafMs": 178
      },
      {
-      "commitTaskMs": 103,
+      "commitTaskMs": 77,
       "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 217,
-      "loafMs": 208
-     },
-     {
-      "commitTaskMs": 82,
-      "commitFrameMs": 17,
-      "laterTaskMs": 105,
+      "laterTaskMs": 109,
       "worstFrameMs": 167,
       "loafMs": 162
      },
      {
-      "commitTaskMs": 108,
+      "commitTaskMs": 91,
       "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 217,
-      "loafMs": 206
-     },
-     {
-      "commitTaskMs": 52,
-      "commitFrameMs": 17,
-      "laterTaskMs": 94,
-      "worstFrameMs": 117,
-      "loafMs": 216
-     },
-     {
-      "commitTaskMs": 75,
-      "commitFrameMs": 17,
-      "laterTaskMs": 126,
-      "worstFrameMs": 183,
-      "loafMs": 172
-     },
-     {
-      "commitTaskMs": 62,
-      "commitFrameMs": 17,
-      "laterTaskMs": 122,
+      "laterTaskMs": 106,
       "worstFrameMs": 167,
-      "loafMs": 153
+      "loafMs": 166
      },
      {
-      "commitTaskMs": 78,
+      "commitTaskMs": 70,
       "commitFrameMs": 17,
-      "laterTaskMs": 140,
-      "worstFrameMs": 200,
-      "loafMs": 359
+      "laterTaskMs": 128,
+      "worstFrameMs": 167,
+      "loafMs": 226
      },
      {
       "commitTaskMs": 64,
       "commitFrameMs": 17,
-      "laterTaskMs": 104,
-      "worstFrameMs": 150,
-      "loafMs": 142
+      "laterTaskMs": 128,
+      "worstFrameMs": 167,
+      "loafMs": 166
      },
      {
-      "commitTaskMs": 80,
+      "commitTaskMs": 71,
       "commitFrameMs": 17,
-      "laterTaskMs": 110,
-      "worstFrameMs": 167,
-      "loafMs": 163
+      "laterTaskMs": 139,
+      "worstFrameMs": 183,
+      "loafMs": 172
+     },
+     {
+      "commitTaskMs": 56,
+      "commitFrameMs": 17,
+      "laterTaskMs": 104,
+      "worstFrameMs": 133,
+      "loafMs": 127
+     },
+     {
+      "commitTaskMs": 91,
+      "commitFrameMs": 17,
+      "laterTaskMs": 81,
+      "worstFrameMs": 183,
+      "loafMs": 182
+     },
+     {
+      "commitTaskMs": 105,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 200,
+      "loafMs": 193
+     },
+     {
+      "commitTaskMs": 70,
+      "commitFrameMs": 17,
+      "laterTaskMs": 130,
+      "worstFrameMs": 183,
+      "loafMs": 171
      }
     ]
    },
@@ -437,18 +437,18 @@
   },
   "phone-area-30": {
    "phases": {
-    "setup": 0,
-    "backgrounds": 6.5,
-    "cellLoop": 6.1,
+    "setup": 0.9,
+    "backgrounds": 7.3,
+    "cellLoop": 4.9,
     "glyphMs": 0,
-    "outlines": 0.9,
+    "outlines": 0.7,
     "texture": 0,
-    "gridLines": 0.4,
+    "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 15.1,
-    "rasterMs": 93.1,
+    "totalMs": 16,
+    "rasterMs": 109.9,
     "symbolsDrawn": 0,
     "cells": 27300,
     "tier": 2,
@@ -460,67 +460,25 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 57,
+    "commitTaskMs": 77,
     "commitFrameMs": 17,
     "laterTaskMs": 0,
-    "worstFrameMs": 150,
-    "loafMs": 170,
+    "worstFrameMs": 183,
+    "loafMs": 192,
     "rows": [
      {
-      "commitTaskMs": 83,
-      "commitFrameMs": 17,
-      "laterTaskMs": 156,
-      "worstFrameMs": 233,
-      "loafMs": 218
-     },
-     {
-      "commitTaskMs": 145,
+      "commitTaskMs": 61,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 167,
-      "loafMs": 169
+      "worstFrameMs": 200,
+      "loafMs": 192
      },
      {
-      "commitTaskMs": 0,
+      "commitTaskMs": 62,
       "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 150,
-      "loafMs": 132
-     },
-     {
-      "commitTaskMs": 145,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 167,
-      "loafMs": 170
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 150,
-      "loafMs": 137
-     },
-     {
-      "commitTaskMs": 72,
-      "commitFrameMs": 17,
-      "laterTaskMs": 108,
-      "worstFrameMs": 150,
-      "loafMs": 173
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 133,
-      "loafMs": 315
-     },
-     {
-      "commitTaskMs": 57,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 183,
-      "loafMs": 185
+      "laterTaskMs": 159,
+      "worstFrameMs": 200,
+      "loafMs": 200
      },
      {
       "commitTaskMs": 0,
@@ -530,11 +488,53 @@
       "loafMs": 140
      },
      {
-      "commitTaskMs": 54,
+      "commitTaskMs": 115,
       "commitFrameMs": 17,
-      "laterTaskMs": 98,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 143
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
       "worstFrameMs": 150,
-      "loafMs": 159
+      "loafMs": 137
+     },
+     {
+      "commitTaskMs": 126,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 156
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 335
+     },
+     {
+      "commitTaskMs": 83,
+      "commitFrameMs": 17,
+      "laterTaskMs": 131,
+      "worstFrameMs": 183,
+      "loafMs": 192
+     },
+     {
+      "commitTaskMs": 77,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 233,
+      "loafMs": 214
+     },
+     {
+      "commitTaskMs": 91,
+      "commitFrameMs": 17,
+      "laterTaskMs": 160,
+      "worstFrameMs": 233,
+      "loafMs": 230
      }
     ]
    },
@@ -543,18 +543,18 @@
   },
   "phone-area-100": {
    "phases": {
-    "setup": 0.2,
-    "backgrounds": 1,
-    "cellLoop": 26.5,
-    "glyphMs": 16.6,
-    "outlines": 0.1,
+    "setup": 0.1,
+    "backgrounds": 1.3,
+    "cellLoop": 20.9,
+    "glyphMs": 13.6,
+    "outlines": 0,
     "texture": 0,
-    "gridLines": 0.8,
-    "specialty": 0,
+    "gridLines": 0.7,
+    "specialty": 0.1,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 29.1,
-    "rasterMs": 75.3,
+    "totalMs": 25.5,
+    "rasterMs": 70.8,
     "symbolsDrawn": 2695,
     "cells": 2695,
     "tier": 3,
@@ -566,81 +566,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 71,
+    "commitTaskMs": 59,
     "commitFrameMs": 17,
     "laterTaskMs": 96,
-    "worstFrameMs": 150,
+    "worstFrameMs": 133,
     "loafMs": 140,
     "rows": [
      {
-      "commitTaskMs": 50,
-      "commitFrameMs": 17,
-      "laterTaskMs": 90,
-      "worstFrameMs": 117,
-      "loafMs": 118
-     },
-     {
-      "commitTaskMs": 90,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 117,
-      "loafMs": 115
-     },
-     {
-      "commitTaskMs": 52,
-      "commitFrameMs": 17,
-      "laterTaskMs": 89,
-      "worstFrameMs": 117,
-      "loafMs": 117
-     },
-     {
-      "commitTaskMs": 75,
-      "commitFrameMs": 17,
-      "laterTaskMs": 139,
-      "worstFrameMs": 200,
-      "loafMs": 189
-     },
-     {
-      "commitTaskMs": 86,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 100,
-      "loafMs": 97
-     },
-     {
-      "commitTaskMs": 73,
-      "commitFrameMs": 17,
-      "laterTaskMs": 110,
-      "worstFrameMs": 167,
-      "loafMs": 158
-     },
-     {
-      "commitTaskMs": 71,
+      "commitTaskMs": 54,
       "commitFrameMs": 17,
       "laterTaskMs": 96,
-      "worstFrameMs": 150,
-      "loafMs": 140
+      "worstFrameMs": 133,
+      "loafMs": 126
      },
      {
       "commitTaskMs": 60,
       "commitFrameMs": 17,
-      "laterTaskMs": 109,
+      "laterTaskMs": 113,
       "worstFrameMs": 150,
-      "loafMs": 231
+      "loafMs": 145
      },
      {
-      "commitTaskMs": 64,
+      "commitTaskMs": 59,
       "commitFrameMs": 17,
-      "laterTaskMs": 61,
-      "worstFrameMs": 133,
-      "loafMs": 134
+      "laterTaskMs": 0,
+      "worstFrameMs": 100,
+      "loafMs": 106
      },
      {
-      "commitTaskMs": 71,
+      "commitTaskMs": 54,
       "commitFrameMs": 17,
-      "laterTaskMs": 129,
+      "laterTaskMs": 117,
+      "worstFrameMs": 150,
+      "loafMs": 144
+     },
+     {
+      "commitTaskMs": 52,
+      "commitFrameMs": 17,
+      "laterTaskMs": 94,
+      "worstFrameMs": 117,
+      "loafMs": 114
+     },
+     {
+      "commitTaskMs": 157,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
       "worstFrameMs": 183,
-      "loafMs": 174
+      "loafMs": 172
+     },
+     {
+      "commitTaskMs": 58,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 112
+     },
+     {
+      "commitTaskMs": 60,
+      "commitFrameMs": 17,
+      "laterTaskMs": 103,
+      "worstFrameMs": 133,
+      "loafMs": 140
+     },
+     {
+      "commitTaskMs": 50,
+      "commitFrameMs": 17,
+      "laterTaskMs": 85,
+      "worstFrameMs": 117,
+      "loafMs": 113
+     },
+     {
+      "commitTaskMs": 68,
+      "commitFrameMs": 17,
+      "laterTaskMs": 106,
+      "worstFrameMs": 150,
+      "loafMs": 149
      }
     ]
    },
@@ -649,18 +649,18 @@
   },
   "phone-overlays-30": {
    "phases": {
-    "setup": 0.2,
-    "backgrounds": 4.1,
-    "cellLoop": 6.1,
+    "setup": 0.1,
+    "backgrounds": 4.2,
+    "cellLoop": 5.6,
     "glyphMs": 0,
-    "outlines": 0.8,
+    "outlines": 1.4,
     "texture": 0,
-    "gridLines": 0.1,
-    "specialty": 0,
+    "gridLines": 0.7,
+    "specialty": 0.1,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 13.8,
-    "rasterMs": 115.5,
+    "totalMs": 11.8,
+    "rasterMs": 99.2,
     "symbolsDrawn": 0,
     "cells": 29785,
     "tier": 2,
@@ -672,81 +672,81 @@
    },
    "settle": {
     "n": 10,
-    "commitTaskMs": 76,
-    "commitFrameMs": 33,
+    "commitTaskMs": 81,
+    "commitFrameMs": 17,
     "laterTaskMs": 0,
-    "worstFrameMs": 233,
-    "loafMs": 200,
+    "worstFrameMs": 250,
+    "loafMs": 205,
     "rows": [
      {
-      "commitTaskMs": 94,
+      "commitTaskMs": 97,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 233,
+      "worstFrameMs": 250,
       "loafMs": 205
      },
      {
-      "commitTaskMs": 77,
-      "commitFrameMs": 33,
+      "commitTaskMs": 101,
+      "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 233,
-      "loafMs": 198
+      "worstFrameMs": 250,
+      "loafMs": 226
      },
      {
-      "commitTaskMs": 65,
-      "commitFrameMs": 33,
-      "laterTaskMs": 50,
-      "worstFrameMs": 233,
-      "loafMs": 183
-     },
-     {
-      "commitTaskMs": 82,
-      "commitFrameMs": 33,
-      "laterTaskMs": 0,
-      "worstFrameMs": 217,
-      "loafMs": 200
-     },
-     {
-      "commitTaskMs": 53,
-      "commitFrameMs": 33,
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 183,
-      "loafMs": 162
+      "loafMs": 151
      },
      {
-      "commitTaskMs": 74,
-      "commitFrameMs": 33,
-      "laterTaskMs": 171,
-      "worstFrameMs": 233,
-      "loafMs": 340
+      "commitTaskMs": 59,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 200,
+      "loafMs": 180
      },
      {
-      "commitTaskMs": 72,
+      "commitTaskMs": 61,
       "commitFrameMs": 33,
       "laterTaskMs": 0,
       "worstFrameMs": 200,
-      "loafMs": 179
+      "loafMs": 166
      },
      {
-      "commitTaskMs": 76,
-      "commitFrameMs": 17,
-      "laterTaskMs": 53,
-      "worstFrameMs": 267,
-      "loafMs": 239
+      "commitTaskMs": 91,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 250,
+      "loafMs": 355
      },
      {
-      "commitTaskMs": 57,
+      "commitTaskMs": 78,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 183,
-      "loafMs": 160
+      "worstFrameMs": 217,
+      "loafMs": 197
      },
      {
-      "commitTaskMs": 76,
+      "commitTaskMs": 107,
       "commitFrameMs": 33,
-      "laterTaskMs": 52,
-      "worstFrameMs": 233,
-      "loafMs": 209
+      "laterTaskMs": 0,
+      "worstFrameMs": 267,
+      "loafMs": 229
+     },
+     {
+      "commitTaskMs": 67,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 200,
+      "loafMs": 176
+     },
+     {
+      "commitTaskMs": 81,
+      "commitFrameMs": 17,
+      "laterTaskMs": 299,
+      "worstFrameMs": 300,
+      "loafMs": 222
      }
     ]
    },
@@ -755,18 +755,18 @@
   },
   "phone-overlays-100": {
    "phases": {
-    "setup": 0.1,
-    "backgrounds": 0.3,
-    "cellLoop": 41.3,
-    "glyphMs": 18.2,
-    "outlines": 0.5,
+    "setup": 0,
+    "backgrounds": 1.1,
+    "cellLoop": 21.9,
+    "glyphMs": 13.1,
+    "outlines": 0.1,
     "texture": 0,
-    "gridLines": 0.1,
+    "gridLines": 0.9,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 45.8,
-    "rasterMs": 67.1,
+    "totalMs": 25.2,
+    "rasterMs": 56.2,
     "symbolsDrawn": 1904,
     "cells": 2744,
     "tier": 3,
@@ -780,79 +780,79 @@
     "n": 10,
     "commitTaskMs": 90,
     "commitFrameMs": 17,
-    "laterTaskMs": 112,
-    "worstFrameMs": 183,
-    "loafMs": 173,
+    "laterTaskMs": 111,
+    "worstFrameMs": 200,
+    "loafMs": 181,
     "rows": [
      {
-      "commitTaskMs": 73,
+      "commitTaskMs": 93,
       "commitFrameMs": 17,
-      "laterTaskMs": 50,
-      "worstFrameMs": 167,
-      "loafMs": 152
+      "laterTaskMs": 57,
+      "worstFrameMs": 200,
+      "loafMs": 181
      },
      {
-      "commitTaskMs": 130,
+      "commitTaskMs": 105,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 217,
-      "loafMs": 214
+      "loafMs": 196
      },
      {
-      "commitTaskMs": 81,
+      "commitTaskMs": 71,
       "commitFrameMs": 17,
       "laterTaskMs": 126,
-      "worstFrameMs": 183,
-      "loafMs": 168
+      "worstFrameMs": 167,
+      "loafMs": 159
+     },
+     {
+      "commitTaskMs": 121,
+      "commitFrameMs": 17,
+      "laterTaskMs": 53,
+      "worstFrameMs": 233,
+      "loafMs": 208
+     },
+     {
+      "commitTaskMs": 64,
+      "commitFrameMs": 17,
+      "laterTaskMs": 115,
+      "worstFrameMs": 150,
+      "loafMs": 142
+     },
+     {
+      "commitTaskMs": 110,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 233,
+      "loafMs": 228
      },
      {
       "commitTaskMs": 90,
       "commitFrameMs": 17,
-      "laterTaskMs": 116,
-      "worstFrameMs": 183,
-      "loafMs": 172
-     },
-     {
-      "commitTaskMs": 96,
-      "commitFrameMs": 17,
-      "laterTaskMs": 112,
-      "worstFrameMs": 183,
-      "loafMs": 173
-     },
-     {
-      "commitTaskMs": 70,
-      "commitFrameMs": 17,
-      "laterTaskMs": 130,
-      "worstFrameMs": 183,
-      "loafMs": 161
-     },
-     {
-      "commitTaskMs": 104,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
+      "laterTaskMs": 53,
       "worstFrameMs": 200,
-      "loafMs": 185
+      "loafMs": 314
      },
      {
-      "commitTaskMs": 167,
-      "commitFrameMs": 33,
-      "laterTaskMs": 0,
-      "worstFrameMs": 267,
-      "loafMs": 254
-     },
-     {
-      "commitTaskMs": 76,
+      "commitTaskMs": 83,
       "commitFrameMs": 17,
-      "laterTaskMs": 50,
+      "laterTaskMs": 117,
       "worstFrameMs": 183,
-      "loafMs": 158
+      "loafMs": 163
+     },
+     {
+      "commitTaskMs": 89,
+      "commitFrameMs": 17,
+      "laterTaskMs": 111,
+      "worstFrameMs": 183,
+      "loafMs": 162
      },
      {
       "commitTaskMs": 80,
       "commitFrameMs": 17,
-      "laterTaskMs": 161,
-      "worstFrameMs": 217,
-      "loafMs": 199
+      "laterTaskMs": 134,
+      "worstFrameMs": 183,
+      "loafMs": 171
      }
     ]
    },
@@ -861,18 +861,18 @@
   },
   "desktop-dpr1-full-30": {
    "phases": {
-    "setup": 0,
-    "backgrounds": 4.2,
-    "cellLoop": 5.6,
+    "setup": 0.1,
+    "backgrounds": 5.5,
+    "cellLoop": 7,
     "glyphMs": 0,
-    "outlines": 0.6,
+    "outlines": 0.7,
     "texture": 0,
-    "gridLines": 0,
+    "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 11,
-    "rasterMs": 9.6,
+    "totalMs": 13.1,
+    "rasterMs": 9.3,
     "symbolsDrawn": 0,
     "cells": 56400,
     "tier": 2,
@@ -901,7 +901,7 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
@@ -924,13 +924,6 @@
       "laterTaskMs": 0,
       "worstFrameMs": 17,
       "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 50,
-      "loafMs": 59
      },
      {
       "commitTaskMs": 0,
@@ -951,6 +944,13 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
       "loafMs": 0
      },
      {
@@ -967,18 +967,18 @@
   },
   "desktop-dpr1-full-100": {
    "phases": {
-    "setup": 0.1,
+    "setup": 0,
     "backgrounds": 0.3,
-    "cellLoop": 9.7,
-    "glyphMs": 6.2,
-    "outlines": 0.1,
+    "cellLoop": 6.5,
+    "glyphMs": 5,
+    "outlines": 0.2,
     "texture": 0,
-    "gridLines": 0.1,
+    "gridLines": 0,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 11.1,
-    "rasterMs": 9.6,
+    "totalMs": 7.2,
+    "rasterMs": 9.2,
     "symbolsDrawn": 5185,
     "cells": 5185,
     "tier": 3,
@@ -1007,7 +1007,7 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
@@ -1021,8 +1021,15 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 67,
-      "loafMs": 70
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
      },
      {
       "commitTaskMs": 0,
@@ -1057,13 +1064,6 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 17,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
       "loafMs": 0
      }
     ]
@@ -1073,18 +1073,18 @@
   },
   "desktop-dpr1-mixed-30": {
    "phases": {
-    "setup": 0.1,
-    "backgrounds": 3.4,
-    "cellLoop": 9.8,
+    "setup": 0,
+    "backgrounds": 3.6,
+    "cellLoop": 8.5,
     "glyphMs": 0,
-    "outlines": 0.5,
+    "outlines": 0.4,
     "texture": 0,
-    "gridLines": 0.1,
-    "specialty": 10.2,
+    "gridLines": 0,
+    "specialty": 6.6,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 26.5,
-    "rasterMs": 18.2,
+    "totalMs": 19.9,
+    "rasterMs": 17.7,
     "symbolsDrawn": 0,
     "cells": 56400,
     "tier": 2,
@@ -1099,14 +1099,42 @@
     "commitTaskMs": 0,
     "commitFrameMs": 17,
     "laterTaskMs": 0,
-    "worstFrameMs": 33,
-    "loafMs": 59,
+    "worstFrameMs": 50,
+    "loafMs": 60,
     "rows": [
      {
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 33,
+      "worstFrameMs": 50,
+      "loafMs": 58
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 67,
+      "loafMs": 82
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 50,
+      "loafMs": 62
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
       "loafMs": 0
      },
      {
@@ -1121,34 +1149,6 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 33,
-      "loafMs": 56
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 50,
-      "loafMs": 67
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 55
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 50,
-      "loafMs": 62
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
@@ -1156,7 +1156,7 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 50,
-      "loafMs": 64
+      "loafMs": 72
      },
      {
       "commitTaskMs": 0,
@@ -1169,8 +1169,8 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 59
+      "worstFrameMs": 50,
+      "loafMs": 62
      }
     ]
    },
@@ -1180,17 +1180,17 @@
   "desktop-dpr1-mixed-100": {
    "phases": {
     "setup": 0.1,
-    "backgrounds": 0.4,
-    "cellLoop": 11,
-    "glyphMs": 6.7,
+    "backgrounds": 0.6,
+    "cellLoop": 13.6,
+    "glyphMs": 9.5,
     "outlines": 0.1,
     "texture": 0,
     "gridLines": 0.1,
-    "specialty": 1.8,
+    "specialty": 1.7,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 13.8,
-    "rasterMs": 10.5,
+    "totalMs": 16.9,
+    "rasterMs": 15.5,
     "symbolsDrawn": 5185,
     "cells": 5185,
     "tier": 3,
@@ -1205,7 +1205,7 @@
     "commitTaskMs": 0,
     "commitFrameMs": 17,
     "laterTaskMs": 0,
-    "worstFrameMs": 33,
+    "worstFrameMs": 17,
     "loafMs": 0,
     "rows": [
      {
@@ -1219,20 +1219,6 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
       "worstFrameMs": 33,
       "loafMs": 0
      },
@@ -1247,14 +1233,14 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
+      "worstFrameMs": 50,
+      "loafMs": 53
      },
      {
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 33,
+      "worstFrameMs": 17,
       "loafMs": 0
      },
      {
@@ -1275,7 +1261,21 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 33,
+      "worstFrameMs": 50,
+      "loafMs": 59
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
       "loafMs": 0
      }
     ]
@@ -1286,8 +1286,8 @@
   "desktop-dpr1-area-30": {
    "phases": {
     "setup": 0.1,
-    "backgrounds": 2.2,
-    "cellLoop": 4.4,
+    "backgrounds": 2.5,
+    "cellLoop": 3.1,
     "glyphMs": 0,
     "outlines": 0.4,
     "texture": 0,
@@ -1295,8 +1295,8 @@
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 7.6,
-    "rasterMs": 5.6,
+    "totalMs": 6.1,
+    "rasterMs": 5.9,
     "symbolsDrawn": 0,
     "cells": 40170,
     "tier": 2,
@@ -1318,6 +1318,55 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 50,
+      "loafMs": 55
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 50,
+      "loafMs": 56
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
       "worstFrameMs": 33,
       "loafMs": 0
      },
@@ -1326,55 +1375,6 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 17,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 17,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 33,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 17,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 17,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 17,
       "loafMs": 0
      },
      {
@@ -1391,18 +1391,18 @@
   },
   "desktop-dpr1-area-100": {
    "phases": {
-    "setup": 0.1,
-    "backgrounds": 0.3,
-    "cellLoop": 6.1,
-    "glyphMs": 4.6,
-    "outlines": 0,
+    "setup": 0,
+    "backgrounds": 0.4,
+    "cellLoop": 8.2,
+    "glyphMs": 6.6,
+    "outlines": 0.1,
     "texture": 0,
-    "gridLines": 0.1,
+    "gridLines": 0,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 6.7,
-    "rasterMs": 7.5,
+    "totalMs": 8.8,
+    "rasterMs": 8.4,
     "symbolsDrawn": 5185,
     "cells": 5185,
     "tier": 3,
@@ -1431,7 +1431,7 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 17,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
@@ -1497,18 +1497,18 @@
   },
   "desktop-dpr2-full-30": {
    "phases": {
-    "setup": 0.1,
+    "setup": 0,
     "backgrounds": 3.2,
-    "cellLoop": 3,
+    "cellLoop": 3.4,
     "glyphMs": 0,
-    "outlines": 0.5,
+    "outlines": 0.6,
     "texture": 0,
     "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 7.2,
-    "rasterMs": 33.3,
+    "totalMs": 7.9,
+    "rasterMs": 30.7,
     "symbolsDrawn": 0,
     "cells": 56400,
     "tier": 2,
@@ -1523,36 +1523,22 @@
     "commitTaskMs": 0,
     "commitFrameMs": 17,
     "laterTaskMs": 0,
-    "worstFrameMs": 67,
-    "loafMs": 72,
+    "worstFrameMs": 50,
+    "loafMs": 63,
     "rows": [
-     {
-      "commitTaskMs": 57,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 67,
-      "loafMs": 76
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 50,
-      "loafMs": 54
-     },
      {
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 33,
-      "loafMs": 50
+      "loafMs": 0
      },
      {
-      "commitTaskMs": 0,
+      "commitTaskMs": 53,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 67,
-      "loafMs": 72
+      "loafMs": 82
      },
      {
       "commitTaskMs": 0,
@@ -1562,39 +1548,53 @@
       "loafMs": 0
      },
      {
-      "commitTaskMs": 54,
+      "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 83,
-      "loafMs": 88
+      "worstFrameMs": 50,
+      "loafMs": 60
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
      },
      {
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 50,
-      "loafMs": 67
+      "loafMs": 63
      },
      {
-      "commitTaskMs": 58,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 83,
-      "loafMs": 93
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 50,
-      "loafMs": 55
-     },
-     {
-      "commitTaskMs": 55,
+      "commitTaskMs": 51,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 67,
       "loafMs": 78
+     },
+     {
+      "commitTaskMs": 50,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 67,
+      "loafMs": 81
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 51
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 67,
+      "loafMs": 76
      }
     ]
    },
@@ -1603,18 +1603,18 @@
   },
   "desktop-dpr2-full-100": {
    "phases": {
-    "setup": 0,
+    "setup": 0.1,
     "backgrounds": 0.5,
-    "cellLoop": 7.1,
-    "glyphMs": 5.5,
+    "cellLoop": 8.2,
+    "glyphMs": 5.9,
     "outlines": 0.1,
     "texture": 0,
-    "gridLines": 0.2,
+    "gridLines": 0.1,
     "specialty": 0,
     "markers": 0,
     "overlays": 0,
-    "totalMs": 8.2,
-    "rasterMs": 23.3,
+    "totalMs": 9.6,
+    "rasterMs": 20.6,
     "symbolsDrawn": 5185,
     "cells": 5185,
     "tier": 3,
@@ -1644,6 +1644,13 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 50,
+      "loafMs": 60
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
       "loafMs": 0
      },
      {
@@ -1651,14 +1658,7 @@
       "commitFrameMs": 17,
       "laterTaskMs": 0,
       "worstFrameMs": 50,
-      "loafMs": 0
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 67,
-      "loafMs": 73
+      "loafMs": 53
      },
      {
       "commitTaskMs": 0,
@@ -1678,6 +1678,13 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
+      "worstFrameMs": 50,
+      "loafMs": 53
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
       "worstFrameMs": 33,
       "loafMs": 0
      },
@@ -1685,22 +1692,15 @@
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 67,
-      "loafMs": 71
+      "worstFrameMs": 50,
+      "loafMs": 60
      },
      {
       "commitTaskMs": 0,
       "commitFrameMs": 17,
       "laterTaskMs": 0,
-      "worstFrameMs": 50,
-      "loafMs": 56
-     },
-     {
-      "commitTaskMs": 0,
-      "commitFrameMs": 17,
-      "laterTaskMs": 0,
-      "worstFrameMs": 50,
-      "loafMs": 52
+      "worstFrameMs": 33,
+      "loafMs": 0
      }
     ]
    },
