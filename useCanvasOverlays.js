@@ -63,6 +63,24 @@
      own copy. */
   var TILE_OVERSCAN = 300;
 
+  /* Comparing on a real device (reports/track-progress-write-cost.md, Part 2):
+     ?overscan=N sets the margin (100 to 600 px) and ?chartscale=1 draws the
+     chart at 1x, for the ?perf=1 readout to time against the defaults. The
+     budget check below uses the same figures, so neither can allocate more
+     than the budget allows: a larger margin is refused there like any other
+     tile, and 1x only ever needs less. Absent, nothing changes. */
+  var DEVICE_CHECK = (function () {
+    var out = { overscan: null, scale1: false };
+    try {
+      var q = (typeof location !== 'undefined' && location.search) || '';
+      var m = /[?&]overscan=(\d+)(?:&|$)/.exec(q);
+      if (m) out.overscan = Math.max(100, Math.min(600, +m[1]));
+      out.scale1 = /[?&]chartscale=1(?:&|$)/.test(q);
+    } catch (_) {}
+    return out;
+  })();
+  if (DEVICE_CHECK.overscan) TILE_OVERSCAN = DEVICE_CHECK.overscan;
+
   var _limits = null;
   function canvasLimits() {
     if (_limits) return _limits;
@@ -195,6 +213,7 @@
     var budget = canvasLimits().area;
     var mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 0;
     var want = 1;
+    if (DEVICE_CHECK.scale1) return 1;
     try { want = Math.min(window.devicePixelRatio || 1, 2); } catch (_) { return 1; }
     // A 1 GB device needs its memory more than it needs a crisp chart.
     if (mem && mem <= 1) return 1;

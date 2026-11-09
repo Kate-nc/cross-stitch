@@ -362,6 +362,13 @@ async function runMarking(ctx, spec) {
   const box = await chartBox(ctx.page);
   await doneSnapshot(ctx.page);
   const heap0 = await heap(ctx.cdp, true);
+  // Progress writes in the window: how many named their changed cells (the
+  // Tracker's ProjectStorage.progressChanges journal), and the cells compared.
+  await ctx.page.evaluate(() => {
+    const PS = window.ProjectStorage, f = PS.saveProgress, T = window.TrackingSync;
+    window.__pw = { calls: 0, named: 0, c0: T && T.stats ? T.stats.cellsCompared : null };
+    PS.saveProgress = function (id, data) { window.__pw.calls++; if (data && data.since) window.__pw.named++; return f.apply(this, arguments); };
+  });
   await throttle(ctx, ctx.throttle);
   await startProfile(ctx);
   const t0 = await ctx.page.evaluate(() => performance.now());
@@ -383,10 +390,15 @@ async function runMarking(ctx, spec) {
   const r = await readTrackProbes(ctx.page, t0);
   const prof = await stopProfile(ctx, r.loafs);
   const cpuProbeMs = await cpuProbe(ctx.page);
+  // Read before doneChanged(), whose flush is a save of its own.
+  const progressWrites = await ctx.page.evaluate(() => {
+    const w = window.__pw, T = window.TrackingSync;
+    return { calls: w.calls, named: w.named, cellsCompared: w.c0 == null ? null : T.stats.cellsCompared - w.c0 };
+  });
   await throttle(ctx, 1);
   const s = summarise(r, { lineOf, t0, t1 });
   return {
-    ...s, taps: tap, windowMs: Math.round(t1 - t0), cpuProbeMs,
+    ...s, taps: tap, windowMs: Math.round(t1 - t0), cpuProbeMs, progressWrites,
     marked: await doneChanged(ctx.page),
     perTap: { commits: +(s.react.commits / tap).toFixed(2), fullPaints: +(s.paints.full / tap).toFixed(2), partialPaints: +(s.paints.partial / tap).toFixed(2) },
     chartCopies: r.chartCopies, heapBeforeMb: heap0, heapAfterGcMb: await heap(ctx.cdp, true),

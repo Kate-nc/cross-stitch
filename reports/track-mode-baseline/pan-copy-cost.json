@@ -1,0 +1,1088 @@
+{
+ "commit": "88819f0",
+ "dirty": 15,
+ "browser": "153.0.8010.12",
+ "environment": "headless Chromium, SwiftShader canvas, 4-core VM; emulated, not a physical device",
+ "results": [
+  {
+   "id": "phone4x-normal",
+   "profile": "phone4x",
+   "variant": "normal",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 116.7,
+    "max": 300,
+    "over50": 21,
+    "totalMs": 5488
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 82,
+    "script": 78,
+    "render": 82
+   },
+   "threads": {
+    "other": 117,
+    "vizCompositor": 400,
+    "rendererMain": 5460,
+    "rendererCompositor": 129,
+    "gpuMain": 6
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 76.4
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone4x-tileshift0",
+   "profile": "phone4x",
+   "variant": "tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 83.3,
+    "max": 150.1,
+    "over50": 19,
+    "totalMs": 4314
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 70,
+    "script": 67,
+    "render": 70
+   },
+   "threads": {
+    "other": 107,
+    "rendererMain": 4181,
+    "vizCompositor": 371,
+    "rendererCompositor": 107,
+    "gpuMain": 5
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone4x-overscan150",
+   "profile": "phone4x",
+   "variant": "overscan150",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 66.7,
+    "max": 83.4,
+    "over50": 28,
+    "totalMs": 4725
+   },
+   "loaf": {
+    "n": 2,
+    "ms": 122,
+    "script": 47,
+    "render": 52
+   },
+   "threads": {
+    "other": 305,
+    "rendererMain": 4140,
+    "rendererCompositor": 121,
+    "vizCompositor": 386,
+    "gpuMain": 5
+   },
+   "counts": {
+    "paints": 71,
+    "chartCopies": 35,
+    "overlayCopies": 35,
+    "copiedMpx": 78.4
+   },
+   "canvasMpx": 2.98,
+   "canvases": [
+    {
+     "w": 1318,
+     "h": 1782,
+     "shown": true
+    },
+    {
+     "w": 659,
+     "h": 891,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone4x-overscan600",
+   "profile": "phone4x",
+   "variant": "overscan600",
+   "frames": {
+    "n": 180,
+    "median": 33.4,
+    "p95": 283.3,
+    "max": 466.7,
+    "over50": 24,
+    "totalMs": 9992
+   },
+   "loaf": {
+    "n": 10,
+    "ms": 1711,
+    "script": 1672,
+    "render": 1708
+   },
+   "threads": {
+    "other": 158,
+    "rendererMain": 9965,
+    "rendererCompositor": 207,
+    "vizCompositor": 499,
+    "gpuMain": 16
+   },
+   "counts": {
+    "paints": 19,
+    "chartCopies": 9,
+    "overlayCopies": 9,
+    "copiedMpx": 82.2
+   },
+   "canvasMpx": 14.01,
+   "canvases": [
+    {
+     "w": 3118,
+     "h": 3582,
+     "shown": true
+    },
+    {
+     "w": 1559,
+     "h": 1791,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone4x-scale1",
+   "profile": "phone4x",
+   "variant": "scale1",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 50,
+    "max": 83.4,
+    "over50": 7,
+    "totalMs": 3636
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 57,
+    "script": 46,
+    "render": 49
+   },
+   "threads": {
+    "other": 111,
+    "rendererMain": 2381,
+    "vizCompositor": 262,
+    "rendererCompositor": 106,
+    "gpuMain": 3
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 30.6
+   },
+   "canvasMpx": 2.33,
+   "canvases": [
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1
+  },
+  {
+   "id": "phone4x-overlays",
+   "profile": "phone4x",
+   "variant": "overlays",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 166.6,
+    "max": 300,
+    "over50": 20,
+    "totalMs": 7085
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 107,
+    "script": 104,
+    "render": 107
+   },
+   "threads": {
+    "other": 865,
+    "rendererMain": 7209,
+    "vizCompositor": 638,
+    "rendererCompositor": 228,
+    "gpuMain": 16
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 57,
+    "copiedMpx": 98.3
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone4x-overlays-tileshift0",
+   "profile": "phone4x",
+   "variant": "overlays-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 33.2,
+    "p95": 116.7,
+    "max": 233.4,
+    "over50": 20,
+    "totalMs": 6571
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 118,
+    "script": 113,
+    "render": 117
+   },
+   "threads": {
+    "other": 924,
+    "rendererMain": 6742,
+    "vizCompositor": 610,
+    "rendererCompositor": 205,
+    "gpuMain": 8
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone1x-normal",
+   "profile": "phone1x",
+   "variant": "normal",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.7,
+    "max": 33.4,
+    "over50": 0,
+    "totalMs": 3011
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "rendererMain": 1133,
+    "other": 105,
+    "rendererCompositor": 113,
+    "vizCompositor": 361,
+    "gpuMain": 5
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 76.4
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone1x-tileshift0",
+   "profile": "phone1x",
+   "variant": "tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.8,
+    "max": 33.3,
+    "over50": 0,
+    "totalMs": 3002
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 106,
+    "rendererMain": 1077,
+    "vizCompositor": 382,
+    "rendererCompositor": 116,
+    "gpuMain": 6
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone1x-overscan150",
+   "profile": "phone1x",
+   "variant": "overscan150",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.7,
+    "max": 16.8,
+    "over50": 0,
+    "totalMs": 2995
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 68,
+    "rendererMain": 871,
+    "vizCompositor": 399,
+    "rendererCompositor": 124,
+    "gpuMain": 3
+   },
+   "counts": {
+    "paints": 71,
+    "chartCopies": 35,
+    "overlayCopies": 35,
+    "copiedMpx": 78.4
+   },
+   "canvasMpx": 2.98,
+   "canvases": [
+    {
+     "w": 1318,
+     "h": 1782,
+     "shown": true
+    },
+    {
+     "w": 659,
+     "h": 891,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone1x-overscan600",
+   "profile": "phone1x",
+   "variant": "overscan600",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 50,
+    "max": 83.3,
+    "over50": 6,
+    "totalMs": 3465
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 53,
+    "script": 47,
+    "render": 48
+   },
+   "threads": {
+    "other": 95,
+    "rendererMain": 2432,
+    "vizCompositor": 417,
+    "rendererCompositor": 140,
+    "gpuMain": 7
+   },
+   "counts": {
+    "paints": 19,
+    "chartCopies": 9,
+    "overlayCopies": 9,
+    "copiedMpx": 82.2
+   },
+   "canvasMpx": 14.01,
+   "canvases": [
+    {
+     "w": 3118,
+     "h": 3582,
+     "shown": true
+    },
+    {
+     "w": 1559,
+     "h": 1791,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone1x-scale1",
+   "profile": "phone1x",
+   "variant": "scale1",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.8,
+    "max": 16.8,
+    "over50": 0,
+    "totalMs": 2983
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 95,
+    "rendererMain": 516,
+    "vizCompositor": 251,
+    "rendererCompositor": 93,
+    "gpuMain": 3
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 30.6
+   },
+   "canvasMpx": 2.33,
+   "canvases": [
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1
+  },
+  {
+   "id": "phone1x-overlays",
+   "profile": "phone1x",
+   "variant": "overlays",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 33.4,
+    "max": 33.4,
+    "over50": 0,
+    "totalMs": 3284
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 596,
+    "rendererMain": 1521,
+    "rendererCompositor": 131,
+    "vizCompositor": 514,
+    "gpuMain": 10
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 57,
+    "copiedMpx": 98.3
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "phone1x-overlays-tileshift0",
+   "profile": "phone1x",
+   "variant": "overlays-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.8,
+    "max": 33.4,
+    "over50": 0,
+    "totalMs": 3048
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 680,
+    "rendererMain": 1359,
+    "vizCompositor": 526,
+    "rendererCompositor": 128,
+    "gpuMain": 7
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2
+  },
+  {
+   "id": "desktop-normal",
+   "profile": "desktop",
+   "variant": "normal",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.8,
+    "max": 16.8,
+    "over50": 0,
+    "totalMs": 2997
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 261,
+    "rendererMain": 994,
+    "vizCompositor": 512,
+    "rendererCompositor": 117,
+    "gpuMain": 1
+   },
+   "counts": {
+    "paints": 40,
+    "chartCopies": 20,
+    "overlayCopies": 20,
+    "copiedMpx": 64.1
+   },
+   "canvasMpx": 4.08,
+   "canvases": [
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1
+  },
+  {
+   "id": "desktop-tileshift0",
+   "profile": "desktop",
+   "variant": "tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.7,
+    "max": 16.8,
+    "over50": 0,
+    "totalMs": 2989
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 111,
+    "rendererMain": 764,
+    "vizCompositor": 436,
+    "rendererCompositor": 92,
+    "gpuMain": 0
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 4.08,
+   "canvases": [
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1
+  },
+  {
+   "id": "desktop-overscan150",
+   "profile": "desktop",
+   "variant": "overscan150",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.8,
+    "max": 16.8,
+    "over50": 0,
+    "totalMs": 2991
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "rendererMain": 948,
+    "other": 312,
+    "vizCompositor": 547,
+    "rendererCompositor": 135,
+    "gpuMain": 0
+   },
+   "counts": {
+    "paints": 72,
+    "chartCopies": 36,
+    "overlayCopies": 36,
+    "copiedMpx": 76.4
+   },
+   "canvasMpx": 2.53,
+   "canvases": [
+    {
+     "w": 1386,
+     "h": 898,
+     "shown": true
+    },
+    {
+     "w": 1386,
+     "h": 898,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1
+  },
+  {
+   "id": "desktop-overscan600",
+   "profile": "desktop",
+   "variant": "overscan600",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 33.3,
+    "max": 49.9,
+    "over50": 0,
+    "totalMs": 3179
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 68,
+    "rendererMain": 1594,
+    "vizCompositor": 599,
+    "rendererCompositor": 150,
+    "gpuMain": 0
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 10,
+    "overlayCopies": 10,
+    "copiedMpx": 59.9
+   },
+   "canvasMpx": 8.27,
+   "canvases": [
+    {
+     "w": 2286,
+     "h": 1798,
+     "shown": true
+    },
+    {
+     "w": 2286,
+     "h": 1798,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1
+  },
+  {
+   "id": "desktop-overlays",
+   "profile": "desktop",
+   "variant": "overlays",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 33.3,
+    "max": 50,
+    "over50": 0,
+    "totalMs": 3357
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 1901,
+    "rendererMain": 1948,
+    "vizCompositor": 1156,
+    "rendererCompositor": 181,
+    "gpuMain": 1
+   },
+   "counts": {
+    "paints": 40,
+    "chartCopies": 20,
+    "overlayCopies": 60,
+    "copiedMpx": 128.2
+   },
+   "canvasMpx": 8.12,
+   "canvases": [
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    }
+   ],
+   "chartScale": 1
+  },
+  {
+   "id": "desktop-overlays-tileshift0",
+   "profile": "desktop",
+   "variant": "overlays-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.7,
+    "max": 33.3,
+    "over50": 0,
+    "totalMs": 3030
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 1701,
+    "rendererMain": 1366,
+    "rendererCompositor": 136,
+    "vizCompositor": 907,
+    "gpuMain": 0
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 8.12,
+   "canvases": [
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    }
+   ],
+   "chartScale": 1
+  }
+ ]
+}

@@ -1,0 +1,1316 @@
+{
+ "commit": "88819f0",
+ "dirty": 16,
+ "browser": "153.0.8010.12",
+ "environment": "headless Chromium, SwiftShader canvas, 4-core VM; emulated, not a physical device",
+ "results": [
+  {
+   "id": "phone4x-normal",
+   "profile": "phone4x",
+   "variant": "normal",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 133.4,
+    "max": 150,
+    "over50": 21,
+    "totalMs": 5767
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 69,
+    "script": 65,
+    "render": 69
+   },
+   "threads": {
+    "other": 113,
+    "rendererMain": 5769,
+    "vizCompositor": 382,
+    "rendererCompositor": 122,
+    "gpuMain": 5
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 76.4
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1
+  },
+  {
+   "id": "phone4x-tileshift0",
+   "profile": "phone4x",
+   "variant": "tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 83.4,
+    "max": 166.8,
+    "over50": 20,
+    "totalMs": 4502
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 64,
+    "script": 60,
+    "render": 64
+   },
+   "threads": {
+    "other": 151,
+    "rendererMain": 4418,
+    "vizCompositor": 372,
+    "rendererCompositor": 109,
+    "gpuMain": 6
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1
+  },
+  {
+   "id": "phone4x-overscan150",
+   "profile": "phone4x",
+   "variant": "overscan150",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 83.4,
+    "max": 116.7,
+    "over50": 32,
+    "totalMs": 5164
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 71,
+    "script": 60,
+    "render": 65
+   },
+   "threads": {
+    "other": 99,
+    "rendererMain": 4863,
+    "vizCompositor": 429,
+    "rendererCompositor": 140,
+    "gpuMain": 4
+   },
+   "counts": {
+    "paints": 71,
+    "chartCopies": 35,
+    "overlayCopies": 35,
+    "copiedMpx": 78.4
+   },
+   "canvasMpx": 2.98,
+   "canvases": [
+    {
+     "w": 1318,
+     "h": 1782,
+     "shown": true
+    },
+    {
+     "w": 659,
+     "h": 891,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1
+  },
+  {
+   "id": "phone4x-scale1",
+   "profile": "phone4x",
+   "variant": "scale1",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 33.4,
+    "max": 66.7,
+    "over50": 3,
+    "totalMs": 3435
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 54,
+    "script": 43,
+    "render": 46
+   },
+   "threads": {
+    "other": 111,
+    "rendererMain": 2127,
+    "vizCompositor": 255,
+    "rendererCompositor": 95,
+    "gpuMain": 4
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 30.6
+   },
+   "canvasMpx": 2.33,
+   "canvases": [
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1,
+   "run": 1
+  },
+  {
+   "id": "phone4x-overlays",
+   "profile": "phone4x",
+   "variant": "overlays",
+   "frames": {
+    "n": 180,
+    "median": 33.3,
+    "p95": 200,
+    "max": 216.7,
+    "over50": 21,
+    "totalMs": 7962
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 110,
+    "script": 105,
+    "render": 110
+   },
+   "threads": {
+    "other": 830,
+    "rendererMain": 8082,
+    "vizCompositor": 585,
+    "rendererCompositor": 194,
+    "gpuMain": 11
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 57,
+    "copiedMpx": 98.3
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1
+  },
+  {
+   "id": "phone4x-overlays-tileshift0",
+   "profile": "phone4x",
+   "variant": "overlays-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 116.6,
+    "max": 266.7,
+    "over50": 22,
+    "totalMs": 6246
+   },
+   "loaf": {
+    "n": 2,
+    "ms": 198,
+    "script": 188,
+    "render": 198
+   },
+   "threads": {
+    "other": 1057,
+    "rendererMain": 6359,
+    "rendererCompositor": 171,
+    "vizCompositor": 546,
+    "gpuMain": 10
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1
+  },
+  {
+   "id": "phone4x-zoom30",
+   "profile": "phone4x",
+   "variant": "zoom30",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 133.3,
+    "max": 166.7,
+    "over50": 11,
+    "totalMs": 4816
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 223,
+    "rendererMain": 4405,
+    "vizCompositor": 359,
+    "rendererCompositor": 125,
+    "gpuMain": 0
+   },
+   "counts": {
+    "paints": 17,
+    "chartCopies": 11,
+    "overlayCopies": 11,
+    "copiedMpx": 49.1
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1
+  },
+  {
+   "id": "phone4x-zoom30-tileshift0",
+   "profile": "phone4x",
+   "variant": "zoom30-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 83.3,
+    "max": 200,
+    "over50": 10,
+    "totalMs": 4175
+   },
+   "loaf": {
+    "n": 2,
+    "ms": 149,
+    "script": 140,
+    "render": 149
+   },
+   "threads": {
+    "other": 442,
+    "vizCompositor": 336,
+    "rendererCompositor": 118,
+    "rendererMain": 3604,
+    "gpuMain": 1
+   },
+   "counts": {
+    "paints": 11,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1
+  },
+  {
+   "id": "phone4x-normal",
+   "profile": "phone4x",
+   "variant": "normal",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 116.7,
+    "max": 183.4,
+    "over50": 20,
+    "totalMs": 5736
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 86,
+    "script": 83,
+    "render": 86
+   },
+   "threads": {
+    "other": 110,
+    "rendererMain": 5644,
+    "vizCompositor": 379,
+    "rendererCompositor": 117,
+    "gpuMain": 5
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 76.4
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 2
+  },
+  {
+   "id": "phone4x-tileshift0",
+   "profile": "phone4x",
+   "variant": "tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 100,
+    "max": 233.3,
+    "over50": 20,
+    "totalMs": 5170
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 94,
+    "script": 89,
+    "render": 94
+   },
+   "threads": {
+    "other": 103,
+    "rendererMain": 5149,
+    "vizCompositor": 405,
+    "rendererCompositor": 129,
+    "gpuMain": 6
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 2
+  },
+  {
+   "id": "phone4x-overscan150",
+   "profile": "phone4x",
+   "variant": "overscan150",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 50.1,
+    "max": 83.3,
+    "over50": 13,
+    "totalMs": 4344
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 55,
+    "script": 44,
+    "render": 47
+   },
+   "threads": {
+    "other": 88,
+    "rendererMain": 3690,
+    "vizCompositor": 387,
+    "rendererCompositor": 112,
+    "gpuMain": 4
+   },
+   "counts": {
+    "paints": 71,
+    "chartCopies": 35,
+    "overlayCopies": 35,
+    "copiedMpx": 78.4
+   },
+   "canvasMpx": 2.98,
+   "canvases": [
+    {
+     "w": 1318,
+     "h": 1782,
+     "shown": true
+    },
+    {
+     "w": 659,
+     "h": 891,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 2
+  },
+  {
+   "id": "phone4x-scale1",
+   "profile": "phone4x",
+   "variant": "scale1",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 66.6,
+    "max": 83.3,
+    "over50": 12,
+    "totalMs": 3887
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 66,
+    "script": 55,
+    "render": 59
+   },
+   "threads": {
+    "other": 89,
+    "rendererMain": 3021,
+    "vizCompositor": 296,
+    "rendererCompositor": 121,
+    "gpuMain": 4
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 30.6
+   },
+   "canvasMpx": 2.33,
+   "canvases": [
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1,
+   "run": 2
+  },
+  {
+   "id": "phone4x-overlays",
+   "profile": "phone4x",
+   "variant": "overlays",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 150,
+    "max": 200,
+    "over50": 21,
+    "totalMs": 6650
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 108,
+    "script": 102,
+    "render": 107
+   },
+   "threads": {
+    "other": 797,
+    "rendererMain": 6823,
+    "rendererCompositor": 183,
+    "vizCompositor": 564,
+    "gpuMain": 10
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 57,
+    "copiedMpx": 98.3
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 2
+  },
+  {
+   "id": "phone4x-overlays-tileshift0",
+   "profile": "phone4x",
+   "variant": "overlays-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 100.1,
+    "max": 216.7,
+    "over50": 21,
+    "totalMs": 5799
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 108,
+    "script": 103,
+    "render": 108
+   },
+   "threads": {
+    "other": 756,
+    "rendererMain": 5896,
+    "vizCompositor": 515,
+    "rendererCompositor": 143,
+    "gpuMain": 11
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 2
+  },
+  {
+   "id": "phone4x-zoom30",
+   "profile": "phone4x",
+   "variant": "zoom30",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 100,
+    "max": 150,
+    "over50": 11,
+    "totalMs": 4483
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 80,
+    "script": 73,
+    "render": 76
+   },
+   "threads": {
+    "other": 211,
+    "rendererMain": 3967,
+    "vizCompositor": 303,
+    "rendererCompositor": 91,
+    "gpuMain": 6
+   },
+   "counts": {
+    "paints": 16,
+    "chartCopies": 10,
+    "overlayCopies": 10,
+    "copiedMpx": 45.1
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 2
+  },
+  {
+   "id": "phone4x-zoom30-tileshift0",
+   "profile": "phone4x",
+   "variant": "zoom30-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 100,
+    "max": 200,
+    "over50": 11,
+    "totalMs": 4783
+   },
+   "loaf": {
+    "n": 2,
+    "ms": 157,
+    "script": 149,
+    "render": 154
+   },
+   "threads": {
+    "other": 565,
+    "rendererMain": 4319,
+    "vizCompositor": 331,
+    "rendererCompositor": 112,
+    "gpuMain": 7
+   },
+   "counts": {
+    "paints": 11,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 2
+  },
+  {
+   "id": "phone4x-normal",
+   "profile": "phone4x",
+   "variant": "normal",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 116.6,
+    "max": 183.3,
+    "over50": 20,
+    "totalMs": 5424
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 79,
+    "script": 75,
+    "render": 79
+   },
+   "threads": {
+    "other": 125,
+    "rendererMain": 5339,
+    "vizCompositor": 390,
+    "rendererCompositor": 109,
+    "gpuMain": 8
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 76.4
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 3
+  },
+  {
+   "id": "phone4x-tileshift0",
+   "profile": "phone4x",
+   "variant": "tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 116.7,
+    "max": 183.4,
+    "over50": 21,
+    "totalMs": 5678
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 75,
+    "script": 72,
+    "render": 75
+   },
+   "threads": {
+    "other": 122,
+    "rendererMain": 5664,
+    "vizCompositor": 403,
+    "rendererCompositor": 129,
+    "gpuMain": 6
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 3
+  },
+  {
+   "id": "phone4x-overscan150",
+   "profile": "phone4x",
+   "variant": "overscan150",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 66.6,
+    "max": 100,
+    "over50": 20,
+    "totalMs": 4474
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 62,
+    "script": 55,
+    "render": 59
+   },
+   "threads": {
+    "other": 296,
+    "rendererMain": 3864,
+    "vizCompositor": 387,
+    "rendererCompositor": 109,
+    "gpuMain": 4
+   },
+   "counts": {
+    "paints": 71,
+    "chartCopies": 35,
+    "overlayCopies": 35,
+    "copiedMpx": 78.4
+   },
+   "canvasMpx": 2.98,
+   "canvases": [
+    {
+     "w": 1318,
+     "h": 1782,
+     "shown": true
+    },
+    {
+     "w": 659,
+     "h": 891,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 3
+  },
+  {
+   "id": "phone4x-scale1",
+   "profile": "phone4x",
+   "variant": "scale1",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 50,
+    "max": 66.7,
+    "over50": 4,
+    "totalMs": 3609
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 52,
+    "script": 40,
+    "render": 43
+   },
+   "threads": {
+    "other": 106,
+    "vizCompositor": 251,
+    "rendererMain": 2343,
+    "rendererCompositor": 99,
+    "gpuMain": 3
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 30.6
+   },
+   "canvasMpx": 2.33,
+   "canvases": [
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1,
+   "run": 3
+  },
+  {
+   "id": "phone4x-overlays",
+   "profile": "phone4x",
+   "variant": "overlays",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 166.7,
+    "max": 233.3,
+    "over50": 20,
+    "totalMs": 6986
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 114,
+    "script": 107,
+    "render": 114
+   },
+   "threads": {
+    "other": 907,
+    "rendererMain": 7096,
+    "vizCompositor": 540,
+    "rendererCompositor": 178,
+    "gpuMain": 8
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 57,
+    "copiedMpx": 98.3
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 3
+  },
+  {
+   "id": "phone4x-overlays-tileshift0",
+   "profile": "phone4x",
+   "variant": "overlays-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 33.3,
+    "p95": 133.3,
+    "max": 216.6,
+    "over50": 21,
+    "totalMs": 6596
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 123,
+    "script": 118,
+    "render": 123
+   },
+   "threads": {
+    "other": 818,
+    "rendererMain": 6696,
+    "vizCompositor": 556,
+    "rendererCompositor": 166,
+    "gpuMain": 10
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 7.45,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2206,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1103,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 3
+  },
+  {
+   "id": "phone4x-zoom30",
+   "profile": "phone4x",
+   "variant": "zoom30",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 133.3,
+    "max": 183.3,
+    "over50": 11,
+    "totalMs": 4939
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 102,
+    "script": 95,
+    "render": 98
+   },
+   "threads": {
+    "other": 494,
+    "rendererMain": 4479,
+    "vizCompositor": 306,
+    "rendererCompositor": 100,
+    "gpuMain": 5
+   },
+   "counts": {
+    "paints": 16,
+    "chartCopies": 10,
+    "overlayCopies": 10,
+    "copiedMpx": 45.1
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 3
+  },
+  {
+   "id": "phone4x-zoom30-tileshift0",
+   "profile": "phone4x",
+   "variant": "zoom30-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 83.3,
+    "max": 166.7,
+    "over50": 12,
+    "totalMs": 4032
+   },
+   "loaf": {
+    "n": 2,
+    "ms": 145,
+    "script": 134,
+    "render": 141
+   },
+   "threads": {
+    "other": 477,
+    "rendererMain": 3387,
+    "vizCompositor": 297,
+    "rendererCompositor": 81,
+    "gpuMain": 7
+   },
+   "counts": {
+    "paints": 11,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 3
+  }
+ ]
+}

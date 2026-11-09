@@ -1,0 +1,1074 @@
+{
+ "commit": "88819f0",
+ "dirty": 20,
+ "browser": "153.0.8010.12",
+ "results": [
+  {
+   "id": "large-50-since0",
+   "spec": {
+    "id": "large-50-since0",
+    "w": 400,
+    "h": 500,
+    "fraction": 0.5,
+    "since": 0,
+    "per": 3
+   },
+   "mode": "since",
+   "seeded": {
+    "n": 200000,
+    "since": 0
+   },
+   "summary": {
+    "total": 3.8999999999068677,
+    "copy": 0.19999999972060323,
+    "diff": 0.10000000009313226,
+    "idbGet": 0.10000000009313226,
+    "idbPut": 0.8999999999068677,
+    "cellsRead": 3
+   },
+   "allOk": true,
+   "sinceUsed": 11,
+   "check": {
+    "diff": 0,
+    "regs": 100020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 6.5,
+     "copy": 0,
+     "diff": 2.5,
+     "idbGet": 0,
+     "idbPut": 1.1999999997206032,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 3.6000000000931323,
+     "copy": 0,
+     "diff": 0.20000000018626451,
+     "idbGet": 0,
+     "idbPut": 0.6000000000931323,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 3.7999999998137355,
+     "copy": 0.09999999962747097,
+     "diff": 0.10000000009313226,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 0.7000000001862645,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.5,
+     "copy": 0.2999999998137355,
+     "diff": 0.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 1,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 3.599999999627471,
+     "copy": 0.19999999972060323,
+     "diff": 0.10000000009313226,
+     "idbGet": 0,
+     "idbPut": 0.5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.199999999720603,
+     "copy": 0.10000000009313226,
+     "diff": 0,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.199999999720603,
+     "copy": 0.19999999972060323,
+     "diff": 0.10000000009313226,
+     "idbGet": 0,
+     "idbPut": 0.7999999998137355,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 3.7999999998137355,
+     "copy": 0.19999999972060323,
+     "diff": 0.10000000009313226,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 3.8999999999068677,
+     "copy": 0.20000000018626451,
+     "diff": 0.10000000009313226,
+     "idbGet": 0,
+     "idbPut": 0.7999999998137355,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.100000000093132,
+     "copy": 0.09999999962747097,
+     "diff": 0.20000000018626451,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 3.8999999999068677,
+     "copy": 0.10000000009313226,
+     "diff": 0.10000000009313226,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 0.6999999997206032,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 3.7999999998137355,
+     "copy": 0.09999999962747097,
+     "diff": 0.09999999962747097,
+     "idbGet": 0,
+     "idbPut": 0.900000000372529,
+     "cellsRead": 3
+    }
+   ]
+  },
+  {
+   "id": "large-50-since2000",
+   "spec": {
+    "id": "large-50-since2000",
+    "w": 400,
+    "h": 500,
+    "fraction": 0.5,
+    "since": 2000,
+    "per": 3
+   },
+   "mode": "since",
+   "seeded": {
+    "n": 200000,
+    "since": 2000
+   },
+   "summary": {
+    "total": 6,
+    "copy": 0.10000000009313226,
+    "diff": 0.39999999990686774,
+    "idbGet": 0.10000000009313226,
+    "idbPut": 1.5,
+    "cellsRead": 3
+   },
+   "allOk": true,
+   "sinceUsed": 12,
+   "check": {
+    "diff": 0,
+    "regs": 101020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": true,
+     "total": 4,
+     "copy": 0,
+     "diff": 0.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.600000000093132,
+     "copy": 0.10000000009313226,
+     "diff": 0.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 1.2000000001862645,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.699999999720603,
+     "copy": 0.10000000009313226,
+     "diff": 0.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 1.2000000001862645,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.199999999720603,
+     "copy": 0,
+     "diff": 0.2999999998137355,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.2999999998137355,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.400000000372529,
+     "copy": 0.20000000018626451,
+     "diff": 0.20000000018626451,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.2999999998137355,
+     "copy": 0.19999999972060323,
+     "diff": 0.39999999990686774,
+     "idbGet": 0,
+     "idbPut": 2,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6,
+     "copy": 0.3000000002793968,
+     "diff": 0.20000000018626451,
+     "idbGet": 0.20000000018626451,
+     "idbPut": 1.3999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.7000000001862645,
+     "copy": 0.20000000018626451,
+     "diff": 0.6000000000931323,
+     "idbGet": 0,
+     "idbPut": 2.1000000000931323,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.600000000093132,
+     "copy": 0.10000000009313226,
+     "diff": 0.5,
+     "idbGet": 0,
+     "idbPut": 2,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.400000000372529,
+     "copy": 0,
+     "diff": 0.39999999990686774,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.400000000372529,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.7000000001862645,
+     "copy": 0.10000000009313226,
+     "diff": 0.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 1.3000000002793968,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.599999999627471,
+     "copy": 0.09999999962747097,
+     "diff": 0.599999999627471,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.7000000001862645,
+     "cellsRead": 3
+    }
+   ]
+  },
+  {
+   "id": "huge-50-since0",
+   "spec": {
+    "id": "huge-50-since0",
+    "w": 600,
+    "h": 800,
+    "fraction": 0.5,
+    "since": 0,
+    "per": 3
+   },
+   "mode": "since",
+   "seeded": {
+    "n": 480000,
+    "since": 0
+   },
+   "summary": {
+    "total": 4.800000000279397,
+    "copy": 0.2999999998137355,
+    "diff": 0.10000000009313226,
+    "idbGet": 0,
+    "idbPut": 1,
+    "cellsRead": 3
+   },
+   "allOk": true,
+   "sinceUsed": 11,
+   "check": {
+    "diff": 0,
+    "regs": 240020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 11.799999999813735,
+     "copy": 0.19999999972060323,
+     "diff": 6.5,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.5,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.5,
+     "copy": 0.3000000002793968,
+     "diff": 0.3000000002793968,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.1999999997206032,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.800000000279397,
+     "copy": 0.20000000018626451,
+     "diff": 0.10000000009313226,
+     "idbGet": 0.09999999962747097,
+     "idbPut": 1.2999999998137355,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.5,
+     "copy": 0.20000000018626451,
+     "diff": 0.10000000009313226,
+     "idbGet": 0,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.800000000279397,
+     "copy": 0.40000000037252903,
+     "diff": 0.10000000009313226,
+     "idbGet": 0,
+     "idbPut": 1,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.7000000001862645,
+     "copy": 0.2999999998137355,
+     "diff": 0.20000000018626451,
+     "idbGet": 0,
+     "idbPut": 1.099999999627471,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5,
+     "copy": 0.2999999998137355,
+     "diff": 0.19999999972060323,
+     "idbGet": 0,
+     "idbPut": 1,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5,
+     "copy": 0.2999999998137355,
+     "diff": 0,
+     "idbGet": 0,
+     "idbPut": 1,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.600000000093132,
+     "copy": 0.19999999972060323,
+     "diff": 0,
+     "idbGet": 0,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.7000000001862645,
+     "copy": 0.2999999998137355,
+     "diff": 0.19999999972060323,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.600000000093132,
+     "copy": 0.20000000018626451,
+     "diff": 0.20000000018626451,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 4.800000000279397,
+     "copy": 0.20000000018626451,
+     "diff": 0.10000000009313226,
+     "idbGet": 0,
+     "idbPut": 1.1999999997206032,
+     "cellsRead": 3
+    }
+   ]
+  },
+  {
+   "id": "huge-50-since2000",
+   "spec": {
+    "id": "huge-50-since2000",
+    "w": 600,
+    "h": 800,
+    "fraction": 0.5,
+    "since": 2000,
+    "per": 3
+   },
+   "mode": "since",
+   "seeded": {
+    "n": 480000,
+    "since": 2000
+   },
+   "summary": {
+    "total": 6.5,
+    "copy": 0.2999999998137355,
+    "diff": 0.39999999990686774,
+    "idbGet": 0,
+    "idbPut": 1.8000000002793968,
+    "cellsRead": 3
+   },
+   "allOk": true,
+   "sinceUsed": 12,
+   "check": {
+    "diff": 0,
+    "regs": 241020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.099999999627471,
+     "copy": 0.19999999972060323,
+     "diff": 0.3000000002793968,
+     "idbGet": 0,
+     "idbPut": 1.5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.300000000279397,
+     "copy": 0.20000000018626451,
+     "diff": 0.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 1.6000000000931323,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 5.7999999998137355,
+     "copy": 0.19999999972060323,
+     "diff": 0.2999999998137355,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.100000000093132,
+     "copy": 0.3000000002793968,
+     "diff": 0.3000000002793968,
+     "idbGet": 0,
+     "idbPut": 1.8999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.5,
+     "copy": 0.3000000002793968,
+     "diff": 0.3000000002793968,
+     "idbGet": 0,
+     "idbPut": 1.8999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.399999999906868,
+     "copy": 0.2999999998137355,
+     "diff": 0.40000000037252903,
+     "idbGet": 0,
+     "idbPut": 1.599999999627471,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.300000000279397,
+     "copy": 0.3000000002793968,
+     "diff": 0.39999999990686774,
+     "idbGet": 0,
+     "idbPut": 1.8000000002793968,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.199999999720603,
+     "copy": 0.2999999998137355,
+     "diff": 0.40000000037252903,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.7999999998137355,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.899999999906868,
+     "copy": 0.2999999998137355,
+     "diff": 0.19999999972060323,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.6000000000931323,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 8.100000000093132,
+     "copy": 0.20000000018626451,
+     "diff": 0.6000000000931323,
+     "idbGet": 0.20000000018626451,
+     "idbPut": 2.5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 8,
+     "copy": 0.2999999998137355,
+     "diff": 0.39999999990686774,
+     "idbGet": 0,
+     "idbPut": 2.5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 6.899999999906868,
+     "copy": 0.20000000018626451,
+     "diff": 0.3000000002793968,
+     "idbGet": 0,
+     "idbPut": 1.7999999998137355,
+     "cellsRead": 3
+    }
+   ]
+  },
+  {
+   "id": "huge-50-since0-phone",
+   "spec": {
+    "id": "huge-50-since0-phone",
+    "w": 600,
+    "h": 800,
+    "fraction": 0.5,
+    "since": 0,
+    "per": 3,
+    "profile": "phone"
+   },
+   "mode": "since",
+   "seeded": {
+    "n": 480000,
+    "since": 0
+   },
+   "summary": {
+    "total": 12.100000000093132,
+    "copy": 1.1000000000931323,
+    "diff": 0.5,
+    "idbGet": 0,
+    "idbPut": 4.099999999627471,
+    "cellsRead": 3
+   },
+   "allOk": true,
+   "sinceUsed": 11,
+   "check": {
+    "diff": 0,
+    "regs": 240020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 62.6999999997206,
+     "copy": 1.5,
+     "diff": 15.399999999906868,
+     "idbGet": 0.6999999997206032,
+     "idbPut": 4.5,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 14.600000000093132,
+     "copy": 1.2000000001862645,
+     "diff": 0.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 5.2000000001862645,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 11.899999999906868,
+     "copy": 0.8999999999068677,
+     "diff": 0.2999999998137355,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 4,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 11.700000000186265,
+     "copy": 0.8000000002793968,
+     "diff": 0.6999999997206032,
+     "idbGet": 0,
+     "idbPut": 3.7000000001862645,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 13,
+     "copy": 1,
+     "diff": 0.40000000037252903,
+     "idbGet": 0,
+     "idbPut": 5.2999999998137355,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 12.100000000093132,
+     "copy": 1.7999999998137355,
+     "diff": 0.5,
+     "idbGet": 0.6000000000931323,
+     "idbPut": 4.699999999720603,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 10.5,
+     "copy": 1.2000000001862645,
+     "diff": 0.6000000000931323,
+     "idbGet": 0,
+     "idbPut": 2.8999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 12.5,
+     "copy": 1.8000000002793968,
+     "diff": 0.10000000009313226,
+     "idbGet": 0,
+     "idbPut": 4.2000000001862645,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 14.200000000186265,
+     "copy": 1.2000000001862645,
+     "diff": 0.7000000001862645,
+     "idbGet": 0.5,
+     "idbPut": 4.399999999906868,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 12.299999999813735,
+     "copy": 1.1000000000931323,
+     "diff": 0,
+     "idbGet": 0,
+     "idbPut": 4.099999999627471,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 10.899999999906868,
+     "copy": 1.1000000000931323,
+     "diff": 0.6000000000931323,
+     "idbGet": 0,
+     "idbPut": 3.5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 11,
+     "copy": 0.6999999997206032,
+     "diff": 0.10000000009313226,
+     "idbGet": 0,
+     "idbPut": 3.5,
+     "cellsRead": 3
+    }
+   ]
+  },
+  {
+   "id": "huge-50-since2000-phone",
+   "spec": {
+    "id": "huge-50-since2000-phone",
+    "w": 600,
+    "h": 800,
+    "fraction": 0.5,
+    "since": 2000,
+    "per": 3,
+    "profile": "phone"
+   },
+   "mode": "since",
+   "seeded": {
+    "n": 480000,
+    "since": 2000
+   },
+   "summary": {
+    "total": 22.399999999906868,
+    "copy": 1.3000000002793968,
+    "diff": 1.2000000001862645,
+    "idbGet": 0.10000000009313226,
+    "idbPut": 9,
+    "cellsRead": 3
+   },
+   "allOk": true,
+   "sinceUsed": 12,
+   "check": {
+    "diff": 0,
+    "regs": 241020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": true,
+     "total": 18.699999999720603,
+     "copy": 0.6000000000931323,
+     "diff": 1.3999999999068677,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 8.100000000093132,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 15.599999999627471,
+     "copy": 1.3999999999068677,
+     "diff": 1.7000000001862645,
+     "idbGet": 0,
+     "idbPut": 6.400000000372529,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 17.90000000037253,
+     "copy": 1.2000000001862645,
+     "diff": 1.2000000001862645,
+     "idbGet": 0.6999999997206032,
+     "idbPut": 7.100000000093132,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 18.199999999720603,
+     "copy": 0.8999999999068677,
+     "diff": 1,
+     "idbGet": 0,
+     "idbPut": 6.5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 30.699999999720603,
+     "copy": 1.5,
+     "diff": 3.8999999999068677,
+     "idbGet": 0.7000000001862645,
+     "idbPut": 12.900000000372529,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 17,
+     "copy": 1.2000000001862645,
+     "diff": 1.099999999627471,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 7,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 22.399999999906868,
+     "copy": 1.3999999999068677,
+     "diff": 1.1999999997206032,
+     "idbGet": 0,
+     "idbPut": 7.899999999906868,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 23.199999999720603,
+     "copy": 1.1000000000931323,
+     "diff": 0.6000000000931323,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 9.899999999906868,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 31.100000000093132,
+     "copy": 1.3000000002793968,
+     "diff": 3.1999999997206032,
+     "idbGet": 0,
+     "idbPut": 12,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 30.799999999813735,
+     "copy": 1.5,
+     "diff": 2.5,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 12.700000000186265,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 20.299999999813735,
+     "copy": 1.3999999999068677,
+     "diff": 1.2000000001862645,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 8.299999999813735,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 22.399999999906868,
+     "copy": 1.2999999998137355,
+     "diff": 1.6000000000931323,
+     "idbGet": 0,
+     "idbPut": 9,
+     "cellsRead": 3
+    }
+   ]
+  },
+  {
+   "id": "large-50-since2000-phone",
+   "spec": {
+    "id": "large-50-since2000-phone",
+    "w": 400,
+    "h": 500,
+    "fraction": 0.5,
+    "since": 2000,
+    "per": 3,
+    "profile": "phone"
+   },
+   "mode": "since",
+   "seeded": {
+    "n": 200000,
+    "since": 2000
+   },
+   "summary": {
+    "total": 13.700000000186265,
+    "copy": 0.20000000018626451,
+    "diff": 1.6000000000931323,
+    "idbGet": 0,
+    "idbPut": 5,
+    "cellsRead": 3
+   },
+   "allOk": true,
+   "sinceUsed": 12,
+   "check": {
+    "diff": 0,
+    "regs": 101020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": true,
+     "total": 11,
+     "copy": 1.099999999627471,
+     "diff": 1.3000000002793968,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 3.3999999999068677,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 13,
+     "copy": 0.5,
+     "diff": 1.7000000001862645,
+     "idbGet": 0.19999999972060323,
+     "idbPut": 4.899999999906868,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 13.100000000093132,
+     "copy": 0.6000000000931323,
+     "diff": 1.7000000001862645,
+     "idbGet": 0,
+     "idbPut": 5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 16.200000000186265,
+     "copy": 0.20000000018626451,
+     "diff": 1.5,
+     "idbGet": 0.2999999998137355,
+     "idbPut": 6.399999999906868,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 14.200000000186265,
+     "copy": 0.20000000018626451,
+     "diff": 1.6000000000931323,
+     "idbGet": 0,
+     "idbPut": 5.099999999627471,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 13,
+     "copy": 0.19999999972060323,
+     "diff": 1.7000000001862645,
+     "idbGet": 0,
+     "idbPut": 4.899999999906868,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 12.200000000186265,
+     "copy": 0.10000000009313226,
+     "diff": 1.6000000000931323,
+     "idbGet": 0,
+     "idbPut": 4.600000000093132,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 13,
+     "copy": 0.10000000009313226,
+     "diff": 1,
+     "idbGet": 1.1000000000931323,
+     "idbPut": 4.899999999906868,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 12.899999999906868,
+     "copy": 1.2000000001862645,
+     "diff": 1.7999999998137355,
+     "idbGet": 0,
+     "idbPut": 4.7000000001862645,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 13.799999999813735,
+     "copy": 1,
+     "diff": 1.3999999999068677,
+     "idbGet": 0,
+     "idbPut": 4.399999999906868,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 13.700000000186265,
+     "copy": 0.5,
+     "diff": 1.5,
+     "idbGet": 0,
+     "idbPut": 5,
+     "cellsRead": 3
+    },
+    {
+     "ok": true,
+     "since": true,
+     "total": 17.699999999720603,
+     "copy": 0.09999999962747097,
+     "diff": 2.400000000372529,
+     "idbGet": 0,
+     "idbPut": 7.599999999627471,
+     "cellsRead": 3
+    }
+   ]
+  }
+ ]
+}

@@ -228,9 +228,24 @@
   // register for each mark that differs between `previous` and `next`. The
   // same writes record(previous with the full trackingSync, next) would make,
   // in time proportional to the chart's cells and the delta, not the marks.
-  function recordDelta(previous, delta, next, author) {
+  //
+  // `opts`, optional, for a caller that knows more (ProjectStorage.saveProgress
+  // checks it in the write's own transaction):
+  //   indices  full crosses that may differ between previous.done and next.done
+  //            (every other cell is known equal). Only those are compared,
+  //            instead of every cell; duplicates and cells that changed back
+  //            write nothing, as the full comparison would.
+  //   trusted  `delta` is a record this module wrote, read back unchanged, so
+  //            its registers are already normalised and are not rebuilt.
+  // Either gives the same result as without it, given what it promises.
+  function recordDelta(previous, delta, next, author, opts) {
     previous = previous || {};
-    var out = cleanDelta(delta), a = author || actor;
+    var out, a = author || actor;
+    if (opts && opts.trusted && delta && delta.version === 1 && delta.marks && typeof delta.marks === 'object') {
+      out = Object.create(null);
+      var dk = Object.keys(delta.marks);
+      for (var x = 0; x < dk.length; x++) if (Array.isArray(delta.marks[dk[x]]) && delta.marks[dk[x]].length) out[dk[x]] = delta.marks[dk[x]];
+    } else out = cleanDelta(delta);
     var before = otherMarks(previous), after = otherMarks(next);
     var prefix = { d: 'done', h: 'halfDone', q: 'partialDone', k: 'knotsDone', b: 'bsDone', e: 'beadsDone', s: 'specialtyDone' };
     function write(k, on) {
@@ -250,13 +265,39 @@
     });
     if (hasDone(next)) {
       var bd = hasDone(previous) ? previous.done : null, nd = next.done, n = Math.max(nd.length, bd ? bd.length : 0);
-      for (var i = 0; i < n; i++) {
-        var was = !!(bd && bd[i]), on = !!nd[i];
-        if (was !== on) write('d:' + i, on);
+      var only = opts && opts.indices && bd && bd.length === nd.length ? changedCells(opts.indices, n) : null;
+      if (only) {
+        stats.cellsCompared += only.length;
+        for (var j = 0; j < only.length; j++) {
+          var c = only[j];
+          if (!!bd[c] !== !!nd[c]) write('d:' + c, !!nd[c]);
+        }
+      } else {
+        stats.cellsCompared += n;
+        for (var i = 0; i < n; i++) {
+          var was = !!(bd && bd[i]), on = !!nd[i];
+          if (was !== on) write('d:' + i, on);
+        }
       }
     }
     return { version: 1, marks: out };
   }
+  // The cells a caller named, each once and in order (registers are then
+  // written in the order the full comparison writes them). Null, meaning
+  // compare every cell, when the list is not a list of cell indices.
+  function changedCells(list, n) {
+    if (!list || typeof list.length !== 'number') return null;
+    var seen = new Set();
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      if (!Number.isSafeInteger(c) || c < 0 || c >= n) return null;
+      seen.add(c);
+    }
+    return Array.from(seen).sort(function (p, q) { return p - q; });
+  }
+  // Cells compared by recordDelta, counted (machine-independent; read by tests
+  // and tests/perf/progress-write-cost.cjs).
+  var stats = { cellsCompared: 0 };
   function withDelta(p, delta) {
     var r = records(p), d = cleanDelta(delta);
     Object.keys(d).forEach(function (k) { r[k] = d[k]; });
@@ -414,7 +455,7 @@
   // valueSync they are kept in): what a caller must keep of a base project to
   // call recordValues() on it later.
   var VALUE_KEYS = valueFields.concat(['statsSessions', 'sessions', 'valueSync']);
-  var api = { record: record, recordDelta: recordDelta, withDelta: withDelta, deltaFrom: deltaFrom, merge: merge, marks: marks, mergeValues: mergeValues, valueRecord: valueRecord, valueFrontier: valueFrontier, canonical: canonical, valuesOf: valuesOf, recordValues: recordValues, VALUE_KEYS: VALUE_KEYS };
+  var api = { stats: stats, record: record, recordDelta: recordDelta, withDelta: withDelta, deltaFrom: deltaFrom, merge: merge, marks: marks, mergeValues: mergeValues, valueRecord: valueRecord, valueFrontier: valueFrontier, canonical: canonical, valuesOf: valuesOf, recordValues: recordValues, VALUE_KEYS: VALUE_KEYS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TrackingSync = api;
 })(typeof window !== 'undefined' ? window : this);

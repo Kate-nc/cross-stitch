@@ -1786,6 +1786,10 @@ bsSelectRef.current=bsSelect;
 const progressOwnerRef=useRef(null);
 const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null,beadsDone:null,bsDone:null,partialDone:null});
 const progressTimerRef=useRef(null);
+// Cells changed since the last progress write known to be on disk (ProjectStorage.progressChanges): each
+// write then names them, and storage compares only those instead of every cell of the chart.
+const progressChangesRef=useRef(null);
+if(!progressChangesRef.current&&typeof ProjectStorage!=='undefined'&&ProjectStorage.progressChanges)progressChangesRef.current=ProjectStorage.progressChanges();
 const lastProgressWriteRef=useRef(0);   // when writeProgressNow last wrote (scheduleProgressWrite spaces writes on large charts)
 // Save badge (header). One honest status for the whole project, derived from refs so that
 // updating it costs nothing on the mark path: React skips a setState to the same value.
@@ -1921,7 +1925,14 @@ useEffect(()=>{
 });
 const[areaPickerOpen,setAreaPickerOpen]=useState(false);
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone,sW});
-const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta,applyHalfDoneDelta,areaCountsFor}=counts;
+const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyHalfDoneDelta,areaCountsFor}=counts;
+// Every change to the marks that knows its cells comes through here (taps, strokes, rectangles, colour
+// marks, undo, redo, unpick): the progress writer's journal hears of it too. A done array set any other
+// way (load, merge, reconcile) is not linked, and the next progress write compares every cell.
+function applyDoneCountsDelta(changes,patArr,newDone,baseDone){
+  if(progressChangesRef.current)progressChangesRef.current.link(baseDone,newDone,changes);
+  return counts.applyDoneCountsDelta(changes,patArr,newDone,baseDone);
+}
 // Stitches and done stitches inside a rectangle of the pattern, by scanning
 // it: for areas other than the current one (stepping to the next unfinished
 // area) and as the reference the current area's counts are tested against.
@@ -5187,11 +5198,16 @@ function writeProgressNow() {
       tabId: window.CrossTabCoord ? window.CrossTabCoord.tabId : null
     };
     if (recovery) ProjectStorage.saveProgressRecovery(o.id, data);
+    // Which cells changed since the last write known to be on disk. Only once it
+    // is confirmed does a write become the one the next names.
+    const pc = progressChangesRef.current, w = !recovery && pc ? pc.begin(o.id, data.done) : null;
+    if (w) { data.writeId = w.writeId; if (w.since) data.since = w.since; }
     const uiGen = uiGenRef.current, epoch = saveUiRef.current.epoch;
     const r = ProjectStorage.saveProgress(o.id, data);
     // The gap to the next write runs from when this one finishes: the write's
     // own work (the sync record) runs inside its transaction, after this returns.
     if (r && r.then) r.then(function (ok) {
+      if (ok === true && w) pc.confirm(w);
       lastProgressWriteRef.current = Date.now();
       if (!recovery) progressWriteFailed(ok !== true, o.id);
       // With only marks unsaved, they are now on disk: the badge says Saved
@@ -5651,6 +5667,7 @@ useEffect(() => {
   const b = progressBaseRef.current;
   if (b.id !== id) {                       // just loaded or switched: nothing has changed yet
     progressBaseRef.current = { id, done, halfDone, knotsDone, beadsDone, bsDone, partialDone, specialtyDone };
+    if (progressChangesRef.current) progressChangesRef.current.reset();
     uiSavedGenRef.current = uiGenRef.current;     // what was just loaded is what is stored
     // Another project: its own save state, and writes still running for the old one must not touch it.
     { const u = saveUiRef.current; u.error = null; u.savedOnce = false; u.inFlight = 0; u.conflict = false; u.epoch++; }
