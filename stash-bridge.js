@@ -1061,7 +1061,8 @@ const StashBridge = (() => {
                 totals:A.totalsValue(row&&row.totals)};
               if(l.projects[projectId])out.projects[projectId]=l.projects[projectId];
               ops.forEach(op=>{if(!op)return;if(op.token&&l.receipts[op.token])out.receipts[op.token]=l.receipts[op.token];});
-              Object.values(l.events).forEach(e=>{if(e.projectId===projectId&&ops.some(op=>op&&op.unit===e.unit))out.sequences[e.unit]=Math.max(out.sequences[e.unit]||0,e.seq);});
+              const units=new Set();ops.forEach(op=>{if(op)units.add(op.unit);});
+              Object.values(l.events).forEach(e=>{if(e.projectId===projectId&&units.has(e.unit))out.sequences[e.unit]=Math.max(out.sequences[e.unit]||0,e.seq);});
               return out;
             }
             if(pending===0)run();

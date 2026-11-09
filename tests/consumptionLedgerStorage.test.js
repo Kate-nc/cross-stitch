@@ -226,3 +226,15 @@ test('a large baseline is written once in buckets; later commits read only their
   expect(s[A.KEY].events[JSON.stringify(['p', 'd:20001', 1])]).toMatchObject({ kind: 'mark', active: true });
   expect(s.threads[key].owned).toBeCloseTo(5 - cost, 13);
 });
+
+test('a batch of thousands of units (a project correction) commits with its summary', async () => {
+  const b = bridge(idb);
+  const ops = [];
+  for (let i = 0; i < 3000; i++) ops.push({ ...op(1, 'mark', 'd:' + i), enabled: false });
+  const t = Date.now();
+  const res = await b.applyConsumptionEvents('p', {}, ops);
+  expect(Object.keys(res.accounting.sequences)).toHaveLength(3000);
+  expect(res.accounting.sequences['d:2999']).toBe(1);
+  // Bounded, not quadratic in the batch (generous: fake-indexeddb is slow).
+  expect(Date.now() - t).toBeLessThan(30000);
+});

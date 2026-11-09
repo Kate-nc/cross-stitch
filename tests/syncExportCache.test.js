@@ -210,3 +210,31 @@ test('an open session checkpoint is exported as get() lists it, before and after
   file = json(await a.SyncEngine.exportSync());
   expect(file.projects.find(e => e.id === 'proj_0').data.sessionCheckpoints).toEqual([]);
 });
+
+test('two progress writes with the same timestamp each reach the next export', async () => {
+  const a = device('A');
+  await library(a, 1);
+  const p = await a.ProjectStorage.get('proj_0');
+  vm.runInContext('Date.__realNow = Date.now; Date.now = () => 1900000000000;', a);
+  try {
+    await a.ProjectStorage.saveProgress('proj_0', { done: Uint8Array.from([1, 0, 0, 0, 0, 0]), baseWriteAt: p.lastWriteAt });
+    expect(json(await a.SyncEngine.exportSync()).projects[0].data.done).toEqual([1, 0, 0, 0, 0, 0]);
+    await a.ProjectStorage.saveProgress('proj_0', { done: Uint8Array.from([1, 1, 0, 0, 0, 0]), baseWriteAt: p.lastWriteAt });
+    expect(json(await a.SyncEngine.exportSync()).projects[0].data.done).toEqual([1, 1, 0, 0, 0, 0]);
+  } finally { vm.runInContext('Date.now = Date.__realNow;', a); }
+});
+
+test('an imported file cannot supply the export hints its attachments are checked against', async () => {
+  const a = device('A');
+  await library(a, 1);
+  const file = json(await a.SyncEngine.exportSync());
+  // A file whose project needs a tracing picture it does not carry, with a
+  // hint (as plain JSON can write it) claiming it needs none.
+  file.projects[0].data.settings = Object.assign({}, file.projects[0].data.settings, { traceImage: true });
+  file.projects[0].__hints = { id: file.projects[0].id, settings: { traceImage: false } };
+  const codec = a.SyncAttachmentCodec;
+  const owner = (id, ids) => ids.find(pid => id === 'trace:' + pid || id === 'source:' + pid);
+  const err = (state, message) => Object.assign(new Error(message), { state });
+  await expect(codec.verify(file, owner, () => new Uint8Array(0), async () => 'sha256:' + '0'.repeat(64), err, 64 * 1024 * 1024))
+    .rejects.toThrow(/Missing required tracing picture/);
+});

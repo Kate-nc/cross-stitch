@@ -4,8 +4,11 @@
 // Dependencies are passed through its adapter; no extra async boundary or byte copy.
 const SyncAttachmentCodec = (() => {
   // The project fields checked here. An entry the engine exported from its
-  // cache carries them as hints, so its project need not be parsed back.
-  function fieldsOf(entry) { return entry.__hints || entry.data; }
+  // cache carries them as hints, so its project need not be parsed back. They
+  // live under a symbol: a parsed file cannot supply one, so an imported entry
+  // is always checked against its own data.
+  var HINTS = typeof Symbol === 'function' ? Symbol.for('stitchx.syncExportHints') : null;
+  function fieldsOf(entry) { return (HINTS && entry[HINTS]) || entry.data; }
   async function verify(syncObj, owner, decodeBase64, contentId, protocolError, maxSyncBytes) {
     if (!syncObj) return [];
     var a = syncObj.attachments;

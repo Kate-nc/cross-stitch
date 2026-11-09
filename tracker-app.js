@@ -5534,8 +5534,13 @@ useEffect(() => {
     // stored is already this. Writing it again cost a full save on a large
     // chart for nothing. A save still in flight has not counted yet, so this
     // flush still writes; a held save still reports why below.
-    if (!savesBlockedRef.current && autoSaveGenRef.current === flushedGenRef.current && projectIdRef.current)
+    if (!savesBlockedRef.current && autoSaveGenRef.current === flushedGenRef.current && projectIdRef.current) {
+      // A running session is not part of the generation: its checkpoint (which
+      // a full save carries) is written here, and a failure fails the flush.
+      const cp = getSessionCheckpoint();
+      if (cp && cp.projectId) await ProjectStorage.saveSessionCheckpoint(cp.projectId, cp);
       return { ok: true, id: projectIdRef.current, clean: true };
+    }
     const project = snapshotNow();
     if (!project) return;
     lastSnapshotRef.current = project;

@@ -719,7 +719,7 @@ const SyncEngine = (() => {
   // A project's metadata row (ProjectStorage) is rewritten in the same
   // transaction as every write to its record, its overlay or its progress
   // record: its fence token changes on every record or overlay write, and
-  // progressAt on every progress write. So while those (and updatedAt and the
+  // progressRev (a counter, not a time) on every accepted progress write. So while those (and updatedAt and the
   // write stamp) are unchanged, the project reads back exactly as last time,
   // and so do its fingerprint and JSON. The key is read after the export's
   // flush, so anything the export promises to cover changed it.
@@ -736,10 +736,12 @@ const SyncEngine = (() => {
   function _exportKey(meta, includeImages) {
     var f = meta && meta.checkpointFence;
     if (!f || !f.token || typeof meta.lastWriteAt !== "number") return null;   // older metadata: no cache
-    return [f.token, meta.progressAt || 0, meta.updatedAt || "", meta.lastWriteAt, meta.lastWriteTabId || "", includeImages ? 1 : 0].join("|");
+    return [f.token, meta.progressRev || 0, meta.progressAt || 0, meta.updatedAt || "", meta.lastWriteAt, meta.lastWriteTabId || "", includeImages ? 1 : 0].join("|");
   }
   function _entryJson(entry) { return entry && entry.__json; }
-  function _entryHints(entry) { return entry.__hints || { id: entry.id, imgData: entry.data && entry.data.imgData, settings: entry.data && entry.data.settings }; }
+  // Hints for attachment checks live under a symbol (sync-attachment-codec.js), which JSON cannot supply.
+  var _HINTS = typeof Symbol === "function" ? Symbol.for("stitchx.syncExportHints") : "__hints";
+  function _entryHints(entry) { return entry[_HINTS] || { id: entry.id, imgData: entry.data && entry.data.imgData, settings: entry.data && entry.data.settings }; }
   // A cached entry: its JSON is what JSON.stringify gave when it was made;
   // `data` is parsed from it only if something asks for it.
   function _cachedEntry(hit) {
@@ -748,7 +750,7 @@ const SyncEngine = (() => {
     Object.defineProperty(entry, "data", { enumerable: true, configurable: true,
       get: function () { if (!parsed) parsed = JSON.parse(hit.json).data; return parsed; } });
     Object.defineProperty(entry, "__json", { value: hit.json, enumerable: false });
-    Object.defineProperty(entry, "__hints", { value: hit.hints, enumerable: false });
+    Object.defineProperty(entry, _HINTS, { value: hit.hints, enumerable: false });
     return entry;
   }
   // unsettled: ProjectStorage.unsettledProjects(), ids that must be read

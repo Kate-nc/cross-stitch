@@ -68,3 +68,11 @@ test('the periodic autosave writes only the project record; unload and flush sti
   // The flush writes it once per project per page (it only has to name the open project).
   expect(TRACKER).toMatch(/window\.__flushProjectToIDB = async function\(\) \{[\s\S]*?if \(legacyCopyRef\.current !== project\.id\) \{\s*await saveProjectToDB\(project, \{ strict: true \}\)/);
 });
+
+test('a flush with nothing new still writes the running session checkpoint, and fails if it cannot', () => {
+  const start = TRACKER.indexOf('window.__flushProjectToIDB = async function() {');
+  const clean = TRACKER.slice(start, TRACKER.indexOf("clean: true }", start));
+  expect(clean).toMatch(/autoSaveGenRef\.current === flushedGenRef\.current/);
+  // Awaited, not caught: a backup or sync must not succeed past a lost checkpoint.
+  expect(clean).toMatch(/const cp = getSessionCheckpoint\(\);\s*if \(cp && cp\.projectId\) await ProjectStorage\.saveSessionCheckpoint\(cp\.projectId, cp\);/);
+});

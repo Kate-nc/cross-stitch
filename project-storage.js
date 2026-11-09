@@ -1404,7 +1404,8 @@ const ProjectStorage = (() => {
               // The project's stored content changed: say so in its metadata
               // (sync's export cache keys on it). The fence token stays, so the
               // cached base this write relied on remains valid.
-              if (metaRow && metaRow.checkpointFence) metaStore.put(Object.assign({}, metaRow, { progressAt: rec.updatedAt }), id);
+              // progressRev counts every accepted write (two can share a timestamp).
+              if (metaRow && metaRow.checkpointFence) metaStore.put(Object.assign({}, metaRow, { progressAt: rec.updatedAt, progressRev: (metaRow.progressRev || 0) + 1 }), id);
             }
           };
           req.onsuccess = finish;
