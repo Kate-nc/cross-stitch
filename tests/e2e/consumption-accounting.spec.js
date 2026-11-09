@@ -2,12 +2,14 @@ const {test,expect}=require('@playwright/test');
 const fs=require('fs'),path=require('path');
 const {loadTrackerFixture,ensureTrackerProjectFixture,trackerCellPoint}=require('./touch-helpers');
 
+// Stock and the thread-usage ledger as stored. The ledger is kept a record per
+// event; ThreadAccounting.fromRows gives it whole, as backups and sync read it.
 async function accounting(page){return page.evaluate(async()=>{
  const db=await openManagerDB();try{return await new Promise((resolve,reject)=>{
-  const tx=db.transaction('manager_state','readonly'),s=tx.objectStore('manager_state');let threads,ledger;
-  s.get('threads').onsuccess=e=>threads=e.target.result;
-  s.get('thread_consumption_v2').onsuccess=e=>ledger=e.target.result;
-  tx.oncomplete=()=>resolve({owned:threads['dmc:310'].owned,events:Object.values(ledger.events)});tx.onerror=()=>reject(tx.error);
+  const tx=db.transaction('manager_state','readonly'),s=tx.objectStore('manager_state'),k=s.getAllKeys(),v=s.getAll();
+  tx.oncomplete=()=>{const rows={};k.result.forEach((key,i)=>{rows[key]=v.result[i];});const all=ThreadAccounting.fromRows(rows),ledger=all[ThreadAccounting.KEY]||{events:{}};
+   resolve({owned:all.threads['dmc:310'].owned,events:Object.values(ledger.events).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))});};
+  tx.onerror=()=>reject(tx.error);
  });}finally{db.close();}
 });}
 

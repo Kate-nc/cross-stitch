@@ -205,9 +205,14 @@ describe('review fixes', () => {
     expect(SRC).toMatch(/onOpenProject=\{\(meta\)=>\{flushBeforeSwitch\(\)\.then\(\(\)=>ProjectStorage\.get\(meta\.id\)\)/);
   });
 
-  test('the ledger counts as compacted only once that write commits', () => {
+  test('a commit reads the touched units, not the whole ledger (stored a record per event)', () => {
+    // Compacting the one whole-ledger record (shared event parts) is no longer
+    // needed: the ledger is stored as a record per event, and a commit reads only
+    // the newest event of each unit it touches (tests/consumptionLedgerStorage.test.js).
     const stash = require('fs').readFileSync(require('path').join(__dirname, '..', 'stash-bridge.js'), 'utf8');
-    expect(stash).toMatch(/A\.compact\(ledger\);compactedHere=true;/);
-    expect(stash).toMatch(/\.then\(function\(value\)\{\n        if\(compactedHere\)_ledgerCompacted=true;/);
+    const commit = stash.slice(stash.indexOf('async applyConsumptionEvents('), stash.indexOf('// Absolute cumulative consumption'));
+    expect(commit).toMatch(/A\.storedKeys\.unitRange\(pid,u\)/);
+    expect(commit).toMatch(/openCursor\(IDBKeyRange\.bound\(r\[0\],r\[1\]\),'prev'\)/);
+    expect(commit).not.toMatch(/A\.compact\(/);
   });
 });

@@ -416,6 +416,127 @@
     });
     return out;
   }
-  const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeContained,mergeStock,quantity,validate,sequences,compact,marksBefore};root.ThreadAccounting=api;
+  /* ── Stored form ────────────────────────────────────────────────────────
+     The ledger used to be one IndexedDB record (KEY), read and written whole
+     by every commit: with a long history (many projects, an event per stitch
+     ever marked) committing five events cost a second at phone speed. It is
+     now kept in the same manager_state store as one record per event, one per
+     project and one per receipt token, so a commit reads the heads of the units
+     it touches and writes what it adds:
+
+       tc2:meta                                   {t:'meta', format:1}
+       tc2:p|<project>                            {projectId, record, totals, events}
+           record   ledger.projects[project] without its baseline (null before
+                    the first operation)
+           totals   per thread: exact running sums of debit - credit (sumAdd)
+           events   how many events the project has
+       tc2:b|<project>|<bucket, 2 hex digits>     {projectId, units: {unit: true}}
+           the baseline (the units marked when its history began: on a large
+           chart that is under way, hundreds of thousands), in 256 buckets by a
+           hash of the unit, so a commit reads only its units' buckets
+       tc2:e|<project>|<unit>|<seq, 16 digits>    the event, exactly as in ledger.events
+       tc2:r|<token>                              {token, id}
+
+     Identifiers are URI-encoded, so '|' only ever separates them, and seq is
+     zero-padded, so a reverse cursor over a unit's range finds its newest
+     event. The whole-ledger shape (KEY) stays the interchange form: backups,
+     sync files and the Stash Manager's history assemble it (fromRows), and a
+     whole ledger written under KEY (a restore, a sync import, an older build)
+     is folded into the stored form by the next write (StashBridge). */
+  const STORED_PREFIX='tc2:',STORED_END='tc2:\uffff',META_KEY='tc2:meta',P_PREFIX='tc2:p|',E_PREFIX='tc2:e|',R_PREFIX='tc2:r|',B_PREFIX='tc2:b|';
+  // FNV-1a of the unit name, to one of 256 baseline buckets.
+  const bucketOf=unit=>{let h=0x811c9dc5;for(let i=0;i<unit.length;i++){h^=unit.charCodeAt(i);h=Math.imul(h,0x01000193);}return ((h>>>0)&255).toString(16).padStart(2,'0');};
+  const enc=encodeURIComponent,dec=decodeURIComponent;
+  const pad=n=>{const s=String(n);return '0000000000000000'.slice(s.length)+s;};
+  const storedKeys={
+    project:pid=>P_PREFIX+enc(pid),
+    event:(pid,unit,seq)=>E_PREFIX+enc(pid)+'|'+enc(unit)+'|'+pad(seq),
+    eventId:e=>E_PREFIX+enc(e.projectId)+'|'+enc(e.unit)+'|'+pad(e.seq),
+    receipt:t=>R_PREFIX+enc(t),
+    baselineBucket:(pid,unit)=>B_PREFIX+enc(pid)+'|'+bucketOf(unit),
+    baselineRange:pid=>[B_PREFIX+enc(pid)+'|',B_PREFIX+enc(pid)+'|\uffff'],
+    // [lower, upper] bounds of a unit's events, and of a project's.
+    unitRange:(pid,unit)=>[E_PREFIX+enc(pid)+'|'+enc(unit)+'|',E_PREFIX+enc(pid)+'|'+enc(unit)+'|\uffff'],
+    projectRange:pid=>[E_PREFIX+enc(pid)+'|',E_PREFIX+enc(pid)+'|\uffff'],
+    eventRange:[E_PREFIX,E_PREFIX+'\uffff'],
+    projectRows:[P_PREFIX,P_PREFIX+'\uffff'],
+    all:[STORED_PREFIX,STORED_END],
+  };
+  const isStoredKey=k=>typeof k==='string'&&k.slice(0,4)===STORED_PREFIX;
+  /* Exact running sums (Shewchuk's partials, as Python's fsum): adding the same
+     amounts in any order gives the same correctly rounded total, so a total
+     kept up to date one commit at a time equals one counted from scratch. */
+  function sumAdd(p,x){
+    let i=0;
+    for(let j=0;j<p.length;j++){let y=p[j];if(Math.abs(x)<Math.abs(y)){const t=x;x=y;y=t;}const hi=x+y,lo=y-(hi-x);if(lo)p[i++]=lo;x=hi;}
+    p.length=i;p.push(x);return p;
+  }
+  function sumValue(p){
+    let n=p.length;if(!n)return 0;
+    let hi=p[--n],lo=0;
+    while(n>0){const x=hi,y=p[--n];hi=x+y;lo=y-(hi-x);if(lo)break;}
+    if(n>0&&((lo<0&&p[n-1]<0)||(lo>0&&p[n-1]>0))){const y=lo*2,x=hi+y;if(y===x-hi)hi=x;}
+    return hi;
+  }
+  function addEventTotals(totals,e){
+    Object.entries(e.debit||{}).forEach(([k,v])=>{if(v)sumAdd(totals[k]||(totals[k]=[]),v);});
+    Object.entries(e.credit||{}).forEach(([k,v])=>{if(v)sumAdd(totals[k]||(totals[k]=[]),-v);});
+    return totals;
+  }
+  // A project's (or, merged, several projects') running sums as numbers.
+  function totalsValue(sums){const out=dict();Object.keys(sums||{}).sort().forEach(k=>{const v=sumValue(sums[k].slice());if(v)out[k]=v;});return out;}
+  // The stored rows of a whole ledger: [[key, value], ...].
+  function toRows(l){
+    const rows=[[META_KEY,{t:'meta',format:1}]],per=new Map();
+    const row=pid=>{let r=per.get(pid);if(!r)per.set(pid,r={projectId:pid,record:null,totals:{},events:0});return r;};
+    Object.entries(l.projects||{}).forEach(([pid,rec])=>{row(pid).record=withoutBaseline(rec);baselineRows(pid,rec.baseline).forEach(r=>rows.push(r));});
+    Object.values(l.events||{}).forEach(e=>{const r=row(e.projectId);r.events++;addEventTotals(r.totals,e);rows.push([storedKeys.eventId(e),e]);});
+    Object.entries(l.receipts||{}).forEach(([t,id])=>rows.push([storedKeys.receipt(t),{token:t,id}]));
+    per.forEach((r,pid)=>rows.push([storedKeys.project(pid),r]));
+    return rows;
+  }
+  // A project's record as stored in its row (the baseline is in buckets).
+  function withoutBaseline(rec){if(!rec)return rec;const out=Object.assign({},rec);delete out.baseline;return out;}
+  // Its baseline's bucket rows: [[key, {projectId, units}], ...].
+  function baselineRows(pid,base){
+    const by=new Map();
+    Object.keys(base||{}).forEach(u=>{const k=storedKeys.baselineBucket(pid,u);let b=by.get(k);if(!b)by.set(k,b={projectId:pid,units:{}});b.units[u]=true;});
+    return Array.from(by.entries());
+  }
+  // The whole ledger from stored rows ([[key, value], ...] or {key: value}),
+  // or null when there are none. Does not include a KEY row (see fromRows).
+  function assemble(rows){
+    const list=Array.isArray(rows)?rows:Object.entries(rows||{});
+    let out=null;const bases=new Map();
+    list.forEach(([k,v])=>{
+      if(!isStoredKey(k)||!v)return;
+      if(!out)out=empty();
+      if(k.startsWith(E_PREFIX))out.events[v.id]=v;
+      else if(k.startsWith(P_PREFIX)){if(v.record)out.projects[v.projectId]=Object.assign({},v.record);}
+      else if(k.startsWith(R_PREFIX))out.receipts[v.token]=v.id;
+      else if(k.startsWith(B_PREFIX)){let b=bases.get(v.projectId);if(!b)bases.set(v.projectId,b={});Object.assign(b,v.units);}
+    });
+    if(out)Object.keys(out.projects).forEach(pid=>{const r=out.projects[pid];if(!r.baseline)out.projects[pid]=Object.assign({baseline:sortedKeys(bases.get(pid)||{})},r);});
+    return out;
+  }
+  function sortedKeys(o){const out={};Object.keys(o).sort().forEach(k=>{out[k]=o[k];});return out;}
+  // A stored ledger and a whole one written under KEY beside it (a restore or
+  // a sync import that wrote the old way): combined as sync combines two
+  // devices' histories, this device's (stored) winning a contradiction.
+  function combineStored(stored,whole){
+    if(!stored)return whole;if(!whole)return stored;
+    return mergeContained(stored,whole).ledger;
+  }
+  // manager_state rows as their readers expect them: the ledger under KEY,
+  // none of the stored rows. `rows` is {key: value}; returns a new object.
+  function fromRows(rows){
+    const out={},stored=[];
+    Object.keys(rows||{}).forEach(k=>{if(isStoredKey(k))stored.push([k,rows[k]]);else out[k]=rows[k];});
+    const ledger=combineStored(assemble(stored),out[KEY]||null);
+    if(ledger)out[KEY]=ledger;else delete out[KEY];
+    return out;
+  }
+  const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeContained,mergeStock,quantity,validate,sequences,compact,marksBefore,
+    storedKeys,isStoredKey,META_KEY,sumAdd,sumValue,addEventTotals,totalsValue,toRows,assemble,combineStored,fromRows,withoutBaseline,baselineRows};root.ThreadAccounting=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

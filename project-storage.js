@@ -17,15 +17,139 @@ const ProjectStorage = (() => {
   const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
   const fencePrefix=typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36);
   let fenceSequence=0, progressBaseCache=null;
-  // One compact base only: retain marks and causal metadata, never chart cells.
-  // Its token must match the metadata read in the SAME transaction as the
-  // progress write. Any full write/recovery/legacy writer invalidates it.
+  // The full record a project's small rows (progress, overlay) are based on, as
+  // last written or read by this tab: its stamps, marks, sync registers, value
+  // fields and chart. Its token must match the metadata read in the SAME
+  // transaction as a write that relies on it; any full write, recovery or legacy
+  // writer changes that token. The chart and the sync registers are kept by
+  // reference, never copied: nothing edits either in place (TrackingSync builds
+  // new objects, and the pattern array is the serializer's cached output), and
+  // deep-copying them cost a third of a second per save on a large chart.
   function rememberProgressBase(p,fence) {
     if(!p||!fence||!fence.token)return;
-    const base={id:p.id,lastWriteAt:p.lastWriteAt,chartRevision:p.chartRevision,
-      pattern:{length:p.pattern?p.pattern.length:p.p?p.p.length:0},done:p.done?Uint8Array.from(p.done):null};
-    ['halfDone','knotsDone','beadsDone','bsDone','partialDone','specialtyDone','trackingSync'].forEach(f=>{if(p[f]!==undefined)base[f]=p[f];});
-    progressBaseCache={id:p.id,token:fence.token,project:structuredClone(base)};
+    const small={};
+    MARK_SETS.forEach(f=>{if(p[f]!==undefined)small[f]=p[f];});
+    VALUE_KEYS().forEach(f=>{if(Object.prototype.hasOwnProperty.call(p,f))small[f]=p[f];});
+    const base=Object.assign(structuredClone(small),{id:p.id,lastWriteAt:p.lastWriteAt,chartRevision:p.chartRevision,
+      pattern:{length:p.pattern?p.pattern.length:p.p?p.p.length:0},done:p.done?Uint8Array.from(p.done):null});
+    if(p.trackingSync!==undefined)base.trackingSync=p.trackingSync;
+    const chart={};CHART_KEYS.forEach(k=>{if(k in p)chart[k]=p[k];});
+    progressBaseCache={id:p.id,token:fence.token,project:base,chart};
+  }
+  function VALUE_KEYS(){return (typeof TrackingSync!=='undefined'&&TrackingSync.VALUE_KEYS)||[];}
+
+  // ── Overlay ─────────────────────────────────────────────────────────
+  // A Tracker save whose chart is unchanged writes everything but the chart to
+  // a small "overlay:<id>" row, and the marks to the progress record, instead
+  // of rewriting the whole project. Both rows are fenced to the full record:
+  // `baseWriteAt` must equal its `lastWriteAt`, so any later full write (a
+  // Creator save, a sync import, a restore, a chart update) retires them. Every
+  // reader folds the overlay in (storedView), so the project read back is what
+  // a full save of the same snapshot would have stored, with the overlay's own
+  // write stamps (lastWriteAt / lastWriteTabId) for cross-tab conflicts.
+  //
+  //   overlay:<id>  { id, projectId, v:1, baseWriteAt, lastWriteAt, lastWriteTabId,
+  //                   at, fields, valueSync }
+  //     fields     every top-level field of the saved snapshot except the chart
+  //                (CHART_KEYS), the marks (in the progress record) and the
+  //                sync registers (valueSync beside it; mark registers are the
+  //                progress record's delta over the full record's)
+  //     at         the progress record's updatedAt written with it; a later
+  //                progress write means newer marks than the overlay's save
+  //
+  // Older builds ignore overlay rows and still apply the progress record's
+  // marks: after a downgrade they show the last full save's other fields.
+  const OVERLAY_PREFIX = "overlay:";
+  // Large fields a Tracker save does not change: compared, not rewritten.
+  const CHART_KEYS = ["pattern", "p", "imgData"];
+  const MARK_FIELDS = ["done"].concat(["halfDone", "knotsDone", "beadsDone", "bsDone", "partialDone", "specialtyDone"]);
+  const OVERLAY_SKIP = new Set(CHART_KEYS.concat(MARK_FIELDS, ["trackingSync", "valueSync", "activeSessionCheckpoint", "sessionCheckpoints", "lastWriteAt", "lastWriteTabId"]));
+  function overlayCurrent(project, ov) {
+    return !!(project && ov && ov.v === 1 && ov.projectId === project.id && typeof project.lastWriteAt === "number"
+      && ov.baseWriteAt === project.lastWriteAt && typeof ov.lastWriteAt === "number" && ov.fields && typeof ov.fields === "object");
+  }
+  // The project as its last save wrote it, before the progress record's marks:
+  // the overlay's fields over the full record's chart and marks. The full
+  // record itself when there is no current overlay.
+  function overlayBase(project, ov) {
+    if (!overlayCurrent(project, ov)) return project;
+    const out = Object.assign({}, ov.fields);
+    CHART_KEYS.forEach(k => { delete out[k]; if (k in project) out[k] = project[k]; });
+    MARK_FIELDS.forEach(f => { delete out[f]; if (project[f] !== undefined) out[f] = project[f]; });
+    out.id = project.id;
+    if (project.trackingSync !== undefined) out.trackingSync = project.trackingSync; else delete out.trackingSync;
+    if (ov.valueSync !== undefined) out.valueSync = ov.valueSync; else delete out.valueSync;
+    out.lastWriteAt = ov.lastWriteAt;
+    out.lastWriteTabId = ov.lastWriteTabId == null ? null : ov.lastWriteTabId;
+    return out;
+  }
+  // Full record + overlay + progress record: the project as stored.
+  function storedView(project, ov, rec, options) {
+    const base = overlayBase(project, ov);
+    const out = applyProgressRecord(project, rec, base === project ? undefined : base, options);
+    return out === project ? base : out;
+  }
+  function overlayFields(project) {
+    const fields = {};
+    Object.keys(project).forEach(k => { if (!OVERLAY_SKIP.has(k) && project[k] !== undefined) fields[k] = project[k]; });
+    return fields;
+  }
+  // Equal as stored: the chart a save would write against the full record's.
+  function sameValue(a, b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a)) {
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) if (!sameValue(a[i], b[i])) return false;
+      return true;
+    }
+    if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) return false;
+    const ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.length !== kb.length) return false;
+    for (let i = 0; i < ka.length; i++) { const k = ka[i]; if (!Object.prototype.hasOwnProperty.call(b, k) || !sameValue(a[k], b[k])) return false; }
+    return true;
+  }
+  function sameChart(chart, project) {
+    for (const k of CHART_KEYS) {
+      const has = k in project, had = k in chart;
+      if (has !== had) return false;
+      if (has && !sameValue(chart[k], project[k])) return false;
+    }
+    return true;
+  }
+  // A progress record or navigation journal written by a tab that took the
+  // overlay's stamp as the project's write (CrossTabCoord's last-seen write is
+  // the stamp get() returns) is based on the overlay's full record.
+  function rebase(rec, meta) {
+    if (rec && meta && typeof meta.baseWriteAt === "number" && typeof meta.lastWriteAt === "number"
+        && meta.lastWriteAt !== meta.baseWriteAt && rec.baseWriteAt === meta.lastWriteAt) {
+      return Object.assign({}, rec, { baseWriteAt: meta.baseWriteAt });
+    }
+    return rec;
+  }
+  function rebaseOn(rec, ov) {
+    if (rec && ov && ov.v === 1 && typeof ov.lastWriteAt === "number" && rec.baseWriteAt === ov.lastWriteAt && ov.baseWriteAt !== ov.lastWriteAt) {
+      return Object.assign({}, rec, { baseWriteAt: ov.baseWriteAt });
+    }
+    return rec;
+  }
+
+  // Library thread demand depends on the chart, not on the marks: one result
+  // per chart (pattern array and the other stitch lists), so a save of an
+  // unchanged chart does not recount every stitch (seconds on a large chart).
+  const demandCache = typeof WeakMap === "function" ? new WeakMap() : null;
+  function libraryDemand(project, fc) {
+    const pat = project.pattern;
+    const sig = JSON.stringify([fc, project.threadBrand || (project.settings && project.settings.threadBrand) || null,
+      project.halfStitches || null, project.partialStitches || null, project.specialtyStitches || null, project.knots || null, project.bsLines || null]);
+    const hit = demandCache && pat && typeof pat === "object" ? demandCache.get(pat) : null;
+    if (hit && hit.sig === sig && hit.length === pat.length) return hit.rows;
+    const rows = threadDemandRows(projectThreadEntries(project), {fabricCount:fc}).map(r=>({
+      id:r.p.id,brand:r.p.brand,name:r.name,stitches:r.threadStitches,skeins:r.needed,rgb:r.p.rgb
+    }));
+    if (demandCache && pat && typeof pat === "object") demandCache.set(pat, { sig, length: pat.length, rows });
+    return rows;
   }
 
   // Progress for a stored record, from the one shared definition (progress-units.js): full stitches, half
@@ -220,8 +344,14 @@ const ProjectStorage = (() => {
     return Object.assign(out, { trackingSync: tracked.trackingSync });
   }
 
-  function buildMeta(p) {
+  // stamps (optional): { baseWriteAt, lastWriteAt, lastWriteTabId } when the row
+  // describes an overlay save, whose own write stamps differ from its full
+  // record's. The meta row is written in the same transaction as every write to
+  // the project or its overlay, so these let a conflict check (writeStamp) and
+  // a progress write (rebase) read the stamps without loading the project.
+  function buildMeta(p, stamps) {
     const s = p.settings || {};
+    const st = stamps || {};
     // Progress in units (progress-units.js): the same definition as the Tracker. It reads both the normal
     // `.pattern` and the compact `.p` grid.
     const prog = progressOf(p);
@@ -280,6 +410,9 @@ const ProjectStorage = (() => {
       id: p.id,
       name: p.name || `${s.sW || "?"}×${s.sH || "?"} pattern`,
       checkpointFence: checkpointFence(p),
+      lastWriteAt: typeof st.lastWriteAt === "number" ? st.lastWriteAt : (typeof p.lastWriteAt === "number" ? p.lastWriteAt : null),
+      lastWriteTabId: st.lastWriteTabId !== undefined ? st.lastWriteTabId : (p.lastWriteTabId || null),
+      baseWriteAt: typeof st.baseWriteAt === "number" ? st.baseWriteAt : (typeof p.lastWriteAt === "number" ? p.lastWriteAt : null),
       designer: p.designer || "",
       description: p.description || "",
       createdAt: p.createdAt,
@@ -452,15 +585,20 @@ const ProjectStorage = (() => {
   return {
     // Backup uses the same validity checks as get(), without suppressing read errors.
     // Rebuild both summary rows when newer persisted progress is included.
-    backupProgressRows(project, rec, recovery) {
-      let current = applyProgressRecord(project, rec);
+    // overlay: the project's "overlay:<id>" row, when it has one (see Overlay).
+    backupProgressRows(project, rec, recovery, overlay) {
+      const ov = overlayCurrent(project, overlay) ? overlay : null;
+      let current = storedView(project, ov, rec);
       // Navigation journals can be newer than IDB, even if their recovery
       // write failed. Use the same age and revision rules as _recoverProgress.
       if (recovery && recovery.projectId === project.id && recovery.v === 1 && Array.isArray(recovery.done)) {
-        const recovered = applyProgressRecord(project, recovery, current);
-        if (recovered !== project && (current === project || !(rec.updatedAt > recovery.updatedAt))) current = recovered;
+        const journal = rebaseOn(recovery, ov);
+        const recovered = applyProgressRecord(project, journal, current);
+        const viaRecord = applyProgressRecord(project, rec) !== project;
+        if (recovered !== project && (!viaRecord || !(rec.updatedAt > journal.updatedAt))) current = recovered;
       }
       if (current === project) return null;
+      // A backup holds whole records: the overlay's fields and stamps are now the record's.
       return { project: current, meta: buildMeta(current), stats: buildStatsSummary(current) };
     },
     // The current version of the summary-row definition: a row with another value is rewritten by
@@ -471,17 +609,25 @@ const ProjectStorage = (() => {
       const ts = timestamp || new Date().toISOString();
       const db = await getDB();
       await new Promise((resolve,reject) => {
-        const tx = db.transaction([STORE_NAME,META_STORE,STATS_STORE],'readwrite');
+        const tx = db.transaction([STORE_NAME,META_STORE,STATS_STORE,'pendingImports'],'readwrite');
+        const pending = tx.objectStore('pendingImports');
         projectIds.forEach(id => {
-          const req = tx.objectStore(STORE_NAME).get(id);
-          req.onsuccess = () => {
+          const req = tx.objectStore(STORE_NAME).get(id), pr = pending.get(PROGRESS_PREFIX + id), or = pending.get(OVERLAY_PREFIX + id);
+          let ready = 0;
+          const done = () => {
+            if (++ready !== 3) return;
             const p = req.result;
             if (!p) return; // A concurrent deletion must stay deleted.
             p.syncMeta = Object.assign({},p.syncMeta,{lastSyncedAt:ts});
             tx.objectStore(STORE_NAME).put(p,id);
-            tx.objectStore(META_STORE).put(buildMeta(p),id);
-            if (id.startsWith('proj_')) tx.objectStore(STATS_STORE).put(buildStatsSummary(p),id);
+            // An overlay's fields stand for the record's: it carries syncMeta too.
+            const ov = overlayCurrent(p, or.result) ? or.result : null;
+            if (ov) { ov.fields.syncMeta = Object.assign({}, ov.fields.syncMeta, {lastSyncedAt:ts}); pending.put(ov); }
+            const view = storedView(p, ov, pr.result);
+            tx.objectStore(META_STORE).put(buildMeta(view, ov ? {baseWriteAt:p.lastWriteAt,lastWriteAt:ov.lastWriteAt,lastWriteTabId:ov.lastWriteTabId} : undefined),id);
+            if (id.startsWith('proj_')) tx.objectStore(STATS_STORE).put(buildStatsSummary(view),id);
           };
+          req.onsuccess = done; pr.onsuccess = done; or.onsuccess = done;
         });
         tx.oncomplete = resolve;
         tx.onerror = tx.onabort = () => reject(tx.error || new Error('Sync status write failed'));
@@ -549,6 +695,19 @@ const ProjectStorage = (() => {
       // changes propagate.
       this._allFullCache = null;
 
+      // When the marks in this snapshot were read (the Tracker's buildSnapshot
+      // stamps navigationAt as it reads them). A progress record this tab wrote
+      // later holds newer marks, which an overlay save keeps (see below).
+      const capturedAt = typeof opts.capturedAt === "number" ? opts.capturedAt
+        : (typeof project.navigationAt === "number" ? project.navigationAt : Date.now());
+      const storage = this;
+      // Only an opted-in save of an ordinary project may skip the full record:
+      // imports, restores and sync writes (preserveUpdatedAt, syncExpected)
+      // always write it whole.
+      const overlayWanted = !!opts.overlay && !opts.preserveUpdatedAt && !Object.prototype.hasOwnProperty.call(opts, "syncExpected")
+        && typeof project.id === "string" && project.id.startsWith("proj_") && Array.isArray(project.pattern);
+      let wroteOverlay = false;
+
       // Fingerprints are computed by sync-specific export/classification flows.
       // Avoid doing expensive whole-project fingerprinting on every normal save.
       try {
@@ -558,9 +717,9 @@ const ProjectStorage = (() => {
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
           let statsStore = tx.objectStore(STATS_STORE);
+          const pending = tx.objectStore("pendingImports");
           let refusedPatternless = false, refusedSyncRace = false, refusedChartRace = false;
-          const putAll = () => {
-            const pending = tx.objectStore('pendingImports');
+          const putCheckpoints = () => {
             putCheckpoint(pending, project, project.activeSessionCheckpoint);
             const cursor = pending.openCursor(sessionRange(project.id));
             cursor.onsuccess = () => {
@@ -572,7 +731,12 @@ const ProjectStorage = (() => {
             // Checkpoints live in the journal; never leave a stale embedded copy in the full record.
             delete project.activeSessionCheckpoint;
             delete project.sessionCheckpoints;
+          };
+          const putAll = () => {
+            putCheckpoints();
             store.put(project, project.id);
+            // The overlay (if any) described the record just replaced.
+            pending.delete(OVERLAY_PREFIX + project.id);
             const meta=buildMeta(project);
             metaStore.put(meta, project.id);
             rememberProgressBase(project,meta.checkpointFence);
@@ -580,18 +744,76 @@ const ProjectStorage = (() => {
               statsStore.put(buildStatsSummary(project), project.id);
             }
           };
+          // The overlay save: the full record (`base`, possibly only its cached
+          // summary) stays; the snapshot's marks go to the progress record and
+          // everything else to the overlay row, both based on that record.
+          const putOverlay = (base, prev, prevOverlay) => {
+            const baseAt = base.lastWriteAt;
+            if (prev && prev.baseWriteAt !== baseAt) prev = null;
+            if (prevOverlay && prevOverlay.baseWriteAt !== baseAt) prevOverlay = null;
+            // The write stamp only ever moves forward, past the record's and the last overlay's.
+            project.lastWriteAt = Math.max(project.lastWriteAt, baseAt + 1, prevOverlay ? prevOverlay.lastWriteAt + 1 : 0);
+            putCheckpoints();
+            const own = project.lastWriteTabId;
+            // Marks: this snapshot's, unless this tab has since written newer
+            // ones to the progress record (a mark made while the save waited).
+            const keepPrev = !!(prev && own && prev.tabId === own && prev.updatedAt > capturedAt);
+            let rec;
+            if (keepPrev) {
+              rec = Object.assign({}, prev);
+            } else {
+              rec = {
+                id: PROGRESS_PREFIX + project.id, projectId: project.id, v: 1,
+                done: Uint8Array.from(project.done || []),
+                // Dated when its marks were read, so a progress write this tab
+                // captured later (newer marks) still lands after it, and one
+                // captured earlier is turned away (see saveProgress).
+                baseWriteAt: baseAt, tabId: own || null, updatedAt: Math.max(capturedAt, prev ? prev.updatedAt + 1 : 0)
+              };
+              MARK_SETS.forEach(f => { rec[f] = Array.isArray(project[f]) ? project[f] : []; });
+              // The same registers a full save would write, as a delta over the
+              // record's (as saveProgress builds them).
+              const previous = applyProgressRecord(base, prev, null, {typed:true,skipTracking:true});
+              let delta = null;
+              if (previous !== base) delta = prev.trackingSyncDelta || TrackingSync.deltaFrom(previous, applyProgressRecord(base, prev, null, {typed:true}).trackingSync);
+              rec.trackingSyncDelta = TrackingSync.recordDelta(previous, delta, Object.assign({}, project, { done: rec.done }));
+            }
+            // Values: registers over the last save's (the last overlay's, else the record's).
+            const valueBase = prevOverlay ? Object.assign({}, prevOverlay.fields, { valueSync: prevOverlay.valueSync }) : base;
+            const values = TrackingSync.recordValues(valueBase, project);
+            Object.keys(values).forEach(k => { if (k !== "valueSync") project[k] = values[k]; });
+            project.valueSync = values.valueSync;
+            const ov = { id: OVERLAY_PREFIX + project.id, projectId: project.id, v: 1, baseWriteAt: baseAt,
+              lastWriteAt: project.lastWriteAt, lastWriteTabId: own || null, at: rec.updatedAt,
+              fields: overlayFields(project), valueSync: project.valueSync };
+            pending.put(rec);
+            pending.put(ov);
+            const viewForMeta = keepPrev ? Object.assign({}, project, { done: rec.done }, MARK_SETS.reduce((o, f) => { o[f] = rec[f]; return o; }, {})) : project;
+            const meta = buildMeta(viewForMeta, { baseWriteAt: baseAt, lastWriteAt: project.lastWriteAt, lastWriteTabId: own || null });
+            meta.progressAt = rec.updatedAt;
+            metaStore.put(meta, project.id);
+            statsStore.put(buildStatsSummary(viewForMeta), project.id);
+            // Still the same full record: only its fence token moves on.
+            if (progressBaseCache && progressBaseCache.id === project.id) progressBaseCache.token = meta.checkpointFence.token;
+            wroteOverlay = true;
+          };
           // Read the old record and its current small progress overlay in the same
           // transaction as the write. Import/restore already carries peer metadata:
           // never reinterpret a remote absence as a newly authored local removal.
-          const getReq = store.get(project.id);
-          const progressReq = tx.objectStoreNames.contains("pendingImports")
-            ? tx.objectStore("pendingImports").get(PROGRESS_PREFIX + project.id) : null;
-          let ready = 0;
+          const metaReq = metaStore.get(project.id);
+          const progressReq = pending.get(PROGRESS_PREFIX + project.id);
+          const overlayReq = pending.get(OVERLAY_PREFIX + project.id);
+          let getReq = null, ready = 0;
+          const full = () => {
+            getReq = store.get(project.id);
+            getReq.onsuccess = finish;
+          };
           const finish = () => {
-            if (++ready !== (progressReq ? 2 : 1)) return;
+            if (++ready !== 4) return;
             const existing = getReq.result;
+            const prevOverlay = overlayCurrent(existing, overlayReq.result) ? overlayReq.result : null;
             if (Object.prototype.hasOwnProperty.call(opts,'syncExpected')) {
-              const current = applyProgressRecord(existing,progressReq && progressReq.result);
+              const current = storedView(existing,prevOverlay,progressReq.result);
               const signature = p => p ? TrackingSync.canonical({lastWriteAt:p.lastWriteAt || null,
                 marks:TrackingSync.merge(p,{}).trackingSync,values:TrackingSync.mergeValues(p,{}).valueSync}) : null;
               if (signature(current) !== opts.syncExpected) {
@@ -604,19 +826,54 @@ const ProjectStorage = (() => {
             // Distinct writes must retire the prior progress overlay even in the
             // same millisecond (imports can otherwise reload stale completion).
             if (existing && typeof existing.lastWriteAt === "number") project.lastWriteAt = Math.max(project.lastWriteAt, existing.lastWriteAt + 1);
+            if (prevOverlay) project.lastWriteAt = Math.max(project.lastWriteAt, prevOverlay.lastWriteAt + 1);
             if (!project.pattern && !project.p && existing && (existing.pattern || existing.p)) {
               refusedPatternless = true;
               try { tx.abort(); } catch (_) {}
               return;
             }
+            // The record had to be read: an overlay save is still possible when
+            // its chart is the snapshot's (compared once; later saves of the same
+            // chart find it by identity in the base cache).
+            if (overlayWanted && existing && typeof existing.lastWriteAt === "number" && (existing.pattern || existing.p)) {
+              const chart = {}; CHART_KEYS.forEach(k => { if (k in existing) chart[k] = existing[k]; });
+              if (sameChart(chart, project)) {
+                const m = metaReq.result, fence = m && m.checkpointFence && m.checkpointFence.token ? m.checkpointFence : checkpointFence(existing);
+                rememberProgressBase(existing, fence);
+                if (progressBaseCache) { CHART_KEYS.forEach(k => { if (k in project) progressBaseCache.chart[k] = project[k]; }); }
+                putOverlay(existing, progressReq.result, prevOverlay);
+                return;
+              }
+            }
             if (!opts.preserveUpdatedAt) {
-              const previous = applyProgressRecord(existing, progressReq && progressReq.result);
+              const previous = storedView(existing, prevOverlay, progressReq.result);
               Object.assign(project, TrackingSync.record(previous, project));
             }
             putAll();
           };
-          getReq.onsuccess = finish;
-          if (progressReq) progressReq.onsuccess = finish;
+          // The metadata token says whether the cached base is still the stored
+          // record: then neither the record nor its chart need reading.
+          let early = 0;
+          const decide = () => {
+            if (++early !== 3) return;
+            const m = metaReq.result, c = progressBaseCache;
+            const ov = overlayReq.result;
+            if (overlayWanted && c && c.id === project.id && m && m.checkpointFence && m.checkpointFence.token === c.token
+                && typeof c.project.lastWriteAt === "number" && (c.project.chartRevision || null) === (project.chartRevision || null)
+                && c.project.pattern.length === project.pattern.length && sameChart(c.chart, project)) {
+              // Same chart by content: remember the snapshot's arrays, so the next
+              // comparison is by identity.
+              CHART_KEYS.forEach(k => { if (k in project) c.chart[k] = project[k]; });
+              const base = Object.assign({}, c.project, { id: project.id });
+              putOverlay(base, progressReq.result, ov && ov.v === 1 && ov.projectId === project.id && ov.baseWriteAt === base.lastWriteAt ? ov : null);
+              return;
+            }
+            ready = 3;
+            full();
+          };
+          metaReq.onsuccess = decide;
+          progressReq.onsuccess = decide;
+          overlayReq.onsuccess = decide;
           tx.onabort = () => {
             if (refusedChartRace) {
               reject(new Error('The chart was updated. Reload this project before saving changes.'));
@@ -667,9 +924,7 @@ const ProjectStorage = (() => {
               try {
                 // Physical-thread equivalents include blends, fractional crosses and lines.
                 const fc = (project.settings && project.settings.fabricCt) || 14;
-                const skeinData = threadDemandRows(projectThreadEntries(project), {fabricCount:fc}).map(r=>({
-                  id:r.p.id,brand:r.p.brand,name:r.name,stitches:r.threadStitches,skeins:r.needed,rgb:r.p.rgb
-                }));
+                const skeinData = libraryDemand(project, fc);
                 StashBridge.syncProjectToLibrary(
                   project.id, project.name || "Untitled pattern", skeinData, "inprogress", fc,
                   opts.syncOrigin ? { syncOrigin: opts.syncOrigin } : undefined
@@ -759,12 +1014,12 @@ const ProjectStorage = (() => {
     //
     // The existing save() remains unchanged for back-compat; callers
     // wanting conflict detection must opt in via saveChecked().
-    async saveChecked(project) {
+    async saveChecked(project, options) {
       if (!project) {
         throw new TypeError("ProjectStorage.saveChecked: project is required");
       }
       if (!project.id || this._deletedIds.has(project.id)) {
-        const id = await this.save(project);
+        const id = await this.save(project, options);
         return { ok: true, id: id };
       }
       let seen = null;
@@ -777,8 +1032,12 @@ const ProjectStorage = (() => {
         }
       } catch (_) {}
       if (seen && typeof seen.lastWriteAt === 'number') {
+        // Only the stored write stamps are compared: read them from the
+        // metadata row (and the overlay's, via its progress-fence fields) rather
+        // than loading and assembling the whole project, which on a large chart
+        // cost as much as the save itself.
         let current = null;
-        try { current = await this.get(project.id); } catch (_) {}
+        try { current = await this.writeStamp(project.id); } catch (_) {}
         if (current
             && typeof current.lastWriteAt === 'number'
             && current.lastWriteAt > seen.lastWriteAt
@@ -798,8 +1057,52 @@ const ProjectStorage = (() => {
           };
         }
       }
-      const id = await this.save(project);
+      const id = await this.save(project, options);
       return { ok: true, id: id };
+    },
+
+    // The stamps of the project's last write as get() would report them:
+    // { lastWriteAt, lastWriteTabId }, the overlay's when its last save was an
+    // overlay save. Read from the metadata row, which every write to the record
+    // or its overlay rewrites in the same transaction; a row from an older build
+    // (no stamps) falls back to reading the project. null when not stored.
+    async writeStamp(id) {
+      const db = await getDB();
+      const meta = await new Promise((resolve, reject) => {
+        const req = db.transaction(META_STORE, "readonly").objectStore(META_STORE).get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+      if (meta && typeof meta.lastWriteAt === "number" && typeof meta.baseWriteAt === "number") {
+        return { id: id, lastWriteAt: meta.lastWriteAt, lastWriteTabId: meta.lastWriteTabId || null };
+      }
+      const p = await this.get(id);
+      return p ? { id: id, lastWriteAt: p.lastWriteAt, lastWriteTabId: p.lastWriteTabId } : null;
+    },
+
+    // Projects whose get() may currently read differently from their stored
+    // rows: a navigation journal not yet recovered (get() folds it in), or a
+    // session checkpoint still open (get() lists it in sessionCheckpoints,
+    // depending on whether a live tab holds its lock). Neither changes the
+    // metadata row, so a reader that keys on metadata (the sync export cache)
+    // must read these through get(). One read of the session rows.
+    async unsettledProjects() {
+      const out = new Set();
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(RECOVERY_PREFIX)) out.add(k.slice(RECOVERY_PREFIX.length));
+        }
+      } catch (_) {}
+      const db = await getDB();
+      if (!db.objectStoreNames.contains("pendingImports")) return out;
+      const rows = await new Promise((resolve, reject) => {
+        const q = db.transaction("pendingImports", "readonly").objectStore("pendingImports")
+          .getAll(IDBKeyRange.bound(SESSION_PREFIX, SESSION_PREFIX + "\uffff"));
+        q.onsuccess = () => resolve(q.result || []); q.onerror = () => reject(q.error);
+      });
+      rows.forEach(r => { if (r && !r.closed && typeof r.projectId === "string") out.add(r.projectId); });
+      return out;
     },
 
     // Load a single project by ID. Returns null if not found.
@@ -811,10 +1114,12 @@ const ProjectStorage = (() => {
       return new Promise((resolve,reject)=>{
         const tx=db.transaction([STORE_NAME,'pendingImports'],'readonly');
         const p=tx.objectStore(STORE_NAME).get(id), r=tx.objectStore('pendingImports').get(PROGRESS_PREFIX+id);
+        const o=tx.objectStore('pendingImports').get(OVERLAY_PREFIX+id);
         const sessions=tx.objectStore('pendingImports').getAll(sessionRange(id));
         tx.oncomplete=()=>{
           if(!p.result){reject(new Error('Project no longer exists.'));return;}
-          resolve({project:applyProgressRecord(p.result,r.result),token:TrackingSync.canonical([p.result,r.result||null,sessions.result])});
+          const ov=overlayCurrent(p.result,o.result)?o.result:null;
+          resolve({project:storedView(p.result,ov,r.result),token:TrackingSync.canonical([p.result,r.result||null,sessions.result,ov])});
         };
         tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Chart read aborted'));
       });
@@ -831,16 +1136,18 @@ const ProjectStorage = (() => {
         const tx=db.transaction([STORE_NAME,META_STORE,STATS_STORE,'pendingImports'],'readwrite');
         const store=tx.objectStore(STORE_NAME),pending=tx.objectStore('pendingImports');
         const p=store.get(id),r=pending.get(PROGRESS_PREFIX+id),sessions=pending.getAll(sessionRange(id));
+        const o=pending.get(OVERLAY_PREFIX+id);
         const snapshot=restoreId?pending.get(restoreId):null;
         let ready=0,failure;
         function finish() {
-          if(++ready!==(snapshot?4:3))return;
+          if(++ready!==(snapshot?5:4))return;
           try {
             if(window.__restoringBackup>Date.now())throw Error('Chart updates are paused during backup recovery.');
             if(storage._deletedIds.has(id)||!p.result)throw Error('Project no longer exists.');
-            if(TrackingSync.canonical([p.result,r.result||null,sessions.result])!==token)throw Error('Project changed during review. Reopen the preview before applying.');
+            const ov=overlayCurrent(p.result,o.result)?o.result:null;
+            if(TrackingSync.canonical([p.result,r.result||null,sessions.result,ov])!==token)throw Error('Project changed during review. Reopen the preview before applying.');
             // Running timers / unflushed consumption must be settled in the Tracker first.
-            const before=applyProgressRecord(p.result,r.result);
+            const before=storedView(p.result,ov,r.result);
             if(sessions.result.some(s=>!s.closed&&!sessionEnded(before,s.sessionId)))throw Error('End the active session in the Tracker before updating this chart.');
             let next,review;
             if(snapshot) {
@@ -855,21 +1162,21 @@ const ProjectStorage = (() => {
             Object.keys(next.chartAccountingUnits||{}).forEach(k=>{
               if(next.chartAccountingUnits[k].startsWith('pending:'))next.chartAccountingUnits[k]=revision+'|'+k;
             });
-            next.updatedAt=new Date().toISOString();next.lastWriteAt=Math.max(Date.now(),(p.result.lastWriteAt||0)+1);
+            next.updatedAt=new Date().toISOString();next.lastWriteAt=Math.max(Date.now(),(p.result.lastWriteAt||0)+1,(ov?ov.lastWriteAt:0)+1);
             next.lastWriteTabId=window.CrossTabCoord&&window.CrossTabCoord.tabId||null;
             // Registers from the old coordinate system must not seed new marks.
             delete next.trackingSync;delete next.valueSync;
             Object.assign(next,TrackingSync.record(null,next));
             pending.put({id:snapshotId,projectId:id,createdAt:Date.now(),before,after:next,
-              originalProject:p.result,progress:r.result||null,sessionRows:sessions.result,
+              originalProject:p.result,progress:r.result||null,overlay:ov,sessionRows:sessions.result,
               incoming:incoming||null,source:source||null,options:options||null,resolutions:resolutions||null,
               restoredFrom:restoreId||null,annotations:review&&review.annotations||[]});
-            store.put(next,id);pending.delete(PROGRESS_PREFIX+id);
+            store.put(next,id);pending.delete(PROGRESS_PREFIX+id);pending.delete(OVERLAY_PREFIX+id);
             tx.objectStore(META_STORE).put(buildMeta(next),id);
             tx.objectStore(STATS_STORE).put(buildStatsSummary(next),id);
           } catch(e){failure=e;tx.abort();}
         }
-        p.onsuccess=finish;r.onsuccess=finish;sessions.onsuccess=finish;if(snapshot)snapshot.onsuccess=finish;
+        p.onsuccess=finish;r.onsuccess=finish;o.onsuccess=finish;sessions.onsuccess=finish;if(snapshot)snapshot.onsuccess=finish;
         tx.onerror=()=>reject(failure||tx.error);
         tx.onabort=()=>reject(failure||tx.error||new Error('Chart update aborted; previous project retained.'));
         tx.oncomplete=()=>{
@@ -893,13 +1200,34 @@ const ProjectStorage = (() => {
           const tx = db.transaction([STORE_NAME, 'pendingImports', META_STORE], 'readonly');
           const p = tx.objectStore(STORE_NAME).get(id);
           const meta = tx.objectStore(META_STORE).get(id);
-          const rows = tx.objectStore('pendingImports').getAll(sessionRange(id));
-          tx.oncomplete = () => resolve({project:p.result || null,rows:rows.result || [],meta:meta.result});
+          const pending = tx.objectStore('pendingImports');
+          const rows = pending.getAll(sessionRange(id));
+          // The small rows a Tracker save leaves beside the record, read in the
+          // same transaction so the record, its overlay and its marks agree.
+          const named = typeof id === "string" && id.startsWith("proj_");
+          const progress = named ? pending.get(PROGRESS_PREFIX + id) : null;
+          const overlay = named ? pending.get(OVERLAY_PREFIX + id) : null;
+          tx.oncomplete = () => resolve({project:p.result || null,rows:rows.result || [],meta:meta.result,
+            progress:progress ? progress.result || null : null, overlay:overlay ? overlay.result || null : null});
           tx.onerror = () => reject(tx.error);
           tx.onabort = () => reject(tx.error || new Error('Project read aborted'));
         });
-        const project = loaded.project;
-        rememberProgressBase(project,loaded.meta&&loaded.meta.checkpointFence);
+        const raw = loaded.project;
+        rememberProgressBase(raw,loaded.meta&&loaded.meta.checkpointFence);
+        let project = raw;
+        if (raw && typeof id === "string" && id.startsWith("proj_")) {
+          // Marks the Tracker wrote to the small progress record but not yet to the
+          // full project (see saveProgress), and the overlay of its last save.
+          // Applied only when still current.
+          const ov = overlayCurrent(raw, loaded.overlay) ? loaded.overlay : null;
+          const rec = loaded.progress;
+          project = storedView(raw, ov, rec);
+          // Newer marks than the stored save holds: the progress record's when there
+          // is no overlay (unless they match the record), or marks written after
+          // the overlay's save.
+          const viaProgress = applyProgressRecord(raw, rec, ov ? overlayBase(raw, ov) : undefined, { skipTracking: true, typed: true }) !== raw;
+          if (viaProgress && (ov ? rec.updatedAt !== ov.at : !sameMarks(raw, rec))) loadedWithProgressSet.add(project);
+        }
         if (project) project.sessionCheckpoints = await this.readSessionCheckpoints(id, project, loaded.rows);
         // Normalise threadOwned keys to bare DMC IDs ("310" not "dmc:310").
         // Creator and Tracker both key threadOwned by palette entry id, which is
@@ -918,16 +1246,6 @@ const ProjectStorage = (() => {
             }
           }
           if (changed) project.threadOwned = normalised;
-        }
-        // Marks the Tracker wrote to the small progress record but not yet to the
-        // full project (see saveProgress). Applied only when still current.
-        if (project && typeof id === "string" && id.startsWith("proj_")) {
-          try {
-            const rec = await this._readProgress(db, id);
-            const out = applyProgressRecord(project, rec);
-            if (out !== project && !sameMarks(project, rec)) loadedWithProgressSet.add(out);
-            return out;
-          } catch (e) { /* the full record is still right, just up to a few seconds old */ }
         }
         return project;
       } catch (err) {
@@ -1028,11 +1346,15 @@ const ProjectStorage = (() => {
           const req = store.get(rec.id);
           const metaStore=tx.objectStore(META_STORE);
           const metaReq=metaStore.get(id);
-          let project;
+          let project, metaRow;
           // No full-record request on a token match. A miss reads once, inside
           // this transaction, and upgrades metadata from older app versions.
           metaReq.onsuccess=()=>{
-            const meta=metaReq.result,fence=meta&&meta.checkpointFence;
+            const meta=metaRow=metaReq.result,fence=meta&&meta.checkpointFence;
+            // Marks from a tab that last saw an overlay save name the overlay's
+            // stamp; they are based on its full record.
+            const rebased=rebase(rec,meta);
+            if(rebased!==rec)rec.baseWriteAt=rebased.baseWriteAt;
             if(fence&&fence.token&&progressBaseCache&&progressBaseCache.id===id&&progressBaseCache.token===fence.token){
               project=progressBaseCache.project;finish();return;
             }
@@ -1041,7 +1363,7 @@ const ProjectStorage = (() => {
               project=full.result;
               if(project){
                 const currentFence=fence&&fence.token?fence:checkpointFence(project);
-                if(!fence||!fence.token)metaStore.put(Object.assign({},meta||buildMeta(project),{checkpointFence:currentFence}),id);
+                if(!fence||!fence.token){metaRow=Object.assign({},meta||buildMeta(project),{checkpointFence:currentFence});metaStore.put(metaRow,id);}
                 rememberProgressBase(project,currentFence);
               }
               finish();
@@ -1079,6 +1401,11 @@ const ProjectStorage = (() => {
               store.put(rec);
               accepted = true;
               applies = current !== project;
+              // The project's stored content changed: say so in its metadata
+              // (sync's export cache keys on it). The fence token stays, so the
+              // cached base this write relied on remains valid.
+              // progressRev counts every accepted write (two can share a timestamp).
+              if (metaRow && metaRow.checkpointFence) metaStore.put(Object.assign({}, metaRow, { progressAt: rec.updatedAt, progressRev: (metaRow.progressRev || 0) + 1 }), id);
             }
           };
           req.onsuccess = finish;
@@ -1120,11 +1447,14 @@ const ProjectStorage = (() => {
       await new Promise((resolve, reject) => {
         const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE, "pendingImports"], "readwrite");
         const store = tx.objectStore(STORE_NAME), pending = tx.objectStore("pendingImports");
-        const p = store.get(id), r = pending.get(PROGRESS_PREFIX + id);
+        const p = store.get(id), r = pending.get(PROGRESS_PREFIX + id), o = pending.get(OVERLAY_PREFIX + id);
         let ready = 0;
         const recover = () => {
-          if (++ready !== 2) return;
+          if (++ready !== 3) return;
           const project = p.result;
+          const ov = overlayCurrent(project, o.result) ? o.result : null;
+          // A journal written after an overlay save names the overlay's stamp.
+          rec = rebaseOn(rec, ov);
           // Every Tracker unload leaves a journal, changed or not. One that holds
           // exactly the marks the project and its progress record already show adds
           // nothing: rewriting the whole project for it cost seconds on every open
@@ -1134,19 +1464,21 @@ const ProjectStorage = (() => {
           // these results are only compared, never stored.)
           const quick = { skipTracking: true, typed: true };
           if (applyProgressRecord(project, rec, undefined, quick) !== project
-              && sameMarks(applyProgressRecord(project, r.result, undefined, quick), rec)) return;
-          const view = applyProgressRecord(project, r.result);
+              && sameMarks(storedView(project, ov, r.result, quick), rec)) return;
+          const view = storedView(project, ov, r.result);
           let next = applyProgressRecord(project, rec, view);
           if (next === project) return;
           // A later normal progress write wins, including an unpick.
           const newer = r.result;
           if (newer && newer.updatedAt > rec.updatedAt && applyProgressRecord(project, newer) !== project) {
-            next = applyProgressRecord(project, newer);
+            next = storedView(project, ov, newer);
           } else {
             // `next` is also put as the project below, under the same lastWriteAt, so
             // the record differs from its base in no register.
-            pending.put(Object.assign({}, rec, { id: PROGRESS_PREFIX + id, trackingSyncDelta: {version:1, marks:{}} }));
+            pending.put(Object.assign({}, rec, { id: PROGRESS_PREFIX + id, baseWriteAt: typeof next.lastWriteAt === "number" ? next.lastWriteAt : rec.baseWriteAt, trackingSyncDelta: {version:1, marks:{}} }));
           }
+          // The overlay is folded into the record written below.
+          pending.delete(OVERLAY_PREFIX + id);
           // Materialise once on recovery, never on every mark. Keep the full-save
           // revision/tab stamps: this is the same overlay get() normally presents.
           store.put(next, id);
@@ -1154,7 +1486,7 @@ const ProjectStorage = (() => {
           if (id.startsWith("proj_")) tx.objectStore(STATS_STORE).put(buildStatsSummary(next), id);
           this._allFullCache = null;
         };
-        p.onsuccess = recover; r.onsuccess = recover;
+        p.onsuccess = recover; r.onsuccess = recover; o.onsuccess = recover;
         tx.oncomplete = resolve;
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error || new Error("Progress recovery aborted"));
@@ -1187,7 +1519,7 @@ const ProjectStorage = (() => {
           let n = 0;
           req.onsuccess = () => {
             (req.result || []).forEach(k => {
-              if (typeof k === "string" && (k.startsWith(PROGRESS_PREFIX) || k.startsWith(SESSION_PREFIX))) { store.delete(k); n++; }
+              if (typeof k === "string" && (k.startsWith(PROGRESS_PREFIX) || k.startsWith(OVERLAY_PREFIX) || k.startsWith(SESSION_PREFIX))) { store.delete(k); n++; }
             });
           };
           tx.oncomplete = () => resolve(n);
@@ -1223,14 +1555,16 @@ const ProjectStorage = (() => {
             const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE, "pendingImports"], "readwrite");
             const projectReq=tx.objectStore(STORE_NAME).get(full.id);
             const progressReq=tx.objectStore("pendingImports").get(PROGRESS_PREFIX+full.id);
+            const overlayReq=tx.objectStore("pendingImports").get(OVERLAY_PREFIX+full.id);
             let ready=0;
             const finish=()=>{
-              if(++ready!==2||!projectReq.result)return;
-              const current=applyProgressRecord(projectReq.result,progressReq.result);
-              tx.objectStore(META_STORE).put(buildMeta(current),full.id);
+              if(++ready!==3||!projectReq.result)return;
+              const raw=projectReq.result,ov=overlayCurrent(raw,overlayReq.result)?overlayReq.result:null;
+              const current=storedView(raw,ov,progressReq.result);
+              tx.objectStore(META_STORE).put(buildMeta(current,ov?{baseWriteAt:raw.lastWriteAt,lastWriteAt:ov.lastWriteAt,lastWriteTabId:ov.lastWriteTabId}:undefined),full.id);
               tx.objectStore(STATS_STORE).put(buildStatsSummary(current),full.id);
             };
-            projectReq.onsuccess=finish;progressReq.onsuccess=finish;
+            projectReq.onsuccess=finish;progressReq.onsuccess=finish;overlayReq.onsuccess=finish;
             tx.oncomplete = () => resolve(!!projectReq.result);
             tx.onerror = tx.onabort = () => reject(tx.error || new Error("Summary refresh aborted"));
           });
@@ -1253,7 +1587,10 @@ const ProjectStorage = (() => {
         const collect=p=>{
           if(!p||typeof p.id!=='string'||!p.id.startsWith('proj_'))return;
           const progress=tx.objectStore('pendingImports').get(PROGRESS_PREFIX+p.id);
-          progress.onsuccess=()=>result.push(applyProgressRecord(p,progress.result));
+          const overlay=tx.objectStore('pendingImports').get(OVERLAY_PREFIX+p.id);
+          let ready=0;
+          const both=()=>{if(++ready===2)result.push(storedView(p,overlayCurrent(p,overlay.result)?overlay.result:null,progress.result));};
+          progress.onsuccess=both;overlay.onsuccess=both;
         };
         if(ids)ids.forEach(id=>{const req=store.get(id);req.onsuccess=()=>collect(req.result);});
         else {const req=store.getAll();req.onsuccess=()=>{(req.result||[]).forEach(collect);};}
@@ -1350,7 +1687,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
-            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); tx.objectStore("pendingImports").delete(sessionRange(id)); }
+            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); tx.objectStore("pendingImports").delete(OVERLAY_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); tx.objectStore("pendingImports").delete(sessionRange(id)); }
             if (autoSave && autoSave.id === id) store.delete("auto_save");
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
@@ -1442,7 +1779,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
-            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); tx.objectStore("pendingImports").delete(sessionRange(id)); }
+            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); tx.objectStore("pendingImports").delete(OVERLAY_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); tx.objectStore("pendingImports").delete(sessionRange(id)); }
           }
           if (includeAutoSave) store.delete("auto_save");
           tx.oncomplete = () => resolve();
@@ -1595,11 +1932,20 @@ const ProjectStorage = (() => {
       try {
         const db = await getDB();
         const projects = await new Promise((resolve, reject) => {
-          let tx = db.transaction(STORE_NAME, "readonly");
+          let tx = db.transaction([STORE_NAME, "pendingImports"], "readonly");
           let store = tx.objectStore(STORE_NAME);
           let request = store.getAll();
-          request.onsuccess = () => resolve(request.result || []);
-          request.onerror = () => reject(request.error);
+          const out = [];
+          // Each record as stored: with its overlay and progress record folded in.
+          request.onsuccess = () => (request.result || []).forEach(p => {
+            if (!p || typeof p.id !== "string" || !p.id.startsWith("proj_")) { out.push(p); return; }
+            const pr = tx.objectStore("pendingImports").get(PROGRESS_PREFIX + p.id), or = tx.objectStore("pendingImports").get(OVERLAY_PREFIX + p.id);
+            let ready = 0;
+            const both = () => { if (++ready === 2) out.push(storedView(p, overlayCurrent(p, or.result) ? or.result : null, pr.result)); };
+            pr.onsuccess = both; or.onsuccess = both;
+          });
+          tx.oncomplete = () => resolve(out);
+          tx.onerror = () => reject(tx.error);
         });
         const summaries = projects
           .filter(p => p && p.id && p.id.startsWith("proj_"))

@@ -1,0 +1,4950 @@
+{
+ "kind": "save-sync-cost",
+ "startedAt": "2026-11-09T14:12:35.394Z",
+ "build": {
+  "commit": "114e11a1f44c2705ec6924c7924b2ab16736cdea",
+  "dirtyFiles": 2
+ },
+ "environment": {
+  "browser": "Chromium 153.0.8010.12 (headless)",
+  "host": "Linux 6.18.44-fc-v310, 4 x Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "caveat": "Emulated: software canvas, phone = Pixel 5 emulation at 4x CPU throttle. Not a physical-device measurement."
+ },
+ "cases": {
+  "save-mark-large": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794233557794_nj4e8",
+    "flushMs": 1316,
+    "clean": false,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 0.1
+     },
+     "put manager_state": {
+      "n": 3,
+      "syncMs": 18.5
+     },
+     "get projects": {
+      "n": 2,
+      "syncMs": 0.1
+     },
+     "get project_meta": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "getAll pendingImports": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "get pendingImports": {
+      "n": 3,
+      "syncMs": 0.2
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 306.5
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.2
+     },
+     "put pendingImports": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "getAll project_meta": {
+      "n": 2,
+      "syncMs": 0
+     }
+    },
+    "spans": {
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 4,
+    "longestTaskMs": 580,
+    "tbtMs": 982,
+    "blockedMs": 1182,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 1561,
+     "top": [
+      [
+       "S.<computed> (native)",
+       308.6
+      ],
+      [
+       "(program)",
+       276.8
+      ],
+      [
+       "tx.oncomplete project-storage.js:897",
+       139.7
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       131.1
+      ],
+      [
+       "finish project-storage.js:590",
+       110.1
+      ],
+      [
+       "(garbage collector)",
+       97.6
+      ],
+      [
+       "records tracking-sync.js:102",
+       95.4
+      ],
+      [
+       "add threadCalc.js:111",
+       90.3
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       52.4
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       51.7
+      ],
+      [
+       "own tracking-sync.js:8",
+       39.6
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       29.8
+      ],
+      [
+       "withDelta tracking-sync.js:260",
+       28.6
+      ],
+      [
+       "get result (native)",
+       18.5
+      ],
+      [
+       "put (native)",
+       17
+      ],
+      [
+       "applyProgressRecord project-storage.js:194",
+       8.1
+      ],
+      [
+       "projectThreadEntries threadCalc.js:108",
+       5.3
+      ],
+      [
+       "validKey tracking-sync.js:44",
+       4.8
+      ],
+      [
+       "buildStatsSummary project-storage.js:46",
+       4.2
+      ],
+      [
+       "requestAnimationFrame (native)",
+       4.1
+      ],
+      [
+       "snapshotNow tracker-app.compiled.js:1030",
+       3.8
+      ],
+      [
+       "record tracking-sync.js:138",
+       3.6
+      ],
+      [
+       "buildSnapshot tracker-app.compiled.js:1019",
+       3.6
+      ],
+      [
+       "(anonymous) threadCalc.js:122",
+       3.6
+      ],
+      [
+       "readSessionCheckpoints project-storage.js:976",
+       3.2
+      ]
+     ]
+    },
+    "first": {
+     "id": "proj_1794233557794_nj4e8",
+     "flushMs": 1394,
+     "clean": false,
+     "idb": {
+      "get manager_state": {
+       "n": 7,
+       "syncMs": 0.1
+      },
+      "put manager_state": {
+       "n": 3,
+       "syncMs": 17.9
+      },
+      "get projects": {
+       "n": 2,
+       "syncMs": 0.1
+      },
+      "get project_meta": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "getAll pendingImports": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "get pendingImports": {
+       "n": 3,
+       "syncMs": 0
+      },
+      "put projects": {
+       "n": 2,
+       "syncMs": 323.1
+      },
+      "put project_meta": {
+       "n": 1,
+       "syncMs": 0.1
+      },
+      "put stats_summaries": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "put pendingImports": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "getAll project_meta": {
+       "n": 2,
+       "syncMs": 0
+      }
+     },
+     "spans": {
+      "StashBridge.applyConsumptionEvents": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ThreadAccounting.apply": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "StashBridge.getGlobalStash": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "PatternIO.serializePattern": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.saveChecked": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.get": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ThreadAccounting.totals": {
+       "n": 2,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "TrackingSync.withDelta": {
+       "n": 2,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.save": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "TrackingSync.record": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "StashBridge.syncProjectToLibrary": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.listProjects": {
+       "n": 2,
+       "syncMs": 0,
+       "settleMs": 0
+      }
+     },
+     "longTasks": 5,
+     "longestTaskMs": 569,
+     "tbtMs": 1020,
+     "blockedMs": 1270,
+     "projectsPut": 2,
+     "cpu": {
+      "busyMs": 1825,
+      "top": [
+       [
+        "(program)",
+        475.9
+       ],
+       [
+        "S.<computed> (native)",
+        327
+       ],
+       [
+        "tx.oncomplete project-storage.js:897",
+        132.6
+       ],
+       [
+        "add threadCalc.js:111",
+        127.3
+       ],
+       [
+        "rememberProgressBase project-storage.js:23",
+        122
+       ],
+       [
+        "(garbage collector)",
+        117.6
+       ],
+       [
+        "finish project-storage.js:590",
+        110.9
+       ],
+       [
+        "metadata tracking-sync.js:119",
+        96.5
+       ],
+       [
+        "records tracking-sync.js:102",
+        65.7
+       ],
+       [
+        "own tracking-sync.js:8",
+        62.6
+       ],
+       [
+        "withDelta tracking-sync.js:260",
+        50.5
+       ],
+       [
+        "baseline thread-accounting.js:201",
+        26.6
+       ],
+       [
+        "get result (native)",
+        17.3
+       ],
+       [
+        "put (native)",
+        14
+       ],
+       [
+        "applyProgressRecord project-storage.js:194",
+        11.1
+       ],
+       [
+        "projectThreadEntries threadCalc.js:108",
+        10.2
+       ],
+       [
+        "buildSnapshot tracker-app.compiled.js:1019",
+        4.1
+       ],
+       [
+        "buildStatsSummary project-storage.js:46",
+        4
+       ],
+       [
+        "snapshotNow tracker-app.compiled.js:1030",
+        3.7
+       ],
+       [
+        "(anonymous) threadCalc.js:122",
+        3.2
+       ],
+       [
+        "record tracking-sync.js:138",
+        3.2
+       ],
+       [
+        "record tracking-sync.js:393",
+        2.4
+       ],
+       [
+        "validKey tracking-sync.js:44",
+        2.4
+       ],
+       [
+        "countMarked progress-units.js:191",
+        2.1
+       ],
+       [
+        "draw tracker-app.compiled.js:1462",
+        2
+       ]
+      ]
+     }
+    }
+   }
+  ],
+  "save-mark-huge": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794233579965_6m67b",
+    "flushMs": 4732,
+    "clean": false,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 0.2
+     },
+     "put manager_state": {
+      "n": 3,
+      "syncMs": 68
+     },
+     "get projects": {
+      "n": 2,
+      "syncMs": 0.1
+     },
+     "get project_meta": {
+      "n": 2,
+      "syncMs": 0.1
+     },
+     "getAll pendingImports": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "get pendingImports": {
+      "n": 4,
+      "syncMs": 0.1
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 983.3
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put pendingImports": {
+      "n": 2,
+      "syncMs": 0.3
+     },
+     "getAll project_meta": {
+      "n": 2,
+      "syncMs": 0
+     }
+    },
+    "spans": {
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 6,
+    "longestTaskMs": 1745,
+    "tbtMs": 4263,
+    "blockedMs": 4563,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 5407,
+     "top": [
+      [
+       "add threadCalc.js:111",
+       1101.8
+      ],
+      [
+       "S.<computed> (native)",
+       1011.9
+      ],
+      [
+       "(program)",
+       786.1
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       374.7
+      ],
+      [
+       "tx.oncomplete project-storage.js:897",
+       352.1
+      ],
+      [
+       "finish project-storage.js:590",
+       335.7
+      ],
+      [
+       "records tracking-sync.js:102",
+       296.8
+      ],
+      [
+       "(garbage collector)",
+       279.6
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       263.5
+      ],
+      [
+       "own tracking-sync.js:8",
+       239
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       102.6
+      ],
+      [
+       "get result (native)",
+       46.9
+      ],
+      [
+       "put (native)",
+       40.8
+      ],
+      [
+       "projectThreadEntries threadCalc.js:108",
+       25.8
+      ],
+      [
+       "applyProgressRecord project-storage.js:194",
+       23.5
+      ],
+      [
+       "validKey tracking-sync.js:44",
+       22.1
+      ],
+      [
+       "snapshotNow tracker-app.compiled.js:1030",
+       11.7
+      ],
+      [
+       "(anonymous) threadCalc.js:122",
+       11
+      ],
+      [
+       "buildStatsSummary project-storage.js:46",
+       10.4
+      ],
+      [
+       "record tracking-sync.js:138",
+       10.3
+      ],
+      [
+       "buildSnapshot tracker-app.compiled.js:1019",
+       9.7
+      ],
+      [
+       "withDelta tracking-sync.js:260",
+       8.9
+      ],
+      [
+       "countMarked progress-units.js:191",
+       5.1
+      ],
+      [
+       "applyChartTile tracker-app.compiled.js:131",
+       3.6
+      ],
+      [
+       "normalisedFrontier tracking-sync.js:82",
+       3.1
+      ]
+     ]
+    },
+    "first": {
+     "id": "proj_1794233579965_6m67b",
+     "flushMs": 4602,
+     "clean": false,
+     "idb": {
+      "get pendingImports": {
+       "n": 5,
+       "syncMs": 0.1
+      },
+      "put pendingImports": {
+       "n": 3,
+       "syncMs": 0.5
+      },
+      "get manager_state": {
+       "n": 7,
+       "syncMs": 0.1
+      },
+      "put manager_state": {
+       "n": 3,
+       "syncMs": 70.7
+      },
+      "get projects": {
+       "n": 2,
+       "syncMs": 0
+      },
+      "get project_meta": {
+       "n": 2,
+       "syncMs": 0
+      },
+      "getAll pendingImports": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "put projects": {
+       "n": 2,
+       "syncMs": 969.8
+      },
+      "put project_meta": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "put stats_summaries": {
+       "n": 1,
+       "syncMs": 0.4
+      },
+      "getAll project_meta": {
+       "n": 2,
+       "syncMs": 0
+      }
+     },
+     "spans": {
+      "StashBridge.applyConsumptionEvents": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ThreadAccounting.apply": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "StashBridge.getGlobalStash": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "PatternIO.serializePattern": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.saveChecked": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.get": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ThreadAccounting.totals": {
+       "n": 2,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "TrackingSync.withDelta": {
+       "n": 2,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.save": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "TrackingSync.record": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "StashBridge.syncProjectToLibrary": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.listProjects": {
+       "n": 2,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.saveSessionCheckpoint": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      }
+     },
+     "longTasks": 6,
+     "longestTaskMs": 1774,
+     "tbtMs": 4129,
+     "blockedMs": 4429,
+     "projectsPut": 2,
+     "cpu": {
+      "busyMs": 5481,
+      "top": [
+       [
+        "add threadCalc.js:111",
+        1043.8
+       ],
+       [
+        "S.<computed> (native)",
+        1004.1
+       ],
+       [
+        "(program)",
+        970.5
+       ],
+       [
+        "rememberProgressBase project-storage.js:23",
+        404.1
+       ],
+       [
+        "finish project-storage.js:590",
+        325.5
+       ],
+       [
+        "tx.oncomplete project-storage.js:897",
+        311.2
+       ],
+       [
+        "(garbage collector)",
+        278.8
+       ],
+       [
+        "metadata tracking-sync.js:119",
+        274.3
+       ],
+       [
+        "own tracking-sync.js:8",
+        228.9
+       ],
+       [
+        "records tracking-sync.js:102",
+        178.6
+       ],
+       [
+        "withDelta tracking-sync.js:260",
+        107.7
+       ],
+       [
+        "baseline thread-accounting.js:201",
+        104.7
+       ],
+       [
+        "get result (native)",
+        43.8
+       ],
+       [
+        "put (native)",
+        38.1
+       ],
+       [
+        "applyProgressRecord project-storage.js:194",
+        21.1
+       ],
+       [
+        "projectThreadEntries threadCalc.js:108",
+        19.3
+       ],
+       [
+        "buildStatsSummary project-storage.js:46",
+        15.6
+       ],
+       [
+        "snapshotNow tracker-app.compiled.js:1030",
+        14.8
+       ],
+       [
+        "buildSnapshot tracker-app.compiled.js:1019",
+        14.5
+       ],
+       [
+        "(anonymous) threadCalc.js:122",
+        7.4
+       ],
+       [
+        "validKey tracking-sync.js:44",
+        6.6
+       ],
+       [
+        "record tracking-sync.js:138",
+        6.3
+       ],
+       [
+        "draw tracker-app.compiled.js:1462",
+        6.1
+       ],
+       [
+        "countsFromProject progress-units.js:386",
+        5.2
+       ],
+       [
+        "wrapSpans (native)",
+        3.7
+       ]
+      ]
+     }
+    }
+   }
+  ],
+  "save-mark-huge-phone": [
+   {
+    "profile": "phone",
+    "id": "proj_1794233616394_8ktl3",
+    "flushMs": 24571,
+    "clean": false,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 1.4
+     },
+     "put manager_state": {
+      "n": 3,
+      "syncMs": 376.5
+     },
+     "get projects": {
+      "n": 2,
+      "syncMs": 1.2
+     },
+     "get project_meta": {
+      "n": 6,
+      "syncMs": 2.1
+     },
+     "getAll pendingImports": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "get pendingImports": {
+      "n": 8,
+      "syncMs": 3.4
+     },
+     "put pendingImports": {
+      "n": 5,
+      "syncMs": 3.2
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 5492.1
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.2
+     },
+     "getAll project_meta": {
+      "n": 2,
+      "syncMs": 0.1
+     }
+    },
+    "spans": {
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 5,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 7,
+    "longestTaskMs": 9346,
+    "tbtMs": 23898,
+    "blockedMs": 24248,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 27181,
+     "top": [
+      [
+       "S.<computed> (native)",
+       5698.8
+      ],
+      [
+       "add threadCalc.js:111",
+       5091
+      ],
+      [
+       "(program)",
+       2705
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       2396.8
+      ],
+      [
+       "finish project-storage.js:590",
+       1846.5
+      ],
+      [
+       "records tracking-sync.js:102",
+       1846.4
+      ],
+      [
+       "tx.oncomplete project-storage.js:897",
+       1842.8
+      ],
+      [
+       "own tracking-sync.js:8",
+       1356.2
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       930.3
+      ],
+      [
+       "(garbage collector)",
+       919.2
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       709.3
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       598.3
+      ],
+      [
+       "get result (native)",
+       240.3
+      ],
+      [
+       "put (native)",
+       172.4
+      ],
+      [
+       "projectThreadEntries threadCalc.js:108",
+       93.4
+      ],
+      [
+       "applyProgressRecord project-storage.js:194",
+       92.4
+      ],
+      [
+       "validKey tracking-sync.js:44",
+       76.6
+      ],
+      [
+       "buildSnapshot tracker-app.compiled.js:1019",
+       68.7
+      ],
+      [
+       "withDelta tracking-sync.js:260",
+       56.2
+      ],
+      [
+       "snapshotNow tracker-app.compiled.js:1030",
+       52.4
+      ],
+      [
+       "(anonymous) project-storage.js:74",
+       45.3
+      ],
+      [
+       "record tracking-sync.js:138",
+       44.6
+      ],
+      [
+       "(anonymous) threadCalc.js:122",
+       43.3
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       37.8
+      ],
+      [
+       "countMarked progress-units.js:191",
+       20.8
+      ]
+     ]
+    },
+    "first": {
+     "id": "proj_1794233616394_8ktl3",
+     "flushMs": 23893,
+     "clean": false,
+     "idb": {
+      "get pendingImports": {
+       "n": 8,
+       "syncMs": 1.4
+      },
+      "get manager_state": {
+       "n": 7,
+       "syncMs": 0.2
+      },
+      "put pendingImports": {
+       "n": 5,
+       "syncMs": 3.9
+      },
+      "put manager_state": {
+       "n": 3,
+       "syncMs": 413.9
+      },
+      "get projects": {
+       "n": 2,
+       "syncMs": 1.3
+      },
+      "get project_meta": {
+       "n": 5,
+       "syncMs": 0.6
+      },
+      "getAll pendingImports": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "put projects": {
+       "n": 2,
+       "syncMs": 5133
+      },
+      "put project_meta": {
+       "n": 1,
+       "syncMs": 0.5
+      },
+      "put stats_summaries": {
+       "n": 1,
+       "syncMs": 0.9
+      },
+      "getAll project_meta": {
+       "n": 2,
+       "syncMs": 0
+      }
+     },
+     "spans": {
+      "StashBridge.applyConsumptionEvents": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ThreadAccounting.apply": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "StashBridge.getGlobalStash": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "PatternIO.serializePattern": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.saveChecked": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.get": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ThreadAccounting.totals": {
+       "n": 2,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.saveSessionCheckpoint": {
+       "n": 4,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "TrackingSync.withDelta": {
+       "n": 2,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.save": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "TrackingSync.record": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "StashBridge.syncProjectToLibrary": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.listProjects": {
+       "n": 2,
+       "syncMs": 0,
+       "settleMs": 0
+      }
+     },
+     "longTasks": 7,
+     "longestTaskMs": 9127,
+     "tbtMs": 23276,
+     "blockedMs": 23626,
+     "projectsPut": 2,
+     "cpu": {
+      "busyMs": 27646,
+      "top": [
+       [
+        "S.<computed> (native)",
+        5383.3
+       ],
+       [
+        "add threadCalc.js:111",
+        5232.2
+       ],
+       [
+        "(program)",
+        3845.4
+       ],
+       [
+        "rememberProgressBase project-storage.js:23",
+        2109.5
+       ],
+       [
+        "tx.oncomplete project-storage.js:897",
+        1996
+       ],
+       [
+        "records tracking-sync.js:102",
+        1766.6
+       ],
+       [
+        "finish project-storage.js:590",
+        1689.6
+       ],
+       [
+        "own tracking-sync.js:8",
+        1346.1
+       ],
+       [
+        "(anonymous) tracking-sync.js:121",
+        1042.3
+       ],
+       [
+        "metadata tracking-sync.js:119",
+        811.1
+       ],
+       [
+        "(garbage collector)",
+        751.7
+       ],
+       [
+        "baseline thread-accounting.js:201",
+        488.1
+       ],
+       [
+        "get result (native)",
+        220
+       ],
+       [
+        "put (native)",
+        169.9
+       ],
+       [
+        "applyProgressRecord project-storage.js:194",
+        107.4
+       ],
+       [
+        "validKey tracking-sync.js:44",
+        89.8
+       ],
+       [
+        "projectThreadEntries threadCalc.js:108",
+        69.7
+       ],
+       [
+        "snapshotNow tracker-app.compiled.js:1030",
+        52.6
+       ],
+       [
+        "(anonymous) threadCalc.js:122",
+        50.5
+       ],
+       [
+        "(anonymous) project-storage.js:74",
+        48.8
+       ],
+       [
+        "buildSnapshot tracker-app.compiled.js:1019",
+        46.8
+       ],
+       [
+        "record tracking-sync.js:138",
+        38.7
+       ],
+       [
+        "withDelta tracking-sync.js:260",
+        33.9
+       ],
+       [
+        "draw tracker-app.compiled.js:1462",
+        24.2
+       ],
+       [
+        "countMarked progress-units.js:191",
+        22.6
+       ]
+      ]
+     }
+    }
+   }
+  ],
+  "save-meta-huge": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794233698449_mdgnb",
+    "saveMs": 2901,
+    "idb": {
+     "get projects": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "get pendingImports": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put projects": {
+      "n": 1,
+      "syncMs": 615.2
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.2
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.2
+     },
+     "getAll project_meta": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "get manager_state": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put manager_state": {
+      "n": 1,
+      "syncMs": 0.1
+     }
+    },
+    "spans": {
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 2,
+    "longestTaskMs": 1794,
+    "tbtMs": 2771,
+    "blockedMs": 2871,
+    "projectsPut": 1,
+    "cpu": {
+     "busyMs": 3556,
+     "top": [
+      [
+       "add threadCalc.js:111",
+       1035.2
+      ],
+      [
+       "(program)",
+       671.8
+      ],
+      [
+       "S.<computed> (native)",
+       590.7
+      ],
+      [
+       "finish project-storage.js:590",
+       453.3
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       249.2
+      ],
+      [
+       "(garbage collector)",
+       133.1
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       103.8
+      ],
+      [
+       "own tracking-sync.js:8",
+       83.3
+      ],
+      [
+       "record tracking-sync.js:138",
+       69
+      ],
+      [
+       "records tracking-sync.js:102",
+       48.8
+      ],
+      [
+       "get result (native)",
+       25.8
+      ],
+      [
+       "put (native)",
+       24.4
+      ],
+      [
+       "buildStatsSummary project-storage.js:46",
+       24.2
+      ],
+      [
+       "projectThreadEntries threadCalc.js:108",
+       18.7
+      ],
+      [
+       "(anonymous) threadCalc.js:122",
+       9
+      ],
+      [
+       "requestAnimationFrame (native)",
+       4.6
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       3.8
+      ],
+      [
+       "L.setItem (native)",
+       1.2
+      ],
+      [
+       "wrapSpans (native)",
+       0.8
+      ],
+      [
+       "buildMeta project-storage.js:223",
+       0.6
+      ],
+      [
+       "record tracking-sync.js:393",
+       0.6
+      ],
+      [
+       "transaction (native)",
+       0.6
+      ],
+      [
+       "isTypedArray (native)",
+       0.6
+      ],
+      [
+       "postMessage (native)",
+       0.6
+      ],
+      [
+       "applyChartTile tracker-app.compiled.js:131",
+       0.6
+      ]
+     ]
+    },
+    "first": {
+     "id": "proj_1794233698449_mdgnb",
+     "saveMs": 2558,
+     "idb": {
+      "get projects": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "get pendingImports": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "put projects": {
+       "n": 1,
+       "syncMs": 631
+      },
+      "put project_meta": {
+       "n": 1,
+       "syncMs": 0.2
+      },
+      "put stats_summaries": {
+       "n": 1,
+       "syncMs": 0.2
+      },
+      "getAll project_meta": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "get manager_state": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "put manager_state": {
+       "n": 1,
+       "syncMs": 0
+      }
+     },
+     "spans": {
+      "ProjectStorage.save": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "TrackingSync.record": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "StashBridge.syncProjectToLibrary": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.listProjects": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      }
+     },
+     "longTasks": 2,
+     "longestTaskMs": 1600,
+     "tbtMs": 2443,
+     "blockedMs": 2543,
+     "projectsPut": 1,
+     "cpu": {
+      "busyMs": 3544,
+      "top": [
+       [
+        "(program)",
+        983
+       ],
+       [
+        "add threadCalc.js:111",
+        893.6
+       ],
+       [
+        "S.<computed> (native)",
+        594.7
+       ],
+       [
+        "finish project-storage.js:590",
+        317.9
+       ],
+       [
+        "rememberProgressBase project-storage.js:23",
+        204.2
+       ],
+       [
+        "(garbage collector)",
+        145.4
+       ],
+       [
+        "metadata tracking-sync.js:119",
+        87.3
+       ],
+       [
+        "record tracking-sync.js:138",
+        66
+       ],
+       [
+        "own tracking-sync.js:8",
+        63.7
+       ],
+       [
+        "records tracking-sync.js:102",
+        42.8
+       ],
+       [
+        "get result (native)",
+        24.7
+       ],
+       [
+        "put (native)",
+        22.8
+       ],
+       [
+        "projectThreadEntries threadCalc.js:108",
+        18.4
+       ],
+       [
+        "(anonymous) project-storage.js:74",
+        15.5
+       ],
+       [
+        "(anonymous) threadCalc.js:122",
+        15.5
+       ],
+       [
+        "countMarked progress-units.js:191",
+        11.1
+       ],
+       [
+        "countStitchCells progress-units.js:174",
+        9.5
+       ],
+       [
+        "buildStatsSummary project-storage.js:46",
+        4.1
+       ],
+       [
+        "requestAnimationFrame (native)",
+        3.5
+       ],
+       [
+        "wrapSpans (native)",
+        3.4
+       ],
+       [
+        "draw tracker-app.compiled.js:1462",
+        2.9
+       ],
+       [
+        "record tracking-sync.js:393",
+        2.6
+       ],
+       [
+        "countsFromProject progress-units.js:386",
+        1.4
+       ],
+       [
+        "applyChartTile tracker-app.compiled.js:131",
+        1.4
+       ],
+       [
+        "onFrame (native)",
+        1.2
+       ]
+      ]
+     }
+    }
+   }
+  ],
+  "save-meta-huge-phone": [
+   {
+    "profile": "phone",
+    "id": "proj_1794233731124_9o1cf",
+    "saveMs": 13824,
+    "idb": {
+     "get projects": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "get pendingImports": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put projects": {
+      "n": 1,
+      "syncMs": 2927.4
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.6
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.9
+     },
+     "getAll project_meta": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "get manager_state": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put manager_state": {
+      "n": 1,
+      "syncMs": 1
+     }
+    },
+    "spans": {
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 2,
+    "longestTaskMs": 8764,
+    "tbtMs": 13678,
+    "blockedMs": 13778,
+    "projectsPut": 1,
+    "cpu": {
+     "busyMs": 17066,
+     "top": [
+      [
+       "add threadCalc.js:111",
+       4854.7
+      ],
+      [
+       "(program)",
+       2882.8
+      ],
+      [
+       "S.<computed> (native)",
+       2837.1
+      ],
+      [
+       "finish project-storage.js:590",
+       2774.8
+      ],
+      [
+       "(garbage collector)",
+       1074.9
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       789.4
+      ],
+      [
+       "records tracking-sync.js:102",
+       429.9
+      ],
+      [
+       "own tracking-sync.js:8",
+       326.1
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       243.1
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       198.7
+      ],
+      [
+       "get result (native)",
+       130.9
+      ],
+      [
+       "record tracking-sync.js:138",
+       119.5
+      ],
+      [
+       "put (native)",
+       88.5
+      ],
+      [
+       "(anonymous) project-storage.js:74",
+       79.8
+      ],
+      [
+       "projectThreadEntries threadCalc.js:108",
+       78.4
+      ],
+      [
+       "validKey tracking-sync.js:44",
+       46.3
+      ],
+      [
+       "(anonymous) threadCalc.js:122",
+       34.6
+      ],
+      [
+       "structuredClone (native)",
+       16.3
+      ],
+      [
+       "requestAnimationFrame (native)",
+       14.1
+      ],
+      [
+       "buildStatsSummary project-storage.js:46",
+       8.8
+      ],
+      [
+       "record tracking-sync.js:393",
+       3.6
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       3.1
+      ],
+      [
+       "normalisedFrontier tracking-sync.js:82",
+       2.7
+      ],
+      [
+       "clearRect (native)",
+       2.6
+      ],
+      [
+       "(anonymous) (native)",
+       2.4
+      ]
+     ]
+    },
+    "first": {
+     "id": "proj_1794233731124_9o1cf",
+     "saveMs": 11642,
+     "idb": {
+      "get projects": {
+       "n": 1,
+       "syncMs": 0.1
+      },
+      "get pendingImports": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "put projects": {
+       "n": 1,
+       "syncMs": 2856.2
+      },
+      "put project_meta": {
+       "n": 1,
+       "syncMs": 0.1
+      },
+      "put stats_summaries": {
+       "n": 1,
+       "syncMs": 0.7
+      },
+      "getAll project_meta": {
+       "n": 1,
+       "syncMs": 0.1
+      },
+      "get manager_state": {
+       "n": 1,
+       "syncMs": 0
+      },
+      "put manager_state": {
+       "n": 1,
+       "syncMs": 1.1
+      }
+     },
+     "spans": {
+      "ProjectStorage.save": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "TrackingSync.record": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "StashBridge.syncProjectToLibrary": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      },
+      "ProjectStorage.listProjects": {
+       "n": 1,
+       "syncMs": 0,
+       "settleMs": 0
+      }
+     },
+     "longTasks": 2,
+     "longestTaskMs": 7044,
+     "tbtMs": 11521,
+     "blockedMs": 11621,
+     "projectsPut": 1,
+     "cpu": {
+      "busyMs": 15960,
+      "top": [
+       [
+        "add threadCalc.js:111",
+        4398.9
+       ],
+       [
+        "(program)",
+        4301.5
+       ],
+       [
+        "S.<computed> (native)",
+        2751
+       ],
+       [
+        "finish project-storage.js:590",
+        1605.6
+       ],
+       [
+        "rememberProgressBase project-storage.js:23",
+        897.3
+       ],
+       [
+        "metadata tracking-sync.js:119",
+        408
+       ],
+       [
+        "own tracking-sync.js:8",
+        331.5
+       ],
+       [
+        "record tracking-sync.js:138",
+        275.1
+       ],
+       [
+        "(garbage collector)",
+        246.7
+       ],
+       [
+        "records tracking-sync.js:102",
+        197.4
+       ],
+       [
+        "get result (native)",
+        101.8
+       ],
+       [
+        "projectThreadEntries threadCalc.js:108",
+        84.7
+       ],
+       [
+        "put (native)",
+        84.5
+       ],
+       [
+        "(anonymous) project-storage.js:74",
+        78.4
+       ],
+       [
+        "countMarked progress-units.js:191",
+        43.8
+       ],
+       [
+        "countStitchCells progress-units.js:174",
+        41.2
+       ],
+       [
+        "(anonymous) threadCalc.js:122",
+        38.3
+       ],
+       [
+        "draw tracker-app.compiled.js:1462",
+        15.7
+       ],
+       [
+        "buildStatsSummary project-storage.js:46",
+        10.9
+       ],
+       [
+        "record tracking-sync.js:393",
+        9.7
+       ],
+       [
+        "requestAnimationFrame (native)",
+        5.6
+       ],
+       [
+        "applyChartTile tracker-app.compiled.js:131",
+        5
+       ],
+       [
+        "(anonymous) (native)",
+        2.1
+       ],
+       [
+        "intern tracking-sync.js:71",
+        2
+       ],
+       [
+        "(anonymous) threadCalc.js:72",
+        1.9
+       ]
+      ]
+     }
+    }
+   }
+  ],
+  "save-clean-huge": [
+   {
+    "profile": "desktop",
+    "flushMs": 3360,
+    "idb": {
+     "get projects": {
+      "n": 2,
+      "syncMs": 0
+     },
+     "get project_meta": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "getAll pendingImports": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "get pendingImports": {
+      "n": 2,
+      "syncMs": 0
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 806.6
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.3
+     },
+     "getAll project_meta": {
+      "n": 2,
+      "syncMs": 0
+     },
+     "get manager_state": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put manager_state": {
+      "n": 1,
+      "syncMs": 0.2
+     }
+    },
+    "spans": {
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 3,
+    "longestTaskMs": 1492,
+    "tbtMs": 3098,
+    "blockedMs": 3248,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 4259,
+     "top": [
+      [
+       "(anonymous) threadCalc.js:122",
+       1042.5
+      ],
+      [
+       "(program)",
+       963.2
+      ],
+      [
+       "S.<computed> (native)",
+       770.8
+      ],
+      [
+       "tx.oncomplete project-storage.js:897",
+       303.6
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       302.2
+      ],
+      [
+       "finish project-storage.js:590",
+       275.3
+      ],
+      [
+       "(garbage collector)",
+       204.2
+      ],
+      [
+       "record tracking-sync.js:138",
+       118.3
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       78
+      ],
+      [
+       "get result (native)",
+       43
+      ],
+      [
+       "records tracking-sync.js:102",
+       38.7
+      ],
+      [
+       "put (native)",
+       36.6
+      ],
+      [
+       "projectThreadEntries threadCalc.js:108",
+       20.5
+      ],
+      [
+       "snapshotNow tracker-app.compiled.js:1030",
+       10.3
+      ],
+      [
+       "buildStatsSummary project-storage.js:46",
+       9.2
+      ],
+      [
+       "buildSnapshot tracker-app.compiled.js:1019",
+       9.1
+      ],
+      [
+       "countMarked progress-units.js:191",
+       4.5
+      ],
+      [
+       "wrapSpans (native)",
+       3.6
+      ],
+      [
+       "requestAnimationFrame (native)",
+       2.4
+      ],
+      [
+       "clearRect (native)",
+       1.9
+      ],
+      [
+       "of react-dom.production.min.js:109",
+       1.8
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       1.8
+      ],
+      [
+       "applyChartTile tracker-app.compiled.js:131",
+       1.7
+      ],
+      [
+       "transaction (native)",
+       1.2
+      ],
+      [
+       "zk react-dom.production.min.js:246",
+       1.2
+      ]
+     ]
+    }
+   }
+  ],
+  "save-clean-huge-phone": [
+   {
+    "profile": "phone",
+    "flushMs": 16762,
+    "idb": {
+     "get projects": {
+      "n": 2,
+      "syncMs": 0.1
+     },
+     "get project_meta": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "getAll pendingImports": {
+      "n": 1,
+      "syncMs": 1.1
+     },
+     "get pendingImports": {
+      "n": 2,
+      "syncMs": 0
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 3879.7
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.5
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.5
+     },
+     "getAll project_meta": {
+      "n": 2,
+      "syncMs": 0.1
+     },
+     "get manager_state": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put manager_state": {
+      "n": 1,
+      "syncMs": 0.1
+     }
+    },
+    "spans": {
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 3,
+    "longestTaskMs": 6836,
+    "tbtMs": 16397,
+    "blockedMs": 16547,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 21034,
+     "top": [
+      [
+       "add threadCalc.js:111",
+       4726.9
+      ],
+      [
+       "(program)",
+       4336.8
+      ],
+      [
+       "S.<computed> (native)",
+       3733
+      ],
+      [
+       "tx.oncomplete project-storage.js:897",
+       2139.5
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       1697.6
+      ],
+      [
+       "finish project-storage.js:590",
+       1504.6
+      ],
+      [
+       "(garbage collector)",
+       827.5
+      ],
+      [
+       "records tracking-sync.js:102",
+       485.7
+      ],
+      [
+       "own tracking-sync.js:8",
+       350.8
+      ],
+      [
+       "get result (native)",
+       210.5
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       210
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       194.5
+      ],
+      [
+       "put (native)",
+       147.9
+      ],
+      [
+       "projectThreadEntries threadCalc.js:108",
+       77.6
+      ],
+      [
+       "(anonymous) threadCalc.js:122",
+       58.9
+      ],
+      [
+       "buildSnapshot tracker-app.compiled.js:1019",
+       47.8
+      ],
+      [
+       "record tracking-sync.js:138",
+       47.1
+      ],
+      [
+       "validKey tracking-sync.js:44",
+       38.3
+      ],
+      [
+       "snapshotNow tracker-app.compiled.js:1030",
+       37.5
+      ],
+      [
+       "(anonymous) project-storage.js:74",
+       34.2
+      ],
+      [
+       "countMarked progress-units.js:191",
+       24.6
+      ],
+      [
+       "structuredClone (native)",
+       17.1
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       11.7
+      ],
+      [
+       "requestAnimationFrame (native)",
+       4.5
+      ],
+      [
+       "normalisedFrontier tracking-sync.js:82",
+       4.3
+      ]
+     ]
+    }
+   }
+  ],
+  "usage-short": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794233861005_3b3l7",
+    "commitMs": 5,
+    "idb": {
+     "get manager_state": {
+      "n": 6,
+      "syncMs": 0.2
+     },
+     "put manager_state": {
+      "n": 2,
+      "syncMs": 0.5
+     }
+    },
+    "spans": {
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 0,
+    "longestTaskMs": 0,
+    "tbtMs": 0,
+    "blockedMs": 0,
+    "projectsPut": 0,
+    "cpu": {
+     "busyMs": 449,
+     "top": [
+      [
+       "(program)",
+       437.6
+      ],
+      [
+       "requestAnimationFrame (native)",
+       1.1
+      ],
+      [
+       "applyChartTile tracker-app.compiled.js:131",
+       1.1
+      ],
+      [
+       "evaluate (native)",
+       0.6
+      ],
+      [
+       "transaction (native)",
+       0.6
+      ],
+      [
+       "put (native)",
+       0.6
+      ],
+      [
+       "_withThreadsWrite stash-bridge.js:610",
+       0.6
+      ],
+      [
+       "Pk react-dom.production.min.js:195",
+       0.6
+      ],
+      [
+       "TrackerMinimap tracker-minimap.js:78",
+       0.6
+      ],
+      [
+       "(anonymous) tracker-app.compiled.js:1466",
+       0.6
+      ],
+      [
+       "postMessage (native)",
+       0.6
+      ],
+      [
+       "onFrame (native)",
+       0.6
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       0.6
+      ],
+      [
+       "plan material-reservations.js:38",
+       0.6
+      ],
+      [
+       "loop tracker-app.compiled.js:1480",
+       0.6
+      ],
+      [
+       "of react-dom.production.min.js:109",
+       0.6
+      ],
+      [
+       "strokeRect (native)",
+       0.6
+      ],
+      [
+       "prepareOverlayTile tracker-app.compiled.js:370",
+       0.5
+      ],
+      [
+       "put thread-accounting.js:71",
+       0.5
+      ],
+      [
+       "estimate thread-accounting.js:24",
+       0.1
+      ],
+      [
+       "(anonymous) thread-accounting.js:31",
+       0.1
+      ]
+     ]
+    }
+   }
+  ],
+  "usage-50k": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794233871745_4sguh",
+    "commitMs": 230,
+    "idb": {
+     "get manager_state": {
+      "n": 6,
+      "syncMs": 0.3
+     },
+     "put manager_state": {
+      "n": 2,
+      "syncMs": 62.3
+     }
+    },
+    "spans": {
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 2,
+    "longestTaskMs": 101,
+    "tbtMs": 83,
+    "blockedMs": 183,
+    "projectsPut": 0,
+    "cpu": {
+     "busyMs": 737,
+     "top": [
+      [
+       "(program)",
+       482.3
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       73.7
+      ],
+      [
+       "(garbage collector)",
+       58
+      ],
+      [
+       "S.<computed> (native)",
+       56.7
+      ],
+      [
+       "apply thread-accounting.js:242",
+       16.8
+      ],
+      [
+       "totals thread-accounting.js:208",
+       12.2
+      ],
+      [
+       "get result (native)",
+       10
+      ],
+      [
+       "put (native)",
+       5.4
+      ],
+      [
+       "(anonymous) thread-accounting.js:210",
+       4
+      ],
+      [
+       "(anonymous) thread-accounting.js:248",
+       3
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       2.4
+      ],
+      [
+       "loop tracker-app.compiled.js:1480",
+       1.9
+      ],
+      [
+       "applyChartTile tracker-app.compiled.js:131",
+       1.8
+      ],
+      [
+       "wrapSpans (native)",
+       1.3
+      ],
+      [
+       "Ve react-dom.production.min.js:80",
+       0.8
+      ],
+      [
+       "evaluate (native)",
+       0.7
+      ],
+      [
+       "open (native)",
+       0.6
+      ],
+      [
+       "root.IDBDatabase.transaction recovery-storage.js:24",
+       0.6
+      ],
+      [
+       "_acquireManagerWriteLock stash-bridge.js:577",
+       0.6
+      ],
+      [
+       "clearRect (native)",
+       0.6
+      ],
+      [
+       "setTransform (native)",
+       0.6
+      ],
+      [
+       "U react.production.min.js:21",
+       0.6
+      ],
+      [
+       "validateAmounts thread-accounting.js:176",
+       0.6
+      ],
+      [
+       "TrackerApp tracker-app.compiled.js:225",
+       0.6
+      ],
+      [
+       "sa react-dom.production.min.js:110",
+       0.6
+      ]
+     ]
+    }
+   }
+  ],
+  "usage-200k": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794233883618_mt701",
+    "commitMs": 913,
+    "idb": {
+     "get manager_state": {
+      "n": 6,
+      "syncMs": 0.1
+     },
+     "put manager_state": {
+      "n": 2,
+      "syncMs": 229.4
+     }
+    },
+    "spans": {
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 3,
+    "longestTaskMs": 413,
+    "tbtMs": 669,
+    "blockedMs": 819,
+    "projectsPut": 0,
+    "cpu": {
+     "busyMs": 1408,
+     "top": [
+      [
+       "(program)",
+       539.2
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       336.9
+      ],
+      [
+       "S.<computed> (native)",
+       208.9
+      ],
+      [
+       "apply thread-accounting.js:242",
+       95.2
+      ],
+      [
+       "(garbage collector)",
+       78.9
+      ],
+      [
+       "totals thread-accounting.js:208",
+       42.3
+      ],
+      [
+       "get result (native)",
+       32.1
+      ],
+      [
+       "put (native)",
+       20.1
+      ],
+      [
+       "(anonymous) thread-accounting.js:248",
+       20.1
+      ],
+      [
+       "(anonymous) thread-accounting.js:210",
+       17
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       3.3
+      ],
+      [
+       "wrapSpans (native)",
+       2.9
+      ],
+      [
+       "applyChartTile tracker-app.compiled.js:131",
+       2.4
+      ],
+      [
+       "requestAnimationFrame (native)",
+       1.2
+      ],
+      [
+       "now (native)",
+       0.8
+      ],
+      [
+       "gb react-dom.production.min.js:204",
+       0.7
+      ],
+      [
+       "TrackerMinimap tracker-minimap.js:78",
+       0.6
+      ],
+      [
+       "Aa react-dom.production.min.js:170",
+       0.6
+      ],
+      [
+       "(anonymous) (native)",
+       0.6
+      ],
+      [
+       "TrackerApp tracker-app.compiled.js:225",
+       0.6
+      ],
+      [
+       "evaluate (native)",
+       0.6
+      ],
+      [
+       "clearRect (native)",
+       0.6
+      ],
+      [
+       "_mkToken cross-tab-lock.js:126",
+       0.6
+      ],
+      [
+       "req.onsuccess helpers.js:2865",
+       0.6
+      ],
+      [
+       "sa react-dom.production.min.js:110",
+       0.6
+      ]
+     ]
+    }
+   }
+  ],
+  "usage-50k-phone": [
+   {
+    "profile": "phone",
+    "id": "proj_1794233895407_ww5uu",
+    "commitMs": 1262,
+    "idb": {
+     "get manager_state": {
+      "n": 6,
+      "syncMs": 0.1
+     },
+     "put manager_state": {
+      "n": 2,
+      "syncMs": 507.4
+     }
+    },
+    "spans": {
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 3,
+    "longestTaskMs": 598,
+    "tbtMs": 954,
+    "blockedMs": 1104,
+    "projectsPut": 0,
+    "cpu": {
+     "busyMs": 3722,
+     "top": [
+      [
+       "(program)",
+       2532.8
+      ],
+      [
+       "S.<computed> (native)",
+       455.1
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       356.4
+      ],
+      [
+       "(garbage collector)",
+       83.8
+      ],
+      [
+       "apply thread-accounting.js:242",
+       77.5
+      ],
+      [
+       "put (native)",
+       49.9
+      ],
+      [
+       "get result (native)",
+       44.3
+      ],
+      [
+       "totals thread-accounting.js:208",
+       33.9
+      ],
+      [
+       "(anonymous) thread-accounting.js:210",
+       19.6
+      ],
+      [
+       "(anonymous) thread-accounting.js:248",
+       10.1
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       7.4
+      ],
+      [
+       "applyChartTile tracker-app.compiled.js:131",
+       6.4
+      ],
+      [
+       "wrapSpans (native)",
+       6.4
+      ],
+      [
+       "requestAnimationFrame (native)",
+       5.6
+      ],
+      [
+       "now (native)",
+       3.5
+      ],
+      [
+       "clearRect (native)",
+       3
+      ],
+      [
+       "(anonymous) (native)",
+       2
+      ],
+      [
+       "TrackerApp tracker-app.compiled.js:225",
+       1.8
+      ],
+      [
+       "transaction (native)",
+       1.6
+      ],
+      [
+       "PerformanceObserver.observe.type (native)",
+       1.5
+      ],
+      [
+       "_withThreadsWrite.recordKey stash-bridge.js:866",
+       1.4
+      ],
+      [
+       "x react-dom.production.min.js:101",
+       1.2
+      ],
+      [
+       "strokeRect (native)",
+       1.2
+      ],
+      [
+       "prepareOverlayTile tracker-app.compiled.js:370",
+       1.1
+      ],
+      [
+       "isURL (native)",
+       1.1
+      ]
+     ]
+    }
+   }
+  ],
+  "sync-folder-small-10": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794234472737_91a44",
+    "exportMs": 336,
+    "bytes": 59325,
+    "projects": 11,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 0.2
+     },
+     "put manager_state": {
+      "n": 4,
+      "syncMs": 1.1
+     },
+     "get projects": {
+      "n": 13,
+      "syncMs": 0.2
+     },
+     "get project_meta": {
+      "n": 12,
+      "syncMs": 0.1
+     },
+     "getAll pendingImports": {
+      "n": 13,
+      "syncMs": 0.2
+     },
+     "get pendingImports": {
+      "n": 14,
+      "syncMs": 0.4
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 12.1
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put pendingImports": {
+      "n": 2,
+      "syncMs": 0.1
+     },
+     "getAll project_meta": {
+      "n": 3,
+      "syncMs": 0.1
+     }
+    },
+    "spans": {
+     "SyncEngine.exportToFolder": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 12,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 1,
+    "longestTaskMs": 88,
+    "tbtMs": 38,
+    "blockedMs": 88,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 797,
+     "top": [
+      [
+       "(program)",
+       514.4
+      ],
+      [
+       "tx.oncomplete project-storage.js:897",
+       66
+      ],
+      [
+       "(garbage collector)",
+       23.5
+      ],
+      [
+       "compress sync-engine.js:911",
+       22.9
+      ],
+      [
+       "Tt pako.min.js:2",
+       20.2
+      ],
+      [
+       "encode (native)",
+       16.5
+      ],
+      [
+       "Zt pako.min.js:2",
+       12.3
+      ],
+      [
+       "vt pako.min.js:2",
+       11.6
+      ],
+      [
+       "S.<computed> (native)",
+       11.3
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       9.8
+      ],
+      [
+       "finish project-storage.js:590",
+       8.3
+      ],
+      [
+       "yt pako.min.js:2",
+       5.8
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       5.6
+      ],
+      [
+       "deflate pako.min.js:2",
+       5.1
+      ],
+      [
+       "(anonymous) sync-engine.js:807",
+       4.8
+      ],
+      [
+       "records tracking-sync.js:102",
+       4
+      ],
+      [
+       "C pako.min.js:2",
+       3.1
+      ],
+      [
+       "get result (native)",
+       3
+      ],
+      [
+       "projectThreadEntries threadCalc.js:108",
+       2.9
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       2.3
+      ],
+      [
+       "wrapSpans (native)",
+       2.3
+      ],
+      [
+       "computeFingerprint sync-engine.js:390",
+       2.1
+      ],
+      [
+       "D pako.min.js:2",
+       2
+      ],
+      [
+       "put (native)",
+       1.9
+      ],
+      [
+       "copy thread-accounting.js:5",
+       1.8
+      ]
+     ]
+    }
+   }
+  ],
+  "sync-folder-small-150": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794234488235_12bpw",
+    "exportMs": 3192,
+    "bytes": 402339,
+    "projects": 151,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 0
+     },
+     "put manager_state": {
+      "n": 4,
+      "syncMs": 2.3
+     },
+     "get projects": {
+      "n": 153,
+      "syncMs": 1.1
+     },
+     "get project_meta": {
+      "n": 153,
+      "syncMs": 0.8
+     },
+     "getAll pendingImports": {
+      "n": 153,
+      "syncMs": 0.9
+     },
+     "get pendingImports": {
+      "n": 155,
+      "syncMs": 0.4
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 13.1
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put pendingImports": {
+      "n": 3,
+      "syncMs": 0.3
+     },
+     "getAll project_meta": {
+      "n": 3,
+      "syncMs": 0.1
+     }
+    },
+    "spans": {
+     "SyncEngine.exportToFolder": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 152,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 2,
+    "longestTaskMs": 1397,
+    "tbtMs": 1556,
+    "blockedMs": 1656,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 3850,
+     "top": [
+      [
+       "(program)",
+       886.6
+      ],
+      [
+       "tx.oncomplete project-storage.js:897",
+       861.1
+      ],
+      [
+       "Tt pako.min.js:2",
+       579.9
+      ],
+      [
+       "compress sync-engine.js:911",
+       322.8
+      ],
+      [
+       "(garbage collector)",
+       283.9
+      ],
+      [
+       "encode (native)",
+       242.8
+      ],
+      [
+       "vt pako.min.js:2",
+       179.4
+      ],
+      [
+       "Zt pako.min.js:2",
+       115.1
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       70.1
+      ],
+      [
+       "computeFingerprint sync-engine.js:390",
+       68.4
+      ],
+      [
+       "C pako.min.js:2",
+       59.8
+      ],
+      [
+       "S.<computed> (native)",
+       15.4
+      ],
+      [
+       "get result (native)",
+       14
+      ],
+      [
+       "Rt pako.min.js:2",
+       11.7
+      ],
+      [
+       "getContext (native)",
+       8.9
+      ],
+      [
+       "kt pako.min.js:2",
+       8.2
+      ],
+      [
+       "transaction (native)",
+       7.7
+      ],
+      [
+       "(anonymous) sync-engine.js:807",
+       7
+      ],
+      [
+       "D pako.min.js:2",
+       6.3
+      ],
+      [
+       "Ft pako.min.js:2",
+       6.2
+      ],
+      [
+       "req.onsuccess sync-engine.js:106",
+       6
+      ],
+      [
+       "finish project-storage.js:590",
+       5.9
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       4.2
+      ],
+      [
+       "records tracking-sync.js:102",
+       4.1
+      ],
+      [
+       "get (native)",
+       3.8
+      ]
+     ]
+    }
+   }
+  ],
+  "sync-folder-large-150": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794234510329_mgj50",
+    "exportMs": 4977,
+    "bytes": 957259,
+    "projects": 151,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 0.3
+     },
+     "put manager_state": {
+      "n": 4,
+      "syncMs": 28.1
+     },
+     "get projects": {
+      "n": 153,
+      "syncMs": 1
+     },
+     "get project_meta": {
+      "n": 153,
+      "syncMs": 1.6
+     },
+     "getAll pendingImports": {
+      "n": 153,
+      "syncMs": 1.4
+     },
+     "get pendingImports": {
+      "n": 155,
+      "syncMs": 1.3
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 324.7
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.2
+     },
+     "put pendingImports": {
+      "n": 3,
+      "syncMs": 0.2
+     },
+     "getAll project_meta": {
+      "n": 3,
+      "syncMs": 0
+     }
+    },
+    "spans": {
+     "SyncEngine.exportToFolder": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 152,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 9,
+    "longestTaskMs": 1682,
+    "tbtMs": 3029,
+    "blockedMs": 3479,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 5262,
+     "top": [
+      [
+       "tx.oncomplete project-storage.js:897",
+       1160.4
+      ],
+      [
+       "compress sync-engine.js:911",
+       520.1
+      ],
+      [
+       "(program)",
+       489.5
+      ],
+      [
+       "Tt pako.min.js:2",
+       434.3
+      ],
+      [
+       "(garbage collector)",
+       387.7
+      ],
+      [
+       "S.<computed> (native)",
+       335.6
+      ],
+      [
+       "encode (native)",
+       303.5
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       232.8
+      ],
+      [
+       "vt pako.min.js:2",
+       174.9
+      ],
+      [
+       "Zt pako.min.js:2",
+       157.7
+      ],
+      [
+       "records tracking-sync.js:102",
+       154.5
+      ],
+      [
+       "finish project-storage.js:590",
+       144.4
+      ],
+      [
+       "C pako.min.js:2",
+       76.3
+      ],
+      [
+       "add threadCalc.js:111",
+       68
+      ],
+      [
+       "computeFingerprint sync-engine.js:390",
+       57
+      ],
+      [
+       "yt pako.min.js:2",
+       55
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       50
+      ],
+      [
+       "copy thread-accounting.js:5",
+       49.8
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       47.3
+      ],
+      [
+       "get result (native)",
+       41.3
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       41
+      ],
+      [
+       "req.onsuccess sync-engine.js:106",
+       34.4
+      ],
+      [
+       "(anonymous) thread-accounting.js:295",
+       30.2
+      ],
+      [
+       "put (native)",
+       17.9
+      ],
+      [
+       "transaction (native)",
+       17.6
+      ]
+     ]
+    }
+   }
+  ],
+  "sync-folder-large-150-phone": [
+   {
+    "profile": "phone",
+    "id": "proj_1794234539342_bjujv",
+    "exportMs": 22376,
+    "bytes": 957227,
+    "projects": 151,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 1.8
+     },
+     "put manager_state": {
+      "n": 4,
+      "syncMs": 110.4
+     },
+     "get projects": {
+      "n": 153,
+      "syncMs": 4.3
+     },
+     "get project_meta": {
+      "n": 156,
+      "syncMs": 7.3
+     },
+     "getAll pendingImports": {
+      "n": 153,
+      "syncMs": 6.7
+     },
+     "get pendingImports": {
+      "n": 158,
+      "syncMs": 6.2
+     },
+     "put pendingImports": {
+      "n": 5,
+      "syncMs": 1.3
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 1449.1
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 1
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.8
+     },
+     "getAll project_meta": {
+      "n": 3,
+      "syncMs": 0
+     }
+    },
+    "spans": {
+     "SyncEngine.exportToFolder": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 152,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 4,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 18,
+    "longestTaskMs": 8118,
+    "tbtMs": 16757,
+    "blockedMs": 17657,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 25885,
+     "top": [
+      [
+       "tx.oncomplete project-storage.js:897",
+       5365.9
+      ],
+      [
+       "(program)",
+       4031.6
+      ],
+      [
+       "compress sync-engine.js:911",
+       2642
+      ],
+      [
+       "Tt pako.min.js:2",
+       2084.6
+      ],
+      [
+       "S.<computed> (native)",
+       1485.3
+      ],
+      [
+       "encode (native)",
+       1430.6
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       1166
+      ],
+      [
+       "(garbage collector)",
+       1064
+      ],
+      [
+       "vt pako.min.js:2",
+       850.7
+      ],
+      [
+       "records tracking-sync.js:102",
+       763.7
+      ],
+      [
+       "finish project-storage.js:590",
+       722.9
+      ],
+      [
+       "Zt pako.min.js:2",
+       706.1
+      ],
+      [
+       "C pako.min.js:2",
+       329
+      ],
+      [
+       "add threadCalc.js:111",
+       302
+      ],
+      [
+       "copy thread-accounting.js:5",
+       301.3
+      ],
+      [
+       "computeFingerprint sync-engine.js:390",
+       300.4
+      ],
+      [
+       "yt pako.min.js:2",
+       220.1
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       214.5
+      ],
+      [
+       "req.onsuccess sync-engine.js:106",
+       206.6
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       203.4
+      ],
+      [
+       "get result (native)",
+       198.2
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       193.9
+      ],
+      [
+       "(anonymous) thread-accounting.js:295",
+       179.4
+      ],
+      [
+       "put (native)",
+       77.8
+      ],
+      [
+       "Rt pako.min.js:2",
+       71.3
+      ]
+     ]
+    }
+   }
+  ],
+  "sync-folder-huge": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794234587597_32w23",
+    "exportMs": 6473,
+    "bytes": 1431306,
+    "projects": 1,
+    "idb": {
+     "get pendingImports": {
+      "n": 6,
+      "syncMs": 0.7
+     },
+     "put pendingImports": {
+      "n": 4,
+      "syncMs": 0.2
+     },
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 0.2
+     },
+     "put manager_state": {
+      "n": 4,
+      "syncMs": 67.1
+     },
+     "get projects": {
+      "n": 3,
+      "syncMs": 0
+     },
+     "get project_meta": {
+      "n": 3,
+      "syncMs": 0.1
+     },
+     "getAll pendingImports": {
+      "n": 3,
+      "syncMs": 0
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 773.6
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "getAll project_meta": {
+      "n": 3,
+      "syncMs": 0.1
+     }
+    },
+    "spans": {
+     "SyncEngine.exportToFolder": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 11,
+    "longestTaskMs": 1893,
+    "tbtMs": 5707,
+    "blockedMs": 6257,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 7750,
+     "top": [
+      [
+       "(program)",
+       1422.4
+      ],
+      [
+       "S.<computed> (native)",
+       801.2
+      ],
+      [
+       "add threadCalc.js:111",
+       689.7
+      ],
+      [
+       "(garbage collector)",
+       644.8
+      ],
+      [
+       "tx.oncomplete project-storage.js:897",
+       626.2
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       478
+      ],
+      [
+       "compress sync-engine.js:911",
+       453.2
+      ],
+      [
+       "records tracking-sync.js:102",
+       433
+      ],
+      [
+       "finish project-storage.js:590",
+       333.9
+      ],
+      [
+       "Tt pako.min.js:2",
+       286.7
+      ],
+      [
+       "encode (native)",
+       190.4
+      ],
+      [
+       "Zt pako.min.js:2",
+       175.6
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       175.4
+      ],
+      [
+       "vt pako.min.js:2",
+       139.7
+      ],
+      [
+       "copy thread-accounting.js:5",
+       132.7
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       101.3
+      ],
+      [
+       "(anonymous) thread-accounting.js:295",
+       87.4
+      ],
+      [
+       "req.onsuccess sync-engine.js:106",
+       78.4
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       71.9
+      ],
+      [
+       "get result (native)",
+       68.8
+      ],
+      [
+       "C pako.min.js:2",
+       45.4
+      ],
+      [
+       "put (native)",
+       40.2
+      ],
+      [
+       "yt pako.min.js:2",
+       32.4
+      ],
+      [
+       "computeFingerprint sync-engine.js:390",
+       24.1
+      ],
+      [
+       "applyProgressRecord project-storage.js:194",
+       22.3
+      ]
+     ]
+    }
+   }
+  ],
+  "sync-folder-small-50k-ledger": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794234625724_yq2zz",
+    "exportMs": 1345,
+    "bytes": 739364,
+    "projects": 1,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 0.2
+     },
+     "put manager_state": {
+      "n": 4,
+      "syncMs": 44.8
+     },
+     "get projects": {
+      "n": 3,
+      "syncMs": 0.2
+     },
+     "get project_meta": {
+      "n": 2,
+      "syncMs": 0
+     },
+     "getAll pendingImports": {
+      "n": 3,
+      "syncMs": 0
+     },
+     "get pendingImports": {
+      "n": 4,
+      "syncMs": 0.1
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 11.7
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put pendingImports": {
+      "n": 2,
+      "syncMs": 0.1
+     },
+     "getAll project_meta": {
+      "n": 3,
+      "syncMs": 0
+     }
+    },
+    "spans": {
+     "SyncEngine.exportToFolder": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 5,
+    "longestTaskMs": 591,
+    "tbtMs": 870,
+    "blockedMs": 1120,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 1781,
+     "top": [
+      [
+       "(program)",
+       516
+      ],
+      [
+       "deflate pako.min.js:2",
+       171.7
+      ],
+      [
+       "compress sync-engine.js:911",
+       151.7
+      ],
+      [
+       "encode (native)",
+       102.6
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       84.4
+      ],
+      [
+       "(anonymous) thread-accounting.js:299",
+       82.6
+      ],
+      [
+       "req.onsuccess sync-engine.js:106",
+       77.2
+      ],
+      [
+       "vt pako.min.js:2",
+       73.1
+      ],
+      [
+       "stable thread-accounting.js:7",
+       62.9
+      ],
+      [
+       "Zt pako.min.js:2",
+       58.3
+      ],
+      [
+       "totals thread-accounting.js:208",
+       52.5
+      ],
+      [
+       "S.<computed> (native)",
+       48.5
+      ],
+      [
+       "(garbage collector)",
+       45.9
+      ],
+      [
+       "validate thread-accounting.js:292",
+       32.7
+      ],
+      [
+       "C pako.min.js:2",
+       19.6
+      ],
+      [
+       "sequences thread-accounting.js:198",
+       18.6
+      ],
+      [
+       "tx.oncomplete project-storage.js:897",
+       16.5
+      ],
+      [
+       "baselineState thread-accounting.js:189",
+       14.9
+      ],
+      [
+       "apply thread-accounting.js:242",
+       13.5
+      ],
+      [
+       "(anonymous) thread-accounting.js:211",
+       13.2
+      ],
+      [
+       "get result (native)",
+       10.7
+      ],
+      [
+       "(anonymous) thread-accounting.js:210",
+       9.3
+      ],
+      [
+       "D pako.min.js:2",
+       7.5
+      ],
+      [
+       "transaction (native)",
+       6.3
+      ],
+      [
+       "put (native)",
+       6.3
+      ]
+     ]
+    }
+   }
+  ],
+  "sync-incr-small-150": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794234643175_dvlq5",
+    "exportMs": 1606,
+    "bytes": 39314,
+    "projects": 1,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 0.1
+     },
+     "put manager_state": {
+      "n": 4,
+      "syncMs": 3.2
+     },
+     "get projects": {
+      "n": 153,
+      "syncMs": 1.4
+     },
+     "get project_meta": {
+      "n": 152,
+      "syncMs": 1.1
+     },
+     "getAll pendingImports": {
+      "n": 153,
+      "syncMs": 2.1
+     },
+     "get pendingImports": {
+      "n": 154,
+      "syncMs": 1.3
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 12
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0.1
+     },
+     "put pendingImports": {
+      "n": 2,
+      "syncMs": 0.3
+     },
+     "getAll project_meta": {
+      "n": 3,
+      "syncMs": 0
+     }
+    },
+    "spans": {
+     "SyncEngine.exportSync": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 152,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "SyncEngine.compress": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 0,
+    "longestTaskMs": 0,
+    "tbtMs": 0,
+    "blockedMs": 0,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 2278,
+     "top": [
+      [
+       "tx.oncomplete project-storage.js:897",
+       923.8
+      ],
+      [
+       "(program)",
+       836.4
+      ],
+      [
+       "(garbage collector)",
+       293.2
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       62.4
+      ],
+      [
+       "get result (native)",
+       14.7
+      ],
+      [
+       "transaction (native)",
+       14.3
+      ],
+      [
+       "compress sync-engine.js:911",
+       13
+      ],
+      [
+       "S.<computed> (native)",
+       12.3
+      ],
+      [
+       "deflate pako.min.js:2",
+       7.7
+      ],
+      [
+       "get (native)",
+       5.6
+      ],
+      [
+       "req.onsuccess sync-engine.js:106",
+       5.5
+      ],
+      [
+       "finish project-storage.js:590",
+       5.4
+      ],
+      [
+       "vt pako.min.js:2",
+       5.4
+      ],
+      [
+       "encode (native)",
+       5
+      ],
+      [
+       "records tracking-sync.js:102",
+       4.8
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       4.6
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       4.2
+      ],
+      [
+       "Zt pako.min.js:2",
+       3.7
+      ],
+      [
+       "put (native)",
+       3.2
+      ],
+      [
+       "applyChartTile tracker-app.compiled.js:131",
+       2.7
+      ],
+      [
+       "draw tracker-app.compiled.js:1462",
+       2.4
+      ],
+      [
+       "copy thread-accounting.js:5",
+       2.4
+      ],
+      [
+       "req.onsuccess stash-bridge.js:1012",
+       2.4
+      ],
+      [
+       "(anonymous) thread-accounting.js:295",
+       1.9
+      ],
+      [
+       "add threadCalc.js:111",
+       1.9
+      ]
+     ]
+    }
+   }
+  ],
+  "sync-incr-large-150": [
+   {
+    "profile": "desktop",
+    "id": "proj_1794234663545_42zqd",
+    "exportMs": 3948,
+    "bytes": 596987,
+    "projects": 1,
+    "idb": {
+     "get manager_state": {
+      "n": 7,
+      "syncMs": 0.1
+     },
+     "put manager_state": {
+      "n": 4,
+      "syncMs": 33.4
+     },
+     "get projects": {
+      "n": 153,
+      "syncMs": 2
+     },
+     "get project_meta": {
+      "n": 153,
+      "syncMs": 1.1
+     },
+     "getAll pendingImports": {
+      "n": 153,
+      "syncMs": 2
+     },
+     "get pendingImports": {
+      "n": 155,
+      "syncMs": 1.3
+     },
+     "put projects": {
+      "n": 2,
+      "syncMs": 294.6
+     },
+     "put project_meta": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put stats_summaries": {
+      "n": 1,
+      "syncMs": 0
+     },
+     "put pendingImports": {
+      "n": 3,
+      "syncMs": 0.1
+     },
+     "getAll project_meta": {
+      "n": 3,
+      "syncMs": 0
+     }
+    },
+    "spans": {
+     "SyncEngine.exportSync": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.get": {
+      "n": 152,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 2,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     },
+     "SyncEngine.compress": {
+      "n": 1,
+      "syncMs": 0,
+      "settleMs": 0
+     }
+    },
+    "longTasks": 7,
+    "longestTaskMs": 559,
+    "tbtMs": 1947,
+    "blockedMs": 2297,
+    "projectsPut": 2,
+    "cpu": {
+     "busyMs": 4671,
+     "top": [
+      [
+       "tx.oncomplete project-storage.js:897",
+       1227
+      ],
+      [
+       "(program)",
+       943.5
+      ],
+      [
+       "(garbage collector)",
+       433.3
+      ],
+      [
+       "S.<computed> (native)",
+       313.2
+      ],
+      [
+       "rememberProgressBase project-storage.js:23",
+       287.7
+      ],
+      [
+       "compress sync-engine.js:911",
+       200.6
+      ],
+      [
+       "records tracking-sync.js:102",
+       145.8
+      ],
+      [
+       "finish project-storage.js:590",
+       141
+      ],
+      [
+       "add threadCalc.js:111",
+       132
+      ],
+      [
+       "Tt pako.min.js:2",
+       123.3
+      ],
+      [
+       "encode (native)",
+       79.3
+      ],
+      [
+       "Zt pako.min.js:2",
+       68.5
+      ],
+      [
+       "vt pako.min.js:2",
+       56.4
+      ],
+      [
+       "copy thread-accounting.js:5",
+       56.2
+      ],
+      [
+       "metadata tracking-sync.js:119",
+       49.4
+      ],
+      [
+       "recordReq.onsuccess stash-bridge.js:636",
+       46.5
+      ],
+      [
+       "(anonymous) tracking-sync.js:121",
+       45.7
+      ],
+      [
+       "get result (native)",
+       43.5
+      ],
+      [
+       "req.onsuccess sync-engine.js:106",
+       39.1
+      ],
+      [
+       "(anonymous) thread-accounting.js:295",
+       33.1
+      ],
+      [
+       "C pako.min.js:2",
+       17
+      ],
+      [
+       "put (native)",
+       16.7
+      ],
+      [
+       "transaction (native)",
+       16.5
+      ],
+      [
+       "yt pako.min.js:2",
+       14
+      ],
+      [
+       "projectThreadEntries threadCalc.js:108",
+       10.1
+      ]
+     ]
+    }
+   }
+  ]
+ },
+ "note": "main at 114e11a1f44c2705ec6924c7924b2ab16736cdea: save and usage cases from one run, sync cases from a second run of the same script"
+}

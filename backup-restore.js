@@ -97,6 +97,44 @@ const BackupRestore = (() => {
     }
     return JSON.stringify(ordered(a)) === JSON.stringify(ordered(b));
   }
+  // Each stored project as the app reads it: its progress record, overlay row
+  // (a Tracker save that left the chart alone, project-storage.js "Overlay")
+  // and navigation journal folded in, with its summary rows rebuilt to match.
+  // Rewrites the entries in place. Used for a backup (which then holds whole,
+  // current records any build can restore) and for the projects a restore
+  // compares the backup with, so the two are read alike.
+  function foldStoredProjects(projects, projectMeta, statsSummaries, pendingImports) {
+    const progress = pendingImports.filter(e => String(e.key).startsWith("progress:"));
+    const overlays = pendingImports.filter(e => String(e.key).startsWith("overlay:"));
+    for (const project of projects) {
+      if (!project.value || project.key !== project.value.id) continue;
+      const entry = progress.find(e => e.value && e.value.projectId === project.key);
+      const ovEntry = overlays.find(e => e.value && e.value.projectId === project.key);
+      const raw = localStorage.getItem("crossstitch_progress_recovery:" + project.key);
+      const recovery = raw ? JSON.parse(raw) : null;
+      if (!entry && !recovery && !ovEntry) continue;
+      if (!window.ProjectStorage || !window.ProjectStorage.backupProgressRows) throw new Error("Could not include saved Tracker progress.");
+      const rec = entry && entry.value;
+      const overlay = ovEntry && ovEntry.value;
+      const rows = window.ProjectStorage.backupProgressRows(project.value, rec, recovery, overlay);
+      if (!rows) continue;
+      project.value = rows.project;
+      const legacy = projects.find(e => e.key === "auto_save" && e.value && e.value.id === project.key);
+      if (legacy) {
+        const legacyRows = window.ProjectStorage.backupProgressRows(legacy.value, rec, recovery, overlay);
+        if (legacyRows) legacy.value = legacyRows.project;
+      }
+      for (const [list, value] of [[projectMeta, rows.meta], [statsSummaries, rows.stats]]) {
+        if (!list) continue;
+        const existing = list.find(e => e.key === project.key);
+        if (existing) existing.value = value;
+        else list.push({ key: project.key, value });
+      }
+    }
+  }
+  // Summary rows are rebuilt from their project (and carry this device's write
+  // fences and today's weekly figures): the project record decides a collision.
+  const DERIVED_STORES = ["project_meta", "stats_summaries"];
   function attachmentPlain(record, projectId) {
     const plain = Object.assign({}, record, { projectId });
     delete plain.blob; delete plain.data;
@@ -353,29 +391,7 @@ const BackupRestore = (() => {
         const db = projectDB = await openDB("CrossStitchDB", null, ["projects", "project_meta", "stats_summaries", "sync_snapshots"], false);
         const snapshot = await readSnapshot(db);
         const [projects, project_meta, stats_summaries, sync_snapshots] = CS_STORES.map(name => snapshot[name] || []);
-        const progress = (snapshot.pendingImports || []).filter(e => String(e.key).startsWith("progress:"));
-        for (const project of projects) {
-          if (!project.value || project.key !== project.value.id) continue;
-          const entry = progress.find(e => e.value && e.value.projectId === project.key);
-          const raw = localStorage.getItem("crossstitch_progress_recovery:" + project.key);
-          const recovery = raw ? JSON.parse(raw) : null;
-          if (!entry && !recovery) continue;
-          if (!window.ProjectStorage || !window.ProjectStorage.backupProgressRows) throw new Error("Could not include saved Tracker progress.");
-          const rec = entry && entry.value;
-          const rows = window.ProjectStorage.backupProgressRows(project.value, rec, recovery);
-          if (!rows) continue;
-          project.value = rows.project;
-          const legacy = projects.find(e => e.key === "auto_save" && e.value.id === project.key);
-          if (legacy) {
-            const legacyRows = window.ProjectStorage.backupProgressRows(legacy.value, rec, recovery);
-            if (legacyRows) legacy.value = legacyRows.project;
-          }
-          for (const [list, value] of [[project_meta, rows.meta], [stats_summaries, rows.stats]]) {
-            const existing = list.find(e => e.key === project.key);
-            if (existing) existing.value = value;
-            else list.push({ key: project.key, value });
-          }
-        }
+        foldStoredProjects(projects, project_meta, stats_summaries, snapshot.pendingImports || []);
         backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries, sync_snapshots };
         // Progress photos, when there are any (an optional list; older builds ignore it).
         const ids = projects.filter(e => e.value && e.key === e.value.id).map(e => e.key);
@@ -391,8 +407,18 @@ const BackupRestore = (() => {
       let stashDB;
       try {
         const db = stashDB = await openDB("stitch_manager_db", null, ["manager_state"]);
+        // The thread-usage ledger is stored as a record per event: a backup holds
+        // it whole under its usual key, as every build reads it.
+        let managerRows = await readStore(db, "manager_state");
+        if (window.ThreadAccounting && window.ThreadAccounting.fromRows && managerRows.some(e => window.ThreadAccounting.isStoredKey(e.key))) {
+          const byKey = {};
+          managerRows.forEach(e => { byKey[e.key] = e.value; });
+          const whole = window.ThreadAccounting.fromRows(byKey);
+          managerRows = managerRows.filter(e => !window.ThreadAccounting.isStoredKey(e.key) && e.key !== window.ThreadAccounting.KEY);
+          if (whole[window.ThreadAccounting.KEY]) managerRows.push({ key: window.ThreadAccounting.KEY, value: whole[window.ThreadAccounting.KEY] });
+        }
         backup.databases.stitch_manager_db = {
-          manager_state: await readStore(db, "manager_state")
+          manager_state: managerRows
         };
       } catch (e) {
         console.warn("Backup: could not read stitch_manager_db:", e);
@@ -678,6 +704,21 @@ const BackupRestore = (() => {
           const missing = ALLOWED[name].filter(n => !db.objectStoreNames.contains(n));
           if (missing.length) throw new Error("Restore stopped: storage is missing " + missing.join(", ") + ". Reload the app to repair storage.");
           const data = await readSnapshot(db);
+          // This device's projects as the app reads them (as a backup holds them):
+          // a backup taken just now restores without a collision.
+          if (name === "CrossStitchDB" && data.projects) foldStoredProjects(data.projects, data.project_meta, data.stats_summaries, data.pendingImports || []);
+          // This device's thread-usage ledger, stored as a record per event, is
+          // compared with the backup's in its whole form, as it always was: a
+          // differing history is a collision, not a silent merge. The restored
+          // store holds it whole; the next write stores it per event again.
+          const TA = window.ThreadAccounting;
+          if (name === "stitch_manager_db" && data.manager_state && TA && TA.fromRows && data.manager_state.some(e => TA.isStoredKey(e.key))) {
+            const byKey = {};
+            data.manager_state.forEach(e => { byKey[e.key] = e.value; });
+            const whole = TA.fromRows(byKey);
+            data.manager_state = data.manager_state.filter(e => !TA.isStoredKey(e.key) && e.key !== TA.KEY);
+            if (whole[TA.KEY]) data.manager_state.push({ key: TA.KEY, value: whole[TA.KEY] });
+          }
           let incoming = backup.databases[name] || {};
           if (name === "stitch_manager_db" && incoming.manager_state && window.StashBridge && window.StashBridge.prepareBackupState) incoming = { manager_state: window.StashBridge.prepareBackupState(incoming.manager_state) };
           for (const store of Object.keys(incoming)) {
@@ -686,6 +727,7 @@ const BackupRestore = (() => {
               let entry = source;
               if ((entry.key === "auto_save" || store === "sync_snapshots") && map.has(entry.key)) continue; // legacy alias never replaces an open project
               const old = map.get(entry.key);
+              if (old && DERIVED_STORES.includes(store)) continue;   // this device's row stands for its project
               if (old && store === "manager_state" && ["threads", "patterns"].includes(entry.key)) entry = { key: entry.key, value: mergeManager(entry.key, old.value, entry.value) };
               if (old && !sameData(old.value, entry.value) && !(store === "manager_state" && ["threads", "patterns"].includes(entry.key))) throw new Error("Identifier collision in " + store + ": " + entry.key + ". Nothing was replaced. Restore into a fresh browser profile to recover this version.");
               if (!old || !sameData(old.value, entry.value)) changed = true;

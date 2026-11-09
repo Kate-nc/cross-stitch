@@ -23,7 +23,7 @@ const processLoadedProjectEnd = src.indexOf('\n\nfunction loadProjectFile', proc
 const processLoadedProjectSrc = processLoadedProjectStart > -1 && processLoadedProjectEnd > processLoadedProjectStart
   ? src.slice(processLoadedProjectStart, processLoadedProjectEnd)
   : '';
-const persistProjectRecordStart = src.indexOf('function persistProjectRecord(project){');
+const persistProjectRecordStart = src.indexOf('function persistProjectRecord(project,options){');
 const persistProjectRecordEnd = src.indexOf('\n\nfunction handleEditInCreator', persistProjectRecordStart);
 const persistProjectRecordSrc = persistProjectRecordStart > -1 && persistProjectRecordEnd > persistProjectRecordStart
   ? src.slice(persistProjectRecordStart, persistProjectRecordEnd)

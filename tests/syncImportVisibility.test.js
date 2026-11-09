@@ -80,6 +80,17 @@ function makeFakeManagerDB(state) {
             setImmediate(() => { r.result = state[key]; if (r.onsuccess) r.onsuccess(); });
             return r;
           },
+          // Bulk reads, as the engine reads manager_state (keys and values in the same order).
+          getAllKeys() {
+            const r = {};
+            setImmediate(() => { r.result = Object.keys(state); if (r.onsuccess) r.onsuccess({ target: r }); });
+            return r;
+          },
+          getAll() {
+            const r = {};
+            setImmediate(() => { r.result = Object.values(state); if (r.onsuccess) r.onsuccess({ target: r }); setImmediate(() => { if (tx.oncomplete) tx.oncomplete(); }); });
+            return r;
+          },
           openCursor() {
             const r = {};
             const entries = Object.entries(state);

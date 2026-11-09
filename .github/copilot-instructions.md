@@ -81,6 +81,7 @@ Never edit the generated files directly. `scripts/build-dist.js` copies the app 
 | `stash-bridge.js` | Reads/writes the Stash Manager's `stitch_manager_db` from any page |
 | `sync-engine.js` | `.csync` export/import, folder watching, merge and conflict review |
 | `sync-merge-helpers.js` | Pure record-merge primitives (sessions, running totals, fractional pairs, stitch log, parking markers, work area) called by `sync-engine.js`; loaded before it on every page that loads it |
+| `sync-compress-worker.js` | Encodes and deflates a sync file off the main thread (`SyncEngine.compressAsync`, browser `CompressionStream`); the engine falls back to pako on the main thread. In `sw.js`'s precache list |
 | `sync-export-scheduler.js` | When the automatic folder export may run (2 s debounce, 30 s cooldown from the start of the last write, one queued follow-up); knows nothing about folders or notifications. Loaded before `sync-engine.js` on every page that loads it |
 | `tracker-app.js` | Stitch Tracker React tree (shortcuts are the `trackerShortcuts` array) |
 | `creator-main.js` + `creator/` | Pattern Creator — state in `creator/useCreatorState.js`, shortcuts in `creator/useKeyboardShortcuts.js` |
@@ -109,7 +110,8 @@ Never edit the generated files directly. `scripts/build-dist.js` copies the app 
 
 - `projects` is keyed by project ID (e.g. `"proj_1712345678"`); `project_meta` mirrors lightweight metadata for listing.
 - The active project pointer is in `localStorage["crossstitch_active_project"]`.
-- `manager_state` holds `"threads"` (keyed `dmc:310` / `anchor:403`) and `"patterns"` (library array).
+- `manager_state` holds `"threads"` (keyed `dmc:310` / `anchor:403`) and `"patterns"` (library array). Thread-usage history is stored a record per event under `tc2:` keys (`thread-accounting.js` "Stored form"); read it whole with `ThreadAccounting.fromRows`, never by the old `thread_consumption_v2` key alone.
+- A Tracker save that leaves the chart unchanged writes `overlay:<id>` and `progress:<id>` in `pendingImports` instead of the `projects` record (`project-storage.js` "Overlay"). Read projects through `ProjectStorage.get()` (or `storedView` inside project-storage.js), never the raw `projects` record alone.
 - `CrossStitchDB` is opened in several files (`helpers.js`, `project-storage.js`, `sync-engine.js`) — a schema change must bump the version and upgrade path in **all** of them.
 - Never open `stitch_manager_db` with a hard-coded version; see the comment above `openManagerDB` in `helpers.js`.
 
@@ -154,7 +156,7 @@ npm run lint:css-tokens
 npm run start               # node serve.js, port 8000
 ```
 
-Playwright suites: `npm run test:e2e` (touch tablet), `npm run test:ipad` (WebKit), `npm run test:mobile-audit`, `npm run perf:baseline`. `npm run perf:track-baseline` measures the Stitch Tracker scenario matrix behind [reports/track-mode-performance-baseline.md](../reports/track-mode-performance-baseline.md) (`ONLY=`, `PROFILE=1`, `REPEATS=`; `CHROME=` for a non-Playwright browser binary).
+Playwright suites: `npm run test:e2e` (touch tablet), `npm run test:ipad` (WebKit), `npm run test:mobile-audit`, `npm run perf:baseline`. `npm run perf:save-cost` measures Tracker full saves, thread-usage commits and sync exports ([reports/track-save-sync-cost.md](../reports/track-save-sync-cost.md); `CHROME=` a Chromium binary, `ONLY=`). `npm run perf:track-baseline` measures the Stitch Tracker scenario matrix behind [reports/track-mode-performance-baseline.md](../reports/track-mode-performance-baseline.md) (`ONLY=`, `PROFILE=1`, `REPEATS=`; `CHROME=` for a non-Playwright browser binary).
 
 ### Test Suite (`tests/`)
 

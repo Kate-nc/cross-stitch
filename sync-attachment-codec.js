@@ -3,6 +3,12 @@
 // The engine retains transport, storage, conflict policy and protocol status ownership.
 // Dependencies are passed through its adapter; no extra async boundary or byte copy.
 const SyncAttachmentCodec = (() => {
+  // The project fields checked here. An entry the engine exported from its
+  // cache carries them as hints, so its project need not be parsed back. They
+  // live under a symbol: a parsed file cannot supply one, so an imported entry
+  // is always checked against its own data.
+  var HINTS = typeof Symbol === 'function' ? Symbol.for('stitchx.syncExportHints') : null;
+  function fieldsOf(entry) { return (HINTS && entry[HINTS]) || entry.data; }
   async function verify(syncObj, owner, decodeBase64, contentId, protocolError, maxSyncBytes) {
     if (!syncObj) return [];
     var a = syncObj.attachments;
@@ -27,14 +33,15 @@ const SyncAttachmentCodec = (() => {
       if (e.id === 'source:' + e.projectId) {
         if (a.optional.sourceImages !== 'included') throw protocolError('failed','Source image exclusion contradicts its manifest.');
         var sourceProject = syncObj.projects.find(function(p) { return p.id === e.projectId; });
-        if (sourceProject.data.imgData !== new TextDecoder().decode(bytes)) throw protocolError('failed','Source image does not match its manifest.');
+        if (fieldsOf(sourceProject).imgData !== new TextDecoder().decode(bytes)) throw protocolError('failed','Source image does not match its manifest.');
         used.add(e.contentId); continue;
       }
       used.add(e.contentId); decoded.push(Object.assign({},e,{blob:new Blob([bytes],{type:e.type || ''})}));
     }
     if (Object.keys(a.blobs).some(function(k) { return !used.has(k); })) throw protocolError('failed','Unreferenced attachment content.');
     for (var p of syncObj.projects) {
-      if (p.data.settings && p.data.settings.traceImage && !a.manifest.some(function(e) { return e.id === 'trace:' + p.id && !e.deleted; })) throw protocolError('pending','Missing required tracing picture: ' + p.id);
+      var d = fieldsOf(p);
+      if (d.settings && d.settings.traceImage && !a.manifest.some(function(e) { return e.id === 'trace:' + p.id && !e.deleted; })) throw protocolError('pending','Missing required tracing picture: ' + p.id);
     }
     for (var e of a.manifest) {
       if (e.deleted) continue;

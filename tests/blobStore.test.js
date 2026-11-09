@@ -74,7 +74,12 @@ describe('drafts stay out of projects, stats, backups and sync', () => {
     // Only the bounded progress range is folded into projects; drafts stay out.
     const exportPart = backup.slice(backup.indexOf('async createBackup()'), backup.indexOf('async downloadBackup()'));
     expect(exportPart).toContain('const snapshot = await readSnapshot(db)');
-    expect(exportPart).toContain('String(e.key).startsWith("progress:")');
+    // (through foldStoredProjects, which restore shares to compare projects the same way)
+    expect(exportPart).toContain('foldStoredProjects(projects, project_meta, stats_summaries, snapshot.pendingImports || [])');
+    const fold = backup.slice(backup.indexOf('function foldStoredProjects('), backup.indexOf('const DERIVED_STORES'));
+    expect(fold).toContain('String(e.key).startsWith("progress:")');
+    expect(fold).toContain('String(e.key).startsWith("overlay:")');
+    expect(fold).not.toMatch(/pendingImports\.(forEach|map)\(/);
     expect(exportPart).not.toMatch(/readIfThere\("pendingImports"\)/);
     const restorePart = backup.slice(backup.indexOf('async restore('));
     expect(restorePart).toContain('crossstitch_progress_recovery:');
@@ -97,7 +102,8 @@ describe('drafts stay out of projects, stats, backups and sync', () => {
     // The one exception is the Tracker's progress record ("progress:<id>", read by id in
     // _readProgress); nothing lists or scans the store.
     expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.(getAll|openCursor)\(/);
-    expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.get\((?!PROGRESS_PREFIX)/);
+    // and its overlay row ("overlay:<id>", the rest of an overlay save), both read by id.
+    expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.get\((?!PROGRESS_PREFIX|OVERLAY_PREFIX)/);
     expect(storage).toMatch(/tx\.objectStore\("pendingImports"\)\.delete\("trace:" \+ id\)/);
   });
 });

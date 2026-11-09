@@ -164,7 +164,8 @@ function device(id) {
 }
 async function managerRows(c) {
   const db = await new Promise((r, j) => { const q = c.indexedDB.open('stitch_manager_db'); q.onsuccess = () => r(q.result); q.onerror = () => j(q.error); });
-  try { return await new Promise((r, j) => { const q = db.transaction('manager_state').objectStore('manager_state').getAll(); q.onsuccess = () => r(q.result); q.onerror = () => j(q.error); }); } finally { db.close(); }
+  // The ledger is stored as a record per event; listed whole, as its readers see it.
+  try { return await new Promise((r, j) => { const t = db.transaction('manager_state').objectStore('manager_state'), q = t.getAll(), k = t.getAllKeys(); k.onsuccess = () => { const o = {}; k.result.forEach((key, i) => { o[key] = q.result[i]; }); r(Object.values(A.fromRows(o))); }; q.onerror = () => j(q.error); }); } finally { db.close(); }
 }
 async function putManager(c, value, k) {
   const db = await new Promise((r, j) => { const q = c.indexedDB.open('stitch_manager_db'); q.onupgradeneeded = () => q.result.createObjectStore('manager_state'); q.onsuccess = () => r(q.result); q.onerror = () => j(q.error); });

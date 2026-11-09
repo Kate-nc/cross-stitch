@@ -194,6 +194,33 @@ describe('INT-7 Phase C: cross-tab-lock.js runtime behaviour', () => {
     installChannelStub();
   });
 
+  // A page that closed while holding a lease leaves it behind. Normally it
+  // expires after its lease time; a clock that stops (a test's fixed clock) or
+  // goes back (a system clock set back) must neither make it last for days nor
+  // turn the wait into an endless one.
+  test('a frozen clock cannot make acquire wait forever', async () => {
+    var win = freshWindow();
+    var realNow = Date.now;
+    var fixed = realNow();
+    win.localStorage.setItem('cs-lock:manager_state', JSON.stringify({ resourceId: 'manager_state', token: 'other:tab', ownerTabId: 'other', expiresAt: fixed + 1000 }));
+    Date.now = function () { return fixed; };
+    try {
+      var started = realNow();
+      var lease = await win.CrossTabLock.acquire('manager_state', 'test', { timeoutMs: 200 });
+      expect(lease.ok).toBe(false);
+      expect(lease.reason).toBe('timeout');
+      expect(realNow() - started).toBeLessThan(3000);
+    } finally { Date.now = realNow; }
+  });
+
+  test('a lease from before the clock went back is stale, not held for weeks', async () => {
+    var win = freshWindow();
+    win.localStorage.setItem('cs-lock:manager_state', JSON.stringify({ resourceId: 'manager_state', token: 'other:tab', ownerTabId: 'other', expiresAt: Date.now() + 21 * 24 * 3600e3 }));
+    var lease = await win.CrossTabLock.acquire('manager_state', 'test', { timeoutMs: 200 });
+    expect(lease.ok).toBe(true);
+    await lease.release();
+  });
+
   test('requestLock resolves ok:true when no peers exist', async () => {
     var win = freshWindow();
     var result = await win.CrossTabLock.requestLock('proj_abc', 'test', { timeoutMs: 50 });

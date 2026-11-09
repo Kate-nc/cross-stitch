@@ -41,7 +41,7 @@ describe('Tracker syncs tracker fields to Creator', () => {
   test('Tracker auto-save calls __updateCreatorTrackerFields', () => {
     // The tracker auto-save path should persist first, then sync the latest
     // tracker-only fields into Creator's preservation container.
-    const autoSaveBlock = trackerSrc.match(/const saveTimer = setTimeout\(\(\) => \{[\s\S]*?persistProjectRecord\(project\)[\s\S]*?__updateCreatorTrackerFields/);
+    const autoSaveBlock = trackerSrc.match(/const saveTimer = setTimeout\(\(\) => \{[\s\S]*?persistProjectRecord\(project, ROUTINE_SAVE\)[\s\S]*?__updateCreatorTrackerFields/);
     expect(autoSaveBlock).not.toBeNull();
   });
 

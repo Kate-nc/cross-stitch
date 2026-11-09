@@ -7,11 +7,11 @@ Full backup v2 (`cross-stitch-backup`) uses JSON or the existing `CSB1\n` deflat
 | Data | Recovery source |
 | --- | --- |
 | Chart cells, custom colours/blends, backstitch, half/fractional stitches, knots, parking markers | Entire `projects` records; no lossy field selection |
-| Completion, removal history, notes, settings, snapshots, saved sessions and project inventory references | Entire project records; validated persisted Tracker progress/recovery journals are folded into the project before export |
+| Completion, removal history, notes, settings, snapshots, saved sessions and project inventory references | Entire project records; validated persisted Tracker progress records, overlay rows (a Tracker save that left the chart unwritten) and recovery journals are folded into the project before export |
 | Active timer recovery | Project-owned `session:` checkpoints, including retirement fences |
 | Photographs and thumbnails | Project-owned `photo:` / `photothumb:` records, full Blob bytes and metadata |
 | Tracing pictures | Project-owned `trace:` records, full Blob bytes and metadata |
-| Library, threads, purchase history, allocations and live deduction checkpoints (`rt_deduction:<project>`) | Every `manager_state` record, including unknown accounting keys |
+| Library, threads, purchase history, allocations and live deduction checkpoints (`rt_deduction:<project>`) | Every `manager_state` record, including unknown accounting keys; thread-usage history, stored a record per event, is written whole as `thread_consumption_v2` |
 | Global portable preferences, branding/logo, goals and custom palettes | Versioned preference allowlist and explicit safe localStorage keys |
 | Lightweight summaries and prior Sync snapshot | `project_meta`, `stats_summaries`, `sync_snapshots` |
 

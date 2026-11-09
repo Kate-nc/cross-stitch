@@ -32,9 +32,14 @@ async function transfer(from,to,choices) {
   return file;
 }
 async function seed(a,b) {await a.ProjectStorage.save(project());await transfer(a,b);}
+// Every row's value. manager_state's thread-usage ledger is stored as a record
+// per event: listed whole, as one value, as its readers see it.
 async function rows(c,store='pendingImports',dbName='CrossStitchDB') {
   const db=await new Promise((r,j)=>{const q=c.indexedDB.open(dbName);q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error);});
-  try{return await new Promise((r,j)=>{const q=db.transaction(store).objectStore(store).getAll();q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error);});}finally{db.close();}
+  try{return await new Promise((r,j)=>{const t=db.transaction(store).objectStore(store),q=t.getAll(),k=t.getAllKeys();q.onsuccess=()=>{
+    if(store!=='manager_state'){r(q.result);return;}
+    k.onsuccess=()=>{const o={};k.result.forEach((key,i)=>{o[key]=q.result[i];});r(Object.values(c.ThreadAccounting.fromRows(o)));};
+  };q.onerror=()=>j(q.error);});}finally{db.close();}
 }
 async function put(c,value,key,store='pendingImports',dbName='CrossStitchDB') {
   const db=await new Promise((r,j)=>{const q=c.indexedDB.open(dbName);q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error);});

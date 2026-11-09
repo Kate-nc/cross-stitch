@@ -76,6 +76,11 @@ const SyncEngine = (() => {
     try { return JSON.parse(localStorage.getItem(key) || '{"state":"idle"}'); }
     catch (_) { return {state:'failed',message:'Unreadable sync state; retry the sync file.'}; }
   }
+  function _ledgerRows(rows) {
+    var A = window.ThreadAccounting;
+    if (!A || !A.fromRows) return rows;
+    return A.fromRows(rows);
+  }
   function _inventoryValue(stash) {
     var accounting = {}, threads = {}, A = window.ThreadAccounting;
     var ledger = stash && stash.thread_consumption_v2;
@@ -102,11 +107,11 @@ const SyncEngine = (() => {
     var db = await openManagerDB();
     try { return await new Promise(function(resolve,reject) {
       var tx = db.transaction('manager_state','readwrite'), store = tx.objectStore('manager_state'), stash = {};
-      var req = store.openCursor();
-      req.onsuccess = function(event) {
-        var c = event.target.result;
-        if (c) { stash[c.key] = c.value; c.continue(); return; }
-        try { stash['sync:inventory'] = _inventoryEvents(stash); store.put(stash['sync:inventory'],'sync:inventory'); }
+      // Two bulk reads, not a cursor: thread-usage history is a record per event.
+      var keysReq = store.getAllKeys(), req = store.getAll();
+      req.onsuccess = function() {
+        keysReq.result.forEach(function(k, i) { stash[k] = req.result[i]; });
+        try { stash = _ledgerRows(stash); stash['sync:inventory'] = _inventoryEvents(stash); store.put(stash['sync:inventory'],'sync:inventory'); }
         catch(e) { tx.abort(); reject(e); }
       };
       tx.oncomplete = function() { resolve(stash); };
@@ -139,11 +144,22 @@ const SyncEngine = (() => {
     if (typeof crypto === 'undefined' || !crypto.subtle) throw new Error('Attachment integrity requires a secure browser context.');
     return 'sha256:' + _bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)));
   }
+  // The attachment rows only (photos, their thumbnails, tracing pictures and
+  // the manifest): pendingImports also holds every project's progress record
+  // and overlay, which an export has no use for.
+  var ATTACHMENT_PREFIXES = ['photo:', 'photothumb:', 'trace:'];
   async function _attachmentRows() {
     var db = await _openSnapshotDB();
     try { return await new Promise(function(resolve,reject) {
-      var tx = db.transaction('pendingImports','readonly'), req = tx.objectStore('pendingImports').getAll();
-      req.onsuccess = function() { resolve(req.result); }; req.onerror = function() { reject(req.error); };
+      var tx = db.transaction('pendingImports','readonly'), store = tx.objectStore('pendingImports'), out = [];
+      ATTACHMENT_PREFIXES.forEach(function(prefix) {
+        var req = store.getAll(IDBKeyRange.bound(prefix, prefix + '\uffff'));
+        req.onsuccess = function() { out.push.apply(out, req.result || []); };
+      });
+      var m = store.get('sync:attachments');
+      m.onsuccess = function() { if (m.result) out.push(m.result); };
+      tx.oncomplete = function() { resolve(out); };
+      tx.onerror = tx.onabort = function() { reject(tx.error || new Error('Attachment read failed')); };
     }); } finally { db.close(); }
   }
   async function _exportAttachments(projects, includeImages) {
@@ -660,18 +676,16 @@ const SyncEngine = (() => {
         var tx = db.transaction("manager_state", "readonly");
         var store = tx.objectStore("manager_state");
         var result = {};
-        var cursorReq = store.openCursor();
-        cursorReq.onsuccess = function (e) {
-          var cursor = e.target.result;
-          if (cursor) {
-            result[cursor.key] = cursor.value;
-            cursor.continue();
-          } else {
-            db.close();
-            resolve(result);
-          }
+        // Two bulk reads, not a cursor: thread-usage history is a record per event.
+        var keysReq = store.getAllKeys(), valuesReq = store.getAll();
+        valuesReq.onsuccess = function () {
+          keysReq.result.forEach(function (k, i) { result[k] = valuesReq.result[i]; });
+          db.close();
+          // The thread-usage ledger is stored as a record per event; readers
+          // here (and sync files) use its whole form under its usual key.
+          resolve(_ledgerRows(result));
         };
-        cursorReq.onerror = function () { db.close(); reject(cursorReq.error); };
+        valuesReq.onerror = function () { db.close(); reject(valuesReq.error); };
       });
     }).catch(function (e) {
       throw new Error('Could not read stash database: ' + e.message);
@@ -699,6 +713,116 @@ const SyncEngine = (() => {
   }
 
   // ── Export ────────────────────────────────────────────────────────────────
+
+  // One project's entry in a sync file, kept per stored revision.
+  //
+  // A project's metadata row (ProjectStorage) is rewritten in the same
+  // transaction as every write to its record, its overlay or its progress
+  // record: its fence token changes on every record or overlay write, and
+  // progressRev (a counter, not a time) on every accepted progress write. So while those (and updatedAt and the
+  // write stamp) are unchanged, the project reads back exactly as last time,
+  // and so do its fingerprint and JSON. The key is read after the export's
+  // flush, so anything the export promises to cover changed it.
+  //
+  // The cache holds JSON text only, never the project objects, and stops
+  // growing past EXPORT_CACHE_MAX_CHARS (a project past it is read every time):
+  // sized by the memory the device reports (a 120 x 120 project is about 0.6 M
+  // characters), and kept small where it says nothing.
+  var _exportCache = new Map(), _exportCacheChars = 0;
+  var EXPORT_CACHE_MAX_CHARS = (function () {
+    var gb = (typeof navigator !== "undefined" && navigator && typeof navigator.deviceMemory === "number") ? navigator.deviceMemory : 0;
+    return (gb >= 8 ? 128 : gb >= 4 || !gb ? 64 : 32) * 1024 * 1024;
+  })();
+  function _exportKey(meta, includeImages) {
+    var f = meta && meta.checkpointFence;
+    if (!f || !f.token || typeof meta.lastWriteAt !== "number") return null;   // older metadata: no cache
+    return [f.token, meta.progressRev || 0, meta.progressAt || 0, meta.updatedAt || "", meta.lastWriteAt, meta.lastWriteTabId || "", includeImages ? 1 : 0].join("|");
+  }
+  function _entryJson(entry) { return entry && entry.__json; }
+  // Hints for attachment checks live under a symbol (sync-attachment-codec.js), which JSON cannot supply.
+  var _HINTS = typeof Symbol === "function" ? Symbol.for("stitchx.syncExportHints") : "__hints";
+  function _entryHints(entry) { return entry[_HINTS] || { id: entry.id, imgData: entry.data && entry.data.imgData, settings: entry.data && entry.data.settings }; }
+  // A cached entry: its JSON is what JSON.stringify gave when it was made;
+  // `data` is parsed from it only if something asks for it.
+  function _cachedEntry(hit) {
+    var entry = { id: hit.id, updatedAt: hit.updatedAt, fingerprint: hit.fingerprint };
+    var parsed = null;
+    Object.defineProperty(entry, "data", { enumerable: true, configurable: true,
+      get: function () { if (!parsed) parsed = JSON.parse(hit.json).data; return parsed; } });
+    Object.defineProperty(entry, "__json", { value: hit.json, enumerable: false });
+    Object.defineProperty(entry, _HINTS, { value: hit.hints, enumerable: false });
+    return entry;
+  }
+  // unsettled: ProjectStorage.unsettledProjects(), ids that must be read
+  // through get() now (a navigation journal to recover, an open session
+  // checkpoint): their metadata does not say what get() will return.
+  async function _exportEntry(meta, includeSourceImages, unsettled) {
+    var key = _exportKey(meta, includeSourceImages);
+    if (unsettled && unsettled.has(meta.id)) key = null;
+    var hit = key && _exportCache.get(meta.id);
+    if (hit && hit.key === key) return _cachedEntry(hit);
+    var p = await ProjectStorage.get(meta.id);
+    // VER-SYNC-001: the metadata names a project whose record cannot be read.
+    if (!p) throw new Error('Required project could not be read: ' + meta.id);
+    var data = p;
+    if (!includeSourceImages && p && p.imgData) {
+      // Shallow copy so the caller's in-memory project keeps its image.
+      data = Object.assign({}, p);
+      delete data.imgData;
+    }
+    // A typed-array `done` (tracker holds Uint8Array in memory) would
+    // JSON.stringify into {"0":1,...} and silently destroy all progress
+    // on the importing device. Current save paths store plain arrays,
+    // but legacy IDB records may predate that — normalise on the way out.
+    if (data && data.done && ArrayBuffer.isView(data.done)) {
+      if (data === p) data = Object.assign({}, p);
+      data.done = Array.prototype.slice.call(data.done);
+    }
+    var entry = {
+      id: p.id,
+      updatedAt: p.updatedAt,
+      // Computed from the full project. imgData is not part of the
+      // fingerprint, so stripping it cannot change classification.
+      fingerprint: computeFingerprint(p),
+      data: data
+    };
+    // Only an entry with no open session checkpoints is kept: with none open
+    // get() lists none, which the key can then vouch for.
+    if (key && p.sessionCheckpoints && p.sessionCheckpoints.length) key = null;
+    if (!key && _exportCache.has(meta.id)) { _exportCacheChars -= _exportCache.get(meta.id).json.length; _exportCache.delete(meta.id); }
+    if (key) {
+      var json = JSON.stringify(entry);
+      var hints = { id: p.id, imgData: includeSourceImages ? p.imgData : undefined, settings: { traceImage: !!(p.settings && p.settings.traceImage) } };
+      var old = _exportCache.get(meta.id);
+      if (old) { _exportCacheChars -= old.json.length; _exportCache.delete(meta.id); }
+      if (_exportCacheChars + json.length <= EXPORT_CACHE_MAX_CHARS) {
+        _exportCache.set(meta.id, { key: key, id: entry.id, updatedAt: entry.updatedAt, fingerprint: entry.fingerprint, json: json, hints: hints });
+        _exportCacheChars += json.length;
+      }
+      Object.defineProperty(entry, "__json", { value: json, enumerable: false });
+    }
+    return entry;
+  }
+  // JSON.stringify(obj) for a sync object (or an encrypted payload's inner
+  // fields), with each project entry's kept JSON spliced in rather than made
+  // again. Same text: top-level keys in order, undefined and functions left
+  // out, entries without kept JSON stringified as usual.
+  function _syncJson(obj) {
+    var parts = [];
+    Object.keys(obj).forEach(function (k) {
+      var v = obj[k];
+      if (v === undefined || typeof v === "function") return;
+      var text;
+      if (k === "projects" && Array.isArray(v)) {
+        text = "[" + v.map(function (e) { return _entryJson(e) || JSON.stringify(e === undefined ? null : e); }).join(",") + "]";
+      } else {
+        text = JSON.stringify(v);
+        if (text === undefined) return;
+      }
+      parts.push(JSON.stringify(k) + ":" + text);
+    });
+    return "{" + parts.join(",") + "}";
+  }
 
   async function exportSync(options) {
     var opts = options || {};
@@ -750,40 +874,32 @@ const SyncEngine = (() => {
     // it. Anything counted later may be missing from this file.
     var coversChangeRev = _readNum(LS_LOCAL_CHANGE_REV);
 
-    // Read all projects
-    var allProjects = [];
-    try {
-      var metaList = await ProjectStorage.listProjects();
-      // PERF (perf-5 #1): batch project fetches in parallel via Promise.all
-      // instead of awaiting each get() sequentially.
-      var fetched = await Promise.all(metaList.map(function(m){ return ProjectStorage.get(m.id); }));
-      for (var i = 0; i < fetched.length; i++) {
-        if (fetched[i]) {
-          allProjects.push(fetched[i]);
-        } else {
-          // VER-SYNC-001: project entry exists in metadata but the IDB record
-          // returned null (record missing or read race). Log so the developer can
-          // investigate — we skip it rather than crashing the export.
-          throw new Error('Required project could not be read: ' + metaList[i].id);
-        }
-      }
-    } catch (e) {
-      console.error("SyncEngine.export: failed to read projects:", e);
-      throw new Error("Could not read projects from database.");
-    }
-
-    // For incremental mode, filter to only projects changed since last export
+    // For incremental mode, only projects changed since the last export.
     var lastExport = null;
     if (mode === "incremental") {
       try { lastExport = localStorage.getItem(LS_LAST_EXPORT); } catch (e) {}
     }
 
-    var projectsToExport = allProjects;
-    if (mode === "incremental" && lastExport) {
-      var since = new Date(lastExport);
-      projectsToExport = allProjects.filter(function (p) {
-        return !p.updatedAt || new Date(p.updatedAt) > since;
-      });
+    // The projects, chosen from their metadata rows before any project is
+    // read. Each project's entry is serialised once per stored revision and
+    // kept (see _exportEntry): a later export reads, fingerprints and
+    // serialises only the projects that changed since.
+    var metaList, projectsToExport = [], projectCount = 0;
+    try {
+      metaList = await ProjectStorage.listProjects();
+      projectCount = metaList.length;
+      var since = (mode === "incremental" && lastExport) ? new Date(lastExport) : null;
+      var chosen = since ? metaList.filter(function (m) { return !m.updatedAt || new Date(m.updatedAt) > since; }) : metaList;
+      // Projects get() would read differently from their stored rows (a journal
+      // to recover, an open session checkpoint): never taken from the cache.
+      // Without the helper (an older storage script), nothing is.
+      var unsettled = ProjectStorage.unsettledProjects ? await ProjectStorage.unsettledProjects() : null;
+      var useCache = !!unsettled;
+      // PERF (perf-5 #1): read the ones not cached in parallel.
+      projectsToExport = await Promise.all(chosen.map(function (m) { return _exportEntry(useCache ? m : { id: m.id }, includeSourceImages, unsettled); }));
+    } catch (e) {
+      console.error("SyncEngine.export: failed to read projects:", e);
+      throw new Error("Could not read projects from database.");
     }
 
     // Build the sync object
@@ -795,7 +911,7 @@ const SyncEngine = (() => {
       _deviceName: getDeviceName(),
       _mode: mode,
       _since: (mode === "incremental" && lastExport) ? lastExport : null,
-      _projectCountTotal: allProjects.length,
+      _projectCountTotal: projectCount,
       // VER-SYNC-009: include local tombstones so the importing device knows
       // which projects this device has intentionally deleted. The receiving
       // device should not re-import any project whose id appears in this list.
@@ -804,30 +920,7 @@ const SyncEngine = (() => {
       // a peer can tell an old deletion from a fresh one. Older builds ignore
       // this field and fall back to the id list above.
       deletedProjects: getTombstoneRecords(),
-      projects: projectsToExport.map(function (p) {
-        var data = p;
-        if (!includeSourceImages && p && p.imgData) {
-          // Shallow copy so the caller's in-memory project keeps its image.
-          data = Object.assign({}, p);
-          delete data.imgData;
-        }
-        // A typed-array `done` (tracker holds Uint8Array in memory) would
-        // JSON.stringify into {"0":1,...} and silently destroy all progress
-        // on the importing device. Current save paths store plain arrays,
-        // but legacy IDB records may predate that — normalise on the way out.
-        if (data && data.done && ArrayBuffer.isView(data.done)) {
-          if (data === p) data = Object.assign({}, p);
-          data.done = Array.prototype.slice.call(data.done);
-        }
-        return {
-          id: p.id,
-          updatedAt: p.updatedAt,
-          // Computed from the full project. imgData is not part of the
-          // fingerprint, so stripping it cannot change classification.
-          fingerprint: computeFingerprint(p),
-          data: data
-        };
-      })
+      projects: projectsToExport
     };
 
     // Include stash data
@@ -838,7 +931,7 @@ const SyncEngine = (() => {
     }
 
     syncObj._deliveryId = 'delivery_' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '_' + Math.random().toString(36).slice(2));
-    syncObj.attachments = await _exportAttachments(projectsToExport,includeSourceImages);
+    syncObj.attachments = await _exportAttachments(projectsToExport.map(_entryHints),includeSourceImages);
 
     // Build the prefs envelope. Palettes and user preferences are tracked
     // independently. crossstitch_active_project is per-device UI state and is
@@ -909,7 +1002,39 @@ const SyncEngine = (() => {
   // ── Compress / Decompress ────────────────────────────────────────────────
 
   function compress(syncObj) {
-    var json = JSON.stringify(syncObj);
+    return _deflateText(_syncJson(syncObj));
+  }
+
+  // compress(), with the encoding and deflating done in a worker
+  // (sync-compress-worker.js) so a large library does not hold the main thread
+  // for seconds. Same zlib format, read by decompress(). Falls back to
+  // compress() where workers or CompressionStream are missing, or the worker
+  // fails; the JSON text is made here either way (it needs the objects).
+  var _compressWorker = null, _compressSeq = 0, _compressWaiting = new Map(), _compressBroken = false;
+  function _compressWorkerFor() {
+    if (_compressBroken || typeof Worker !== "function" || typeof CompressionStream !== "function") return null;
+    if (_compressWorker) return _compressWorker;
+    try {
+      _compressWorker = new Worker("sync-compress-worker.js");
+      _compressWorker.onmessage = function (e) {
+        var m = e.data || {}, w = _compressWaiting.get(m.id);
+        if (!w) return;
+        _compressWaiting.delete(m.id);
+        if (m.ok) w.resolve(new Uint8Array(m.bytes)); else w.reject(new Error(m.error || "Compression failed"));
+      };
+      _compressWorker.onerror = function (e) {
+        // A worker that cannot start (or crashed): every waiting call falls back.
+        _compressBroken = true;
+        try { if (e && e.preventDefault) e.preventDefault(); } catch (_) {}
+        _compressWaiting.forEach(function (w) { w.reject(new Error("Compression worker failed")); });
+        _compressWaiting.clear();
+        try { _compressWorker.terminate(); } catch (_) {}
+        _compressWorker = null;
+      };
+      return _compressWorker;
+    } catch (e) { _compressBroken = true; return null; }
+  }
+  function _deflateText(json) {
     var bytes;
     if (typeof TextEncoder !== "undefined") {
       bytes = new TextEncoder().encode(json);
@@ -919,6 +1044,20 @@ const SyncEngine = (() => {
       bytes = new Uint8Array(bytes);
     }
     return pako.deflate(bytes);
+  }
+  async function compressAsync(syncObj) {
+    var json = _syncJson(syncObj);
+    var worker = _compressWorkerFor();
+    if (worker) {
+      try {
+        return await new Promise(function (resolve, reject) {
+          var id = ++_compressSeq;
+          _compressWaiting.set(id, { resolve: resolve, reject: reject });
+          worker.postMessage({ id: id, json: json });
+        });
+      } catch (e) { /* fall back below */ }
+    }
+    return _deflateText(json);
   }
 
   function decompress(arrayBuffer) {
@@ -1088,7 +1227,7 @@ const SyncEngine = (() => {
       var f = ENC_INNER_FIELDS[i];
       if (Object.prototype.hasOwnProperty.call(syncObj, f)) inner[f] = syncObj[f];
     }
-    var plaintext = new TextEncoder().encode(JSON.stringify(inner));
+    var plaintext = new TextEncoder().encode(_syncJson(inner));
     var ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, plaintext);
 
     // Build the encrypted envelope. Strip the inner fields so consumers
@@ -1170,7 +1309,7 @@ const SyncEngine = (() => {
 
   async function downloadSync(options) {
     var syncObj = await exportSync(options);
-    var compressed = compress(syncObj);
+    var compressed = await compressAsync(syncObj);
     var blob = new Blob([compressed], { type: "application/octet-stream" });
     var date = new Date().toISOString().slice(0, 10);
     // Desktop downloads keep a dated name, since they land in Downloads.
@@ -2734,11 +2873,11 @@ const SyncEngine = (() => {
         var db = await openManagerDB();
         try { await new Promise(function(resolve,reject) {
           var tx = db.transaction('manager_state','readwrite'), store = tx.objectStore('manager_state'), local = {};
-          var req = store.openCursor();
-          req.onsuccess = function(event) {
-            var c = event.target.result;
-            if (c) { local[c.key] = c.value; c.continue(); return; }
+          var keysReq = store.getAllKeys(), req = store.getAll();
+          req.onsuccess = function() {
+            keysReq.result.forEach(function(k, i) { local[k] = req.result[i]; });
             try {
+              local = _ledgerRows(local);
               var choice = gateResolutions['stash:inventory'];
               if (choice && TrackingSync.canonical(_inventoryValue(local)) !== TrackingSync.canonical(_inventoryValue(plan.localStash))) throw protocolError('conflicted','Inventory changed during review. Review the sync file again.');
               var mergedInventory = _inventoryMerge(local,plan.syncObj.stash || {},choice);
@@ -2755,7 +2894,12 @@ const SyncEngine = (() => {
                   if (!row || row.owned + 1e-10 < totals[k]) throw protocolError('conflicted','Combined consumption exceeds reconciled inventory: ' + k);
                   row.owned = Math.max(0,row.owned - totals[k]);
                 });
-                store.put(ledger,A.KEY);
+                // Written in the stored form (a record per event), replacing the old.
+                if (A.toRows) {
+                  store.delete(IDBKeyRange.bound(A.storedKeys.all[0],A.storedKeys.all[1]));
+                  store.delete(A.KEY);
+                  A.toRows(ledger).forEach(function(row) { store.put(row[1],row[0]); });
+                } else store.put(ledger,A.KEY);
               }
               Object.keys(value.threads).forEach(function(k) {
                 var l = local.threads && local.threads[k] || {}, r = plan.syncObj.stash.threads && plan.syncObj.stash.threads[k] || {};
@@ -3132,7 +3276,7 @@ const SyncEngine = (() => {
       if (perm !== "granted") throw new Error("Write permission denied for sync folder.");
     }
     var syncObj = await exportSync();
-    var compressed = compress(syncObj);
+    var compressed = await compressAsync(syncObj);
     // Use a fixed filename per device so each device has one file
     var fileName = _deviceSyncFileName();
     var fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
@@ -4597,6 +4741,7 @@ const SyncEngine = (() => {
     exportSync: exportSync,
     downloadSync: downloadSync,
     compress: compress,
+    compressAsync: compressAsync,
     decompress: decompress,
 
     // Import
