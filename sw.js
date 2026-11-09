@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "ddcc670cd8c32289a4a0012cd7c86c551716d3b7bec4666ced1237cd78ef59fa";
+var BUILD_ID = "75d117001fd722151c7df731d9c15fecc637136c8f9a63503e8d674cc36a1cd8";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -331,7 +331,7 @@ var BUILD_ASSETS = {
     "sha256": "b967e81c56e9a624f2275405df0aa08362c1f9f68c7196160dc60c715a59d362"
   },
   "./changelog.js": {
-    "sha256": "fc2eb658dc1ff51064517e5cde482ff915b1352f98a9559a333ff001d6d018c5"
+    "sha256": "02d61b03ee8398807cf67b96d1752ec7450f2201e8c83b1b6758ae5040902a56"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -493,7 +493,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "7aebcafe64a16b3bb678cc15a4fe25e5e79a4d618f474ac8279550f994b1964c"
+    "sha256": "edb3e43adf88137acb10ae02eead7efa8b8be8281a305086be1f459355d5e59d"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -535,7 +535,7 @@ var BUILD_ASSETS = {
     "sha256": "0c91b1a1fa79f1cce51417cbcbd9ba7ed3c6aac36975f6e42b0cf96b8d4b5458"
   },
   "./useStitchCounts.js": {
-    "sha256": "ab02c07c8bc06fc8e5af987302a452d2a95b76573e117a654bb21442aeae096f"
+    "sha256": "d6c9c71c9fac5d16a20f0b11a21a100abe31ac5bbb7ccc8b26b8ab687989db76"
   },
   "./useDragMark.js": {
     "sha256": "4e4781e38f51190003bd216c8371f63dbfc625ed37549ec261d227c7655c5bcc"
@@ -550,7 +550,7 @@ var BUILD_ASSETS = {
     "sha256": "60473afa7426c23fe3a848cbf3b2ba0d51ccfe895b4cc3ced352cac952374e09"
   },
   "./work-area.js": {
-    "sha256": "907f38a428eb2075c7d8bf5ebb4f66b825bd695348e879db3ab2e62f4eef02aa"
+    "sha256": "479bca24bfc0a6acb9c15620c8c3fec26857cdb59f9bcf7de496f406f9f0d9a9"
   },
   "./components/WorkAreaPicker.js": {
     "sha256": "6ba5482e6409defd5ac5ddd245291583252085177b6772174e7e1b2684a4132f"

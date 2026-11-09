@@ -83,8 +83,12 @@ describe('a tile move keeps what is already drawn', () => {
 
   test('it copies the overlap and paints only the uncovered strips, clipped', () => {
     expect(fn).toMatch(/ctx\.drawImage\(canvas, ddx>0\?ax:0, ddy>0\?ay:0, W-ax, H-ay, ddx>0\?0:ax, ddy>0\?0:ay, W-ax, H-ay\);/);
-    expect(fn).toMatch(/ctx\.rect\(l,t,r-l,b-t\);ctx\.clip\(\);/);
-    expect(fn).toMatch(/drawStitch\(ctx,scs,\{left:l-m,top:t-m,right:r\+m,bottom:b\+m,/);
+    // Each strip is grown to stitch boundaries and clear of objects, then painted clipped (paintTileRect).
+    expect(fn).toMatch(/const g=objectSafeRect\(tile,l,t,r,b\);/);
+    expect(fn).toMatch(/paintTileRect\(ctx,tile,s,g\.l,g\.t,g\.r,g\.b\);/);
+    const ptr = tracker.slice(tracker.indexOf('function paintTileRect('), tracker.indexOf('function paintZoomFirst('));
+    expect(ptr).toMatch(/ctx\.rect\(l,t,r-l,b-t\);ctx\.clip\(\);/);
+    expect(ptr).toMatch(/drawStitch\(ctx,scs,\{left:l-m,top:t-m,right:r\+m,bottom:b\+m,/);
     expect(fn).toMatch(/shiftChartOverlays\(prev,tile\);\n  return true;/);
   });
 
@@ -146,7 +150,24 @@ describe('zoom preview: a pinch or wheel zoom is a transform until it ends', () 
     expect(block).toMatch(/const ZOOM_PREVIEW_MAX_SCALE=1\.6;/);
     expect(block).toMatch(/if\(k>=ZOOM_PREVIEW_MAX_SCALE\)return false;/);
     expect(block).toMatch(/return X\(p\.canvas\.l\)<=nl\+1&&Y\(p\.canvas\.t\)<=nt\+1&&X\(p\.canvas\.r\)>=nr-1&&Y\(p\.canvas\.b\)>=nb-1;/);
-    expect(move).toMatch(/commitZoomPreview\(\);\n        ts\.pinchZoom=stitchZoomRef\.current;ts\.pinchDist=dist;/);
+    expect(move).toMatch(/commitZoomPreview\(true\);\n        ts\.pinchZoom=stitchZoomRef\.current;ts\.pinchDist=dist;/);
+  });
+
+  // reports/track-zoom-settle.md: the settling paint draws the view first and the rest of the tile after.
+  test('a zoom settles by painting the view first; nothing unpainted can be shown', () => {
+    // The commit tells the paint it causes; a rebase mid-gesture paints the whole tile.
+    expect(block).toMatch(/zoomPaintHintRef\.current=\{rebase:!!rebase\};/);
+    expect(tracker).toMatch(/const first=zoomHint&&!zoomHint\.rebase&&!tile\.full\?zoomFirstRect\(tile,el\):null;/);
+    // Every full paint replaces whatever an earlier zoom left to paint.
+    expect(tracker).toMatch(/chartPaintGenRef\.current\+\+;\n  dropChartPending\(\);/);
+    // A scroll past what is painted finishes the tile before the frame shows it; a tile move waits for it.
+    expect(tracker).toMatch(/if\(chartPendingRef\.current&&paintChartPending\(\)\)\{renderStitchIfScrolledOut\(\);return;\}/);
+    expect(tracker).toMatch(/if\(chartPendingRef\.current\)paintChartPending\(\);\n  const tile=chartTileFor/);
+    // A new preview counts only the painted part as covered, so it rebases before anything unpainted shows.
+    expect(block).toMatch(/const pend=chartPendingRef\.current, pr=paintedRectRef\.current, ct=chartTileRef\.current;/);
+    // Strips wait while a zoom is being previewed, and are dropped if their tile has gone.
+    expect(tracker).toMatch(/if\(zoomPreviewRef\.current\)\{scheduleChartPending\(\);return;\}/);
+    expect(tracker).toMatch(/p\.gen!==chartPaintGenRef\.current\|\|p\.scs!==scs/);
   });
 
   test('the commit renders synchronously and places the anchored stitch before the redraw', () => {

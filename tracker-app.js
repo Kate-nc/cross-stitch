@@ -1598,6 +1598,19 @@ const scrollRafRef=useRef(null);
 // was painted at. Set by renderStitch, read by renderStitchIfScrolledOut to
 // skip repaints while the viewport is still inside it.
 const paintedRectRef=useRef(null);
+// A zoom's settling paint draws what is on screen first and the rest of the
+// tile (its overscan) in the frames after (see paintZoomFirst). Until then this
+// holds what is left: {gen, tile, scs, strips: [[l,t,r,b] chart px], timer}.
+const chartPendingRef=useRef(null);
+// Counts full paints (renderStitch), so a deferred strip can tell that a newer
+// paint has replaced the one it belongs to.
+const chartPaintGenRef=useRef(0);
+// Set by commitZoomPreview for the paint its zoom causes: {rebase} (the
+// gesture goes on). Taken by the next renderStitch.
+const zoomPaintHintRef=useRef(null);
+// The latest paintChartPending, for the deferred strips, which run after the
+// render that scheduled them.
+const paintPendingRef=useRef(null);
 // The renderStitch that last made the chart canvas match state: set by its
 // full paints, and by the redraw effect when a mark's own partial paint stood
 // in for one. While it is still the current renderStitch nothing drawn has
@@ -1907,8 +1920,11 @@ useEffect(()=>{
   window.__workArea={enter:enterWorkArea,exit:exitWorkArea,get:()=>workArea,view:()=>viewBoundsRef.current,openPicker:()=>setAreaPickerOpen(true)};
 });
 const[areaPickerOpen,setAreaPickerOpen]=useState(false);
-// Stitches and done stitches inside a rectangle of the pattern. O(area):
-// cheap enough per tap for any area a stitcher would choose.
+const counts=window.useStitchCounts({pat,done,halfStitches,halfDone,sW});
+const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta,applyHalfDoneDelta,areaCountsFor}=counts;
+// Stitches and done stitches inside a rectangle of the pattern, by scanning
+// it: for areas other than the current one (stepping to the next unfinished
+// area) and as the reference the current area's counts are tested against.
 function countRect(r){
   let total=0,dn=0;
   if(!pat||!r)return{total,done:dn};
@@ -1922,28 +1938,17 @@ function countRect(r){
   });
   return{total,done:dn};
 }
-const areaStats=useMemo(()=>areaOn?countRect(workArea):null,[areaOn,workArea,pat,done,halfStitches,halfDone,sW]);
-// Per-colour counts inside the work area, in the same shape as the whole-
-// pattern counts (colourDoneCountsRef): the colour list, highlight cycling and
-// "mark all" use these while an area is active. O(area) per change.
-const areaColourCounts=useMemo(()=>{
-  if(!areaOn||!pat||!workArea)return null;
-  const out={},a=workArea,d=doneRef.current||done;
-  const get=id=>out[id]||(out[id]={total:0,done:0,halfTotal:0,halfDone:0});
-  for(let y=a.y0;y<a.y1;y++){const base=y*sW;for(let x=a.x0;x<a.x1;x++){
-    const m=pat[base+x];if(!m||m.id==="__skip__"||m.id==="__empty__")continue;
-    const c=get(m.id);c.total++;if(d&&d[base+x])c.done++;
-  }}
-  if(halfStitches&&halfStitches.size){
-    halfStitches.forEach((hs,idx)=>{
-      if(!window.WorkArea.containsIndex(a,idx,sW))return;
-      const hd=halfDone&&halfDone.get(idx);
-      if(hs.fwd){const c=get(hs.fwd.id);c.halfTotal++;if(hd&&hd.fwd)c.halfDone++;}
-      if(hs.bck){const c=get(hs.bck.id);c.halfTotal++;if(hd&&hd.bck)c.halfDone++;}
-    });
-  }
-  return out;
-},[areaOn,workArea,pat,done,halfStitches,halfDone,sW]);
+// The current area's counts, overall (areaStats) and per colour in the shape
+// of the whole-pattern counts (colourDoneCountsRef), which the colour list,
+// highlight cycling and "mark all" use while an area is active. Built by one
+// scan when the area, pattern or marks are replaced, then kept up to date
+// from each mark's changed cells (useStitchCounts.js, "Work-area counts").
+const areaCounts=useMemo(()=>{
+  const st=areaOn?areaCountsFor(workArea,doneRef.current||done,halfDoneRef.current||halfDone):null;
+  return st?{stats:{total:st.total,done:st.done},colours:st.colours}:null;
+},[areaOn,workArea,pat,done,halfStitches,halfDone,sW,countsVer]);
+const areaStats=areaCounts&&areaCounts.stats;
+const areaColourCounts=areaCounts&&areaCounts.colours;
 // The neighbouring area in reading order: any (for enabling the buttons,
 // cheap) or the nearest unfinished one (on click — it may scan many areas).
 function neighbourArea(dir,unfinishedOnly){
@@ -2440,8 +2445,6 @@ const dragCommitFilterRef=useRef(null);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings,savesBlockedRef});
 const{getSessionCheckpoint,writeSessionCheckpoint,correctHistoryActivity,statsSessionsRef,statsSessions,setStatsSessions,totalTime,elapsedStore,liveAutoStitches,liveAutoIsPaused,liveSessionOpen,liveIsTimer,forgotStop,startTimer,snoozeForgotStop,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 useEffect(()=>{if(!motivation.show)setCelebration(null);},[motivation.show,setCelebration]);
-const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
-const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta,applyHalfDoneDelta}=counts;
 const[projectName,setProjectName]=useState("");
 const[projectDesigner,setProjectDesigner]=useState("");
 const[projectDescription,setProjectDescription]=useState("");
@@ -3456,7 +3459,7 @@ function markColourDone(cid,md,asCatchUp){const cur=doneRef.current;if(!pat||!cu
   if(changes.length>0){
     const n=changes.length,count=n===1?"1 stitch":n.toLocaleString('en-GB')+" stitches",name=colourDoneName(cmap&&cmap[cid]||{id:cid});
     offerStepUndo(changes,count+" of "+name+(md?" marked as done":" marked as not done"),"Undo "+count);   // `changes` is the history step
-    pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=nd;}
+    pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd,cur);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=nd;}
   doneRef.current=nd;setDone(nd);}
 // The chip on a colour row: always ask first, with the colour and the exact number of stitches, then go through the usual
 // catch-up or today question (requestMarkColourDone) when marking.
@@ -3597,7 +3600,7 @@ function undoTrack(){
   let nd=new Uint8Array(doneRef.current);
   let redoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
-  applyDoneCountsDelta(redoChanges,pat,nd);
+  applyDoneCountsDelta(redoChanges,pat,nd,doneRef.current);
   paintDoneChanges(last,nd);
   skipNextFullRedrawRef.current=nd;
   doneRef.current=nd;setDone(nd);
@@ -3662,7 +3665,7 @@ function redoTrack(){
   let nd=new Uint8Array(doneRef.current);
   let undoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
-  applyDoneCountsDelta(undoChanges,pat,nd);
+  applyDoneCountsDelta(undoChanges,pat,nd,doneRef.current);
   paintDoneChanges(last,nd);
   skipNextFullRedrawRef.current=nd;
   doneRef.current=nd;setDone(nd);
@@ -3722,7 +3725,7 @@ function handleStitchRemoval(cellIdx) {
 
   const newPat = [...pat];
   newPat[cellIdx] = { id:"__empty__", type:"skip", rgb:[255,255,255], lab:[100,0,0] };
-  if (previousDone) { const nd=new Uint8Array(doneRef.current||done); nd[cellIdx]=0; applyDoneCountsDelta([{idx:cellIdx,oldVal:1}],pat,nd); setDone(nd); }
+  if (previousDone) { const nd=new Uint8Array(doneRef.current||done); nd[cellIdx]=0; applyDoneCountsDelta([{idx:cellIdx,oldVal:1}],pat,nd,doneRef.current||done); setDone(nd); }
   const newPal = rebuildPaletteCounts(newPat, pal);
   const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
   setPat(newPat); setPal(newPal); setCmap(newCmap);
@@ -3796,7 +3799,7 @@ function applyUndo() {
     if (previousEditEntry === null) newEdits.delete(cellIdx);
     else newEdits.set(cellIdx, previousEditEntry);
     setSingleStitchEdits(newEdits);
-    if (previousDone) { const nd=new Uint8Array(doneRef.current||done); nd[cellIdx]=1; applyDoneCountsDelta([{idx:cellIdx,oldVal:0}],pat,nd); setDone(nd); }
+    if (previousDone) { const nd=new Uint8Array(doneRef.current||done); nd[cellIdx]=1; applyDoneCountsDelta([{idx:cellIdx,oldVal:0}],pat,nd,doneRef.current||done); setDone(nd); }
     const newPal = rebuildPaletteCounts(newPat, pal);
     const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
     setPat(newPat); setPal(newPal); setCmap(newCmap);
@@ -5880,6 +5883,15 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   const symAlpha=tier>=3?1:0;
   const bsHsAlpha=tier>=2?1:0;
 
+  // Optional timing of this paint's phases, for tests/perf/zoom-settle.cjs
+  // (reports/track-zoom-settle.md): off, at the cost of one property read a
+  // paint, unless that harness sets window.__chartPaintPhases. Times are the
+  // canvas calls' recording time; the raster happens later, at the flush.
+  const PP=window.__chartPaintPhases||null;
+  let ppT=0,ppCur=null;
+  if(PP){ppT=performance.now();ppCur={cSz:cSz,glyphMs:0,glyphs:0};PP.paints.push(ppCur);}
+  function ppMark(name){if(!ppCur)return;const t=performance.now();ppCur[name]=(ppCur[name]||0)+t-ppT;ppT=t;}
+
   ctx.fillStyle=chartFabricColour||"#fff";
   ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
 
@@ -5964,6 +5976,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   // browser's own glyph cache. Several callers draw inside a save/restore, so
   // the font is set every time (browsers skip an unchanged font themselves).
   function drawGlyph(sym,font,ink,cx,cy){
+    if(ppCur){const t=performance.now();ctx.fillStyle=ink;ctx.font=font;ctx.fillText(sym,cx,cy);ppCur.glyphMs+=performance.now()-t;ppCur.glyphs++;return;}
     ctx.fillStyle=ink;ctx.font=font;ctx.fillText(sym,cx,cy);
   }
 
@@ -5977,7 +5990,9 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   // with quarter stitches) get the fabric colour the whole chart is first
   // filled with.
   let isolateBase=null;
+  if(ppCur){ppCur.cells=Math.max(0,endX-startX)*Math.max(0,endY-startY);ppCur.tier=tier;ppMark("setup");}
   const imgPath=(tier===1||layerVis.full)&&endX>startX&&endY>startY&&paintCellImage();
+  ppMark("backgrounds");
   // A full stitch's background, as the loop below draws it, as a colour
   // string or [r,g,b].
   function cellBackground(m,idx){
@@ -6145,7 +6160,9 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     if(rowModeActive&&y===currentRow){ctx.fillStyle='rgba(37,99,235,0.12)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
   }
 
+  ppMark("cellLoop");
   if(olCodes)drawOutlineGrid(ctx,olCodes,olW,olH,gut+startX*cSz,gut+startY*cSz,cSz);
+  ppMark("outlines");
 
   // color-11: thread sheen — second pass gradient overlay on stitched cells
   if(trackerCanvasTexture&&cSz>=6){
@@ -6161,6 +6178,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     }}
   }
 
+  ppMark("texture");
   // The "outline" highlight's marching ants are no longer drawn here: they
   // are an SVG overlay the browser animates (see antsSvgRef), so animating
   // them never repaints the chart.
@@ -6185,6 +6203,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     ctx.lineWidth=gl.major.width;ctx.strokeStyle=gl.major.stroke;ctx.stroke();
     ctx.restore();
   }
+  ppMark("gridLines");
 
   ProgressUnits.specialty.draw(ctx,specialtyStitches,specialtyDone,gut,gut,cSz,layerVis,specialtySelected,{x0:startX,y0:startY,x1:endX,y1:endY});
   // Centre marks, crosshair, backstitch, park markers, border — always draw (cheap)
@@ -6281,6 +6300,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     });
     ctx.restore();
   }
+  ppMark("specialty");
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
   // Work area: fade the margin (context only — it cannot be marked) and
   // outline the area. The outline sits entirely outside the area, on margin
@@ -6310,6 +6330,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     if(isDone(pm.y*sW+pm.x))return; // spent — see isParkSpent
     drawParkMarker(ctx,pm,gut,cSz);
   });}
+  ppMark("markers");
 }
 
 const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
@@ -6346,6 +6367,11 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Carries the render scale too: repaintChartCells re-establishes this
   // transform for partial repaints and needs both halves of it.
   chartTileRef.current={x:tile.x,y:tile.y,w:tile.w,h:tile.h,full:tile.full,scale:chartScale};
+  // A new full paint replaces whatever an earlier zoom left to paint.
+  chartPaintGenRef.current++;
+  dropChartPending();
+  const zoomHint=zoomPaintHintRef.current;
+  zoomPaintHintRef.current=null;
 
   // The paintable region *is* the tile, so ask drawStitch for exactly that and
   // no overdraw on top: the tile already contains the margin, and growing past
@@ -6356,21 +6382,156 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // The backing store is the tile times the scale, rounded, so its last
   // device row or column can reach a fraction past the tile: paint to there.
   const paintW=Math.max(tile.w,canvas.width/chartScale), paintH=Math.max(tile.h,canvas.height/chartScale);
-  drawStitch(ctx,scs,{left:tile.x, top:tile.y, right:tile.x+paintW, bottom:tile.y+paintH,
-    width:paintW, height:paintH, overdraw:0});
-
-  // Record what is now on the canvas so the scroll handler can tell whether a
-  // repaint is actually needed, and which renderStitch painted it: a later
-  // one means something drawn has changed, so shiftChartTile cannot reuse
-  // these pixels.
-  paintedRectRef.current={
-    left:tile.x, top:tile.y, right:tile.x+tile.w, bottom:tile.y+tile.h, scs:scs
-  };
+  // A zoom settling (a pinch or wheel zoom's final commit) paints what is on
+  // screen first and the rest of the tile in the frames after; anything else,
+  // a rebase mid-gesture included, paints the whole tile now.
+  const first=zoomHint&&!zoomHint.rebase&&!tile.full?zoomFirstRect(tile,el):null;
+  if(first){
+    paintZoomFirst(canvas,ctx,tile,chartScale,first,paintW,paintH);
+  }else{
+    drawStitch(ctx,scs,{left:tile.x, top:tile.y, right:tile.x+paintW, bottom:tile.y+paintH,
+      width:paintW, height:paintH, overdraw:0});
+    // Record what is now on the canvas so the scroll handler can tell whether a
+    // repaint is actually needed, and which renderStitch painted it: a later
+    // one means something drawn has changed, so shiftChartTile cannot reuse
+    // these pixels.
+    paintedRectRef.current={
+      left:tile.x, top:tile.y, right:tile.x+tile.w, bottom:tile.y+tile.h, scs:scs
+    };
+  }
   chartPaintedByRef.current=renderStitch;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
-  if(tileChanged)redrawChartOverlays();
+  if(tileChanged){
+    const pp=window.__chartPaintPhases,t=pp?performance.now():0;
+    redrawChartOverlays();
+    if(pp&&pp.paints.length)pp.paints[pp.paints.length-1].overlays=performance.now()-t;
+  }
 },[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,gridStyleEff,gridColour,gridEvery,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected]);
+
+// ═══ A zoom's settling paint: the view first, the overscan after ═══
+// The tile reaches CHART_TILE_OVERSCAN past the view on every side so a pan
+// finds stitches already drawn, which makes a full tile on a phone about three
+// screens of stitches. When a pinch or wheel zoom settles (its final commit;
+// a rebase mid-gesture still paints the whole tile), all of it used to be
+// painted in the one task that ends the gesture, the stall a stitcher feels as
+// the chart sharpens (reports/track-zoom-settle.md). Now that task paints the
+// view and CHART_PAN_LOOKAHEAD around it, exactly as a full paint would draw
+// it (drawStitch, clipped, like the strips of a tile move), and the rest of the
+// tile follows in up to four strips, one per frame after the chart is shown.
+// Nothing off screen is needed before then:
+//   - a scroll that reaches past what is painted paints the rest at once
+//     (renderStitchIfScrolledOut), before the frame that would show it, as
+//     before; and a tile move waits for it (shiftChartTile);
+//   - a new zoom preview treats only the painted part as covered, so it
+//     commits (rebases) before anything unpainted could be scaled into view;
+//   - any newer full paint replaces the strips, and a strip whose tile has
+//     moved, been resized or given back is dropped.
+// The part not yet painted is cleared, so if anything ever did show it, it
+// would be blank fabric-less canvas rather than the old zoom's stitches.
+// Every part is grown to stitch boundaries and past any bead, knot, petite,
+// long stitch, backstitch, half or quarter stitch or park marker its edge
+// would cut (objectSafeRect), so each is exact on its own: a clip edge through
+// an anti-aliased shape rasterises a few levels off (see objectDirtyCells).
+// Parts may overlap; a repaint of pixels already painted gives the same pixels.
+function zoomFirstRect(tile,el){
+  if(!el||!el.clientWidth||!el.clientHeight)return null;
+  const off=chartScrollOffset(scs);
+  const L=CHART_PAN_LOOKAHEAD;
+  const l=Math.max(tile.x,el.scrollLeft+off.x-L), t=Math.max(tile.y,el.scrollTop+off.y-L);
+  const r=Math.min(tile.x+tile.w,el.scrollLeft+off.x+el.clientWidth+L), b=Math.min(tile.y+tile.h,el.scrollTop+off.y+el.clientHeight+L);
+  if(r<=l||b<=t)return null;
+  const f=objectSafeRect(tile,l,t,r,b);
+  // Not worth splitting when the view is most of the tile; and a region that
+  // cannot be grown clear of the objects is painted with the tile.
+  if(!f||(f.r-f.l)*(f.b-f.t)>0.8*tile.w*tile.h)return null;
+  return f;
+}
+// l..r, t..b (chart px) grown out to stitch boundaries and then past every
+// object its edges would cut through (objectDirtyBox), clamped to the tile. An
+// edge at the tile's own edge, or beyond the last stitch, stays where it is (no
+// clip edge is inside the canvas there). Null when the objects chain on too far
+// to settle.
+function objectSafeRect(tile,l,t,r,b){
+  const R=tile.x+tile.w,B=tile.y+tile.h;
+  const box=objectDirtyBox(Math.floor((l-G)/scs),Math.floor((t-G)/scs),Math.ceil((r-G)/scs),Math.ceil((b-G)/scs),1);
+  if(!box.converged)return null;
+  const v=viewBoundsRef.current||{x0:0,y0:0,x1:sW,y1:sH};
+  return{
+    l:l<=tile.x||box.x0<=v.x0?l:Math.max(tile.x,G+box.x0*scs),
+    t:t<=tile.y||box.y0<=v.y0?t:Math.max(tile.y,G+box.y0*scs),
+    r:r>=R||box.x1>=v.x1?r:Math.min(R,G+box.x1*scs),
+    b:b>=B||box.y1>=v.y1?b:Math.min(B,G+box.y1*scs)};
+}
+// Paint part of the tile exactly as a full paint would: drawStitch clipped to
+// it, one cell further on every side so outlines and markers overhanging from
+// the neighbours are drawn too (as shiftChartTile's strips and
+// repaintChartCells do).
+function paintTileRect(ctx,tile,s,l,t,r,b){
+  ctx.setTransform(s,0,0,s,-tile.x*s,-tile.y*s);
+  ctx.save();
+  ctx.beginPath();ctx.rect(l,t,r-l,b-t);ctx.clip();
+  const m=scs;
+  drawStitch(ctx,scs,{left:l-m,top:t-m,right:r+m,bottom:b+m,width:r-l+2*m,height:b-t+2*m,overdraw:0});
+  ctx.restore();
+}
+function paintZoomFirst(canvas,ctx,tile,s,f,paintW,paintH){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  paintTileRect(ctx,tile,s,f.l,f.t,f.r,f.b);
+  const R=tile.x+paintW, B=tile.y+paintH;
+  // Left and right of the view first, so what is painted stays a rectangle
+  // (the view's rows across the whole tile) once both are done.
+  const strips=[[tile.x,f.t,f.l,f.b],[f.r,f.t,R,f.b],[tile.x,tile.y,R,f.t],[tile.x,f.b,R,B]].filter(q=>q[2]>q[0]&&q[3]>q[1]);
+  // (Each strip is grown clear of objects when it is painted: paintChartPending.)
+  paintedRectRef.current={left:f.l,top:f.t,right:f.r,bottom:f.b,scs:scs};
+  if(!strips.length){paintedRectRef.current={left:tile.x,top:tile.y,right:tile.x+tile.w,bottom:tile.y+tile.h,scs:scs};return;}
+  chartPendingRef.current={gen:chartPaintGenRef.current,tile:{x:tile.x,y:tile.y,w:tile.w,h:tile.h,scale:s},R:R,B:B,scs:scs,strips:strips,first:f,timer:0};
+  scheduleChartPending();
+}
+function dropChartPending(){
+  const p=chartPendingRef.current;
+  chartPendingRef.current=null;
+  if(p&&p.timer)cancelAnimationFrame(p.timer);
+}
+// One strip a frame, each after the frame before has been shown. Not while a
+// zoom is being previewed: its commit will paint afresh.
+function scheduleChartPending(){
+  const p=chartPendingRef.current;
+  if(!p||p.timer)return;
+  p.timer=requestAnimationFrame(()=>{p.timer=0;setTimeout(()=>{
+    if(chartPendingRef.current!==p)return;
+    if(zoomPreviewRef.current){scheduleChartPending();return;}
+    if(paintPendingRef.current)paintPendingRef.current(1);
+    scheduleChartPending();
+  },0);});
+}
+// Paint up to `n` of the strips still to come (all of them without n). False
+// when there were none, or they no longer belong to the tile on the canvas.
+function paintChartPending(n){
+  const p=chartPendingRef.current, canvas=stitchRef.current, t=chartTileRef.current;
+  if(!p)return false;
+  const s=p.tile.scale;
+  if(!canvas||!pat||!cmap||p.gen!==chartPaintGenRef.current||p.scs!==scs||!t||t.x!==p.tile.x||t.y!==p.tile.y||t.w!==p.tile.w||t.h!==p.tile.h||t.scale!==s
+     ||canvas.width!==Math.round(p.tile.w*s)||canvas.height!==Math.round(p.tile.h*s)){dropChartPending();return false;}
+  const ctx=canvas.getContext("2d");
+  for(let k=0;k<(n||Infinity)&&p.strips.length;k++){
+    const q=p.strips.shift(),g=objectSafeRect(p.tile,q[0],q[1],q[2],q[3]);
+    // Objects chained too far to settle: paint the rest of the tile, unclipped
+    // by any edge inside it, in this one go.
+    if(!g){paintTileRect(ctx,p.tile,s,p.tile.x,p.tile.y,p.R,p.B);p.strips.length=0;break;}
+    paintTileRect(ctx,p.tile,s,g.l,g.t,g.r,g.b);p.done=(p.done||0)+1;
+  }
+  const f=p.first,tl=p.tile;
+  if(!p.strips.length){
+    dropChartPending();
+    paintedRectRef.current={left:tl.x,top:tl.y,right:tl.x+tl.w,bottom:tl.y+tl.h,scs:scs};
+  }else if(p.done>=2){
+    paintedRectRef.current={left:tl.x,top:f.t,right:tl.x+tl.w,bottom:f.b,scs:scs};
+  }
+  return true;
+}
+paintPendingRef.current=paintChartPending;
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -6401,6 +6562,9 @@ const renderStitchIfScrolledOut=useCallback(()=>{
     const l=Math.max(cl,el.scrollLeft+off.x-CHART_PAN_LOOKAHEAD), t=Math.max(ct,el.scrollTop+off.y-CHART_PAN_LOOKAHEAD);
     const r=Math.min(cr,el.scrollLeft+off.x+el.clientWidth+CHART_PAN_LOOKAHEAD), b=Math.min(cb,el.scrollTop+off.y+el.clientHeight+CHART_PAN_LOOKAHEAD);
     if(l>=painted.left&&t>=painted.top&&r<=painted.right&&b<=painted.bottom)return;
+    // A zoom's settling paint has not finished the tile: finish it now, before
+    // this frame shows any of it, then check again.
+    if(chartPendingRef.current&&paintChartPending()){renderStitchIfScrolledOut();return;}
   }
   if(shiftChartTile())return;
   renderStitch();
@@ -6422,6 +6586,8 @@ function shiftChartTile(){
   const canvas=stitchRef.current, el=stitchScrollRef.current, prev=chartTileRef.current;
   if(!CHART_TILE_SHIFT||!canvas||!el||!pat||!cmap||!prev||!(prev.w>0)||prev.full)return false;
   if(chartPaintedByRef.current!==renderStitch)return false;
+  // Only a finished tile can be moved: finish a zoom's settling paint first.
+  if(chartPendingRef.current)paintChartPending();
   const tile=chartTileFor(el,scs,sW,sH,G,viewBoundsRef.current);
   if(tile.full||tile.w!==prev.w||tile.h!==prev.h)return false;
   const s=prev.scale>0?prev.scale:1;
@@ -6450,14 +6616,14 @@ function shiftChartTile(){
   for(const st of strips){
     const l=tile.x+st[0]/s, t=tile.y+st[1]/s, r=tile.x+st[2]/s, b=tile.y+st[3]/s;
     if(r<=l||b<=t)continue;
-    ctx.setTransform(s,0,0,s,-tile.x*s,-tile.y*s);
-    ctx.save();
-    ctx.beginPath();ctx.rect(l,t,r-l,b-t);ctx.clip();
-    // One cell further on every side, so outlines and markers that overhang
-    // into the strip from its neighbours are drawn too (see repaintChartCells).
-    const m=scs;
-    drawStitch(ctx,scs,{left:l-m,top:t-m,right:r+m,bottom:b+m,width:r-l+2*m,height:b-t+2*m,overdraw:0});
-    ctx.restore();
+    // Grown to stitch boundaries and clear of every object its edge would cut
+    // (objectSafeRect), so the strip matches a full paint exactly: an edge
+    // through a symbol, bead, knot or long stitch used to leave a seam a few
+    // levels off along it. Growing repaints a little of the kept part, with
+    // the same pixels. Objects chained too far to settle: the whole tile.
+    const g=objectSafeRect(tile,l,t,r,b);
+    if(!g){paintTileRect(ctx,tile,s,tile.x,tile.y,tile.x+W/s,tile.y+H/s);break;}
+    paintTileRect(ctx,tile,s,g.l,g.t,g.r,g.b);
   }
   paintedRectRef.current={left:tile.x,top:tile.y,right:tile.x+tile.w,bottom:tile.y+tile.h,scs:scs};
   shiftChartOverlays(prev,tile);
@@ -7221,7 +7387,7 @@ function setHalfHistoryState(idx,dir,on){
   hd[dir] = on ? 1 : 0;
   if (!hd.fwd && !hd.bck) newHd.delete(idx);
   else newHd.set(idx, hd);
-  applyHalfDoneDelta(idx,dir,(halfDoneRef.current.get(idx)||{})[dir],on,halfStitches);
+  applyHalfDoneDelta(idx,dir,(halfDoneRef.current.get(idx)||{})[dir],on,halfStitches,halfDoneRef.current,newHd);
   setHalfDone(newHd);
   renderStitch();
 }
@@ -7729,9 +7895,17 @@ function beginZoomPreview(mx,my){
   const lr=layer.getBoundingClientRect(), cr=canvas.getBoundingClientRect(), sr=el.getBoundingClientRect();
   if(!(lr.width>0)||!(cr.width>0))return null;
   const vl=sr.left+el.clientLeft, vt=sr.top+el.clientTop;
+  // What the preview can scale: the canvas, or while a zoom's settling paint
+  // is still filling in the tile, only the part painted so far.
+  let cv={l:cr.left-lr.left,t:cr.top-lr.top,r:cr.right-lr.left,b:cr.bottom-lr.top};
+  const pend=chartPendingRef.current, pr=paintedRectRef.current, ct=chartTileRef.current;
+  if(pend&&pr&&ct&&ct.w>0){
+    const kx=(cr.right-cr.left)/ct.w, ky=(cr.bottom-cr.top)/ct.h;
+    cv={l:cv.l+(pr.left-ct.x)*kx,t:cv.t+(pr.top-ct.y)*ky,r:cv.l+(pr.right-ct.x)*kx,b:cv.t+(pr.bottom-ct.y)*ky};
+  }
   const p={z0:stitchZoomRef.current,z:stitchZoomRef.current,k:1,tx:0,ty:0,
     ox:lr.left,oy:lr.top,ax:mx-lr.left,ay:my-lr.top,mx:mx,my:my,
-    canvas:{l:cr.left-lr.left,t:cr.top-lr.top,r:cr.right-lr.left,b:cr.bottom-lr.top},
+    canvas:cv,
     layerW:lr.width,layerH:lr.height,
     // The part of the scroller the chart shows through: the rulers cover G
     // along the top and left.
@@ -7770,13 +7944,20 @@ function reanchorZoomPreview(mx,my){
 // chart appears at its new size. The stitch under the anchor point stays under
 // it, worked out in cells, so the commit lands exactly where the preview
 // showed, give or take the rounding of the cell size to a whole pixel.
-function commitZoomPreview(){
+// `rebase`: the gesture goes on, previewing from the committed zoom.
+function commitZoomPreview(rebase){
   clearTimeout(wheelCommitTimerRef.current);
   const p=zoomPreviewRef.current, layer=chartLayerRef.current, el=stitchScrollRef.current;
   zoomPreviewRef.current=null;
   if(!p)return;
   const clear=()=>{if(layer){layer.style.transform="";layer.style.willChange="";}};
   if(!layer||!el||!sW){clear();return;}
+  // The paint this zoom causes draws the view first and the rest of the tile
+  // after (paintZoomFirst), unless the gesture goes on (a rebase): the preview
+  // that follows scales the whole tile, and a view-only paint made a pinch
+  // that reverses rebase again sooner (reports/track-zoom-settle.md). Taken by
+  // that paint, and cleared below if nothing painted.
+  zoomPaintHintRef.current={rebase:!!rebase};
   // The layer is sW cells plus 2 px wide at the committed cell size.
   // The anchor stays in screen coordinates: the new zoom can move or resize
   // the chart box (a notice above it coming or going), so its position is
@@ -7800,6 +7981,7 @@ function commitZoomPreview(){
   // Paint what the new scroll position uncovered now, not on the scroll
   // event a frame later, so no blank edge shows.
   if(scrollRepaintRef.current)scrollRepaintRef.current();
+  zoomPaintHintRef.current=null;
 }
 // A pointer position as it would be without the zoom preview's scale, for
 // hit-testing against the chart's cell size while a preview is showing:
@@ -7867,7 +8049,7 @@ function handleStitchWheel(e){
       reanchorZoomPreview(e.clientX,e.clientY);
       const oldZoom=p.z;
       const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,oldZoom+delta));
-      if(!updateZoomPreview(newZoom,e.clientX,e.clientY)){commitZoomPreview();}
+      if(!updateZoomPreview(newZoom,e.clientX,e.clientY)){commitZoomPreview(true);}
       else{clearTimeout(wheelCommitTimerRef.current);wheelCommitTimerRef.current=setTimeout(commitZoomPreview,ZOOM_PREVIEW_WHEEL_IDLE_MS);}
       return;
     }
@@ -8039,7 +8221,7 @@ function handleTouchMove(e){
       if(!updateZoomPreview(newZoom,cmx,cmy)){
         // The scaled tile no longer covers the view (or is too stretched):
         // commit and carry on previewing from the committed zoom.
-        commitZoomPreview();
+        commitZoomPreview(true);
         ts.pinchZoom=stitchZoomRef.current;ts.pinchDist=dist;
         const r2=container.getBoundingClientRect();
         ts.pinchAnchor={x:(container.scrollLeft+cmx-r2.left)/ts.pinchZoom,y:(container.scrollTop+cmy-r2.top)/ts.pinchZoom};
@@ -8738,7 +8920,7 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   skipNextFullRedrawRef.current=nd;
   commitMarkState(function(){
     pushBulkToggleHistory(changes,source,asCatchUp&&want===1);
-    applyDoneCountsDelta(changes,pat,nd);
+    applyDoneCountsDelta(changes,pat,nd,cur);
     setDone(nd);
     _pulseCells(changes.map(function(c){return c.idx;}));
     if(source==='range')_setRectSelectUsed(true);
@@ -8778,7 +8960,7 @@ const _dragMarkOnToggle=useCallback(function(idx){
   skipNextFullRedrawRef.current=nd;
   commitMarkState(function(){
     pushTrackHistory([{idx:idx,oldVal:oldVal}]);
-    applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd);
+    applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd,cur);
     setDone(nd);
   });
 },[pat,focusColour,isColourLocked,fullStitchMatchesFocus,pushTrackHistory,applyDoneCountsDelta,renderStitch,recordAutoActivity,halfStitchCounts,layerVis.full]);
@@ -9072,7 +9254,7 @@ function applyUnpickPlan(p,undo){
     const nd=new Uint8Array(doneRef.current);
     const changes=p.full.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
     p.full.forEach(c=>{nd[c.idx]=undo?c.oldVal:0;});
-    applyDoneCountsDelta(changes,pat,nd);
+    applyDoneCountsDelta(changes,pat,nd,doneRef.current);
     doneRef.current=nd;
     paintDoneChangesRef.current(p.full.map(c=>({idx:c.idx})),nd);
     skipNextFullRedrawRef.current=nd;
@@ -9080,7 +9262,7 @@ function applyUnpickPlan(p,undo){
   }
   if(p.half.length){
     const next=window.Unpick.nextHalfDone(halfDoneRef.current,p,undo);
-    for(const c of p.half)for(const dir of ["fwd","bck"])applyHalfDoneDelta(c.idx,dir,(halfDoneRef.current.get(c.idx)||{})[dir],(next.get(c.idx)||{})[dir],halfStitches);
+    for(const c of p.half)for(const dir of ["fwd","bck"])applyHalfDoneDelta(c.idx,dir,(halfDoneRef.current.get(c.idx)||{})[dir],(next.get(c.idx)||{})[dir],halfStitches,halfDoneRef.current,next);
     setHalfDone(next);
   }
   if(p.specialty&&p.specialty.length){

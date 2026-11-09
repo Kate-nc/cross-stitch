@@ -9,7 +9,10 @@
    Counted per zoom step, from an init script installed before any app code:
 
      paints        full chart paints: drawStitch's opening whole-chart fill on
-                   the chart canvas (z-index 2) with no clip active. Strips
+                   the chart canvas (z-index 2) with no clip active, or a
+                   zoom's settling paint (the view first, clipped, right after
+                   the whole canvas is cleared; reports/track-zoom-settle.md).
+                   Strips (after a tile move, or finishing a settling paint)
                    and one-stitch repaints run under a clip and are not
                    counted here.
      for each paint, the cell size it was drawn at (the chart layer's width
@@ -39,6 +42,11 @@ async function installZoomTierProbes(page) {
     const depth = new WeakMap();
     const stack = (c) => { let s = depth.get(c); if (!s) { s = [false]; depth.set(c, s); } return s; };
     const oSave = P.save, oRestore = P.restore, oClip = P.clip, oFill = P.fillRect, oText = P.fillText, oStroke = P.stroke;
+    const cleared = new WeakSet(), oClear = P.clearRect;
+    P.clearRect = function (x, y, w, h) {
+      if (x === 0 && y === 0 && w >= this.canvas.width && h >= this.canvas.height && this.canvas.style.zIndex === '2') cleared.add(this);
+      return oClear.apply(this, arguments);
+    };
     P.save = function () { const s = stack(this); s.push(s[s.length - 1]); return oSave.apply(this, arguments); };
     P.restore = function () { const s = stack(this); if (s.length > 1) s.pop(); return oRestore.apply(this, arguments); };
     P.clip = function () { const s = stack(this); s[s.length - 1] = true; return oClip.apply(this, arguments); };
@@ -54,7 +62,9 @@ async function installZoomTierProbes(page) {
       // cell size), which is bigger than anything else drawn at 0,0.
       if (x === 0 && y === 0 && w > 300 && h > 300 && isChart(this)) {
         const s = stack(this);
-        if (!s[s.length - 1]) {
+        const settle = cleared.has(this);
+        cleared.delete(this);
+        if (!s[s.length - 1] || settle) {
           Z.cur = { t: performance.now(), cSz: cellSize(), text: 0, alphas: {}, strokes: 0 };
           Z.paints.push(Z.cur);
         } else Z.cur = null;
