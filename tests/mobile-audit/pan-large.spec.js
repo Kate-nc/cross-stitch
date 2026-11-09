@@ -152,7 +152,10 @@ test('a pinch previews with a transform and keeps the stitch under the fingers',
   // Before: each cell-size step (about 28 here) re-rendered TrackerApp and
   // repainted the whole tile. Now: a repaint per rebase (at 1.6x) and one at
   // the end, and a render for each.
-  expect(p.paints, `${p.paints} chart paints during one pinch`).toBeLessThanOrEqual(6);
+  // Each commit paints the view first (settles); the last one's tile is then
+  // finished in at most four strips (reports/track-zoom-settle.md).
+  expect(p.settles, `${p.settles} settling chart paints during one pinch`).toBeLessThanOrEqual(6);
+  expect(p.paints - p.settles, `${p.paints - p.settles} strips`).toBeLessThanOrEqual(4);
   await cdp.detach().catch(() => {});
 });
 

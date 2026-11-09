@@ -104,8 +104,11 @@ test('Ctrl + wheel zoom previews, then commits once, keeping the point under the
   expect(Math.abs(after.cx - before.cx)).toBeLessThan(1);
   expect(Math.abs(after.cy - before.cy)).toBeLessThan(1);
   // Before: every one of the 25 events re-rendered and, as the cell size
-  // grew, repainted the tile. Now: a commit per 1.6x rebase and one at the end.
-  expect(p.paints, `${p.paints} chart paints for 25 wheel events`).toBeLessThanOrEqual(6);
+  // grew, repainted the tile. Now: a commit per 1.6x rebase and one at the end,
+  // each painting the view first (settles); the last one's tile is then
+  // finished in at most four strips (reports/track-zoom-settle.md).
+  expect(p.settles, `${p.settles} settling chart paints for 25 wheel events`).toBeLessThanOrEqual(6);
+  expect(p.paints - p.settles, `${p.paints - p.settles} strips`).toBeLessThanOrEqual(4);
   await cdp.detach().catch(() => {});
 });
 

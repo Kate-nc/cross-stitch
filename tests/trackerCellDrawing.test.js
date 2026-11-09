@@ -111,7 +111,11 @@ describe('drawStitch', () => {
     expect(drawStitch).not.toMatch(/fillText\(info\.symbol/);
     expect(drawStitch.match(/drawGlyph\(info\.symbol,/g).length).toBe(7);
     // Callers draw inside save/restore, which puts the font back: it must be set every time.
-    expect(drawStitch).toMatch(/function drawGlyph\(sym,font,ink,cx,cy\)\{\n    ctx\.fillStyle=ink;ctx\.font=font;ctx\.fillText\(sym,cx,cy\);\n  \}/);
+    // (The first branch only runs under the perf harness's phase timer, reports/track-zoom-settle.md.)
+    const glyph = drawStitch.slice(drawStitch.indexOf('function drawGlyph(sym,font,ink,cx,cy){'));
+    const body = glyph.slice(0, glyph.indexOf('\n  }\n') + 4);
+    expect(body.match(/ctx\.fillStyle=ink;ctx\.font=font;ctx\.fillText\(sym,cx,cy\);/g).length).toBe(2);
+    expect(body).toMatch(/if\(ppCur\)\{[^\n]*return;\}\n    ctx\.fillStyle=ink;ctx\.font=font;ctx\.fillText\(sym,cx,cy\);\n  \}/);
   });
 });
 

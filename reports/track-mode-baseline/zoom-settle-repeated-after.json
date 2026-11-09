@@ -1,0 +1,1711 @@
+{
+ "kind": "zoom-settle",
+ "startedAt": "2026-11-09T19:45:26.991Z",
+ "build": {
+  "commit": "08c78b4fa3d6e02974eacc43cc7b4cbc004c64c5",
+  "dirtyFiles": 26
+ },
+ "environment": {
+  "browser": "Chromium 153.0.8010.12 (headless, software raster)",
+  "host": "Linux 6.18.44-fc-v310, 4 x Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "caveat": "Emulated. Canvases raster on the CPU; the phone profile throttles script 4x but not raster. Not a physical-device measurement."
+ },
+ "cases": {
+  "phone-full-30": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 10.2,
+    "cellLoop": 15.1,
+    "glyphMs": 0,
+    "outlines": 1.3,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 30.2,
+    "rasterMs": 186.2,
+    "symbolsDrawn": 0,
+    "cells": 32039,
+    "tier": 2,
+    "canvasPx": 4568676,
+    "tileCss": [
+     959,
+     1191
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 58,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 150,
+    "loafMs": 111,
+    "rows": [
+     {
+      "commitTaskMs": 60,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 121
+     },
+     {
+      "commitTaskMs": 58,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 116
+     },
+     {
+      "commitTaskMs": 55,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 102
+     },
+     {
+      "commitTaskMs": 55,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 111
+     },
+     {
+      "commitTaskMs": 59,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 125
+     },
+     {
+      "commitTaskMs": 135,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 61
+     },
+     {
+      "commitTaskMs": 67,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 117
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 86
+     },
+     {
+      "commitTaskMs": 50,
+      "commitFrameMs": 17,
+      "laterTaskMs": 192,
+      "worstFrameMs": 200,
+      "loafMs": 95
+     },
+     {
+      "commitTaskMs": 54,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 103
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 22
+  },
+  "phone-full-100": {
+   "phases": {
+    "setup": 0.6,
+    "backgrounds": 1.7,
+    "cellLoop": 18,
+    "glyphMs": 12.8,
+    "outlines": 0.1,
+    "texture": 0,
+    "gridLines": 0.2,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 21.6,
+    "rasterMs": 84.5,
+    "symbolsDrawn": 2989,
+    "cells": 2989,
+    "tier": 3,
+    "canvasPx": 4568676,
+    "tileCss": [
+     959,
+     1191
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 64,
+    "commitFrameMs": 17,
+    "laterTaskMs": 87,
+    "worstFrameMs": 117,
+    "loafMs": 127,
+    "rows": [
+     {
+      "commitTaskMs": 58,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 114
+     },
+     {
+      "commitTaskMs": 67,
+      "commitFrameMs": 17,
+      "laterTaskMs": 91,
+      "worstFrameMs": 133,
+      "loafMs": 127
+     },
+     {
+      "commitTaskMs": 70,
+      "commitFrameMs": 17,
+      "laterTaskMs": 107,
+      "worstFrameMs": 150,
+      "loafMs": 137
+     },
+     {
+      "commitTaskMs": 76,
+      "commitFrameMs": 17,
+      "laterTaskMs": 97,
+      "worstFrameMs": 150,
+      "loafMs": 140
+     },
+     {
+      "commitTaskMs": 57,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 111
+     },
+     {
+      "commitTaskMs": 73,
+      "commitFrameMs": 17,
+      "laterTaskMs": 124,
+      "worstFrameMs": 167,
+      "loafMs": 167
+     },
+     {
+      "commitTaskMs": 60,
+      "commitFrameMs": 17,
+      "laterTaskMs": 69,
+      "worstFrameMs": 100,
+      "loafMs": 105
+     },
+     {
+      "commitTaskMs": 61,
+      "commitFrameMs": 17,
+      "laterTaskMs": 87,
+      "worstFrameMs": 117,
+      "loafMs": 306
+     },
+     {
+      "commitTaskMs": 64,
+      "commitFrameMs": 17,
+      "laterTaskMs": 76,
+      "worstFrameMs": 117,
+      "loafMs": 111
+     },
+     {
+      "commitTaskMs": 57,
+      "commitFrameMs": 17,
+      "laterTaskMs": 71,
+      "worstFrameMs": 100,
+      "loafMs": 102
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 22
+  },
+  "phone-mixed-30": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 6.7,
+    "cellLoop": 20.6,
+    "glyphMs": 0,
+    "outlines": 1,
+    "texture": 0,
+    "gridLines": 0,
+    "specialty": 21.5,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 50.8,
+    "rasterMs": 144.7,
+    "symbolsDrawn": 0,
+    "cells": 30429,
+    "tier": 2,
+    "canvasPx": 4334680,
+    "tileCss": [
+     959,
+     1130
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 74,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 167,
+    "loafMs": 149,
+    "rows": [
+     {
+      "commitTaskMs": 74,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 136
+     },
+     {
+      "commitTaskMs": 85,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 183,
+      "loafMs": 174
+     },
+     {
+      "commitTaskMs": 57,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 123
+     },
+     {
+      "commitTaskMs": 73,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 279
+     },
+     {
+      "commitTaskMs": 62,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 130
+     },
+     {
+      "commitTaskMs": 75,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 167,
+      "loafMs": 149
+     },
+     {
+      "commitTaskMs": 99,
+      "commitFrameMs": 17,
+      "laterTaskMs": 99,
+      "worstFrameMs": 183,
+      "loafMs": 171
+     },
+     {
+      "commitTaskMs": 73,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 167,
+      "loafMs": 148
+     },
+     {
+      "commitTaskMs": 61,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 128
+     },
+     {
+      "commitTaskMs": 167,
+      "commitFrameMs": 50,
+      "laterTaskMs": 77,
+      "worstFrameMs": 217,
+      "loafMs": 157
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 20.8
+  },
+  "phone-mixed-100": {
+   "phases": {
+    "setup": 0.5,
+    "backgrounds": 1,
+    "cellLoop": 16.7,
+    "glyphMs": 10.6,
+    "outlines": 0.2,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 4.6,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 24.4,
+    "rasterMs": 72.1,
+    "symbolsDrawn": 2842,
+    "cells": 2842,
+    "tier": 3,
+    "canvasPx": 4334680,
+    "tileCss": [
+     959,
+     1130
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 74,
+    "commitFrameMs": 17,
+    "laterTaskMs": 83,
+    "worstFrameMs": 133,
+    "loafMs": 131,
+    "rows": [
+     {
+      "commitTaskMs": 108,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 183,
+      "loafMs": 173
+     },
+     {
+      "commitTaskMs": 74,
+      "commitFrameMs": 17,
+      "laterTaskMs": 83,
+      "worstFrameMs": 133,
+      "loafMs": 131
+     },
+     {
+      "commitTaskMs": 74,
+      "commitFrameMs": 17,
+      "laterTaskMs": 88,
+      "worstFrameMs": 133,
+      "loafMs": 135
+     },
+     {
+      "commitTaskMs": 86,
+      "commitFrameMs": 17,
+      "laterTaskMs": 88,
+      "worstFrameMs": 150,
+      "loafMs": 145
+     },
+     {
+      "commitTaskMs": 57,
+      "commitFrameMs": 17,
+      "laterTaskMs": 78,
+      "worstFrameMs": 117,
+      "loafMs": 110
+     },
+     {
+      "commitTaskMs": 59,
+      "commitFrameMs": 17,
+      "laterTaskMs": 76,
+      "worstFrameMs": 117,
+      "loafMs": 109
+     },
+     {
+      "commitTaskMs": 56,
+      "commitFrameMs": 17,
+      "laterTaskMs": 53,
+      "worstFrameMs": 133,
+      "loafMs": 122
+     },
+     {
+      "commitTaskMs": 84,
+      "commitFrameMs": 17,
+      "laterTaskMs": 89,
+      "worstFrameMs": 150,
+      "loafMs": 220
+     },
+     {
+      "commitTaskMs": 57,
+      "commitFrameMs": 17,
+      "laterTaskMs": 85,
+      "worstFrameMs": 117,
+      "loafMs": 114
+     },
+     {
+      "commitTaskMs": 52,
+      "commitFrameMs": 17,
+      "laterTaskMs": 53,
+      "worstFrameMs": 117,
+      "loafMs": 111
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 20.8
+  },
+  "phone-area-30": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 7.2,
+    "cellLoop": 6.8,
+    "glyphMs": 0,
+    "outlines": 0.9,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 16.2,
+    "rasterMs": 86.7,
+    "symbolsDrawn": 0,
+    "cells": 27300,
+    "tier": 2,
+    "canvasPx": 4135208,
+    "tileCss": [
+     959,
+     1078
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 56,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 100,
+    "loafMs": 139,
+    "rows": [
+     {
+      "commitTaskMs": 51,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 100,
+      "loafMs": 89
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 100,
+      "loafMs": 164
+     },
+     {
+      "commitTaskMs": 129,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 183,
+      "loafMs": 169
+     },
+     {
+      "commitTaskMs": 65,
+      "commitFrameMs": 17,
+      "laterTaskMs": 69,
+      "worstFrameMs": 83,
+      "loafMs": 155
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 100,
+      "loafMs": 86
+     },
+     {
+      "commitTaskMs": 75,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 100,
+      "loafMs": 151
+     },
+     {
+      "commitTaskMs": 56,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 117,
+      "loafMs": 97
+     },
+     {
+      "commitTaskMs": 56,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 67,
+      "loafMs": 69
+     },
+     {
+      "commitTaskMs": 51,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 83,
+      "loafMs": 69
+     },
+     {
+      "commitTaskMs": 73,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 83,
+      "loafMs": 139
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 19.9
+  },
+  "phone-area-100": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 1.6,
+    "cellLoop": 17.4,
+    "glyphMs": 12.7,
+    "outlines": 0.9,
+    "texture": 0,
+    "gridLines": 0.2,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 27.8,
+    "rasterMs": 68.5,
+    "symbolsDrawn": 2695,
+    "cells": 2695,
+    "tier": 3,
+    "canvasPx": 4135208,
+    "tileCss": [
+     959,
+     1078
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 62,
+    "commitFrameMs": 17,
+    "laterTaskMs": 65,
+    "worstFrameMs": 100,
+    "loafMs": 96,
+    "rows": [
+     {
+      "commitTaskMs": 56,
+      "commitFrameMs": 17,
+      "laterTaskMs": 68,
+      "worstFrameMs": 100,
+      "loafMs": 101
+     },
+     {
+      "commitTaskMs": 51,
+      "commitFrameMs": 17,
+      "laterTaskMs": 75,
+      "worstFrameMs": 100,
+      "loafMs": 96
+     },
+     {
+      "commitTaskMs": 82,
+      "commitFrameMs": 17,
+      "laterTaskMs": 68,
+      "worstFrameMs": 133,
+      "loafMs": 126
+     },
+     {
+      "commitTaskMs": 72,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 100,
+      "loafMs": 96
+     },
+     {
+      "commitTaskMs": 62,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 83,
+      "loafMs": 87
+     },
+     {
+      "commitTaskMs": 59,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 67,
+      "loafMs": 77
+     },
+     {
+      "commitTaskMs": 63,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 83,
+      "loafMs": 82
+     },
+     {
+      "commitTaskMs": 51,
+      "commitFrameMs": 17,
+      "laterTaskMs": 71,
+      "worstFrameMs": 100,
+      "loafMs": 98
+     },
+     {
+      "commitTaskMs": 60,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 67,
+      "loafMs": 71
+     },
+     {
+      "commitTaskMs": 62,
+      "commitFrameMs": 17,
+      "laterTaskMs": 65,
+      "worstFrameMs": 100,
+      "loafMs": 101
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 19.9
+  },
+  "phone-overlays-30": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 4.2,
+    "cellLoop": 7.8,
+    "glyphMs": 0,
+    "outlines": 1,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0.1,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 17.9,
+    "rasterMs": 102.1,
+    "symbolsDrawn": 0,
+    "cells": 29785,
+    "tier": 2,
+    "canvasPx": 4231108,
+    "tileCss": [
+     959,
+     1103
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 70,
+    "commitFrameMs": 33,
+    "laterTaskMs": 0,
+    "worstFrameMs": 167,
+    "loafMs": 136,
+    "rows": [
+     {
+      "commitTaskMs": 100,
+      "commitFrameMs": 33,
+      "laterTaskMs": 52,
+      "worstFrameMs": 200,
+      "loafMs": 161
+     },
+     {
+      "commitTaskMs": 101,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 217,
+      "loafMs": 204
+     },
+     {
+      "commitTaskMs": 85,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 167,
+      "loafMs": 139
+     },
+     {
+      "commitTaskMs": 65,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 167,
+      "loafMs": 136
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 99
+     },
+     {
+      "commitTaskMs": 66,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 238
+     },
+     {
+      "commitTaskMs": 70,
+      "commitFrameMs": 17,
+      "laterTaskMs": 61,
+      "worstFrameMs": 150,
+      "loafMs": 126
+     },
+     {
+      "commitTaskMs": 65,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 133,
+      "loafMs": 126
+     },
+     {
+      "commitTaskMs": 68,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 150,
+      "loafMs": 132
+     },
+     {
+      "commitTaskMs": 74,
+      "commitFrameMs": 33,
+      "laterTaskMs": 0,
+      "worstFrameMs": 167,
+      "loafMs": 136
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 28.4
+  },
+  "phone-overlays-100": {
+   "phases": {
+    "setup": 0.7,
+    "backgrounds": 0.9,
+    "cellLoop": 27.9,
+    "glyphMs": 16.8,
+    "outlines": 0.2,
+    "texture": 0,
+    "gridLines": 0.3,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 31.6,
+    "rasterMs": 67.9,
+    "symbolsDrawn": 1904,
+    "cells": 2744,
+    "tier": 3,
+    "canvasPx": 4231108,
+    "tileCss": [
+     959,
+     1103
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 67,
+    "commitFrameMs": 17,
+    "laterTaskMs": 87,
+    "worstFrameMs": 133,
+    "loafMs": 120,
+    "rows": [
+     {
+      "commitTaskMs": 89,
+      "commitFrameMs": 17,
+      "laterTaskMs": 57,
+      "worstFrameMs": 183,
+      "loafMs": 149
+     },
+     {
+      "commitTaskMs": 74,
+      "commitFrameMs": 17,
+      "laterTaskMs": 92,
+      "worstFrameMs": 150,
+      "loafMs": 130
+     },
+     {
+      "commitTaskMs": 63,
+      "commitFrameMs": 17,
+      "laterTaskMs": 87,
+      "worstFrameMs": 133,
+      "loafMs": 115
+     },
+     {
+      "commitTaskMs": 63,
+      "commitFrameMs": 17,
+      "laterTaskMs": 102,
+      "worstFrameMs": 133,
+      "loafMs": 122
+     },
+     {
+      "commitTaskMs": 52,
+      "commitFrameMs": 17,
+      "laterTaskMs": 84,
+      "worstFrameMs": 117,
+      "loafMs": 99
+     },
+     {
+      "commitTaskMs": 62,
+      "commitFrameMs": 17,
+      "laterTaskMs": 113,
+      "worstFrameMs": 150,
+      "loafMs": 120
+     },
+     {
+      "commitTaskMs": 67,
+      "commitFrameMs": 17,
+      "laterTaskMs": 79,
+      "worstFrameMs": 117,
+      "loafMs": 112
+     },
+     {
+      "commitTaskMs": 66,
+      "commitFrameMs": 17,
+      "laterTaskMs": 87,
+      "worstFrameMs": 133,
+      "loafMs": 117
+     },
+     {
+      "commitTaskMs": 81,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 100,
+      "loafMs": 90
+     },
+     {
+      "commitTaskMs": 85,
+      "commitFrameMs": 17,
+      "laterTaskMs": 96,
+      "worstFrameMs": 150,
+      "loafMs": 140
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 28.4
+  },
+  "desktop-dpr1-full-30": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 4.4,
+    "cellLoop": 6.5,
+    "glyphMs": 0,
+    "outlines": 0.7,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 12.7,
+    "rasterMs": 10.8,
+    "symbolsDrawn": 0,
+    "cells": 56400,
+    "tier": 2,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 0,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 17,
+    "loafMs": 0,
+    "rows": [
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr1-full-100": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 0.3,
+    "cellLoop": 8.2,
+    "glyphMs": 6.8,
+    "outlines": 0,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 8.7,
+    "rasterMs": 9.7,
+    "symbolsDrawn": 5185,
+    "cells": 5185,
+    "tier": 3,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 0,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 17,
+    "loafMs": 0,
+    "rows": [
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr1-mixed-30": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 3.4,
+    "cellLoop": 15.7,
+    "glyphMs": 0,
+    "outlines": 0.4,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 7.9,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 26.9,
+    "rasterMs": 16.7,
+    "symbolsDrawn": 0,
+    "cells": 56400,
+    "tier": 2,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 0,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 33,
+    "loafMs": 0,
+    "rows": [
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 51
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr1-mixed-100": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 0.4,
+    "cellLoop": 8.2,
+    "glyphMs": 5.3,
+    "outlines": 0.1,
+    "texture": 0,
+    "gridLines": 0,
+    "specialty": 1.3,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 10,
+    "rasterMs": 10.7,
+    "symbolsDrawn": 5185,
+    "cells": 5185,
+    "tier": 3,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 0,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 17,
+    "loafMs": 0,
+    "rows": [
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr1-area-30": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 2.4,
+    "cellLoop": 6.8,
+    "glyphMs": 0,
+    "outlines": 0.7,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 10.1,
+    "rasterMs": 6.3,
+    "symbolsDrawn": 0,
+    "cells": 40170,
+    "tier": 2,
+    "canvasPx": 1516668,
+    "tileCss": [
+     1266,
+     1198
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 0,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 17,
+    "loafMs": 0,
+    "rows": [
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 11.7
+  },
+  "desktop-dpr1-area-100": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 0.4,
+    "cellLoop": 6.8,
+    "glyphMs": 5.6,
+    "outlines": 0.1,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 7.5,
+    "rasterMs": 6.4,
+    "symbolsDrawn": 5185,
+    "cells": 5185,
+    "tier": 3,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 0,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 17,
+    "loafMs": 0,
+    "rows": [
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr2-full-30": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 2.9,
+    "cellLoop": 3.3,
+    "glyphMs": 0,
+    "outlines": 0.4,
+    "texture": 0,
+    "gridLines": 0,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 7,
+    "rasterMs": 22,
+    "symbolsDrawn": 0,
+    "cells": 56400,
+    "tier": 2,
+    "canvasPx": 8079312,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 0,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 33,
+    "loafMs": 0,
+    "rows": [
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 17,
+      "loafMs": 0
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 38.7
+  },
+  "desktop-dpr2-full-100": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 0.4,
+    "cellLoop": 7,
+    "glyphMs": 5.6,
+    "outlines": 0.1,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 8,
+    "rasterMs": 18.8,
+    "symbolsDrawn": 5185,
+    "cells": 5185,
+    "tier": 3,
+    "canvasPx": 8079312,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "settle": {
+    "n": 10,
+    "commitTaskMs": 0,
+    "commitFrameMs": 17,
+    "laterTaskMs": 0,
+    "worstFrameMs": 33,
+    "loafMs": 0,
+    "rows": [
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 50,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 33,
+      "loafMs": 0
+     },
+     {
+      "commitTaskMs": 0,
+      "commitFrameMs": 17,
+      "laterTaskMs": 0,
+      "worstFrameMs": 50,
+      "loafMs": 57
+     }
+    ]
+   },
+   "gestures": [],
+   "canvasMb": 38.7
+  }
+ }
+}

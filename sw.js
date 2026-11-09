@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "9dba1134628f18e7a22254733ccd6518a518a9aaefc2159017bf70b6522c2142";
+var BUILD_ID = "40320cc221f582b4b8c83f0ed953c5a25d11d10030a2196b645d37d5b3acb02c";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -328,10 +328,10 @@ var BUILD_ASSETS = {
     "sha256": "68bc2b51c92b9d72b759e700400f2379cdd4bda9476537980b571f13e2e60af3"
   },
   "./version.js": {
-    "sha256": "b967e81c56e9a624f2275405df0aa08362c1f9f68c7196160dc60c715a59d362"
+    "sha256": "46ba2d7e36c8faa2383e0355972adfb8b5d70ea95b1714034844b79c1c8fcf7c"
   },
   "./changelog.js": {
-    "sha256": "0274c27b255e1054d54f03d288acf4d68d8ef3b00af20a9306af87cf707c338a"
+    "sha256": "efbbf3e19aecd03283d998e338ddbcc95f6820e5e6fa7ac46e4431e103a7416d"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -493,7 +493,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "d10eefc77dd13e302042ca353f2f143d6cce1a43ae2081dadeb2e623884ed9f7"
+    "sha256": "fd1f2dee7cdd6d3ede055ea5439343903a13dcf4d6404bcfc2e00675284b226e"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -535,7 +535,7 @@ var BUILD_ASSETS = {
     "sha256": "0c91b1a1fa79f1cce51417cbcbd9ba7ed3c6aac36975f6e42b0cf96b8d4b5458"
   },
   "./useStitchCounts.js": {
-    "sha256": "ab02c07c8bc06fc8e5af987302a452d2a95b76573e117a654bb21442aeae096f"
+    "sha256": "d6c9c71c9fac5d16a20f0b11a21a100abe31ac5bbb7ccc8b26b8ab687989db76"
   },
   "./useDragMark.js": {
     "sha256": "4e4781e38f51190003bd216c8371f63dbfc625ed37549ec261d227c7655c5bcc"
@@ -550,7 +550,7 @@ var BUILD_ASSETS = {
     "sha256": "ec0d75d18b7e68c191ac88d6fa151f83e30cbf9e163701fd122df8d46e81a7c1"
   },
   "./work-area.js": {
-    "sha256": "907f38a428eb2075c7d8bf5ebb4f66b825bd695348e879db3ab2e62f4eef02aa"
+    "sha256": "479bca24bfc0a6acb9c15620c8c3fec26857cdb59f9bcf7de496f406f9f0d9a9"
   },
   "./components/WorkAreaPicker.js": {
     "sha256": "6ba5482e6409defd5ac5ddd245291583252085177b6772174e7e1b2684a4132f"

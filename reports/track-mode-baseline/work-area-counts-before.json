@@ -1,0 +1,1053 @@
+{
+ "kind": "track-mode-baseline",
+ "startedAt": "2026-11-09T15:23:41.325Z",
+ "build": {
+  "appVersion": "1.0.243",
+  "commit": "08c78b4fa3d6e02974eacc43cc7b4cbc004c64c5",
+  "dirtyFiles": 2,
+  "swCache": "cross-stitch-cache-v71",
+  "swBuildId": "ddcc670cd8c32289a4a0012cd7c86c551716d3b7bec4666ced1237cd78ef59fa",
+  "served": "working tree via serve.js (not dist/); service workers blocked"
+ },
+ "environment": {
+  "browser": "Chromium 153.0.8010.12 (headless)",
+  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "host": "Linux 6.18.44-fc-v310, 4 x Intel(R) Xeon(R) Processor @ 2.10GHz, 16 GB",
+  "node": "v22.23.4",
+  "profiling": false,
+  "profiles": {
+   "phone": "Pixel 5 emulation (393 x 851, DPR 2.75, touch), 4x CPU throttle",
+   "desktop": "1440 x 900, DPR 1, no throttle"
+  },
+  "caveat": "Emulated. Canvases are drawn in software; CPU throttling scales script, not GPU or raster. Not a physical-device measurement."
+ },
+ "scenarios": {
+  "area-mark-huge-50-small": [
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "huge",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 40,
+    "interactions": {
+     "n": 12,
+     "p50": 72,
+     "p75": 80,
+     "p95": 96,
+     "max": 96,
+     "inputDelay": {
+      "n": 12,
+      "p50": 12,
+      "p75": 16,
+      "p95": 20,
+      "max": 20
+     },
+     "handler": {
+      "n": 12,
+      "p50": 5,
+      "p75": 6,
+      "p95": 20,
+      "max": 20
+     },
+     "presentation": {
+      "n": 12,
+      "p50": 51,
+      "p75": 62,
+      "p95": 68,
+      "max": 68
+     },
+     "samples": [
+      56,
+      96,
+      80,
+      72,
+      72,
+      48,
+      72,
+      72,
+      56,
+      64,
+      80,
+      88
+     ]
+    },
+    "longTasks": {
+     "n": 0,
+     "tbtMs": 0,
+     "longestMs": 0,
+     "top": []
+    },
+    "frames": {
+     "n": 902,
+     "over50": 1,
+     "over100": 1,
+     "worstMs": 117
+    },
+    "react": {
+     "commits": 85
+    },
+    "paints": {
+     "full": 0,
+     "partial": 9
+    },
+    "loaf": {
+     "count": 5,
+     "scriptMs": 214,
+     "forcedLayoutMs": 0,
+     "renderMs": 6,
+     "totalMs": 363,
+     "longest": [
+      {
+       "t": 29810,
+       "d": 138,
+       "blocking": 0,
+       "renderMs": 4,
+       "scripts": []
+      },
+      {
+       "t": 29479,
+       "d": 60,
+       "blocking": 0,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 32,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        },
+        {
+         "d": 17,
+         "invoker": "Worker.onmessage",
+         "type": "event-listener",
+         "fn": "",
+         "at": ""
+        },
+        {
+         "d": 8,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 24176,
+       "d": 58,
+       "blocking": 0,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 30,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        },
+        {
+         "d": 14,
+         "invoker": "Worker.onmessage",
+         "type": "event-listener",
+         "fn": "",
+         "at": ""
+        },
+        {
+         "d": 12,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 23145,
+       "d": 54,
+       "blocking": 0,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 39,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        },
+        {
+         "d": 13,
+         "invoker": "Worker.onmessage",
+         "type": "event-listener",
+         "fn": "",
+         "at": ""
+        }
+       ]
+      },
+      {
+       "t": 26296,
+       "d": 53,
+       "blocking": 0,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 30,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        },
+        {
+         "d": 13,
+         "invoker": "Worker.onmessage",
+         "type": "event-listener",
+         "fn": "",
+         "at": ""
+        },
+        {
+         "d": 6,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 59.3,
+     "byStore": {
+      "project_meta.get": {
+       "n": 21,
+       "ms": 3.2,
+       "maxMs": 1
+      },
+      "pendingImports.get": {
+       "n": 21,
+       "ms": 2.7,
+       "maxMs": 0.7
+      },
+      "pendingImports.put": {
+       "n": 21,
+       "ms": 47.9,
+       "maxMs": 7.7
+      },
+      "project_meta.put": {
+       "n": 9,
+       "ms": 3.1,
+       "maxMs": 1
+      }
+     },
+     "writeTx": 21,
+     "writeTxMs": {
+      "n": 21,
+      "p50": 6,
+      "p75": 26,
+      "p95": 29,
+      "max": 40
+     },
+     "writeTxByStore": {
+      "projects,project_meta,pendingImports": 12,
+      "pendingImports,projects,project_meta": 9
+     },
+     "localStorageWrites": 11,
+     "localStorageChars": 19150
+    },
+    "spans": {
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 12,
+      "syncMs": 8.6,
+      "maxSyncMs": 2,
+      "settleMs": 92.8,
+      "maxSettleMs": 18.9
+     },
+     "ProjectStorage.saveProgress": {
+      "n": 9,
+      "syncMs": 19,
+      "maxSyncMs": 6.2,
+      "settleMs": 272.1,
+      "maxSettleMs": 48.5
+     },
+     "TrackingSync.recordDelta": {
+      "n": 9,
+      "syncMs": 98.3,
+      "maxSyncMs": 18.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {
+     "analyse": {
+      "n": 9,
+      "ms": 4.8,
+      "maxMs": 1.2,
+      "rtt": {
+       "n": 9,
+       "p50": 9,
+       "p75": 10,
+       "p95": 15,
+       "max": 15
+      }
+     }
+    },
+    "taps": 12,
+    "windowMs": 15368,
+    "cpuProbeMs": 27,
+    "marked": 9,
+    "perTap": {
+     "commits": 7.08,
+     "fullPaints": 0,
+     "partialPaints": 0.75
+    },
+    "chartCopies": 0,
+    "heapBeforeMb": 248.4,
+    "heapAfterGcMb": 243.9,
+    "cpuProfile": null
+   }
+  ],
+  "area-mark-huge-50-whole": [
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "huge",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 37,
+    "interactions": {
+     "n": 12,
+     "p50": 72,
+     "p75": 80,
+     "p95": 128,
+     "max": 128,
+     "inputDelay": {
+      "n": 12,
+      "p50": 12,
+      "p75": 18,
+      "p95": 30,
+      "max": 30
+     },
+     "handler": {
+      "n": 12,
+      "p50": 5,
+      "p75": 5,
+      "p95": 24,
+      "max": 24
+     },
+     "presentation": {
+      "n": 12,
+      "p50": 57,
+      "p75": 59,
+      "p95": 86,
+      "max": 86
+     },
+     "samples": [
+      128,
+      80,
+      72,
+      72,
+      72,
+      48,
+      80,
+      72,
+      72,
+      72,
+      72,
+      80
+     ]
+    },
+    "longTasks": {
+     "n": 13,
+     "tbtMs": 343,
+     "longestMs": 147,
+     "top": [
+      147,
+      89,
+      86,
+      75,
+      75
+     ]
+    },
+    "frames": {
+     "n": 853,
+     "over50": 12,
+     "over100": 1,
+     "worstMs": 133
+    },
+    "react": {
+     "commits": 89
+    },
+    "paints": {
+     "full": 0,
+     "partial": 11
+    },
+    "loaf": {
+     "count": 20,
+     "scriptMs": 1328,
+     "forcedLayoutMs": 0,
+     "renderMs": 26,
+     "totalMs": 1496,
+     "longest": [
+      {
+       "t": 18909,
+       "d": 149,
+       "blocking": 99,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 148,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 26173,
+       "d": 116,
+       "blocking": 0,
+       "renderMs": 1,
+       "scripts": []
+      },
+      {
+       "t": 21040,
+       "d": 91,
+       "blocking": 40,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 89,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 19975,
+       "d": 88,
+       "blocking": 37,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 86,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 26372,
+       "d": 78,
+       "blocking": 26,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 75,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 29568,
+       "d": 76,
+       "blocking": 26,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 75,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 68.5,
+     "byStore": {
+      "project_meta.get": {
+       "n": 25,
+       "ms": 4.2,
+       "maxMs": 1.2
+      },
+      "pendingImports.get": {
+       "n": 25,
+       "ms": 4.9,
+       "maxMs": 3.5
+      },
+      "pendingImports.put": {
+       "n": 25,
+       "ms": 55.9,
+       "maxMs": 6.1
+      },
+      "project_meta.put": {
+       "n": 11,
+       "ms": 0.9,
+       "maxMs": 0.3
+      }
+     },
+     "writeTx": 25,
+     "writeTxMs": {
+      "n": 25,
+      "p50": 21,
+      "p75": 37,
+      "p95": 82,
+      "max": 118
+     },
+     "writeTxByStore": {
+      "projects,project_meta,pendingImports": 14,
+      "pendingImports,projects,project_meta": 11
+     },
+     "localStorageWrites": 13,
+     "localStorageChars": 27974
+    },
+    "spans": {
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 14,
+      "syncMs": 8.2,
+      "maxSyncMs": 2.4,
+      "settleMs": 344.4,
+      "maxSettleMs": 118.3
+     },
+     "ProjectStorage.saveProgress": {
+      "n": 11,
+      "syncMs": 23.3,
+      "maxSyncMs": 3.4,
+      "settleMs": 425.4,
+      "maxSettleMs": 84.7
+     },
+     "TrackingSync.recordDelta": {
+      "n": 11,
+      "syncMs": 108.6,
+      "maxSyncMs": 19.3,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {
+     "analyse": {
+      "n": 11,
+      "ms": 7.2,
+      "maxMs": 1.3,
+      "rtt": {
+       "n": 11,
+       "p50": 9,
+       "p75": 12,
+       "p95": 16,
+       "max": 16
+      }
+     }
+    },
+    "taps": 12,
+    "windowMs": 15379,
+    "cpuProbeMs": 20,
+    "marked": 11,
+    "perTap": {
+     "commits": 7.42,
+     "fullPaints": 0,
+     "partialPaints": 0.92
+    },
+    "chartCopies": 0,
+    "heapBeforeMb": 248.7,
+    "heapAfterGcMb": 244.7,
+    "cpuProfile": null
+   }
+  ],
+  "area-mark-large-mixed-50-whole": [
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "large",
+     "done": 0.5,
+     "mixed": true
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 31,
+    "interactions": {
+     "n": 12,
+     "p50": 72,
+     "p75": 168,
+     "p95": 1056,
+     "max": 1056,
+     "inputDelay": {
+      "n": 12,
+      "p50": 10,
+      "p75": 19,
+      "p95": 76,
+      "max": 76
+     },
+     "handler": {
+      "n": 12,
+      "p50": 11,
+      "p75": 17,
+      "p95": 751,
+      "max": 751
+     },
+     "presentation": {
+      "n": 12,
+      "p50": 56,
+      "p75": 114,
+      "p95": 301,
+      "max": 301
+     },
+     "samples": [
+      88,
+      72,
+      64,
+      72,
+      72,
+      48,
+      72,
+      1056,
+      128,
+      320,
+      168,
+      208
+     ]
+    },
+    "longTasks": {
+     "n": 26,
+     "tbtMs": 1563,
+     "longestMs": 752,
+     "top": [
+      752,
+      211,
+      187,
+      117,
+      116
+     ]
+    },
+    "frames": {
+     "n": 806,
+     "over50": 18,
+     "over100": 6,
+     "worstMs": 1017
+    },
+    "react": {
+     "commits": 80
+    },
+    "paints": {
+     "full": 2,
+     "partial": 9
+    },
+    "loaf": {
+     "count": 30,
+     "scriptMs": 2536,
+     "forcedLayoutMs": 484,
+     "renderMs": 82,
+     "totalMs": 3345,
+     "longest": [
+      {
+       "t": 19437,
+       "d": 998,
+       "blocking": 822,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 750,
+         "invoker": "DIV#root.onpointerup",
+         "type": "event-listener",
+         "fn": "Aj",
+         "at": "ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 22603,
+       "d": 279,
+       "blocking": 152,
+       "renderMs": 15,
+       "scripts": [
+        {
+         "d": 121,
+         "invoker": "DIV#root.onclick",
+         "type": "event-listener",
+         "fn": "Aj",
+         "at": "ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js:?"
+        },
+        {
+         "d": 10,
+         "invoker": "FrameRequestCallback",
+         "type": "user-callback",
+         "fn": "",
+         "at": "compiled/tracker-app.compiled.js:2054"
+        }
+       ]
+      },
+      {
+       "t": 22461,
+       "d": 125,
+       "blocking": 68,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 117,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        },
+        {
+         "d": 6,
+         "invoker": "Worker.onmessage",
+         "type": "event-listener",
+         "fn": "",
+         "at": ""
+        }
+       ]
+      },
+      {
+       "t": 12021,
+       "d": 120,
+       "blocking": 69,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 118,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 22907,
+       "d": 103,
+       "blocking": 51,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 99,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 22358,
+       "d": 102,
+       "blocking": 52,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 101,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 95.5,
+     "byStore": {
+      "project_meta.get": {
+       "n": 21,
+       "ms": 2.5,
+       "maxMs": 0.9
+      },
+      "pendingImports.get": {
+       "n": 21,
+       "ms": 2.6,
+       "maxMs": 0.8
+      },
+      "pendingImports.put": {
+       "n": 21,
+       "ms": 87.3,
+       "maxMs": 14.6
+      },
+      "project_meta.put": {
+       "n": 9,
+       "ms": 1.2,
+       "maxMs": 0.5
+      }
+     },
+     "writeTx": 21,
+     "writeTxMs": {
+      "n": 21,
+      "p50": 57,
+      "p75": 68,
+      "p95": 95,
+      "max": 589
+     },
+     "writeTxByStore": {
+      "projects,project_meta,pendingImports": 12,
+      "pendingImports,projects,project_meta": 9
+     },
+     "localStorageWrites": 12,
+     "localStorageChars": 19143
+    },
+    "spans": {
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 12,
+      "syncMs": 7.4,
+      "maxSyncMs": 1,
+      "settleMs": 310.2,
+      "maxSettleMs": 96.7
+     },
+     "ProjectStorage.saveProgress": {
+      "n": 9,
+      "syncMs": 9.1,
+      "maxSyncMs": 1.9,
+      "settleMs": 1146.7,
+      "maxSettleMs": 592.3
+     },
+     "TrackingSync.recordDelta": {
+      "n": 9,
+      "syncMs": 315.5,
+      "maxSyncMs": 53.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {
+     "analyse": {
+      "n": 9,
+      "ms": 3.3,
+      "maxMs": 0.8,
+      "rtt": {
+       "n": 9,
+       "p50": 12,
+       "p75": 102,
+       "p95": 168,
+       "max": 168
+      }
+     }
+    },
+    "taps": 12,
+    "windowMs": 16926,
+    "cpuProbeMs": 29,
+    "marked": 9,
+    "perTap": {
+     "commits": 6.67,
+     "fullPaints": 0.17,
+     "partialPaints": 0.75
+    },
+    "chartCopies": 0,
+    "heapBeforeMb": 120.2,
+    "heapAfterGcMb": 130.5,
+    "cpuProfile": null
+   }
+  ],
+  "area-mark-huge-50-whole-desktop": [
+   {
+    "profile": "desktop",
+    "fixture": {
+     "size": "huge",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 37,
+    "interactions": {
+     "n": 12,
+     "p50": 16,
+     "p75": 24,
+     "p95": 56,
+     "max": 56,
+     "inputDelay": {
+      "n": 12,
+      "p50": 2,
+      "p75": 2,
+      "p95": 12,
+      "max": 12
+     },
+     "handler": {
+      "n": 12,
+      "p50": 1,
+      "p75": 1,
+      "p95": 5,
+      "max": 5
+     },
+     "presentation": {
+      "n": 12,
+      "p50": 13,
+      "p75": 21,
+      "p95": 39,
+      "max": 39
+     },
+     "samples": [
+      56,
+      24,
+      16,
+      24,
+      16,
+      16,
+      16,
+      16,
+      24,
+      16,
+      24,
+      16
+     ]
+    },
+    "longTasks": {
+     "n": 1,
+     "tbtMs": 9,
+     "longestMs": 59,
+     "top": [
+      59
+     ]
+    },
+    "frames": {
+     "n": 874,
+     "over50": 0,
+     "over100": 0,
+     "worstMs": 50
+    },
+    "react": {
+     "commits": 77
+    },
+    "paints": {
+     "full": 0,
+     "partial": 12
+    },
+    "loaf": {
+     "count": 2,
+     "scriptMs": 59,
+     "forcedLayoutMs": 0,
+     "renderMs": 1,
+     "totalMs": 120,
+     "longest": [
+      {
+       "t": 32959,
+       "d": 60,
+       "blocking": 0,
+       "renderMs": 1,
+       "scripts": []
+      },
+      {
+       "t": 18866,
+       "d": 59,
+       "blocking": 9,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 59,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 18.4,
+     "byStore": {
+      "project_meta.get": {
+       "n": 27,
+       "ms": 0.9,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 27,
+       "ms": 1,
+       "maxMs": 0.1
+      },
+      "pendingImports.put": {
+       "n": 27,
+       "ms": 15.2,
+       "maxMs": 3.3
+      },
+      "project_meta.put": {
+       "n": 12,
+       "ms": 0.5,
+       "maxMs": 0.1
+      }
+     },
+     "writeTx": 27,
+     "writeTxMs": {
+      "n": 27,
+      "p50": 3,
+      "p75": 10,
+      "p95": 13,
+      "max": 18
+     },
+     "writeTxByStore": {
+      "projects,project_meta,pendingImports": 15,
+      "pendingImports,projects,project_meta": 12
+     },
+     "localStorageWrites": 13,
+     "localStorageChars": 33116
+    },
+    "spans": {
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 15,
+      "syncMs": 2.8,
+      "maxSyncMs": 0.5,
+      "settleMs": 50.9,
+      "maxSettleMs": 13
+     },
+     "ProjectStorage.saveProgress": {
+      "n": 12,
+      "syncMs": 4.2,
+      "maxSyncMs": 0.6,
+      "settleMs": 129.8,
+      "maxSettleMs": 18.8
+     },
+     "TrackingSync.recordDelta": {
+      "n": 12,
+      "syncMs": 29.1,
+      "maxSyncMs": 3.8,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {
+     "analyse": {
+      "n": 12,
+      "ms": 1.2,
+      "maxMs": 0.2,
+      "rtt": {
+       "n": 12,
+       "p50": 6,
+       "p75": 7,
+       "p95": 13,
+       "max": 13
+      }
+     }
+    },
+    "taps": 12,
+    "windowMs": 14618,
+    "cpuProbeMs": 8,
+    "marked": 12,
+    "perTap": {
+     "commits": 6.42,
+     "fullPaints": 0,
+     "partialPaints": 1
+    },
+    "chartCopies": 0,
+    "heapBeforeMb": 249.7,
+    "heapAfterGcMb": 245.3,
+    "cpuProfile": null
+   }
+  ]
+ }
+}
