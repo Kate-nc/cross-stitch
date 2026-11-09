@@ -241,7 +241,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 50,
-     "localStorageBytes": 1164
+     "localStorageChars": 1164
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -579,7 +579,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 50,
-     "localStorageBytes": 1164
+     "localStorageChars": 1164
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -926,7 +926,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1147
+     "localStorageChars": 1147
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -1257,7 +1257,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1147
+     "localStorageChars": 1147
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -1583,7 +1583,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 49,
-     "localStorageBytes": 1151
+     "localStorageChars": 1151
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -1907,7 +1907,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1147
+     "localStorageChars": 1147
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -2254,7 +2254,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1147
+     "localStorageChars": 1147
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -2599,7 +2599,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1147
+     "localStorageChars": 1147
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -2942,7 +2942,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1147
+     "localStorageChars": 1147
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -3283,7 +3283,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1147
+     "localStorageChars": 1147
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -3616,7 +3616,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1143
+     "localStorageChars": 1143
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -3947,7 +3947,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1143
+     "localStorageChars": 1143
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -4273,7 +4273,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1143
+     "localStorageChars": 1143
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -4604,7 +4604,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 50,
-     "localStorageBytes": 1160
+     "localStorageChars": 1160
     },
     "spans": {
      "ProjectStorage.listProjects": {

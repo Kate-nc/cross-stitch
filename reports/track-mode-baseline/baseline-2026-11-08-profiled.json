@@ -569,7 +569,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 39,
-     "localStorageBytes": 531
+     "localStorageChars": 531
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -1182,7 +1182,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 39,
-     "localStorageBytes": 531
+     "localStorageChars": 531
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -1798,7 +1798,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 39,
-     "localStorageBytes": 531
+     "localStorageChars": 531
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -2417,7 +2417,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1143
+     "localStorageChars": 1143
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -3082,7 +3082,7 @@
       "pendingImports,projects,project_meta": 11
      },
      "localStorageWrites": 13,
-     "localStorageBytes": 28079
+     "localStorageChars": 28079
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -3403,7 +3403,7 @@
       "pendingImports,projects,project_meta": 8
      },
      "localStorageWrites": 19,
-     "localStorageBytes": 33481
+     "localStorageChars": 33481
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -3982,7 +3982,7 @@
      },
      "writeTxByStore": {},
      "localStorageWrites": 11,
-     "localStorageBytes": 955
+     "localStorageChars": 955
     },
     "spans": {},
     "workers": {},
@@ -4220,7 +4220,7 @@
      },
      "writeTxByStore": {},
      "localStorageWrites": 5,
-     "localStorageBytes": 685
+     "localStorageChars": 685
     },
     "spans": {},
     "workers": {},
@@ -4742,7 +4742,7 @@
       "pendingImports": 1
      },
      "localStorageWrites": 10,
-     "localStorageBytes": 752
+     "localStorageChars": 752
     },
     "spans": {
      "SyncEngine.exportToFolder": {
@@ -5367,7 +5367,7 @@
       "pendingImports": 1
      },
      "localStorageWrites": 10,
-     "localStorageBytes": 754
+     "localStorageChars": 754
     },
     "spans": {
      "SyncEngine.exportToFolder": {

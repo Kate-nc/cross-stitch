@@ -197,7 +197,7 @@
       "manager_state": 1
      },
      "localStorageWrites": 18,
-     "localStorageBytes": 7394
+     "localStorageChars": 7394
     },
     "spans": {
      "ThreadAccounting.totals": {

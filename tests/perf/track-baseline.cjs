@@ -50,6 +50,7 @@ async function startServer() {
   for (let i = 0; i < 100; i++) {
     try { await fetch(`http://127.0.0.1:${port}/version.js`); return { port, proc }; } catch (_) { await sleep(100); }
   }
+  proc.kill();
   throw new Error('server did not start');
 }
 function git(args) { try { return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim(); } catch (_) { return null; } }

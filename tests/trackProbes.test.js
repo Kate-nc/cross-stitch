@@ -108,7 +108,7 @@ describe('storage', () => {
     const T = window.__tp;
     const l0 = T.ls.length;
     localStorage.setItem('cs_nav_proj_123', 'x'.repeat(40));
-    expect(T.ls.slice(l0)).toEqual([expect.objectContaining({ k: 'cs_nav_proj_*', bytes: 40 })]);
+    expect(T.ls.slice(l0)).toEqual([expect.objectContaining({ k: 'cs_nav_proj_*', chars: 40 })]);
   });
 });
 

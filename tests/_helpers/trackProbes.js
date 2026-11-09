@@ -128,7 +128,7 @@ function trackProbeInit() {
       L.setItem = function (k, v) {
         const t = now();
         try { return oSet.apply(this, arguments); }
-        finally { if (this === window.localStorage) T.ls.push({ k: String(k).replace(/_proj_\w+$/, '_proj_*'), t, ms: now() - t, bytes: String(v).length }); }
+        finally { if (this === window.localStorage) T.ls.push({ k: String(k).replace(/_proj_\w+$/, '_proj_*'), t, ms: now() - t, chars: String(v).length }); }
       };
     } catch (_) {}
 
@@ -299,7 +299,7 @@ function storageSummary(idb, tx, ls) {
     writeTxMs: dist(done.map((t) => t.done - t.t)),
     writeTxByStore: tx.reduce((o, t) => { o[t.stores] = (o[t.stores] || 0) + 1; return o; }, {}),
     localStorageWrites: ls.length,
-    localStorageBytes: sum(ls, (e) => e.bytes),
+    localStorageChars: sum(ls, (e) => e.chars),
   };
 }
 

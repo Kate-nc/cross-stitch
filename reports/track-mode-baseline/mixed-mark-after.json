@@ -231,7 +231,7 @@
       "pendingImports,projects,project_meta": 11
      },
      "localStorageWrites": 13,
-     "localStorageBytes": 28079
+     "localStorageChars": 28079
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -500,7 +500,7 @@
       "pendingImports,projects,project_meta": 11
      },
      "localStorageWrites": 13,
-     "localStorageBytes": 28079
+     "localStorageChars": 28079
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -755,7 +755,7 @@
       "pendingImports,projects,project_meta": 8
      },
      "localStorageWrites": 18,
-     "localStorageBytes": 28855
+     "localStorageChars": 28855
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -1016,7 +1016,7 @@
       "pendingImports,projects,project_meta": 8
      },
      "localStorageWrites": 18,
-     "localStorageBytes": 28855
+     "localStorageChars": 28855
     },
     "spans": {
      "ThreadAccounting.totals": {

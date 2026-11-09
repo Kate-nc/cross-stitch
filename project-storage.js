@@ -1129,8 +1129,10 @@ const ProjectStorage = (() => {
           // exactly the marks the project and its progress record already show adds
           // nothing: rewriting the whole project for it cost seconds on every open
           // of a large chart. It is still removed below. (Marks only, no sync
-          // registers, so neither check rebuilds them: a journal carries none.)
-          const quick = { skipTracking: true };
+          // registers, so neither check rebuilds them: a journal carries none.
+          // `typed` keeps the record's own done array rather than copying it:
+          // these results are only compared, never stored.)
+          const quick = { skipTracking: true, typed: true };
           if (applyProgressRecord(project, rec, undefined, quick) !== project
               && sameMarks(applyProgressRecord(project, r.result, undefined, quick), rec)) return;
           const view = applyProgressRecord(project, r.result);

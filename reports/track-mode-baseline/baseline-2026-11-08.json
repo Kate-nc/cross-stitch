@@ -254,7 +254,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 3
      },
      "localStorageWrites": 58,
-     "localStorageBytes": 1719
+     "localStorageChars": 1719
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -648,7 +648,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 39,
-     "localStorageBytes": 531
+     "localStorageChars": 531
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -947,7 +947,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 39,
-     "localStorageBytes": 531
+     "localStorageChars": 531
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -1192,7 +1192,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 39,
-     "localStorageBytes": 531
+     "localStorageChars": 531
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -1492,7 +1492,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 39,
-     "localStorageBytes": 531
+     "localStorageChars": 531
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -1798,7 +1798,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 39,
-     "localStorageBytes": 531
+     "localStorageChars": 531
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -2107,7 +2107,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 40,
-     "localStorageBytes": 555
+     "localStorageChars": 555
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -2418,7 +2418,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 2
      },
      "localStorageWrites": 48,
-     "localStorageBytes": 1143
+     "localStorageChars": 1143
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -2731,7 +2731,7 @@
       "manager_state": 2
      },
      "localStorageWrites": 22,
-     "localStorageBytes": 33521
+     "localStorageChars": 33521
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -2967,7 +2967,7 @@
       "pendingImports,projects,project_meta": 12
      },
      "localStorageWrites": 14,
-     "localStorageBytes": 33036
+     "localStorageChars": 33036
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -3139,7 +3139,7 @@
       "pendingImports,projects,project_meta": 12
      },
      "localStorageWrites": 14,
-     "localStorageBytes": 33288
+     "localStorageChars": 33288
     },
     "spans": {
      "ProjectStorage.saveSessionCheckpoint": {
@@ -3355,7 +3355,7 @@
       "pendingImports,projects,project_meta": 12
      },
      "localStorageWrites": 14,
-     "localStorageBytes": 32996
+     "localStorageChars": 32996
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -3617,7 +3617,7 @@
       "pendingImports,projects,project_meta": 12
      },
      "localStorageWrites": 14,
-     "localStorageBytes": 33248
+     "localStorageChars": 33248
     },
     "spans": {
      "ProjectStorage.saveSessionCheckpoint": {
@@ -3908,7 +3908,7 @@
       "pendingImports,projects,project_meta": 11
      },
      "localStorageWrites": 13,
-     "localStorageBytes": 28079
+     "localStorageChars": 28079
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -4175,7 +4175,7 @@
       "pendingImports,projects,project_meta": 12
      },
      "localStorageWrites": 14,
-     "localStorageBytes": 33036
+     "localStorageChars": 33036
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -4350,7 +4350,7 @@
       "pendingImports,projects,project_meta": 12
      },
      "localStorageWrites": 14,
-     "localStorageBytes": 33036
+     "localStorageChars": 33036
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -4540,7 +4540,7 @@
       "pendingImports,projects,project_meta": 12
      },
      "localStorageWrites": 14,
-     "localStorageBytes": 33184
+     "localStorageChars": 33184
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -4759,7 +4759,7 @@
       "pendingImports,projects,project_meta": 12
      },
      "localStorageWrites": 14,
-     "localStorageBytes": 33186
+     "localStorageChars": 33186
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -4931,7 +4931,7 @@
       "pendingImports,projects,project_meta": 12
      },
      "localStorageWrites": 13,
-     "localStorageBytes": 33116
+     "localStorageChars": 33116
     },
     "spans": {
      "ProjectStorage.saveSessionCheckpoint": {
@@ -5141,7 +5141,7 @@
       "pendingImports,projects,project_meta": 10
      },
      "localStorageWrites": 22,
-     "localStorageBytes": 88855
+     "localStorageChars": 88855
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -5331,7 +5331,7 @@
       "pendingImports,projects,project_meta": 10
      },
      "localStorageWrites": 22,
-     "localStorageBytes": 89586
+     "localStorageChars": 89586
     },
     "spans": {
      "ProjectStorage.saveSessionCheckpoint": {
@@ -5517,7 +5517,7 @@
       "pendingImports,projects,project_meta": 8
      },
      "localStorageWrites": 19,
-     "localStorageBytes": 33481
+     "localStorageChars": 33481
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -5732,7 +5732,7 @@
       "pendingImports,projects,project_meta": 8
      },
      "localStorageWrites": 19,
-     "localStorageBytes": 33636
+     "localStorageChars": 33636
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -6002,7 +6002,7 @@
       "pendingImports,projects,project_meta": 8
      },
      "localStorageWrites": 18,
-     "localStorageBytes": 28855
+     "localStorageChars": 28855
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -6172,7 +6172,7 @@
       "pendingImports,projects,project_meta": 8
      },
      "localStorageWrites": 18,
-     "localStorageBytes": 33657
+     "localStorageChars": 33657
     },
     "spans": {
      "ProjectStorage.saveSessionCheckpoint": {
@@ -6436,7 +6436,7 @@
      },
      "writeTxByStore": {},
      "localStorageWrites": 11,
-     "localStorageBytes": 957
+     "localStorageChars": 957
     },
     "spans": {},
     "workers": {},
@@ -6666,7 +6666,7 @@
      },
      "writeTxByStore": {},
      "localStorageWrites": 9,
-     "localStorageBytes": 781
+     "localStorageChars": 781
     },
     "spans": {},
     "workers": {},
@@ -6920,7 +6920,7 @@
       "pendingImports,projects,project_meta": 8
      },
      "localStorageWrites": 18,
-     "localStorageBytes": 28527
+     "localStorageChars": 28527
     },
     "spans": {
      "ThreadAccounting.totals": {
@@ -7091,7 +7091,7 @@
      },
      "writeTxByStore": {},
      "localStorageWrites": 5,
-     "localStorageBytes": 685
+     "localStorageChars": 685
     },
     "spans": {},
     "workers": {},
@@ -7331,7 +7331,7 @@
       "pendingImports": 1
      },
      "localStorageWrites": 10,
-     "localStorageBytes": 752
+     "localStorageChars": 752
     },
     "spans": {
      "SyncEngine.exportToFolder": {
@@ -7635,7 +7635,7 @@
       "pendingImports": 1
      },
      "localStorageWrites": 10,
-     "localStorageBytes": 754
+     "localStorageChars": 754
     },
     "spans": {
      "SyncEngine.exportToFolder": {
@@ -7866,7 +7866,7 @@
        "manager_state": 1
       },
       "localStorageWrites": 14,
-      "localStorageBytes": 15427
+      "localStorageChars": 15427
      },
      "spans": {
       "ThreadAccounting.totals": {
@@ -7984,7 +7984,7 @@
       },
       "writeTxByStore": {},
       "localStorageWrites": 0,
-      "localStorageBytes": 0
+      "localStorageChars": 0
      },
      "spans": {},
      "workers": {}

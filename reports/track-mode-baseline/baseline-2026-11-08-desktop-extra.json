@@ -268,7 +268,7 @@
       "projects,project_meta,stats_summaries,pendingImports": 3
      },
      "localStorageWrites": 56,
-     "localStorageBytes": 1698
+     "localStorageChars": 1698
     },
     "spans": {
      "ProjectStorage.listProjects": {
@@ -644,7 +644,7 @@
       "pendingImports": 1
      },
      "localStorageWrites": 10,
-     "localStorageBytes": 752
+     "localStorageChars": 752
     },
     "spans": {
      "SyncEngine.exportToFolder": {
@@ -962,7 +962,7 @@
       "pendingImports": 1
      },
      "localStorageWrites": 10,
-     "localStorageBytes": 754
+     "localStorageChars": 754
     },
     "spans": {
      "SyncEngine.exportToFolder": {
