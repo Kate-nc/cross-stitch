@@ -8,10 +8,10 @@ Three costs that grew with the whole chart, the whole thread-usage history or th
 
 | | Before | After |
 |---|---|---|
-| Tracker flush of one mark, huge chart (600 × 800), 4× phone emulation | __SAVE_MARK_HUGE_PHONE__ | |
-| Rename only, huge chart, 4× | __SAVE_META_HUGE_PHONE__ | |
-| Thread-usage commit of 5 events, 200 000-event history (desktop) | __USAGE_200K__ | |
-| Automatic folder export after one change, large chart + 150 projects, 4× | __SYNC_150_PHONE__ | |
+| Tracker flush of one mark, huge chart (600 × 800), 4× phone emulation (steady state) | 24.6 s, longest task 9.3 s | 0.24 s, longest task 0.09 s |
+| Rename only, huge chart, 4× | 13.8 s | 0.2 s |
+| Thread-usage commit of 5 events, 200 000-event history (desktop) | 913 ms | 6 ms |
+| Automatic folder export after one change, large chart + 150 projects, 4× | 22.4 s, longest task 8.1 s | 5.4 s, longest task 1.4 s |
 
 See [Measurements](#measurements) for every case, and [Not covered](#not-covered-and-validation-that-was-not-possible) for what these figures are not.
 
@@ -59,11 +59,12 @@ In the same `manager_state` store (no schema or version change):
 | Key | Value |
 |---|---|
 | `tc2:e\|<project>\|<unit>\|<seq, 16 digits>` | the event, exactly as in the whole ledger |
-| `tc2:p\|<project>` | the project's baseline record, event count, and exact running totals per thread |
+| `tc2:p\|<project>` | the project's record (date, reason, legacy checkpoint), event count, and exact running totals per thread |
+| `tc2:b\|<project>\|<bucket>` | its baseline (every unit marked when its history began: about 240 000 on the huge chart at 50%), in 256 buckets by a hash of the unit; written once |
 | `tc2:r\|<token>` | `{token, id}` receipt |
 | `tc2:meta` | format marker |
 
-`applyConsumptionEvents` reads, in its one transaction: stock, reservations, the legacy checkpoint, the project row, and for each operation its unit's newest event (reverse cursor over the unit's range), the event at its sequence and its receipt. `ThreadAccounting.apply()` runs unchanged over just those (it only ever looks at them), and the commit writes the events and receipts it adds, the project row and stock. Stock and history still commit together; the lock, idempotent retries (receipts and committed sequences), corrections, unpicks, reversals and the cross-tab "history changed" refusal are unchanged, checked against the whole-ledger implementation over random histories.
+`applyConsumptionEvents` reads, in its one transaction: stock, reservations, the legacy checkpoint, the project row, and for each operation its unit's newest event (reverse cursor over the unit's range), the event at its sequence, its receipt and its baseline bucket. `ThreadAccounting.apply()` runs unchanged over just those (it only ever looks at them), and the commit writes the events and receipts it adds, the project row and stock. Stock and history still commit together; the lock, idempotent retries (receipts and committed sequences), corrections, unpicks, reversals and the cross-tab "history changed" refusal are unchanged, checked against the whole-ledger implementation over random histories.
 
 Totals: the project row keeps exact running sums (Shewchuk partials), so a total kept up one commit at a time equals one counted from scratch, whatever the order. `ThreadAccounting.totals()` itself is unchanged (its reference test pins it); the two agree to the last bit or within one rounding step. The Tracker's live figures use the row's totals.
 
@@ -75,18 +76,60 @@ Totals: the project row keeps exact running sums (Shewchuk partials), so a total
 
 ### 3. Sync exports that scale with changed projects (`sync-engine.js`)
 
-- **Per-project entry cache.** Each exported entry's JSON (with its fingerprint) is kept for the page, keyed by the project's metadata row: its fence token (new on every record or overlay write), `progressAt` (every progress write), `updatedAt` and write stamp. An unchanged project is not read, fingerprinted or serialised again; the cache holds text, not objects, and stops growing at 48 M characters. The key is read after the export's flush, so every change the export's covered revision promises moved it; a change landing during the export moves the key and is sent next time (tested).
+- **Per-project entry cache.** Each exported entry's JSON (with its fingerprint) is kept for the page, keyed by the project's metadata row: its fence token (new on every record or overlay write), `progressAt` (every progress write), `updatedAt` and write stamp. An unchanged project is not read, fingerprinted or serialised again; the cache holds text, not objects, and stops growing at a size set by the memory the device reports (`navigator.deviceMemory`: 128 M characters at 8 GB or more, 64 M at 4 GB or when unknown, 32 M below; a 120 x 120 project is about 0.6 M). The key is read after the export's flush, so every change the export's covered revision promises moved it; a change landing during the export moves the key and is sent next time (tested).
 - **Selection before loading.** Incremental exports choose projects from the metadata rows before reading any.
 - **Serialisation.** The file is built by splicing the kept entry text into the envelope; the same text `JSON.stringify` makes (tested). Encrypted payloads use the same path.
 - **Compression in a worker.** `compressAsync()` encodes and deflates in `sync-compress-worker.js` with the browser's `CompressionStream` (zlib, read by the same `pako.inflate`), falling back to pako on the main thread where workers or `CompressionStream` are missing. The folder export, downloads, the relay and WebDAV use it; `compress()` stays synchronous for compatibility.
 - **No redundant flush** (part 1): an export right after the autosave no longer saves the open project again.
 - **Attachment rows** are read by their key prefixes instead of every `pendingImports` row (which now includes progress and overlay rows).
+- **`manager_state` is read with two bulk requests** (`getAllKeys` + `getAll`) instead of a cursor, in the inventory snapshot, the import write and `readManagerStore`: with history stored a record per event, a cursor step per event cost 2.2 s at 50 000 events.
+
+### 4. Cross-tab lock: a clock that stops or goes back (`cross-tab-lock.js`)
+
+Found while validating: `CrossTabLock.acquire` waited until `Date.now()` passed a deadline, so with a clock that does not move (Playwright's fixed clock) it never returned, and a lease written before the clock went back (a page that closed while holding it, then a system clock or test clock set back) looked valid for as long as the clock went back. `track-history-accounting` "history across midnight" hung on this, 1 in 4 on `main` and more often here because saves finish sooner. The wait is now also bounded by polls, and a lease expiring further ahead than any lease is granted for is treated as stale. With a moving clock nothing changes.
 
 Unchanged: full exports stay full (a folder holds one complete file per device), pending marks (`coversChangeRev`), acknowledgements only after delivery, deletion records, attachments and their verification (the codec reads two fields through hints instead of parsing cached entries), retries and conflict review.
 
 ## Measurements
 
-__MEASUREMENTS__
+Runner: [`tests/perf/save-cost.cjs`](../tests/perf/save-cost.cjs) (`CHROME=` a Chromium binary, `ONLY=`, `OUT=`); tables by [`tests/perf/save-cost-table.cjs`](../tests/perf/save-cost-table.cjs). Raw results: [save-sync-cost-before.json](track-mode-baseline/save-sync-cost-before.json) (`main`, `114e11a`) and [save-sync-cost-after.json](track-mode-baseline/save-sync-cost-after.json) (this branch), same script, same host, one run per case, run one after the other with nothing else running.
+
+Environment: Chromium 1243 headless, software canvas, 4-core cloud VM. *desktop* = 1440 x 900, no throttle; *phone* = Pixel 5 emulation, 4x CPU throttle. Fixtures as in the Track Mode baseline: large 400 x 500, huge 600 x 800, 50% done; collections of 150 projects of 120 x 120; thread-usage histories of 50 000 or 200 000 events, mostly other projects'.
+
+Columns:
+- *Operation*: the call's own time to settle, measured in the page. For the save cases "first / then": the first save after the JSON import (which rewrites the record in the Tracker's own format; see [Not covered](#not-covered-and-validation-that-was-not-possible)), then a later save (steady state).
+- *Main thread busy*: CPU-profile samples that were not idle, over the whole measured window, which includes a 1.5 s tail and the page's own drawing; it is the right column for comparing builds, not an attribution to the operation.
+- *Longest task*: the longest Long Task in the window, the stall a stitcher would feel.
+- *Puts after*: IndexedDB puts by store in the window, this branch. No case writes `projects`.
+
+| Case | Profile | Operation, before | after | Main thread busy, before | after | Longest task, before | after | Puts after |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| save-mark-large | desktop | 1394 / 1316 ms | 502 / 43 ms | 1561 ms | 349 ms | 580 ms | 0 ms | manager_state 5, pendingImports 3, project_meta 1, stats_summaries 1 |
+| save-mark-huge | desktop | 4602 / 4732 ms | 1610 / 75 ms | 5407 ms | 595 ms | 1745 ms | 0 ms | manager_state 5, pendingImports 3, project_meta 1, stats_summaries 1 |
+| save-mark-huge-phone | phone | 23893 / 24571 ms | 8029 / 241 ms | 27181 ms | 2206 ms | 9346 ms | 90 ms | manager_state 5, pendingImports 3, project_meta 1, stats_summaries 1 |
+| save-meta-huge | desktop | 2558 / 2901 ms | 1148 / 33 ms | 3556 ms | 504 ms | 1794 ms | 0 ms | pendingImports 2, project_meta 1, stats_summaries 1, manager_state 1 |
+| save-meta-huge-phone | phone | 11642 / 13824 ms | 5674 / 197 ms | 17066 ms | 2213 ms | 8764 ms | 179 ms | pendingImports 2, project_meta 1, stats_summaries 1, manager_state 1 |
+| save-clean-huge | desktop | 3360 ms | 0 ms | 4259 ms | 694 ms | 1492 ms | 0 ms |  |
+| save-clean-huge-phone | phone | 16762 ms | 1 ms | 21034 ms | 3397 ms | 6836 ms | 0 ms |  |
+| usage-short | desktop | 5 ms | 8 ms | 449 ms | 469 ms | 0 ms | 0 ms | manager_state 7 |
+| usage-50k | desktop | 230 ms | 8 ms | 737 ms | 512 ms | 101 ms | 0 ms | manager_state 7 |
+| usage-200k | desktop | 913 ms | 6 ms | 1408 ms | 742 ms | 413 ms | 0 ms | manager_state 7 |
+| usage-50k-phone | phone | 1262 ms | 131 ms | 3722 ms | 2871 ms | 598 ms | 0 ms | manager_state 7 |
+| sync-folder-small-10 | desktop | 336 ms | 142 ms | 797 ms | 537 ms | 88 ms | 0 ms | manager_state 6, pendingImports 4, project_meta 1, stats_summaries 1 |
+| sync-folder-small-150 | desktop | 3192 ms | 896 ms | 3850 ms | 1104 ms | 1397 ms | 137 ms | manager_state 6, pendingImports 4, project_meta 1, stats_summaries 1 |
+| sync-folder-large-150 | desktop | 4977 ms | 1975 ms | 5262 ms | 1870 ms | 1682 ms | 291 ms | manager_state 6, pendingImports 5, project_meta 1, stats_summaries 1 |
+| sync-folder-large-150-phone | phone | 22376 ms | 5420 ms | 25885 ms | 8242 ms | 8118 ms | 1407 ms | pendingImports 6, manager_state 6, project_meta 1, stats_summaries 1 |
+| sync-folder-huge | desktop | 6473 ms | 2421 ms | 7750 ms | 2608 ms | 1893 ms | 705 ms | manager_state 6, pendingImports 5, project_meta 1, stats_summaries 1 |
+| sync-folder-small-50k-ledger | desktop | 1345 ms | 1626 ms | 1781 ms | 1686 ms | 591 ms | 476 ms | manager_state 6, pendingImports 5, project_meta 1, stats_summaries 1 |
+| sync-incr-small-150 | desktop | 1606 ms | 192 ms | 2278 ms | 955 ms | 0 ms | 0 ms | manager_state 6, pendingImports 4, project_meta 1, stats_summaries 1 |
+| sync-incr-large-150 | desktop | 3948 ms | 1024 ms | 4671 ms | 1481 ms | 559 ms | 281 ms | pendingImports 5, manager_state 6, project_meta 1, stats_summaries 1 |
+
+Reading it:
+
+- **Full saves (part 1).** A mark followed by the flush that tab-hiding, backups and sync run: huge chart at 4x, 24.6 s to 0.24 s, longest task 9.3 s to 0.09 s; desktop 4.7 s to 75 ms. A rename alone: 13.8 s to 0.2 s at 4x. A flush with nothing new: 16.8 s to 1 ms (nothing is written). The first save after an import is still a full write (8.0 s at 4x, down from 23.9 s: no second legacy copy, no thread-demand recount, no deep copy, no full read for the conflict check).
+- **Thread-usage commits (part 2).** Five events: 0.9 s to 6 ms with a 200 000-event history; 1.26 s to 0.13 s at 4x with 50 000. A short history is unchanged (5 to 8 ms, within noise). Commit time no longer grows with history.
+- **Folder export after one change (part 3).** Large chart + 150 projects: 22.4 s to 5.4 s at 4x, longest task 8.1 s to 1.4 s; desktop 5.0 s to 2.0 s. 150 small projects: 3.2 s to 0.9 s. Huge chart alone: 6.5 s to 2.4 s. Incremental mode, 150 projects: 1.6 s to 0.19 s.
+- **Not better: a long thread-usage history in a folder export.** 50 000 events, one small project: 1.35 s to 1.63 s end to end; main-thread busy 1.78 s to 1.69 s and longest task 0.59 s to 0.48 s. The file carries the whole history, which is now assembled from a record per event (two bulk reads; a cursor was 2.2 s) and still validated and totalled whole on every export. What runs on the main thread is about the same; the extra wall time is reading many small records and the worker round trip.
 
 ## Tests
 
