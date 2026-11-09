@@ -82,6 +82,25 @@ for (const size of ['small', 'large']) {
   });
 }
 
+
+// Marks a save wrote: the full record's, or, when the last save left the chart
+// unwritten (ProjectStorage's overlay save), the progress record written with
+// that overlay. Both rows are current only while fenced to the full record.
+// notTab: also require that progress record not to be that tab's.
+async function savedDone(page, opts) {
+  return page.evaluate(async (o) => {
+    const db = await getDB();
+    const id = ProjectStorage.getActiveProjectId();
+    const [p, ov, pr] = await new Promise((res) => {
+      const tx = db.transaction(['projects', 'pendingImports']);
+      const a = tx.objectStore('projects').get(id), b = tx.objectStore('pendingImports').get('overlay:' + id), c = tx.objectStore('pendingImports').get('progress:' + id);
+      tx.oncomplete = () => res([a.result, b.result, c.result]);
+    });
+    const overlay = !!(ov && ov.baseWriteAt === p.lastWriteAt && pr && pr.baseWriteAt === p.lastWriteAt && !(o && o.notTab && pr.tabId === o.notTab));
+    return Array.from(overlay ? pr.done : p.done).reduce((n, v) => n + (v ? 1 : 0), 0);
+  }, opts || null);
+}
+
 test('reopening an unchanged mixed-stitch project writes nothing', async ({ page }) => {
   test.setTimeout(180000);
   await setup(page);
@@ -158,12 +177,9 @@ test('marks only a progress record held are folded into a full save, and survive
   const r = await readTrackProbes(page, 0);
   console.log('OPEN_PROGRESS ' + JSON.stringify({ fullSaves: saves(r), projectPuts: writes(r) }));
   expect(saves(r), 'marks from a progress record were not folded into a full save').toBeGreaterThanOrEqual(1);
-  const full = await page.evaluate(async () => {
-    const db = await getDB();
-    const id = ProjectStorage.getActiveProjectId();
-    const rec = await new Promise((res) => { const q = db.transaction('projects').objectStore('projects').get(id); q.onsuccess = () => res(q.result); });
-    return rec.done.reduce((n, v) => n + (v ? 1 : 0), 0);
-  });
+  // Written by this tab's save: the full record, or an overlay save's marks
+  // (the progress record it rewrote, no longer the other tab's).
+  const full = await savedDone(page, { notTab: 'other-tab' });
   expect(full, 'the full record does not hold the recovered marks').toBe(expected);
   await reopen(page);
   expect(await stored(page, 'doneCount')).toBe(expected);
@@ -263,15 +279,12 @@ test('a failed save keeps the change unsaved until a later save writes it', asyn
   await page.evaluate(() => {
     const put = IDBObjectStore.prototype.put;
     window.__failSaves = true;
-    IDBObjectStore.prototype.put = function (v, k) { if (window.__failSaves && this.name === 'projects') throw new DOMException('Quota exceeded (test)', 'QuotaExceededError'); return put.apply(this, arguments); };
+    // A save writes the whole record, or (an overlay save) the overlay row with the marks beside it: fail both.
+    IDBObjectStore.prototype.put = function (v, k) { if (window.__failSaves && (this.name === 'projects' || (this.name === 'pendingImports' && v && typeof v.id === 'string' && v.id.startsWith('overlay:')))) throw new DOMException('Quota exceeded (test)', 'QuotaExceededError'); return put.apply(this, arguments); };
   });
   await tapChart(page, 3);
   await page.waitForTimeout(WATCH_MS);
-  const full = () => page.evaluate(async () => {
-    const db = await getDB();
-    const rec = await new Promise((res) => { const q = db.transaction('projects').objectStore('projects').get(ProjectStorage.getActiveProjectId()); q.onsuccess = () => res(q.result); });
-    return rec.done.reduce((n, v) => n + (v ? 1 : 0), 0);
-  });
+  const full = () => savedDone(page);
   expect(await full(), 'the full record changed although every save failed').toBe(done0);
   // Saving works again. Hiding the tab writes only what is unsaved since the last
   // write: a failed save must not have counted the change as written.

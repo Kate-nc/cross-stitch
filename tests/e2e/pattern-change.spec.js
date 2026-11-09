@@ -14,11 +14,20 @@ async function markRow(page, row, from, to) {
   await page.waitForTimeout(150);
 }
 const dialog = page => page.locator('[data-reconcile="1"]');
+// What the Tracker's save wrote: the full record, or, after a save that left the
+// chart unwritten (ProjectStorage's overlay save), its overlay row and the marks
+// written beside it, both current only while fenced to that record.
 const storedDone = page => page.evaluate(async () => {
   const id = localStorage.getItem('crossstitch_active_project');
   const db = await getDB();
-  const p = await new Promise(r => { const q = db.transaction('projects').objectStore('projects').get(id); q.onsuccess = () => r(q.result); });
-  return { len: p.done.length, marks: p.done.filter(v => v === 1).length, snaps: (p.doneSnapshots || []).map(s => s.label + ':' + s.doneCount) };
+  const [p, ov, pr] = await new Promise(r => {
+    const tx = db.transaction(['projects', 'pendingImports']);
+    const a = tx.objectStore('projects').get(id), b = tx.objectStore('pendingImports').get('overlay:' + id), c = tx.objectStore('pendingImports').get('progress:' + id);
+    tx.oncomplete = () => r([a.result, b.result, c.result]);
+  });
+  const overlay = !!(ov && ov.baseWriteAt === p.lastWriteAt && pr && pr.baseWriteAt === p.lastWriteAt);
+  const done = Array.from(overlay ? pr.done : p.done), snaps = (overlay ? ov.fields.doneSnapshots : p.doneSnapshots) || [];
+  return { len: done.length, marks: done.filter(v => v === 1).length, snaps: snaps.map(s => s.label + ':' + s.doneCount) };
 });
 async function openTracker(page) {
   const id = await page.evaluate(() => localStorage.getItem('crossstitch_active_project'));
