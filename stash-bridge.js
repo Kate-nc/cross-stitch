@@ -855,10 +855,13 @@ const StashBridge = (() => {
         const r=IDBKeyRange.bound(range[0],range[1]);
         const keys=store.getAllKeys(r),values=store.getAll(r);
         const row=projectId?store.get(A.storedKeys.project(projectId)):null;
+        const br=projectId?A.storedKeys.baselineRange(projectId):null;
+        const bk=br?store.getAllKeys(IDBKeyRange.bound(br[0],br[1])):null,bv=br?store.getAll(IDBKeyRange.bound(br[0],br[1])):null;
         tx.oncomplete=()=>{
           try{
             const rows=keys.result.map((k,i)=>[k,values.result[i]]);
             if(row&&row.result)rows.push([A.storedKeys.project(projectId),row.result]);
+            if(bk)bk.result.forEach((k,i)=>rows.push([k,bv.result[i]]));
             let ledger=A.combineStored(A.assemble(rows),legacy.result||null)||A.empty();
             if(projectId){
               const own=A.empty();
@@ -945,7 +948,12 @@ const StashBridge = (() => {
             let pending=0;const step=()=>{if(--pending===0)run();};
             const read=(k,name)=>{pending++;want(k,name);};
             read('threads');read('thread_reservations_v1');read('rt_deduction:'+projectId);
-            read(A.KEY,'legacyLedger');read(A.storedKeys.project(projectId),'projectRow');
+            read(A.KEY,'legacyLedger');read(A.META_KEY,'meta');
+            // Each project the operations name: its row, and the baseline buckets
+            // of the units they touch (never the whole baseline).
+            const pids=new Set([projectId]);ops.forEach(op=>{if(op&&typeof op.projectId==='string')pids.add(op.projectId);});
+            const rowsGot={},buckets={};
+            pids.forEach(pid=>{pending++;const q=store.get(A.storedKeys.project(pid));q.onsuccess=()=>{rowsGot[pid]=q.result||null;step();};});
             const heads={},exact={},receipts={};
             ops.forEach(op=>{
               if(!op)return;
@@ -955,6 +963,8 @@ const StashBridge = (() => {
                 heads[hk]=null;pending++;
                 const r=A.storedKeys.unitRange(pid,u),c=store.openCursor(IDBKeyRange.bound(r[0],r[1]),'prev');
                 c.onsuccess=()=>{if(c.result)heads[hk]=c.result.value;step();};
+                const bk=A.storedKeys.baselineBucket(pid,u);
+                if(!(bk in buckets)){buckets[bk]=null;pending++;const q=store.get(bk);q.onsuccess=()=>{buckets[bk]=q.result||null;step();};}
               }
               if(typeof pid==='string'&&typeof u==='string'&&Number.isSafeInteger(op.seq)&&op.seq>0){
                 const ek=A.storedKeys.event(pid,u,op.seq);
@@ -976,7 +986,13 @@ const StashBridge = (() => {
                   ledger=null;
                 }else{
                   ledger=A.empty();
-                  if(got.projectRow&&got.projectRow.record)ledger.projects[projectId]=got.projectRow.record;
+                  pids.forEach(pid=>{
+                    const row=rowsGot[pid];if(!row||!row.record)return;
+                    // The baseline entries of the touched units: all apply() looks up.
+                    let base=row.record.baseline;
+                    if(!base){base={};Object.keys(buckets).forEach(k=>{const b=buckets[k];if(b&&b.projectId===pid)Object.assign(base,b.units);});}
+                    ledger.projects[pid]=Object.assign({baseline:base},A.withoutBaseline(row.record));
+                  });
                   Object.values(heads).concat(Object.values(exact)).forEach(e=>{if(e)ledger.events[e.id]=e;});
                   Object.keys(receipts).forEach(t=>{if(receipts[t])ledger.receipts[t]=receipts[t];});
                 }
@@ -1014,42 +1030,30 @@ const StashBridge = (() => {
                   return;
                 }
                 const before=new Set(Object.keys(ledger.events)),receiptsBefore=new Set(Object.keys(ledger.receipts));
-                const hadRecord=!!ledger.projects[projectId];
+                const hadRecord=new Set(Object.keys(ledger.projects));
                 finish(ledger);
-                // What apply() added: write it, and the project's running totals.
-                const row=got.projectRow?Object.assign({},got.projectRow,{totals:Object.assign({},got.projectRow.totals)}):{projectId,record:null,totals:{},events:0};
-                let rowChanged=!hadRecord&&!!ledger.projects[projectId];
-                row.record=ledger.projects[projectId]||row.record||null;
-                const rows={};
+                // What apply() added: the events, receipts, each project's row
+                // (running totals, count, record) and a new baseline's buckets.
+                const rowsOut={};
+                const rowFor=pid=>rowsOut[pid]||(rowsOut[pid]=Object.assign({projectId:pid,record:null,totals:{},events:0},rowsGot[pid]||{},{totals:Object.assign({},(rowsGot[pid]||{}).totals)}));
+                Object.keys(ledger.projects).forEach(pid=>{
+                  if(hadRecord.has(pid))return;
+                  const row=rowFor(pid);row.record=A.withoutBaseline(ledger.projects[pid]);
+                  A.baselineRows(pid,ledger.projects[pid].baseline).forEach(([k,v])=>store.put(v,k));
+                });
                 Object.keys(ledger.events).forEach(id=>{
                   if(before.has(id))return;
-                  const e=ledger.events[id];
-                  if(e.projectId!==projectId){
-                    // Operations for another project in the same call: keep its row too.
-                    const k=A.storedKeys.project(e.projectId);
-                    (rows[k]||(rows[k]={others:[]})).others.push(e);
-                  }else{
-                    row.totals=Object.assign({},row.totals);
-                    Object.keys(Object.assign({},e.debit,e.credit)).forEach(k=>{row.totals[k]=(row.totals[k]||[]).slice();});
-                    A.addEventTotals(row.totals,e);row.events++;rowChanged=true;
-                  }
+                  const e=ledger.events[id],row=rowFor(e.projectId);
+                  Object.keys(Object.assign({},e.debit,e.credit)).forEach(k=>{row.totals[k]=(row.totals[k]||[]).slice();});
+                  A.addEventTotals(row.totals,e);row.events++;
+                  if(!row.record&&ledger.projects[e.projectId])row.record=A.withoutBaseline(ledger.projects[e.projectId]);
                   store.put(e,A.storedKeys.eventId(e));
                 });
                 Object.keys(ledger.receipts).forEach(t=>{if(!receiptsBefore.has(t))store.put({token:t,id:ledger.receipts[t]},A.storedKeys.receipt(t));});
-                const others=Object.keys(rows);
-                if(rowChanged)store.put(row,A.storedKeys.project(projectId));
+                Object.keys(rowsOut).forEach(pid=>store.put(rowsOut[pid],A.storedKeys.project(pid)));
                 store.put(threads,'threads');
-                store.put({t:'meta',format:1},A.META_KEY);
-                const done=()=>{result={accounting:summaryOf(ledger,row),threads};};
-                if(!others.length){done();return;}
-                // Rare: rows of other projects named by these operations.
-                let left=others.length;
-                others.forEach(k=>{const q=store.get(k);q.onsuccess=()=>{
-                  const r0=q.result||{projectId:rows[k].others[0].projectId,record:null,totals:{},events:0};
-                  const r1=Object.assign({},r0,{totals:Object.assign({},r0.totals),record:ledger.projects[r0.projectId]||r0.record||null});
-                  rows[k].others.forEach(e=>{Object.keys(Object.assign({},e.debit,e.credit)).forEach(t=>{r1.totals[t]=(r1.totals[t]||[]).slice();});A.addEventTotals(r1.totals,e);r1.events++;});
-                  store.put(r1,k);if(--left===0)done();
-                };});
+                if(!got.meta)store.put({t:'meta',format:1},A.META_KEY);
+                result={accounting:summaryOf(ledger,rowsOut[projectId]||rowsGot[projectId]),threads};
               }catch(err){fail(err);}
             }
             function summaryOf(l,row){

@@ -97,8 +97,10 @@ test('a commit reads only the touched rows and writes only what it adds, however
   expect(counts.getAll).toBe(0);
   expect(counts.getAllKeys).toBe(0);
   expect(counts.cursor).toBe(5);                    // one newest-event lookup per unit
-  expect(counts.get).toBeLessThanOrEqual(5 + 5 + 5 + 5); // fixed rows + exact events + receipts
-  expect(counts.put).toBe(5 + 5 + 1 + 1 + 1);       // events, receipts, project row, threads, marker
+  // Fixed rows (stock, reservations, checkpoint, old key, marker, project row),
+  // then per operation: the event at its sequence, its receipt, its baseline bucket.
+  expect(counts.get).toBeLessThanOrEqual(6 + 5 + 5 + 5);
+  expect(counts.put).toBe(5 + 5 + 1 + 1);           // events, receipts, project row, threads
   const s = await store(idb);
   expect(Object.keys(s[A.KEY].events)).toHaveLength(3006);
   expect(s.threads[key].owned).toBeCloseTo(5 - 4 * cost, 13);   // five marks, one of them corrected
@@ -197,4 +199,30 @@ test('marks with deductions off record events but never change stock; correcting
   s = await store(idb);
   expect(s.threads[key].owned).toBeCloseTo(5, 13);
   expect(Object.keys(s[A.KEY].events)).toHaveLength(3);
+});
+
+test('a large baseline is written once in buckets; later commits read only their units\' buckets', async () => {
+  const b = bridge(idb);
+  const marks = {};
+  for (let i = 0; i < 20000; i++) marks['d:' + i] = true;      // a chart half done when tracking began
+  await b.applyConsumptionEvents('p', marks, [op(1, 'correction', 'd:7')]);
+  const rows = await rawRows(idb);
+  const row = rows.find(([k]) => k === A.storedKeys.project('p'))[1];
+  expect(row.record.baseline).toBeUndefined();
+  const bucketRows = rows.filter(([k]) => k.startsWith('tc2:b|'));
+  expect(bucketRows.length).toBeGreaterThan(200);
+  expect(bucketRows.reduce((n, [, v]) => n + Object.keys(v.units).length, 0)).toBe(20000);
+  // The whole form still carries the baseline exactly.
+  expect(Object.keys((await store(idb))[A.KEY].projects.p.baseline)).toHaveLength(20000);
+  // A later commit: the correction above found d:7 marked (baseline), this mark
+  // on d:20001 finds it unmarked; neither reads or writes the baseline as a whole.
+  const FDBObjectStore = require('fake-indexeddb/lib/FDBObjectStore');
+  const put = FDBObjectStore.prototype.put, written = [];
+  const spy = jest.spyOn(FDBObjectStore.prototype, 'put').mockImplementation(function (v, k) { written.push(k); return put.call(this, v, k); });
+  try { await b.applyConsumptionEvents('p', marks, [op(1, 'mark', 'd:20001')]); } finally { spy.mockRestore(); }
+  expect(written.filter(k => String(k).startsWith('tc2:b|'))).toEqual([]);
+  const s = await store(idb);
+  expect(s[A.KEY].events[JSON.stringify(['p', 'd:7', 1])]).toMatchObject({ kind: 'correction', active: false });
+  expect(s[A.KEY].events[JSON.stringify(['p', 'd:20001', 1])]).toMatchObject({ kind: 'mark', active: true });
+  expect(s.threads[key].owned).toBeCloseTo(5 - cost, 13);
 });

@@ -426,9 +426,14 @@
 
        tc2:meta                                   {t:'meta', format:1}
        tc2:p|<project>                            {projectId, record, totals, events}
-           record   ledger.projects[project] (null before the first operation)
+           record   ledger.projects[project] without its baseline (null before
+                    the first operation)
            totals   per thread: exact running sums of debit - credit (sumAdd)
            events   how many events the project has
+       tc2:b|<project>|<bucket, 2 hex digits>     {projectId, units: {unit: true}}
+           the baseline (the units marked when its history began: on a large
+           chart that is under way, hundreds of thousands), in 256 buckets by a
+           hash of the unit, so a commit reads only its units' buckets
        tc2:e|<project>|<unit>|<seq, 16 digits>    the event, exactly as in ledger.events
        tc2:r|<token>                              {token, id}
 
@@ -438,7 +443,9 @@
      sync files and the Stash Manager's history assemble it (fromRows), and a
      whole ledger written under KEY (a restore, a sync import, an older build)
      is folded into the stored form by the next write (StashBridge). */
-  const STORED_PREFIX='tc2:',STORED_END='tc2:\uffff',META_KEY='tc2:meta',P_PREFIX='tc2:p|',E_PREFIX='tc2:e|',R_PREFIX='tc2:r|';
+  const STORED_PREFIX='tc2:',STORED_END='tc2:\uffff',META_KEY='tc2:meta',P_PREFIX='tc2:p|',E_PREFIX='tc2:e|',R_PREFIX='tc2:r|',B_PREFIX='tc2:b|';
+  // FNV-1a of the unit name, to one of 256 baseline buckets.
+  const bucketOf=unit=>{let h=0x811c9dc5;for(let i=0;i<unit.length;i++){h^=unit.charCodeAt(i);h=Math.imul(h,0x01000193);}return ((h>>>0)&255).toString(16).padStart(2,'0');};
   const enc=encodeURIComponent,dec=decodeURIComponent;
   const pad=n=>{const s=String(n);return '0000000000000000'.slice(s.length)+s;};
   const storedKeys={
@@ -446,6 +453,8 @@
     event:(pid,unit,seq)=>E_PREFIX+enc(pid)+'|'+enc(unit)+'|'+pad(seq),
     eventId:e=>E_PREFIX+enc(e.projectId)+'|'+enc(e.unit)+'|'+pad(e.seq),
     receipt:t=>R_PREFIX+enc(t),
+    baselineBucket:(pid,unit)=>B_PREFIX+enc(pid)+'|'+bucketOf(unit),
+    baselineRange:pid=>[B_PREFIX+enc(pid)+'|',B_PREFIX+enc(pid)+'|\uffff'],
     // [lower, upper] bounds of a unit's events, and of a project's.
     unitRange:(pid,unit)=>[E_PREFIX+enc(pid)+'|'+enc(unit)+'|',E_PREFIX+enc(pid)+'|'+enc(unit)+'|\uffff'],
     projectRange:pid=>[E_PREFIX+enc(pid)+'|',E_PREFIX+enc(pid)+'|\uffff'],
@@ -480,26 +489,37 @@
   function toRows(l){
     const rows=[[META_KEY,{t:'meta',format:1}]],per=new Map();
     const row=pid=>{let r=per.get(pid);if(!r)per.set(pid,r={projectId:pid,record:null,totals:{},events:0});return r;};
-    Object.entries(l.projects||{}).forEach(([pid,rec])=>{row(pid).record=rec;});
+    Object.entries(l.projects||{}).forEach(([pid,rec])=>{row(pid).record=withoutBaseline(rec);baselineRows(pid,rec.baseline).forEach(r=>rows.push(r));});
     Object.values(l.events||{}).forEach(e=>{const r=row(e.projectId);r.events++;addEventTotals(r.totals,e);rows.push([storedKeys.eventId(e),e]);});
     Object.entries(l.receipts||{}).forEach(([t,id])=>rows.push([storedKeys.receipt(t),{token:t,id}]));
     per.forEach((r,pid)=>rows.push([storedKeys.project(pid),r]));
     return rows;
   }
+  // A project's record as stored in its row (the baseline is in buckets).
+  function withoutBaseline(rec){if(!rec)return rec;const out=Object.assign({},rec);delete out.baseline;return out;}
+  // Its baseline's bucket rows: [[key, {projectId, units}], ...].
+  function baselineRows(pid,base){
+    const by=new Map();
+    Object.keys(base||{}).forEach(u=>{const k=storedKeys.baselineBucket(pid,u);let b=by.get(k);if(!b)by.set(k,b={projectId:pid,units:{}});b.units[u]=true;});
+    return Array.from(by.entries());
+  }
   // The whole ledger from stored rows ([[key, value], ...] or {key: value}),
   // or null when there are none. Does not include a KEY row (see fromRows).
   function assemble(rows){
     const list=Array.isArray(rows)?rows:Object.entries(rows||{});
-    let out=null;
+    let out=null;const bases=new Map();
     list.forEach(([k,v])=>{
       if(!isStoredKey(k)||!v)return;
       if(!out)out=empty();
       if(k.startsWith(E_PREFIX))out.events[v.id]=v;
-      else if(k.startsWith(P_PREFIX)){if(v.record)out.projects[v.projectId]=v.record;}
+      else if(k.startsWith(P_PREFIX)){if(v.record)out.projects[v.projectId]=Object.assign({},v.record);}
       else if(k.startsWith(R_PREFIX))out.receipts[v.token]=v.id;
+      else if(k.startsWith(B_PREFIX)){let b=bases.get(v.projectId);if(!b)bases.set(v.projectId,b={});Object.assign(b,v.units);}
     });
+    if(out)Object.keys(out.projects).forEach(pid=>{const r=out.projects[pid];if(!r.baseline)out.projects[pid]=Object.assign({baseline:sortedKeys(bases.get(pid)||{})},r);});
     return out;
   }
+  function sortedKeys(o){const out={};Object.keys(o).sort().forEach(k=>{out[k]=o[k];});return out;}
   // A stored ledger and a whole one written under KEY beside it (a restore or
   // a sync import that wrote the old way): combined as sync combines two
   // devices' histories, this device's (stored) winning a contradiction.
@@ -517,6 +537,6 @@
     return out;
   }
   const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeContained,mergeStock,quantity,validate,sequences,compact,marksBefore,
-    storedKeys,isStoredKey,META_KEY,sumAdd,sumValue,addEventTotals,totalsValue,toRows,assemble,combineStored,fromRows};root.ThreadAccounting=api;
+    storedKeys,isStoredKey,META_KEY,sumAdd,sumValue,addEventTotals,totalsValue,toRows,assemble,combineStored,fromRows,withoutBaseline,baselineRows};root.ThreadAccounting=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

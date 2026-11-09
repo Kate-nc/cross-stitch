@@ -266,6 +266,12 @@ async function caseUsage(ctx) {
 // exportSync({ mode: 'incremental' }) and compression, which no transport
 // uses today but the engine offers.
 async function caseSync(ctx, spec) {
+  // Stitching has started: one mark saved (the first save after an import
+  // rewrites the record in the Tracker's own format, once).
+  const b0 = await ctx.page.evaluate(() => { const r = document.querySelector('.tracker-chart-scroll').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+  await ctx.page.mouse.click(Math.round(b0.x + b0.w * 0.35), Math.round(b0.y + b0.h * 0.4));
+  await sleep(800);
+  await ctx.page.evaluate(() => window.__flushProjectToIDB());
   // A first export, as the folder already had one (and the session its cache).
   await ctx.page.evaluate(async () => {
     const fake = { name: 'cost', queryPermission: async () => 'granted', requestPermission: async () => 'granted',
