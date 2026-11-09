@@ -1,0 +1,319 @@
+# Track Mode performance baseline
+
+**Date:** 2026-11-08 · **Build:** `1.0.240`, commit `efb1ef0` (the commit the earlier audit examined; still `main` when this ran)
+**Scope:** the Stitch Tracker (`stitch.html`) before any further optimisation: what it costs today, where that cost comes from, and which budgets can guard it without making runs flaky.
+
+## Summary
+
+**Marking is fixed; opening is not.** Every full-cross marking case measured, at 50% and 90% done, with a 50 000-event thread-usage history and with 150 other projects, shows a tap in 64-104 ms (median, 4× phone emulation) with no long task, one clipped repaint per tap, no full save and no project-record write. Historically the same cases took 0.1-6.8 s. What a stitcher on a large chart still waits for is everything *around* marking: opening the project, a sync folder export, and any full save.
+
+## Ranked findings
+
+Ranked by user-visible stall × how often it happens. Times are emulated (see [Method](#method)); counts are not.
+
+| # | Finding | Evidence (fresh) | When | Fix direction (not done here) |
+|---|---|---|---|---|
+| 1 | **Reopening an unchanged project reads it twice and rewrites it twice before the chart can draw.** *Partly fixed: the rewrites and the save after opening are gone, see [Follow-up](#follow-up-opening-an-unchanged-project-writes-nothing); the double read and the whole-chart merge remain.* Every Tracker unload (`beforeunload` *and* `pagehide`) writes a recovery journal (the whole `done` array in localStorage), a progress record, a full save and the legacy `auto_save` copy, changed or not. On open, `ProjectStorage.get` first runs `_recoverProgress`, which applies that journal through the legacy path (`TrackingSync.record` over the whole chart) and puts the whole project back; then applies the progress record (`withDelta`, whole chart again). The header calls `getActiveProject()` for its badge at the same moment, so all of it runs twice. Then `processLoadedProject` runs `TrackingSync.merge(project, {})` over the whole chart only to normalise `halfDone`. | Large 50%, phone: first chart paint **12.2 / 13.0 / 14.4 s** (3 runs), longest task 3.8-5.2 s, 9-13 s blocked in the first 10 s; 2 reads and 2 full puts every run. Huge: **41.8 s**. Desktop, no throttle: large 3.4 s, huge 7.1 s. Profile (large 50%, phone): `_recoverProgress` 2.2 s + 3.6 s, `get`'s read and `rememberProgressBase` ~1.0 s, `TrackingSync.merge` in `processLoadedProject` 1.45 s (2.4 s unprofiled with probes), `rtThreadUsage` 0.33 s, thread-usage snapshot ~0.5 s. Transient heap on huge, desktop: 903 MB before GC, 274 MB after | Every open of a large project, every reload, every return from another tool | Header reads `project_meta`, not the project; one in-flight `get` per id; skip the journal and full writes on unload when nothing changed since the last save; normalise `halfDone` without a full merge. Each touches durability, so each needs the recovery and cross-tab tests run against it |
+| 2 | **A sync folder export blocks the main thread for seconds.** It flushes a full save, reads every project back, rebuilds library thread demand, and compresses the file with pako on the main thread. | Huge, phone: 19.7 s end to end, longest task 5.4 s (compress 4.4 s; save 5.0 s; thread demand 3.3 s; read 2.5 s). Large + 150 projects: one **10.1-10.4 s** task (compress). Desktop: 4.5 s / 1.0 s and 4.9 s / 2.2 s | With a sync folder connected (desktop Chrome or Edge; iPad Safari and Android Chrome have no folder access), at most every 30 s after a save | Compress in a worker (pako runs there); export changed projects only (incremental mode exists in `exportSync`) |
+| 3 | **Every full save recomputes the project's library thread demand stitch by stitch.** `ProjectStorage.save`'s completion handler calls `projectThreadEntries`, which does an `Object.assign` and a `JSON.stringify` key per stitch. The result depends on the pattern, not the marks. | 3.3 s of one task on the huge chart at 4× (`tx.oncomplete` > `projectThreadEntries` > `add`) | Every full save of a `proj_` project: the open-time save, unload, flushes, the idle autosave | Cache by `chartRevision`, or key by palette index instead of per-stitch JSON |
+| 4 | **On a mixed-stitch chart most taps repaint the whole tile**, and the live thread accounting re-estimates the non-full kinds on each tap. *Fixed for marks on full stitches, see [Follow-up](#follow-up-marks-on-charts-with-beads-and-specialty-stitches); marks on half stitches, knots, beads and petite or long stitches still repaint in full, on any chart.* | Every run: 9 full and 7 clipped paints for 8 taps (full-cross: 0 and 8). Large mixed: tap p95 336-464 ms, handler up to 175-198 ms. Profile: `ThreadAccounting.sync` > `restOf` > `addRest` 74 + 35 ms per tap | Every tap on a chart with half stitches, backstitch, knots, beads or specialty stitches | Route the mixed mark through the clipped repaint; re-estimate only the changed kind |
+| 5 | **A zoom step costs 0.2-0.5 s at 4×.** Each step is a full repaint (correct), plus extra full repaints from the tier fade animation, symbol `fillText` dominating, and the minimap forcing layout. | 16 steps 20% to 100% and back: step p50 232 ms, max 464-488 ms; 20 full paints for 16 steps; long frames 1.4-1.7 s script vs 0.34-0.36 s render; `relayout` (`tracker-minimap.js`) `getBoundingClientRect` 13-46 ms a step | Each keyboard/button zoom step (pinch is previewed and commits once) | Skip the fade repaints when the tier does not change; read minimap geometry once |
+| 6 | **Panning still produces 150-280 ms frames on the phone profile**, with no script in them. | Pan, mark, pan: 26-41 of ~900 frames over 50 ms, worst 167-283 ms, Long Animation Frames show 0 ms of script; desktop: 0 frames over 50 ms | Every tile move while panning | Probably SwiftShader raster of the tile copy (as the pan audit found). **Device hypothesis, untested**: on a GPU these are a few ms |
+| 7 | **~8.7 React commits per tap** (~1 300 elements a tap: ~516 at once, ~765 when the analysis reply lands). | 67-70 commits for 8 taps in every run | Every tap | Not user-visible today (taps 64-104 ms). Revisit only if a device disagrees |
+
+**Re-validated from the earlier audit and reports**
+
+| Hypothesis | Now |
+|---|---|
+| Taps at 90% wait 1.2-1.6 s behind the progress write | **Resolved.** 64-88 ms median, no long task (progress record holds only changed registers) |
+| A long thread-usage history slows taps (~1.9 s) | **Resolved.** 72-96 ms |
+| Opening a project schedules a full save ~5 s later even when nothing changed | **Fixed since** (see [Follow-up](#follow-up-opening-an-unchanged-project-writes-nothing)). Was true at this baseline, and the smallest part of opening: on large charts it fires 5 s after the chart appears, so outside the 10 s window on the phone profile (inferred, ~17 s; not measured). Measured inside the window on the small and desktop-large runs (the third full put, a `ProjectStorage.save` with no change behind it) |
+| Full save on large charts rebuilds sync metadata for the whole chart | **Still true**, but it waits for a minute without marking (fix #8). It costs more on the save's completion side (finding 3) |
+| A second tab pays for the first tab's marking | **No.** The watching tab ran no long task and read no project while the other tab marked 7 stitches |
+| Work area and overlays cost extra per tap | **No.** Work area taps 72-88 ms; overlay view taps 80-144 ms, with pan frames as without overlays |
+
+---
+
+## Which build was measured
+
+- **Served from the checkout, not `dist/`.** `tests/perf/track-baseline.cjs` starts its own `serve.js` on a free port in this working tree and records `APP_VERSION`, the commit, the number of uncommitted files and the service-worker `BUILD_ID` in every results file. Vercel serves a minified `dist/` (esbuild, ES2020); its script parse time will be lower than measured here, and nothing else should differ.
+- **No service worker in the loop.** Every Playwright configuration here, and this runner, blocks service workers, so no cached build can stand in for the checkout.
+- **How a real install picks up a build** (`sw.js`, `sw-register.js`): a new worker installs into its own cache named after the build's content hash (`cross-stitch-cache-v71-<BUILD_ID>`), verifies every required file against the SHA-256 or SRI fingerprints baked into `sw.js`, and writes a ready record last. It never calls `skipWaiting()` or `clients.claim()`: it activates only after **every** tab of the app has closed, and an open tab keeps the scripts it started with. Registration polls for updates every 10 minutes. So on a device, "is the fix running?" means: close every stitchx tab (on iPad, also swipe the Home Screen app away), reopen, and check **File > Preferences > Version history** or the `v1.0.xxx` badge.
+- **Disposable data only.** Each scenario runs in a fresh browser context whose IndexedDB and localStorage are created for the run and discarded with it. Nothing reads or clears a real profile.
+
+## Method
+
+Runner: [`tests/perf/track-baseline.cjs`](../tests/perf/track-baseline.cjs), `npm run perf:track-baseline` (all scenarios, or `ONLY=` a subset; `PROFILE=1` adds a CPU profile; `REPEATS=n`). Counters: [`tests/_helpers/trackProbes.js`](../tests/_helpers/trackProbes.js), checked in jsdom by [`tests/trackProbes.test.js`](../tests/trackProbes.test.js). Raw results: [`track-mode-baseline/`](track-mode-baseline/).
+
+| Measure | How | Deterministic? |
+|---|---|---|
+| Interaction latency | Event Timing: input to next paint per tap (INP-style), split into input delay, handler time and presentation; p50 / p75 / p95 / max | No (emulated time) |
+| Longest tasks, blocking | Long Tasks and Long Animation Frames (LoAF); TBT = sum of each task beyond 50 ms | No |
+| Attribution | LoAF script entries (invoker, function, file:line), and with `PROFILE=1` a 0.5 ms CPU profile aligned to page time, reduced per long frame to self time and the chain of app functions | Mostly |
+| Rendering vs script | LoAF: time after `renderStart` (style, layout, paint) vs script time | No |
+| Chart paints | `drawStitch` calls, told apart by its opening whole-chart fill on the chart canvas: **full** (unclipped tile) vs **partial** (under a clip: a tapped stitch or a strip after a tile move); kept tile moves (canvas drawn onto itself) | Yes |
+| React updates | Commits, through a stub of the DevTools hook (`onCommitFiberRoot`), and `createElement` calls | Yes |
+| Persistence | Every IndexedDB put/get with its synchronous main-thread time (a put's structured clone runs inside the call), write transactions and their time to complete, localStorage writes; named spans for `ProjectStorage.save` / `saveProgress` / `get`, `TrackingSync.*`, `ThreadAccounting.*`, `StashBridge.*`, `SyncEngine.*` | Counts yes, times no |
+| Workers | `postMessage` main-thread time and the round trip to the reply | Counts yes |
+| Memory | `Runtime.getHeapUsage`, before and after a forced GC | Roughly |
+
+The probes wrap `fillRect`, `save`/`restore`/`clip`, `drawImage`, IndexedDB and localStorage calls and the app modules named above. That adds a small cost per call to every scenario alike; the profiled runs (`PROFILE=1`) add more and are used for attribution only, never for the latency figures.
+
+**Profiles.** *Phone*: Pixel 5 emulation (393 × 851, DPR 2.75, touch) with Chromium's 4× CPU throttle. *Desktop*: 1440 × 900, DPR 1, no throttle. A fixed loop timed inside each run confirms the throttle held (~21 ms phone, ~5 ms desktop), including across a reload.
+
+**What these numbers are not.** Headless Chromium draws canvases in software (SwiftShader, reported by WebGL as "SwiftShader driver"); a phone or iPad draws them on the GPU. CPU throttling slows script but not the raster or compositor threads in the same proportion. The host is a 4-core cloud VM. **No figure here is a physical-device measurement**, and the phone column is a stress profile, not a prediction for any particular phone. The counts (paints, commits, saves, storage operations) are the same on any device; that is why the budgets below lean on them.
+
+**Fixtures** ([`tests/_helpers/trackerFixture.js`](../tests/_helpers/trackerFixture.js)): small 100 × 100 (12 colours), large 400 × 500 (60), huge 600 × 800 (80), full crosses only, done stitches spread evenly; *mixed* adds half stitches, backstitch, knots, beads, petites and long stitches. *History*: a 50 000-event thread-usage ledger from another project. *Collection*: 150 other projects of 120 × 120, saved through `ProjectStorage`. Zoom 100% unless marked *low* (30%).
+
+## Fresh measurements (2026-11-08)
+
+All emulated: Chromium 153 headless, SwiftShader, 4-core VM. *Phone* = Pixel 5 emulation at 4× CPU; *desktop* = no throttle. One run per row unless stated; the budget cases were run three times (see [Budgets](#budgets)). Raw data: [baseline-2026-11-08.json](track-mode-baseline/baseline-2026-11-08.json) (32 scenarios), [-desktop-extra](track-mode-baseline/baseline-2026-11-08-desktop-extra.json), [-overlays](track-mode-baseline/baseline-2026-11-08-overlays.json), and with CPU profiles [-profiled](track-mode-baseline/baseline-2026-11-08-profiled.json). Tables generated by `node tests/perf/track-baseline-table.cjs <files>`.
+
+### Opening an unchanged project (first 10 s)
+
+| Scenario | Profile | First chart paint | Longest task | TBT 0-10 s | Full puts | Heap after GC |
+|---|---:|---:|---:|---:|---:|---:|
+| small 50% | phone | 1,309 ms | 161 ms | 410 ms | 3 | 12 MB |
+| large 50% | phone | 12,248 ms | 4,110 ms | 10,564 ms | 2 | 121 MB |
+| large 90% | phone | 17,217 ms | 3,018 ms | 9,063 ms | 2 | 160 MB |
+| huge 50% | phone | 41,824 ms | 6,986 ms | 11,400 ms | 2 | 273 MB |
+| large mixed 50% | phone | 12,519 ms | 3,885 ms | 10,412 ms | 2 | 131 MB |
+| large 50%, 50k history | phone | 12,673 ms | 4,675 ms | 10,473 ms | 2 | 137 MB |
+| large 50%, 150 projects | phone | 10,192 ms | 3,218 ms | 8,951 ms | 2 | 121 MB |
+| huge 50% | desktop | 7,139 ms | 2,451 ms | 6,155 ms | 2 | 274 MB |
+| large 50% | desktop | 3,362 ms | 881 ms | 2,942 ms | 3 | 128 MB |
+
+### Marking (12 taps 1 s apart; rapid: 20 taps 0.4 s apart)
+
+| Scenario | Profile | Marked | Tap p50 / p75 / p95 / max | Handler max | Paints full / partial | Commits / tap | Progress writes | Full saves | Longest task |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| small 50% | phone | 12/12 | 88 / 96 / 128 / 128 ms | 11 ms | 0 / 12 | 8.0 | 12 | 1 | 88 ms |
+| large 50% | phone | 12/12 | 80 / 88 / 104 / 104 ms | 9 ms | 0 / 12 | 8.3 | 12 | 0 | 0 ms |
+| large 90% | phone | 12/12 | 80 / 80 / 88 / 88 ms | 14 ms | 0 / 12 | 8.3 | 12 | 0 | 0 ms |
+| huge 50% | phone | 12/12 | 72 / 80 / 104 / 104 ms | 18 ms | 0 / 12 | 8.3 | 12 | 0 | 0 ms |
+| huge 90% | phone | 12/12 | 64 / 72 / 72 / 72 ms | 13 ms | 0 / 12 | 8.3 | 12 | 0 | 63 ms |
+| large mixed 50% | phone | 9/12 | 72 / 80 / 336 / 336 ms | 175 ms | 12 / 10 | 7.3 | 11 | 0 | 286 ms |
+| large 50%, 50k history | phone | 12/12 | 72 / 80 / 96 / 96 ms | 15 ms | 0 / 12 | 8.3 | 12 | 0 | 66 ms |
+| large 50%, 150 projects | phone | 12/12 | 64 / 72 / 96 / 96 ms | 15 ms | 0 / 12 | 8.3 | 12 | 0 | 0 ms |
+| large 50% @30% | phone | 12/12 | 80 / 88 / 120 / 120 ms | 13 ms | 0 / 12 | 7.7 | 12 | 0 | 62 ms |
+| huge 50% @30% | phone | 12/12 | 80 / 96 / 120 / 120 ms | 12 ms | 0 / 12 | 7.9 | 12 | 0 | 102 ms |
+| huge 50% | desktop | 12/12 | 24 / 24 / 32 / 32 ms | 3 ms | 0 / 12 | 6.5 | 12 | 0 | 0 ms |
+| rapid huge 50% | phone | 20/20 | 72 / 80 / 88 / 88 ms | 16 ms | 0 / 20 | 5.3 | 10 | 0 | 0 ms |
+| rapid large 90% | phone | 20/20 | 80 / 88 / 104 / 104 ms | 21 ms | 0 / 20 | 5.2 | 10 | 0 | 54 ms |
+
+### Pan, mark, pan (4 x: 60 scroll frames, 3 taps); work area and overlays
+
+| Scenario | Profile | Tap p50 / max | Frames > 50 ms | Worst frame | Kept tile moves | Paints full / partial | TBT |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| large 50% | phone | 72 / 104 ms | 26 of 929 | 167 ms | 25 | 0 / 62 | 2,075 ms |
+| huge 50% @30% | phone | 80 / 120 ms | 29 of 891 | 200 ms | 25 | 0 / 58 | 2,499 ms |
+| large mixed 50% | phone | 72 / 408 ms | 41 of 859 | 283 ms | 25 | 12 / 60 | 2,524 ms |
+| huge 90% | desktop | 16 / 32 ms | 0 of 889 | 33 ms | 25 | 0 / 62 | 0 ms |
+| huge 50%, work area | phone | 72 / 88 ms | 19 of 907 | 167 ms | 16 | 1 / 34 | 1,295 ms |
+| large 50%, overlays | phone | 80 / 144 ms | 28 of 918 | 250 ms | 24 | 1 / 54 | 2,359 ms |
+
+### Zoom steps across the detail tiers (16 key presses: 20% to 100% and back)
+
+| Scenario | Step p50 / p95 / max | Handler max | Full paints | Script / render in long frames | Zooms |
+|---|---:|---:|---:|---:|---:|
+| large 50% @20% | 232 / 464 / 464 ms | 167 ms | 20 | 1,438 / 335 ms | 20 30 40 50 60 70 80 90 100 90 80 70 60 50 40 30 20 |
+| huge 50% @20% | 232 / 480 / 480 ms | 192 ms | 20 | 1,706 / 358 ms | 20 30 40 50 60 70 80 90 100 90 80 70 60 50 40 30 20 |
+
+### Sync: one folder export; two tabs on one project
+
+| Scenario | Profile | Export total | Longest task | TBT | File |
+|---|---:|---:|---:|---:|---:|
+| huge 50% | phone | 19,691 ms | 5,443 ms | 19,109 ms | 868 KB |
+| large 50%, 150 projects | phone | 20,949 ms | 10,080 ms | 15,306 ms | 2,742 KB |
+| huge 50% | desktop | 4,515 ms | 1,003 ms | 4,047 ms | 868 KB |
+| large 50%, 150 projects | desktop | 4,918 ms | 2,210 ms | 3,010 ms | 2,741 KB |
+
+Two tabs (large 50%): tab A marked 7 of 8, taps p50 / max 72 / 88 ms; tab B meanwhile: 0 long tasks, 1 commit, 0 project reads.
+
+Notes on these rows:
+
+- *Open*: "Full puts" counts whole-project writes in the first 10 s; heap is measured at 10 s, when the huge phone run had not finished loading. On the phone profile the large and huge charts first paint after the 10 s window, so the open-time full save (and its thread-demand rebuild) falls outside it.
+- *Marked* counts full stitches whose stored mark changed. On the mixed chart 3 of 12 taps changed no full stitch: the count does not cover half stitches and the other kinds, so they may have marked one of those. Overlays (Highlight view, outline, counting aids, Spotlight): only the highlighted colour can be marked and only ~3 of its stitches are on screen at a time, so 6 of 12 taps marked.
+- *Pan, mark, pan* moves the scroll position per animation frame inside the page, as a drag or fling does; two-finger gestures and pinches are covered by `pan-large.spec.js`.
+- *Zoom*: the keyboard steps go 20% to 100% on this chart and back, crossing the low tiers into symbols; Tier 4 (26 px cells) is not reached.
+- *Sync export* goes through `SyncEngine.exportToFolder` with a stand-in folder handle, so it includes the flush, the read-back and compression, not the disk write.
+
+## Historical results (not re-measured here)
+
+From earlier reports, same harness and fixtures unless noted. These are the fixes the baseline builds on; none is repeated here.
+
+| Change | Before | After | Source |
+|---|---|---|---|
+| Analysis worker holds the pattern (F2) | 352 ms main thread per tap (huge, 4×) | 0.4 ms | [track-view-performance-plan.md](track-view-performance-plan.md) |
+| Outline ants off React (F1) | 11 920 elements/s idle | 0 | same |
+| Hover bar via DOM (F4) | 1 176 elements per stitch crossed | 0 | same |
+| Tap paints before the transition commit (#1) | handler ~1.2 s (large 50%) | ~4 ms | same, 2026-10-31 update |
+| Live thread accounting (#6) | ~0.7 s snapshot per tap | none | same |
+| Interned sync registers (#7) | `TrackingSync.record` ~900 ms at 1× | ~130 ms | same |
+| Marks-only full save waits for a pause (#8) | full save in every 5 s pause | after 60 s idle, 5 min cap | same |
+| Shared ledger event parts (#9) | 29 MB, ~0.7 s per ledger write | ~15 MB, ~90 ms | same |
+| Tile shift, edge check, pinch dead band, zoom preview | up to 120 paints per 120-frame edge pan | 6 | [track-pan-performance-audit.md](track-pan-performance-audit.md) |
+| Navigation record instead of full saves | a full save per zoom or colour change | none | same |
+| Progress record holds only changed registers | 410-1 070 ms per progress write (large 30%) | 17-80 ms | same, last follow-up |
+
+Re-checked in passing: `pan-large.spec.js` "right edge" gives 6 paints in 120 frames, as recorded.
+
+## Budgets
+
+**Review of the existing assertions.**
+
+| Assertion | Was | Verdict |
+|---|---|---|
+| `tap-cost.spec.js` progress taps: median tap-to-paint < **5 000 ms** | Set while taps queued behind saves (medians 0.1-1.9 s) | 50-70× the current median. Replaced (below) |
+| same: handler median < 250 ms | Guards fix #1 | Kept the idea, tightened to 100 ms (measured 4-7 ms) |
+| same: snapshot rebuilds = 0 | Counted | Kept |
+| `tap-cost.spec.js`: analysis post < 25 ms; ≤ 2 of 12 rhythm taps > 200 ms | F2 guards | Kept: measured ≤ 1 ms, 0 of 12 |
+| `mobile-audit.spec.js`: TBT after open < 8 / 20 s | Documented as a tripwire for a 4-5× noisy figure | Left alone; the open now has its own counted spec |
+| `tests/perf/*.spec.js`: import < 60 s, page load < 30 s | Not Track Mode | Left alone |
+
+**New budgets.** Set from three runs of each case on this build (Pixel 5 emulation, 4× CPU). Counted contracts were identical in every run and are asserted exactly or as ratchets; time ceilings sit at ~2.5× the worst median and ~5× the worst single sample seen, so harness noise does not trip them but the regressions they exist for (a tap waiting behind a save: 1-7 s; the re-render back in the handler: ~1.2 s) do.
+
+| Spec | Contract | Measured | Budget |
+|---|---|---|---|
+| `tap-cost.spec.js` "tap cost with progress" (large 50%, 90%, long history; medium mixed) | Clipped repaints per tap, full-cross | exactly 1 | `=== taps` |
+| | Full repaints, full-cross | 0 | `0` |
+| | Full repaints, mixed | 9 for 8 taps | `≤ taps + 1` (ratchet, finding 4) |
+| | React commits | 67-70 for 8 taps | `≤ 12 per tap` |
+| | Full saves / project-record puts / whole-chart `TrackingSync.record` while tapping | 0 / 0 / 0 | `0` each |
+| | Progress writes | 8 for 8 taps | `1..taps` (durable, never more than one a tap) |
+| | Handler median | 4-7 ms | `< 100 ms` |
+| | Tap-to-paint median | 72-104 ms | `< 250 ms` |
+| | Slowest tap | 96-256 ms | `< 1 200 ms` |
+| `open-cost.spec.js` (new): reopen large 50% unchanged | Full project reads before first paint | 2, 2 (after the follow-up: 2) | `≤ 2` (ratchet, finding 1) |
+| | Full project writes before first paint | 2, 2 (after: 0) | `0` |
+| | First chart paint | 12.2, 13.0, 14.4 s (after: 9.2-9.4 s) | `< 20 s` |
+| `desktop-open-save.spec.js` (follow-up) | Full saves and full-project writes in the 12 s after reopening an unchanged small, large or mixed project | 0 | `0` |
+| | Writes still made when a load changes durable data: migration, progress-record marks, backed-up sessions, marks right after opening, a switched-away project, a failed save | as listed | at least one, and the data survives a reload |
+| `tests/trackProbes.test.js` (Jest, runs in CI) | The counters count what the budgets assume: full vs clipped paints, kept tile moves, React commits through the DevTools hook, IndexedDB and localStorage writes, spans, Event Timing reduction, percentiles, windowing | – | exact |
+
+The ratchets pin today's figures so a regression fails; they should be lowered as findings 1 and 4 are fixed. CI runs Jest only, so the browser budgets are run by hand (`npm run test:mobile-audit`, or with `PW_OFFLINE_CDN=1` where cdnjs is unreachable); none of them can make CI flaky.
+
+## Not covered, and validation that was not possible
+
+- **No physical device.** Every figure is emulated; see [the procedure below](#validating-on-an-ipad-or-android-device).
+- **No WebKit.** Only Chromium is installed in this environment, so the `ipad-webkit` project and an iPad-like engine run of these scenarios were not possible. WebKit's IndexedDB structured clone and memory limits are the most likely place a device disagrees with finding 1 (hypothesis: slower, and the huge chart's transient heap on open may exceed an iPad tab's limit).
+- **WebDAV and relay sync** were not measured; only the folder export.
+- **Pinch zoom and two-finger pans** are not in this matrix; `pan-large.spec.js` covers them by counted work.
+- The overlay row marked 6 of 12 taps (see notes above).
+- **Existing browser specs that fail here, before and after the follow-up alike** (checked on a worktree of the commit before it): `cross-tab-merge.spec.js` (3 tests: a conflict dialog appears where a silent merge is expected), `autosave-marks-deferral.spec.js` "any other change still saves within the normal few seconds", and `desktop-work-area.spec.js` "the colour list shows only the area's colours", "mark all done marks only the stitches inside the area" and "finishing the area says so". Not investigated in this work; worth a separate look, the first group especially, since it covers cross-tab conflict handling.
+
+## Follow-up: opening an unchanged project writes nothing
+
+**Reproduced first.** Reopening an unchanged project (small or large, desktop) made 1 full Tracker save and 3 full-project writes within 12 s: two from `ProjectStorage.get` materialising the recovery journal every unload leaves (one per concurrent read, Tracker and header), and the autosave ~5 s after the load, which treated its first run as a change.
+
+**What changed.**
+
+- `ProjectStorage.get` drops a recovery journal that holds exactly the marks the project and its progress record already show, instead of rewriting the whole project for it (`sameMarks`; a journal with any differing mark, an unpick included, is still written). The check compares marks only, with no sync registers rebuilt. `ProjectStorage.loadedWithProgress(project)` says whether the project it returned has marks or sync registers that only a progress record holds.
+- The Tracker loads a stored project with `{stored:true}` (the Tracker's own load, the project picker, Stats, the Creator's hand-over by id). `processLoadedProject` lists what the load changes that only a full save keeps:
+  - a minted id, a format version other than 11, or the compact or legacy pattern format;
+  - petite and long stitch migration, re-keyed half-stitch marks, or an original palette created on load;
+  - dropped park markers, deleted snapshots filtered out;
+  - backed-up sessions, or sessions migrated, patched or recovered from a checkpoint.
+
+  It also records exactly what it hands to each saved piece of state. The autosave's first run with that pattern takes it as the baseline, and schedules nothing, only when that list is empty and every input is still exactly what the load installed. An edit that lands before the load renders (a tap, a cross-tab merge) is therefore never taken as loaded data. Marks that differ from the loaded ones (a progress record's, or such a tap) are a marks-only change, saved as any other, deferred on charts over 40 000 stitches as before. A clean load also counts as written for the tab-hidden save and the save badge.
+- Imports, hand-offs, share links and the Creator's project hand-over are saved as before. Loads whose marks do not fit the pattern still hold every save until answered.
+- The active-project pointer, which the save after opening used to set on the by-id path, is set explicitly there.
+
+**Measured** (same runner and harness, `OPEN_WINDOW_MS=30000` from navigation so the old save is inside the window on the phone profile too, 2 runs each; [open-save-before.json](track-mode-baseline/open-save-before.json), [open-save-after.json](track-mode-baseline/open-save-after.json)):
+
+| Scenario | First chart paint | Total blocking | Long tasks | Full-project writes | Full saves |
+|---|---:|---:|---:|---:|---:|
+| large 50%, phone | 12.3-12.9 s to **9.2 s** | 15.6-16.0 s to **8.0 s** | 16-17 to 11 | 3 to **0** | 1 to 0 |
+| huge 50%, phone | 38.1-38.4 s to **27.5-28.0 s** | 32.2-33.8 s to 26.2-26.6 s | 8 to 12-13 (now loaded inside the window) | 2 to 0 | 0 to 0 |
+| large 50%, 50k history, phone | 11.6-12.5 s to 8.0-8.4 s | 16.3-16.9 s to 7.6-8.4 s | 20-22 to 12-16 | 3 to 0 | 1 to 0 |
+| large 50%, 150 projects, phone | 11.9-12.7 s to 8.0 s | 15.1-16.1 s to 6.8-6.9 s | 15-17 to 11-12 | 3 to 0 | 1 to 0 |
+| huge 50%, desktop | 8.2-8.7 s to 5.9-6.3 s | 10.5 s to 5.0-5.1 s | 13 to 7 | 3 to 0 | 1 to 0 |
+| large 50%, desktop | 2.9-3.0 s to 2.1-2.2 s | 2.6-2.7 s to 1.2-1.3 s | 11 to 6 | 3 to 0 | 1 to 0 |
+| small 50%, phone | ~1.3 s, unchanged | 0.35-0.46 s to 0.25-0.27 s | 7-10 to 5-6 | 3 to 0 | 1 to 0 |
+
+The **longest task is unchanged** (about 4 s on the large chart and 14-15 s on the huge one at 4x, 2.4-3 s huge on desktop): it is the whole-chart `TrackingSync.merge` in `processLoadedProject`, run only to re-key half-stitch marks, together with the header's second full read. Those are what is left of finding 1.
+
+**Durability, checked** (`tests/mobile-audit/desktop-open-save.spec.js`, 10 browser tests, all pass):
+
+- reopening unchanged small, large and mixed-stitch projects writes nothing;
+- a version 8 record without an original palette and with an unpatched session is migrated and saved;
+- marks only a progress record held are folded into the full record and survive a reload;
+- a session backed up before the tab closed is saved and its backup cleared;
+- two marks made straight after opening (small and large) survive a reload;
+- in a quick A to B to A project switch, the unchanged project is never written and the changed one keeps its mark and the session it started;
+- with every full save failing, a mark stays unsaved until saving works again, and the tab-hidden save then writes it.
+
+Mutation checks: disabling the journal comparison fails 2 of the new `ProjectStorage` tests; ignoring a progress record's marks in the baseline fails the progress-record browser test. `tests/trackerLoadBaseline.test.js` (Jest, CI) holds the structure: which calls may start clean, each reason a load must save, the input names against the autosave's list, that the baseline is reset on every load and taken only with its own pattern, and that a clean load leaves nothing for the tab-hidden save. The existing browser specs touching saving and reload (`desktop-pan-large`, `tracker-load-sessions`, `track-history-accounting`, `autosave-marks-deferral` except its one test that also fails before, `tap-cost`, `open-cost`) pass.
+
+**Not changed, noted for later:** every unload (`beforeunload` and `pagehide`) still writes a progress record, the journal, a full save and the legacy `auto_save` copy, changed or not. That is durability-critical (it finalises the running session) and needs its own change and tests. Home's weekly figures for a project come from its last save, so a project only opened, never changed, keeps last save's week until it is next saved.
+
+## Follow-up: marks on charts with beads and specialty stitches
+
+**Reproduced first.** On the large mixed fixture (desktop, 20 px stitches), every ordinary mark on a full stitch was followed by a full tile repaint: 9 full and 9 partial paints for 9 marks, 6 and 6 for 3 undos and 3 redos, 3 and 3 for marks beside a selected long stitch or bead. A full-cross chart with **one** bead and **one** long stitch far from the marks did the same. The cause was a blanket condition on the redraw skip, `!specialtyStitches.length&&!beads.length`: any bead or petite or long stitch anywhere refused it. It predates the imported history; the partial-repaint tests record that the fast path used to be a hand-copied subset of `drawStitch` that drew neither, which is the likely reason for it. It now runs `drawStitch` itself, so the condition only cost a full repaint per mark.
+
+**Removing it alone was not enough.** Comparing the canvas after partial repaints with a full redraw of the same state, device pixel by device pixel, found small differences (up to 24-46 levels on a few pixels) on the mixed chart and none on a full-cross control. Each was where the repaint's clip edge crossed an anti-aliased shape: a petite's stroke, a bead at 3 px stitches, a half stitch or backstitch at a neighbouring stitch's corner. Such a shape rasterises a little differently just inside a clip than unclipped. The original clip only ever crossed stitch boundaries plus 2 px, where there are only crisp outline fills, which is why full-cross charts were exact.
+
+**What changed** (all in `tracker-app.js`):
+
+- The redraw skip no longer looks at whether the chart has beads or specialty stitches.
+- A mark's repaint region (`objectDirtyCells`) is its stitches grown, **by whole stitches**, to take in whole every bead, petite, long stitch, French knot, backstitch line and park marker that reaches its clip (selection boxes and rings included, hidden layers excluded), and every neighbouring stitch holding a shown half or quarter stitch. It repeats until nothing more reaches in. Its edges therefore stay on stitch boundaries and no clip cuts an object.
+- Each object's reach is one shared definition (`beadReachPx`, `knotReachPx`, `specialtyReachPx`, `backstitchReachPx`, `parkReachPx`) used by `drawStitch`'s culling as well. Bead and knot culling now allow for their radius: at 3 px stitches a bead's 3 px minimum radius was more than the half stitch it was culled at.
+- Stitches smaller than the clip's 2 px overhang (1 px, zoomed right out) repaint more than one stitch around them. With one, `drawStitch`'s opening fabric fill blanked the stitches two away inside the clip. This was a bug on **every** chart: restoring the old range, the full-cross control at 1 px differed from a full redraw on 176-288 pixels per step, by up to 253 levels.
+- Park markers are taken by their drawn size (review fix). A marker keeps a 4 px triangle and a 3.5 px ring however small a stitch gets, so below about 6 px it overhangs its stitch on the far sides, at 1 px by almost 6 px, and below 17.5 px its ring pokes out of the near sides. They used to count only as a stitch beside the region, and a marker on a marked stitch not at all, so marking or unmarking a parked stitch zoomed out left pieces of the marker behind or cut it off: at 1-3 px, 20-296 pixels off by up to 253 levels. That happened on every chart (it predates this change), but on charts with beads or specialty stitches the full repaint hid it. A marker that is added, moved or removed repaints its stitch grown by its reach, since the old one is no longer in the list.
+- If the growth does not settle within 12 passes, the mark paints its stitches and any park marker over them, as before. A long backstitch outline is the common case: every segment reaches the next. Then:
+  - on a chart with no beads, petites or long stitches, nothing more. That is how every mark there was painted before this change; where the clip edge crosses a stroke, a few pixels differ from a full paint (up to ~35 levels in a standalone test with diagonal lines; within 1 level beside a straight 200-segment outline).
+  - on a chart with any, its commit repaints in full (`markPaintFellBackRef`), as every mark there did before.
+
+  An earlier version of this change repainted in full on every chart when the growth did not settle, so a mark beside a long outline on a full-cross chart cost a full repaint it had not before (review finding). Hidden layers (backstitch, half and quarter stitches, knots, petites, long stitches) no longer count towards the region at all.
+- Objects are bucketed in an 8-stitch spatial index, rebuilt when the object lists change (15 ms for the 12 000 objects of the large mixed fixture). Sizing a mark's region then takes about 8 µs.
+
+**Correctness** (`tests/mobile-audit/desktop-mixed-mark-repaint.spec.js`, 17 browser tests, all pass): the canvas after partial repaints against a forced full redraw, every device pixel, after each step:
+
+| Stitch size, DPR | Steps | Full repaints | Max difference (of 255) |
+|---|---|---:|---:|
+| 20 px, DPR 1 | 11 marks (beside a bead, a petite, a long stitch, a half stitch, on a backstitch), unmark, undo and redo, a drag stroke, marks beside a selected long stitch and a selected bead | 0 | 1 |
+| 20 px, DPR 2 | same | 0 | 0 |
+| 12 px, DPR 1.5 | same | 0 | 1 |
+| 40 px, DPR 2 | same | 0 | 0 |
+| 3 px, DPR 1 | same; objects here chain across the chart, so marks fall back | 35 of 39 | 0 |
+| 1 px, DPR 2 | same; the region settles at most of the chart | 0 | 0 |
+| 1 px DPR 2, 2 px DPR 1, 3 px DPR 1 and 2 | full-cross chart, one bead far away, five park markers: mark and unmark the parked stitches and their neighbours, undo and redo | 0 | 0 |
+| 20 px, DPR 1 | full-cross chart, a 200-segment backstitch outline, hidden and shown: 5 marks beside it | 0 | 1 |
+
+Also: one bead and one long stitch far away on a full-cross chart (6 marks, 0 full repaints); Highlight view in Isolate and Tint; petites, long stitches and knots hidden; the chart's bottom-right corner, where the region runs past the chart's edge. Each is within 1 level of a full redraw. The same steps on a full-cross chart (`REPAINT_CONTROL=1`) are within 1 level at every size. `tests/chartObjectDirtyRegion.test.js` (Jest) holds the geometry: whole-stitch growth, chains, selection reach, hidden layers, the zoomed-out bead, the ring of neighbouring stitches, and, over random charts at 1-40 px, that anything reaching the clip lies wholly inside the region and that the index finds exactly what scanning every object finds.
+
+**Cost** (`tap-cost.spec.js` mixed case, Pixel 5 at 4x, the commit before and this one alternated, three runs each):
+
+| | Before | After |
+|---|---:|---:|
+| Full repaints, 8 taps | 9 | **2** |
+| Canvas fills | 1 018 | **283** |
+| Blocking time per tap | 16-41 ms | **9-11 ms** |
+| Tap to paint, median / slowest | 88-96 / 240-384 ms | 88-104 / 296-384 ms |
+| Handler median | 6 ms | 6-8 ms |
+
+Tap-to-paint does not change: the full repaint used to run in the commit after the tap's own frame, so it never delayed that paint. What it did was occupy the main thread right after every tap, in front of the next tap and of any panning, and that is what drops. On the large mixed fixture the phone baseline shows the same: 2 full repaints for 12 taps instead of 12.
+
+**Remaining.**
+- A tap on a half stitch, a knot, a bead or a petite or long stitch changes their own mark state, which `renderStitch` depends on, so it repaints the tile in full on any chart. These are the two full repaints left in the runs above, and the slowest taps.
+- A strip painted after a tile move is clipped to its exact edges and can differ from a full paint by a few levels along them (the pan audit's tile-shift noise); the same growth could apply there.
+- On densely decorated charts at 2-4 px stitches, and beside long backstitch outlines on charts with beads or specialty stitches, marks fall back as described.
+- At DPR 1.5 with 3 px stitches (4.5 device pixels), marks on a plain full-cross chart differ from a full redraw by up to 57 levels on about 70 pixels, identically before this change. Not investigated; likely the low-zoom cell image at fractional device pixels.
+- In the Tracker on a 1440 x 900 desktop, the palette header covers the Beads button.
+- A tap on a hidden knot still toggles it.
+
+## Validating on an iPad or Android device
+
+Not done: this environment has neither. The procedure below needs about 15 minutes per device and no developer tools.
+
+1. **Get the build.** Close every stitchx tab (iPad: also swipe the Home Screen app away). Reopen and confirm the version in **File > Preferences > Version history** matches the build under test. A new build only takes over once every tab has closed.
+2. **Use a throwaway project.** Never a real one: import the generated fixture (`node -e "console.log(require('./tests/_helpers/trackerFixture').fixtureFor('large',{doneFraction:0.5}))"` prints its path; AirDrop or copy it to the device) and open it in the Tracker. Use the huge fixture too on a device with 4 GB or more.
+3. **Open with the readout.** Add `?perf=1` to the Tracker URL (`stitch.html?perf=1`). Its counters work on iOS Safari, which has no Long Tasks API: blocking comes from animation-frame gaps.
+4. **First 10 s.** Reload, do nothing for 10 s, press **Copy** in the readout and paste the JSON into a note labelled "open".
+5. **Steady marking.** At 100% zoom, tap 12 different stitches about one a second. Copy ("mark-100"). Repeat at the lowest zoom that still marks ("mark-low").
+6. **Pan, mark, pan.** Pan with one finger for 2 s, tap 3 stitches, pan back; four times. Copy ("pan-mark").
+7. **Zoom crossings.** Pinch from fully out to fully in and back, slowly, twice. Copy ("zoom"). Check that symbols appear and that the chart is sharp after each pinch.
+8. **Note** the device model, OS and browser version, whether it was on battery, and anything that felt slow, with the time.
+9. Paste the notes into this report under a "Device results" heading, next to the emulated row for the same scenario. A device row that disagrees with the ranking above (for example, raster time dominating rather than script) changes the ranking; say so.
+
+Pass/fail guide for a device: a tap that shows in under 100 ms most of the time and never over 300 ms; no frame gap over 200 ms while panning at 100%; the first 10 s after opening with no gap over 1 s once the chart is visible.

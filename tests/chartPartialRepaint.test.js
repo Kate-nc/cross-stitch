@@ -24,13 +24,25 @@ function body(startMarker, endMarker) {
 describe('repaintChartCells', () => {
   const fn = () => body('function repaintChartCells(', '\n}\n');
 
-  test('clips to the cells plus their overhang', () => {
+  test('clips to the cells plus their overhang, grown to take in whole objects', () => {
     // Park-marker and cell outlines overhang a cell edge by up to a pixel.
-    expect(fn()).toMatch(/const sp=2;\s*ctx\.beginPath\(\);ctx\.rect\(left-sp,top-sp,right-left\+2\*sp,bottom-top\+2\*sp\);ctx\.clip\(\);/);
+    expect(fn()).toMatch(/const sp=2;\s*let box=objectDirtyBox\(x0,y0,x1,y1,sp\);[\s\S]*?fellBack=!box\.converged\|\|specialtyStitches\.length>0\|\|beads\.length>0;\s*\}\s*const left=G\+box\.x0\*scs,top=G\+box\.y0\*scs,right=G\+box\.x1\*scs,bottom=G\+box\.y1\*scs;\s*ctx\.save\(\);\s*ctx\.beginPath\(\);ctx\.rect\(left-sp,top-sp,right-left\+2\*sp,bottom-top\+2\*sp\);ctx\.clip\(\);/);
   });
 
-  test('runs drawStitch one cell wider than the clip, so overlaps paint in full-paint order', () => {
-    expect(fn()).toMatch(/const m=scs;\s*drawStitch\(ctx,scs,\{left:left-m,top:top-m,right:right\+m,bottom:bottom\+m,width:right-left\+2\*m,height:bottom-top\+2\*m,overdraw:0\},isDoneAt\);\s*ctx\.restore\(\);/);
+  test('falls back to the cells and their park markers when objects chain too far to settle, and asks for a full repaint only where marks always had one', () => {
+    // A chart with no beads or specialty stitches keeps the partial repaint, as before this
+    // region existed; one with any repaints in full, as every mark there used to.
+    expect(fn()).toMatch(/let fellBack=!box\.converged;\s*if\(fellBack\)\{\s*box=objectDirtyBox\(x0,y0,x1,y1,sp,true\);\s*fellBack=!box\.converged\|\|specialtyStitches\.length>0\|\|beads\.length>0;\s*\}/);
+    expect(src).toMatch(/const b=parkOnly\?objectDirtyCells\(x0,y0,x1,y1,pad,scs,\{index:buildObjectIndex\(\),sW,sH,park\}\)/);
+    expect(fn()).toMatch(/return fellBack;\s*$/);
+    // Every mark painter reports it, and the commit then repaints in full instead of skipping.
+    expect(src.match(/if\(repaintChartCells\([^;]*\)\)markPaintFellBackRef\.current=true;/g).length).toBe(3);
+    expect(src).toMatch(/const fellBack=markPaintFellBackRef\.current;\s*markPaintFellBackRef\.current=false;/);
+    expect(src).toMatch(/if\(skip&&\(skip===done\|\|skip===bsDone\)&&marksOnly&&!fellBack\)\{chartPaintedByRef\.current=renderStitch;return;\}/);
+  });
+
+  test('runs drawStitch one cell wider than the clip (more where a stitch is narrower than its overhang)', () => {
+    expect(fn()).toMatch(/const m=scs<sp\?scs\*\(Math\.ceil\(sp\/scs\)\+1\):scs;\s*drawStitch\(ctx,scs,\{left:left-m,top:top-m,right:right\+m,bottom:bottom\+m,width:right-left\+2\*m,height:bottom-top\+2\*m,overdraw:0\},isDoneAt\);\s*ctx\.restore\(\);/);
   });
 
   test('anchors the centre-line dashes to the chart origin', () => {
@@ -88,7 +100,16 @@ describe('incremental guide and park repaints', () => {
   test('a park change repaints only the cells whose markers differ', () => {
     const b = body('const prevParkPaintRef=useRef(null);', '},[parkMarkers,parkLayers]);');
     expect(b).toMatch(/if\(a\.get\(k\)!==b\.get\(k\)\)/);
-    expect(b).toMatch(/repaintChartCells\(x,y,x\+1,y\+1\)/);
+    // Grown by a marker's reach: a marker that is gone is no longer in the list
+    // the region grows around, and zoomed out it overhangs its stitch.
+    expect(b).toMatch(/const g=Math\.ceil\(parkReachPx\(scs\)\/scs\);/);
+    expect(b).toMatch(/repaintChartCells\(x-g,y-g,x\+1\+g,y\+1\+g\)/);
+  });
+
+  test('the repaint region takes in park markers of shown layers, and half and quarter stitches only when shown', () => {
+    const b = body('function objectDirtyBox(', '\n}\n');
+    expect(b).toMatch(/const park=\(parkMarkersRef\.current\|\|\[\]\)\.filter\(m=>pl\[m\.colorId\]!==false\);/);
+    expect(b).toMatch(/cellHas:idx=>\(halfShown&&halfStitches\.has\(idx\)\)\|\|\(quarterShown&&partialStitches\.has\(idx\)\)/);
   });
 
   test('memoised callers paint through a ref to the current painter', () => {
@@ -106,7 +127,7 @@ describe('paintDoneChanges — toggled stitches', () => {
   });
 
   test('a big batch becomes one tile repaint instead of many clipped ones', () => {
-    expect(fn()).toMatch(/if\(on\.length>Math\.max\(64,tileCells\/8\)\)\{repaintChartCells\(r\.x0,r\.y0,r\.x1,r\.y1,isDoneAt\);return;\}/);
+    expect(fn()).toMatch(/if\(on\.length>Math\.max\(64,tileCells\/8\)\)\{if\(repaintChartCells\(r\.x0,r\.y0,r\.x1,r\.y1,isDoneAt\)\)markPaintFellBackRef\.current=true;return;\}/);
   });
 
   test('every caller hands over its new done array', () => {

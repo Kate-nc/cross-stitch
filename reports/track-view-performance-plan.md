@@ -13,6 +13,12 @@ Prototype for the work-area mode: [work-area-prototype.html](work-area-prototype
 
 ---
 
+**2026-11-08:** a fresh baseline of the whole tracker on build 1.0.240, with
+what is still slow ranked, is in
+[track-mode-performance-baseline.md](track-mode-performance-baseline.md).
+Marking now shows in 64-104 ms at 4x in every full-cross case below;
+opening a large project is the top item.
+
 ## Update 2026-10-31: tap lag on charts with progress
 
 Every Phase 0 fixture was a fresh chart, and that hid the largest per-tap

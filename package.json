@@ -25,7 +25,8 @@
     "prepare": "node scripts/install-hooks.js",
     "test:ipad": "playwright test --project=ipad-webkit",
     "test:tracking-accessibility": "playwright test --config=playwright.focused.config.js",
-    "perf:tracking": "node tests/perf/focused-journey.cjs"
+    "perf:tracking": "node tests/perf/focused-journey.cjs",
+    "perf:track-baseline": "node tests/perf/track-baseline.cjs"
   },
   "jest": {
     "setupFiles": [

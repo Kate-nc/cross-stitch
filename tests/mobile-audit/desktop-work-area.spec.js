@@ -13,11 +13,13 @@
 const { test, expect } = require('@playwright/test');
 const { fixtureFor } = require('../_helpers/trackerFixture');
 const { suppressOnboarding } = require('../_helpers/deviceEmulation');
+const { routeCdnLocally } = require('../_helpers/offlineCdn');
 
 const G = 28;
 const AREA = { x0: 100, y0: 150, x1: 150, y1: 200, bw: 5, bh: 5 };   // 5x5 sections of 10
 
 async function openTracker(page) {
+  await routeCdnLocally(page);
   await suppressOnboarding(page);
   await page.goto('/stitch.html?from=home', { waitUntil: 'load', timeout: 120000 });
   await page.locator('input[type="file"]').first().setInputFiles(fixtureFor('large'));

@@ -14,6 +14,123 @@ const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.pa
 // the two cannot drift apart.
 function chartOverdraw(cSz){return Math.max(40,20*cSz);}
 
+// How far each kind of chart object reaches past its own geometry, in pixels, at
+// a stitch size of cSz: what drawStitch draws for it. A bead: its radius (3 px at
+// least) and half the selected bead's 3 px ring, plus a pixel of anti-aliasing. A
+// French knot: its radius (2 px at least) and half its outline. A petite or long
+// stitch: half its line width (round caps reach as far), plus a pixel; selected,
+// the dashed box 3 px outside it as well. Used both to cull objects when painting
+// and to size a partial repaint (objectDirtyCells), so the two cannot disagree.
+function beadReachPx(cSz){return Math.max(3,cSz*0.24)+2;}
+function knotReachPx(cSz){return Math.max(2,cSz*0.3)+Math.max(1.5,cSz*0.1)/2+0.5;}
+function specialtyReachPx(cSz,selected){const sw=Math.max(1,cSz*0.08)/2+1;return selected?sw+4:sw;}
+// A backstitch line: half its width (round caps reach as far) with the selected
+// line's 5 px halo, plus a pixel.
+function backstitchReachPx(thickness){return (Math.max(1,thickness||1)+5)/2+1;}
+// How far a park marker (parkMarkerPath, drawParkMarker) reaches past its stitch,
+// taken on every side. Its triangle sits inset into a corner, ts px a side, and
+// its ring reaches half PARK_MARKER_RING past that. From 17.5 px a stitch up (a
+// 2 px inset) all of it stays inside the stitch: 0, an in-stitch object, and a
+// region's clip edge, 2 px past a stitch boundary, is never within a pixel of it.
+// Smaller, the ring overhangs the near edges and, below about 6.4 px, the
+// triangle's 4 px minimum the far ones: by that much, plus a pixel.
+const PARK_MARKER_RING=3.5;
+function parkReachPx(cSz){
+  const inset=Math.min(2,cSz*0.1),ts=Math.max(4,Math.min(cSz*0.5,14)),half=PARK_MARKER_RING/2;
+  const over=Math.max(half-inset,inset+ts+half-cSz);
+  return over>0?over+1:0;
+}
+
+// The stitches a repaint of cells x0..x1, y0..y1 must cover so that every bead,
+// petite, long stitch, French knot and backstitch line drawn over them is
+// repainted whole, along with any neighbouring stitch holding a half stitch, a
+// quarter stitch or a park marker (drawn to its corners, so the clip's margin
+// would cut through it).
+// Wherever a clip edge crosses an anti-aliased shape (a stroke, an ellipse, a
+// symbol), the pixels just inside it rasterise a little differently from the same
+// shape unclipped (measured: up to 24 levels on a few pixels), so a repaint that
+// cut through an object would not match a full paint. The region grows by whole
+// stitches, so its edges stay on stitch boundaries, where the clip only crosses
+// the crisp outline fills (as on any chart without these objects), and grows
+// again while another object reaches in (one can reach the next). A dense chain of
+// objects could keep it growing: after MAX passes it reports converged:false and
+// the caller repaints its whole tile instead (no clip edge inside the canvas at
+// all). padPx: how far past its stitches the clip reaches. o: {specialty,
+// specialtySelected, beads, knots, bsLines (or index: buildObjectIndex of them),
+// park: the park markers drawn ({x,y}), layerVis, sW, sH, bsReachPx, and
+// cellHas(idx): whether stitch idx holds a shown half or quarter stitch}. Hidden
+// layers draw nothing, so their objects do not count. Not clamped to the chart.
+// Chart objects bucketed by position in OBJECT_BUCKET-stitch squares, built once per
+// change of the object lists, so sizing a repaint looks only at what is near it rather
+// than at every object on the chart on every pass (12 000 on a 400 x 500 test chart).
+const OBJECT_BUCKET=8;
+function buildObjectIndex(specialty,beads,knots,bsLines){
+  const buckets=new Map(),B=OBJECT_BUCKET;
+  const add=(kind,obj,x0,y0,x1,y1)=>{
+    const it={kind,obj,x0,y0,x1,y1};
+    for(let by=Math.floor(y0/B);by<=Math.floor(y1/B);by++)for(let bx=Math.floor(x0/B);bx<=Math.floor(x1/B);bx++){
+      const k=bx*65536+by;let a=buckets.get(k);if(!a)buckets.set(k,a=[]);a.push(it);
+    }
+  };
+  (specialty||[]).forEach(s=>{if(s.type==='petite')add('s',s,s.x,s.y,s.x+0.5,s.y+0.5);else add('s',s,Math.min(s.x1,s.x2),Math.min(s.y1,s.y2),Math.max(s.x1,s.x2),Math.max(s.y1,s.y2));});
+  (beads||[]).forEach(b=>add('b',b,b.x/2,b.y/2,b.x/2,b.y/2));
+  (knots||[]).forEach(k=>add('k',k,k.x/2,k.y/2,k.x/2,k.y/2));
+  (bsLines||[]).forEach(l=>add('l',l,Math.min(l.x1,l.x2),Math.min(l.y1,l.y2),Math.max(l.x1,l.x2),Math.max(l.y1,l.y2)));
+  return{B,buckets};
+}
+// The objects in an index whose bucket overlaps x0..x1, y0..y1 (in stitches), once each.
+function objectsNear(index,x0,y0,x1,y1){
+  const B=index.B,out=[],seen=new Set();
+  for(let by=Math.floor(y0/B);by<=Math.floor(y1/B);by++)for(let bx=Math.floor(x0/B);bx<=Math.floor(x1/B);bx++){
+    const a=index.buckets.get(bx*65536+by);
+    if(a)for(let i=0;i<a.length;i++)if(!seen.has(a[i])){seen.add(a[i]);out.push(a[i]);}
+  }
+  return out;
+}
+function objectDirtyCells(x0,y0,x1,y1,padPx,cSz,o){
+  let bx0=x0,by0=y0,bx1=x1,by1=y1;
+  const p=padPx/cSz,vis=o.layerVis||{};
+  const sReach=specialtyReachPx(cSz,false)/cSz,sSel=specialtyReachPx(cSz,true)/cSz;
+  const bReach=beadReachPx(cSz)/cSz,kReach=knotReachPx(cSz)/cSz,bsReach=(o.bsReachPx||0)/cSz,pReach=parkReachPx(cSz)/cSz;
+  const index=o.index||buildObjectIndex(o.specialty,o.beads,o.knots,o.bsLines);
+  // How far any object can reach past its own geometry, and past the clip: what to look near.
+  const look=Math.max(sSel,bReach,kReach,bsReach)+p;
+  const W=o.sW||0,H=o.sH||0,cellHas=o.cellHas,knotsShown=vis.french_knot!==false,bsShown=vis.backstitch!==false,park=o.park||[];
+  let converged=false;
+  for(let pass=0;pass<12;pass++){
+    let grew=false;
+    const take=(ox0,oy0,ox1,oy1)=>{
+      if(ox1<bx0-p||ox0>bx1+p||oy1<by0-p||oy0>by1+p)return;
+      const nx0=Math.floor(ox0),ny0=Math.floor(oy0),nx1=Math.ceil(ox1),ny1=Math.ceil(oy1);
+      if(nx0<bx0){bx0=nx0;grew=true;}if(ny0<by0){by0=ny0;grew=true;}
+      if(nx1>bx1){bx1=nx1;grew=true;}if(ny1>by1){by1=ny1;grew=true;}
+    };
+    const near=objectsNear(index,bx0-look,by0-look,bx1+look,by1+look);
+    for(let i=0;i<near.length;i++){
+      const it=near[i];let r;
+      if(it.kind==='s'){if(vis[it.obj.type]===false)continue;r=o.specialtySelected===it.obj.uid?sSel:sReach;}
+      else if(it.kind==='b')r=bReach;
+      else if(it.kind==='k'){if(!knotsShown)continue;r=kReach;}
+      else{if(!bsShown)continue;r=bsReach;}
+      take(it.x0-r,it.y0-r,it.x1+r,it.y1+r);
+    }
+    // Park markers, inside the region or not: zoomed out, one overhangs its
+    // stitch by several (a handful per chart, so no index).
+    for(let i=0;i<park.length;i++){const m=park[i];take(m.x-pReach,m.y-pReach,m.x+1+pReach,m.y+1+pReach);}
+    // The ring of stitches around the region: one holding a half or quarter stitch
+    // joins it whole.
+    if(cellHas&&W){
+      const rx0=Math.max(0,bx0-1),ry0=Math.max(0,by0-1),rx1=Math.min(W,bx1+1),ry1=Math.min(H||Infinity,by1+1);
+      for(let y=ry0;y<ry1;y++)for(let x=rx0;x<rx1;x++){
+        if(x>=bx0&&x<bx1&&y>=by0&&y<by1){x=bx1-1;continue;}
+        if(cellHas(y*W+x))take(x,y,x+1,y+1);
+      }
+    }
+    if(!grew){converged=true;break;}
+  }
+  return{x0:bx0,y0:by0,x1:bx1,y1:by1,converged};
+}
+
 // "#rgb", "#rrggbb" or "rgb(r,g,b)" as [r,g,b], or null for anything else.
 // Used to put the chart's flat cell colours into image pixels (drawStitch).
 function parseChartColour(c){
@@ -2310,6 +2427,11 @@ const flushedGenRef=useRef(-1);
 const autoSaveOtherRef=useRef(null);
 const autoSaveOtherDirtyRef=useRef(true);
 const autoSaveMarksSinceRef=useRef(null);
+// What processLoadedProject installed for a project read from storage (see the
+// autosave effect), until the autosave's first run with that pattern takes it.
+const loadBaselineRef=useRef(null);
+// That run found nothing to save: the save badge counts the load as saved.
+const loadUiCleanRef=useRef(false);
 const progressFailedRef=useRef(false);   // the last progress write failed (see progressWriteFailed)
 const progressKickRef=useRef(null);
 // The drag gesture lives in useDragMark; these let snapshotNow() read it synchronously.
@@ -2585,6 +2707,9 @@ const renderStitchRef=useRef(null);
 // changed cells directly (see paintDoneChanges call sites) so the full-viewport
 // renderStitch effect can skip a redundant redraw. See the effect below for detail.
 const skipNextFullRedrawRef=useRef(null);   // the done (or bsDone) array whose commit needs no full redraw
+// A mark's own paint since the last redraw decision could not cover every object it
+// touches exactly (repaintChartCells fell back): its commit repaints in full.
+const markPaintFellBackRef=useRef(false);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -4059,6 +4184,18 @@ function handleSymbolReassignment(oldColorId, newThread) {
   setCmap(newCmap);
 }
 
+// The second argument, {stored:true}, says the project was just read from storage
+// (ProjectStorage.get) as it is saved. Only such a load can start out clean.
+//
+// Load baseline (see the autosave effect). Opening a project used to be followed
+// ~5 s later by a full save of it, changed or not: the autosave took its first run
+// as a change. A stored project whose load changes nothing durable now starts
+// clean. _needs lists what a load changes that only a full save keeps (a migration,
+// recovered sessions, a minted id, ...): any entry and the load is saved as before,
+// as is anything not read from storage (an import, a hand-off, a link, the
+// Creator's hand-over). _set records exactly what the load hands to the saved
+// pieces of state, so an edit landing before the load renders is told apart from
+// loaded data and never taken as clean.
 function processLoadedProject(project){
   if(!project){console.error("processLoadedProject called with null/undefined");return;}
   if(!project.id){console.warn('[stitchx/tracker] processLoadedProject: project has no id — a new id will be minted on first auto-save; call stack:', new Error().stack);}
@@ -4075,14 +4212,28 @@ function processLoadedProject(project){
         project.id, project.lastWriteAt, project.lastWriteTabId);
     }
   } catch (_) {}
+  const opts=arguments[1];
+  loadBaselineRef.current=null;
+  const _stored=!!(opts&&opts.stored);
+  const _loadedAs=project;
+  const _needs=_stored?[]:['not read from storage'];
+  if(!project.id)_needs.push('new id');
+  if(project.version!==11)_needs.push('format version '+project.version);
+  // Marks or sync registers only a progress record holds: a marks change, saved as one.
+  const _marksNeed=_stored&&!!(typeof ProjectStorage!=='undefined'&&ProjectStorage.loadedWithProgress&&ProjectStorage.loadedWithProgress(project));
+  // Taken before anything below patches session objects in place (rebuildLoadedSessions).
+  let _sessionsBefore=null;try{_sessionsBefore=JSON.stringify(project.statsSessions||[]);}catch(_){_needs.push('sessions');}
+  const _set={};const L=(k,v)=>{_set[k]=v;return v;};
     if(project.specialtyVersion!=null&&project.specialtyVersion!==1)throw new Error('Unsupported petite/long stitch schema version '+project.specialtyVersion+'.');
-  project=ProgressUnits.specialty.migrate(project);
+  {const _m=ProgressUnits.specialty.migrate(project);if(_m!==project)_needs.push('petite and long stitch format');project=_m;}
   // Canonical numeric indices also cover legacy string-keyed half marks.
-  project={...project,halfDone:TrackingSync.merge(project,{}).halfDone};
+  {const _hd=TrackingSync.merge(project,{}).halfDone;
+    if(JSON.stringify(_hd||[])!==JSON.stringify(project.halfDone||[]))_needs.push('half stitch marks');
+    project={...project,halfDone:_hd};}
   mergeBaseRef.current=project;
   // P4-5: a project in another brand's numbering loads that brand's
   // catalogue first, then comes back here (helpers.js).
-  if(window.whenProjectBrandReady&&!window.whenProjectBrandReady(project,processLoadedProject,err=>{
+  if(window.whenProjectBrandReady&&!window.whenProjectBrandReady(_loadedAs,p=>processLoadedProject(p,opts),err=>{
     console.error("[tracker] processLoadedProject threw:",err);
     setLoadError("Could not open this pattern: "+(err&&err.message||err));
   }))return;
@@ -4112,13 +4263,14 @@ function processLoadedProject(project){
     setLoadError(`Pattern (${nextW}×${nextH}) is too large to display on this device in Stitch Tracker. Open it in the Creator to reduce stitch count.`);
     return;
   }
-  setSW(nextW);
-  setSH(nextH);
-  setBsLines(project.bsLines||project.bs||[]);
+  setSW(L('sW',nextW));
+  setSH(L('sH',nextH));
+  setBsLines(L('bsLines',project.bsLines||project.bs||[]));
   if(s.fabricCt)setFabricCt(s.fabricCt);
   else if(project.fc)setFabricCt(project.fc);
-  setThreadBrand(brand);
+  setThreadBrand(L('threadBrand',brand));
   setProjectFabricColour(typeof s.fabricColour==="string"&&/^#[0-9a-fA-F]{6}$/.test(s.fabricColour)?s.fabricColour:null);
+  L('projectFabricColour',typeof s.fabricColour==="string"&&/^#[0-9a-fA-F]{6}$/.test(s.fabricColour)?s.fabricColour:null);   // a string: compared by value
   if(s.skeinPrice!=null)setSkeinPrice(s.skeinPrice);
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
   // Flush the departing context before replacing it; the callback captures its id.
@@ -4127,7 +4279,7 @@ function processLoadedProject(project){
   }
   rtWriteSnapshotRef.current=null;
   const loadedWaste=s.wastePrefs&&typeof s.wastePrefs==='object'?Object.assign({},RT_WASTE_DEFAULTS,s.wastePrefs):Object.assign({},RT_WASTE_DEFAULTS);
-  setWastePrefs(loadedWaste);
+  setWastePrefs(L('wastePrefs',loadedWaste));
   // Clear per-session RT state on project switch.
   rtLowToastedRef.current.clear();
   setStashDeducted(false);
@@ -4138,7 +4290,7 @@ function processLoadedProject(project){
 
   setIsEditMode(false);
   setUndoSnapshot(null);
-  setSingleStitchEdits(new Map());
+  setSingleStitchEdits(L('singleStitchEdits',new Map()));
   setCellEditPopover(null);
   setSessionStartSnapshot(null);
   setEditModalColor(null);
@@ -4148,6 +4300,7 @@ function processLoadedProject(project){
   // protects against legacy v8 projects whose `.pattern` field was rewritten
   // post-decompression but whose v stamp never advanced.
   var _isCompactArray = p.length > 0 && Array.isArray(p[0]);
+  if (_isCompactArray || !project.pattern) _needs.push('pattern format');
   if (_isCompactArray) {
     // Compressed URL format
      restored = p.map(m => {
@@ -4161,7 +4314,7 @@ function processLoadedProject(project){
   }
 
   const loadedSpecialty=ProgressUnits.specialty.read(project,s.sW||project.w,s.sH||project.h,brand);
-  setSpecialtyStitches(loadedSpecialty);setSpecialtyDone(ProgressUnits.specialty.live(project.specialtyDone,loadedSpecialty));setSpecialtySelected(null);
+  setSpecialtyStitches(L('specialtyStitches',loadedSpecialty));setSpecialtyDone(ProgressUnits.specialty.live(project.specialtyDone,loadedSpecialty));setSpecialtySelected(null);
   const partialMap = new Map();
   const partialCells = [];
   (project.partialStitches || []).forEach(([idx, quarters]) => {
@@ -4195,7 +4348,7 @@ function processLoadedProject(project){
     try{bsCells.push(restoreStitch({id:String(ln.colorId),type:String(ln.colorId).includes('+')?'blend':'solid',rgb:ln.rgb||(/^#[0-9a-f]{6}$/i.test(ln.color||"")?[parseInt(ln.color.slice(1,3),16),parseInt(ln.color.slice(3,5),16),parseInt(ln.color.slice(5,7),16)]:undefined),brand:ln.brand||brand}));}catch(_){}
   });
   let{pal:newPal,cmap:newCmap}=buildPalette(restored,partialCells.concat(knotCells,bsCells,loadedSpecialty.map(o=>restoreStitch(o.thread,brand))));
-  setPat(restored);setPal(newPal);setCmap(newCmap);
+  setPat(L('pat',restored));setPal(L('pal',newPal));setCmap(newCmap);
   const rtInitial=rtThreadUsage(restored,project.done,s.fabricCt||project.fc||14,loadedWaste);
   const rtLoaded={...project,pattern:restored,fabricCt:s.fabricCt||project.fc||14};
   const rtInitialMarks=window.ThreadAccounting.snapshot(rtLoaded,loadedWaste);
@@ -4230,8 +4383,8 @@ function processLoadedProject(project){
     rtContext.ready.catch(e=>console.warn('Could not initialise stash accounting:',e));
   }
 
-  setPartialStitches(partialMap);
-  setKnots(knotList);
+  setPartialStitches(partialMap);L('partialStitches',partialMap);
+  setKnots(L('knots',knotList));
   setKnotsDone(Array.isArray(project.knotsDone)?project.knotsDone.filter(kk=>typeof kk==="string"):[]);
   setBsDone(window.Backstitch?window.Backstitch.live(project.bsDone,project.bsLines||project.bs):[]);
   setPartialDone(window.Fractional?window.Fractional.live(window.Fractional.toMap(project.partialDone),partialMap):new Map());
@@ -4240,13 +4393,14 @@ function processLoadedProject(project){
   setBeadsDone(window.Beads.live(beadsRef.current,project.beadsDone));
   setSelectedBead(null);setBeadPanelOpen(false);
   if (project.originalPaletteState) {
-    setOriginalPaletteState(project.originalPaletteState);
+    setOriginalPaletteState(L('originalPaletteState',project.originalPaletteState));
   } else {
-    setOriginalPaletteState(deepClone(newPal)); // PERF (perf-6 #5)
+    _needs.push('original palette');   // created here, so only a save keeps it
+    setOriginalPaletteState(L('originalPaletteState',deepClone(newPal))); // PERF (perf-6 #5)
   }
   // V2: restore sparse diff of single-stitch edits
   if (project.singleStitchEdits && project.singleStitchEdits.length > 0) {
-    setSingleStitchEdits(new Map(project.singleStitchEdits));
+    setSingleStitchEdits(L('singleStitchEdits',new Map(project.singleStitchEdits)));
   }
   // V9: restore half stitch data
   if (project.halfStitches && project.halfStitches.length > 0) {
@@ -4265,9 +4419,9 @@ function processLoadedProject(project){
       }
       hsMap.set(idx, entry);
     });
-    setHalfStitches(hsMap);
+    setHalfStitches(L('halfStitches',hsMap));
   } else {
-    setHalfStitches(new Map());
+    setHalfStitches(L('halfStitches',new Map()));
   }
   if (project.halfDone && project.halfDone.length > 0) {
     setHalfDone(new Map(project.halfDone));
@@ -4289,12 +4443,14 @@ function processLoadedProject(project){
     // The project on screen, loaded again: keep the colour in hand if the pattern still has it.
     setFocusColour(prev=>prev&&newPal.some(m=>m&&m.id===prev)?prev:null);
   }
-  setThreadOwned(project.threadOwned||{});
+  setThreadOwned(L('threadOwned',project.threadOwned||{}));
   let _reconcileHeld=false;
   reconcileRef.current=null;savesBlockedRef.current=false;setReconcile(null);
-  if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));
+  let _loadDone=null;
+  if(project.done&&project.done.length===restored.length)setDone(_loadDone=new Uint8Array(project.done));
   else{
-    setDone(new Uint8Array(restored.length));
+    // No marks saved yet (or marks for another size, asked about below): an empty set, rebuilt the same way on every load.
+    setDone(_loadDone=new Uint8Array(restored.length));
     // Marks that no longer fit the pattern: never zero them silently. Ask, and write nothing meanwhile.
     const _oldMarks=project.done?Array.from(project.done).filter(v=>v===1).length:0;
     // Half-stitch marks are keyed by cell index too, so they go stale the same way.
@@ -4335,8 +4491,10 @@ function processLoadedProject(project){
   // pile up in the saved project.
   var loadedDone = (project.done && project.done.length === restored.length) ? project.done : null;
   if (loadedDone) liveParkMarkers = liveParkMarkers.filter(function(m) { return !loadedDone[m.y * nextW + m.x]; });
-  setParkMarkers(liveParkMarkers);
-  setBreadcrumbs(project.breadcrumbs||[]);
+  // Dropped markers stay dropped only once saved (and the notice above would repeat on every open).
+  if (liveParkMarkers.length !== rawParkMarkers.length) _needs.push('park markers');
+  setParkMarkers(liveParkMarkers);L('parkMarkers',liveParkMarkers);
+  setBreadcrumbs(L('breadcrumbs',project.breadcrumbs||[]));
   // Preserve v3 stats fields through auto-save round-trips
   v3FieldsRef.current={chartRevision:project.chartRevision,chartAccountingUnits:project.chartAccountingUnits,meta:project.meta,finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};
   if(project.stitchingStyle)setStitchingStyle(project.stitchingStyle);
@@ -4354,13 +4512,13 @@ function processLoadedProject(project){
     if (lsVal) { var n = parseInt(lsVal, 10); if (isFinite(n)) return Math.max(5, Math.min(100, n)); }
     return isFinite(fbVal) ? Math.max(5, Math.min(100, fbVal)) : 10;
   };
-  setBlockW(_resolveBlock(project.blockW, _lsW, _fbW));
-  setBlockH(_resolveBlock(project.blockH, _lsH, _fbH));
-  if(project.focusBlock)setFocusBlock(project.focusBlock);else setFocusBlock(null);
+  setBlockW(L('blockW',_resolveBlock(project.blockW, _lsW, _fbW)));
+  setBlockH(L('blockH',_resolveBlock(project.blockH, _lsH, _fbH)));
+  setFocusBlock(L('focusBlock',project.focusBlock||null));
   // Validated against this pattern's size: the file may come from another
   // device, an older build, or a pattern since resized in the Creator.
-  setWorkArea(window.WorkArea?window.WorkArea.normalise(project.workArea,nextW,nextH):null);
-  setStartCorner(project.startCorner || _lsCorner || (window.UserPrefs && window.UserPrefs.get("trackerStartCorner")) || "TL");
+  setWorkArea(L('workArea',window.WorkArea?window.WorkArea.normalise(project.workArea,nextW,nextH):null));
+  setStartCorner(L('startCorner',project.startCorner || _lsCorner || (window.UserPrefs && window.UserPrefs.get("trackerStartCorner")) || "TL"));
   if(project.colourSequence)setColourSequence(project.colourSequence);
   // Legacy migration, duration and totalAtEnd patching and pending-session recovery live in helpers.js. The backup is
   // read here (it is localStorage) and kept while a question holds saves; the first save after it clears it.
@@ -4377,7 +4535,7 @@ function processLoadedProject(project){
     (cp.records||[]).forEach(r=>{if(!rawStatsSessions.some(s=>s.id===r.id))rawStatsSessions.push(r);});
   });
   rawStatsSessions=withoutDeletedSessions(rawStatsSessions,deletedSessionIdsRef.current);
-  setStatsSessions(rawStatsSessions);
+  setStatsSessions(rawStatsSessions);L('statsSessions',rawStatsSessions);
   // A3: fire the resume recap modal once per project load when there is at
   // least one prior session. Skipped on a fresh project (sessions empty) and
   // on the same project re-loading inside one mounted Tracker instance.
@@ -4403,6 +4561,9 @@ function processLoadedProject(project){
       }
     }
   }catch(_e){}
+  // Backed-up, migrated, patched or checkpoint sessions (above): only a full save keeps them.
+  if(pendingSessions&&pendingSessions.length)_needs.push('recovered sessions');
+  try{if(JSON.stringify(rawStatsSessions)!==_sessionsBefore)_needs.push('sessions');}catch(_){_needs.push('sessions');}
   setStatsSettings(Object.assign({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,timingMode:null,stitchingSpeedOverride:null,useActiveDays:true,sectionCols:50,sectionRows:50},project.statsSettings||{}));
   setStatsView(false);
   setCelebration(null);
@@ -4411,12 +4572,14 @@ function processLoadedProject(project){
   resetAutoSessionForProjectLoad();
   // Restore persisted milestones and seed celebratedRef so celebrations don't re-fire
   var persistedMilestones=project.achievedMilestones||[];
-  setAchievedMilestones(persistedMilestones);
+  setAchievedMilestones(L('achievedMilestones',persistedMilestones));
   persistedMilestones.forEach(function(m){var key=m.pct!=null?('pct_'+m.pct):m.label;celebratedRef.current.add(key);});
   // Restore done-state snapshots and reset the day-tracking ref
   snapshotGenerationRef.current++;
   deletedSnapshotIdsRef.current=project.deletedSnapshotIds||[];
-  setDoneSnapshots((project.doneSnapshots||[]).filter(s=>!deletedSnapshotIdsRef.current.includes(s.id)));
+  {const _snaps=(project.doneSnapshots||[]).filter(s=>!deletedSnapshotIdsRef.current.includes(s.id));
+    if(_snaps.length!==(project.doneSnapshots||[]).length)_needs.push('snapshots');
+    setDoneSnapshots(L('doneSnapshots',_snaps));}
   // The last stitching day seen, so opening the Tracker on a later day still notices the change of day
   // (it used to start from nothing on every load, and the snapshot only fired if the page stayed open
   // across midnight). The newest session's date is that day (sessions are saved when the Tracker closes);
@@ -4450,10 +4613,10 @@ function processLoadedProject(project){
   prevAutoCountRef.current={done:-1,halfDone:-1};
   if(project.hlRow>=0)setHlRow(project.hlRow);
   if(project.hlCol>=0)setHlCol(project.hlCol);
-  setProjectName(project.name||"");
-  setProjectDesigner(project.designer||"");
-  setProjectDescription(project.description||"");
-  setProjectNotes(typeof project.notes==="string"?project.notes:"");
+  setProjectName(L('projectName',project.name||""));
+  setProjectDesigner(L('projectDesigner',project.designer||""));
+  setProjectDescription(L('projectDescription',project.description||""));
+  setProjectNotes(typeof project.notes==="string"?project.notes:"");L('projectNotes',typeof project.notes==="string"?project.notes:"");
   namePromptShownRef.current=!!project.namePromptShown;
   nameAutoGeneratedRef.current=!!project.nameAutoGenerated;
   try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
@@ -4478,6 +4641,9 @@ function processLoadedProject(project){
     return null;
   })();
   createdAtRef.current=normalisedCreatedAt;
+  // Marks that do not fit the pattern hold every save until answered (reconcile); otherwise
+  // hand the autosave what was loaded. It decides on its first run with this pattern.
+  if(_stored&&!_reconcileHeld)loadBaselineRef.current={pat:restored,done:_loadDone,set:_set,needs:_needs,marks:_marksNeed};
 
   const _savedZoom=_nav&&_nav.zoom>0?_nav.zoom:project.savedZoom;
   const _savedScroll=_nav&&_nav.scroll?_nav.scroll:project.savedScroll;
@@ -4675,7 +4841,8 @@ useEffect(()=>{
     hasLoadedOnceRef.current=true; // T-4
   }else if(incomingProject.id){
     // Called with {id} only (e.g. stats "Navigate to project") — load from storage.
-    ProjectStorage.get(incomingProject.id).then(p=>{if(p&&(p.pattern||p.p)){processLoadedProject(p);hasLoadedOnceRef.current=true;}}).catch(err=>console.error("Failed to load project by id:",err));
+    // The pointer used to be set by the save every open made; a clean open makes none.
+    ProjectStorage.get(incomingProject.id).then(p=>{if(p&&(p.pattern||p.p)){processLoadedProject(p,{stored:true});hasLoadedOnceRef.current=true;try{ProjectStorage.setActiveProject(p.id);}catch(_){}}}).catch(err=>console.error("Failed to load project by id:",err));
   }
 },[incomingProject]);
 
@@ -4694,7 +4861,7 @@ useEffect(() => {
     const ip=incomingProjectRef.current;
     if(ip.project){processLoadedProject(ip.project);hasLoadedOnceRef.current=true;}
     else if(ip.id){ProjectStorage.get(ip.id).then(p=>{
-      if(p && (p.pattern || p.p)){processLoadedProject(p);hasLoadedOnceRef.current=true;}
+      if(p && (p.pattern || p.p)){processLoadedProject(p,{stored:true});hasLoadedOnceRef.current=true;try{ProjectStorage.setActiveProject(p.id);}catch(_){}}
       else if(p){
         // Project exists in IDB but has no pattern cell data in either the
         // current `pattern` field or the legacy/compressed `p` field — treat
@@ -4783,7 +4950,7 @@ useEffect(() => {
   function _hydrate(project, source) {
     if (hasLoadedOnceRef.current) return;
     if (_hasPattern(project)) {
-      processLoadedProject(project);
+      processLoadedProject(project, { stored: true });
       hasLoadedOnceRef.current = true;
       // Mirror the pointer so subsequent reloads have a stable target.
       try { if (project.id && ProjectStorage.setActiveProject) ProjectStorage.setActiveProject(project.id); } catch (_) {}
@@ -5028,6 +5195,12 @@ function writeProgressNow() {
 // Marks-only autosave on large charts: wait for this long a pause in marking, but no
 // longer than the cap since the first such change (see the autosave effect).
 const AUTOSAVE_MARKS_IDLE_MS = 60000;
+// The autosave's non-mark inputs, by name, in the order of its _other list
+// (tests/trackerLoadBaseline.test.js holds the two equal).
+const AUTOSAVE_OTHER_NAMES = ['pat', 'pal', 'bsLines', 'parkMarkers', 'totalTime', 'hlRow', 'hlCol', 'threadOwned', 'halfStitches', 'singleStitchEdits', 'knots', 'specialtyStitches',
+  'sW', 'sH', 'fabricCt', 'skeinPrice', 'stitchSpeed', 'wastePrefs', 'originalPaletteState', 'statsSessions', 'statsSettings', 'projectName', 'doneSnapshots',
+  'projectDesigner', 'projectDescription', 'projectNotes', 'partialStitches', 'projectFabricColour', 'threadBrand',
+  'stitchingStyle', 'blockW', 'blockH', 'focusBlock', 'startCorner', 'colourSequence', 'workArea', 'breadcrumbs', 'achievedMilestones'];
 const AUTOSAVE_MARKS_CAP_MS = 300000;
 // A progress write that fails leaves marks only in memory. Stop treating it as
 // cover, and if a full save is being held back for marks, write everything now.
@@ -5097,6 +5270,30 @@ useEffect(() => {
     sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, doneSnapshots,
     projectDesigner, projectDescription, projectNotes, partialStitches, projectFabricColour, threadBrand,
     stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, achievedMilestones];
+  // The first run with a pattern just read from storage. If the load changed nothing
+  // that only a full save keeps (processLoadedProject's _needs) and every saved input
+  // is still exactly what the load installed, what is on screen is what is stored:
+  // take it as the baseline and schedule nothing. Marks that differ from the loaded
+  // ones (a progress record not yet in the full record, or a tap before this render)
+  // are a marks-only change, saved as any other. Otherwise this run is a change, as
+  // every load used to be.
+  const _lb = loadBaselineRef.current;
+  if (_lb && _lb.pat === pat) {
+    loadBaselineRef.current = null;
+    const _asLoaded = !_lb.needs.length && AUTOSAVE_OTHER_NAMES.every((n, i) => !(n in _lb.set) || Object.is(_lb.set[n], _other[i]));
+    if (_asLoaded) {
+      autoSaveOtherRef.current = _other;
+      autoSaveOtherDirtyRef.current = false;
+      autoSaveFirstDirtyRef.current = null;
+      autoSaveMarksSinceRef.current = null;
+      if (done === _lb.done && !_lb.marks) {
+        autoSaveDirtyRef.current = false;
+        flushedGenRef.current = autoSaveGenRef.current;   // nothing unwritten: hiding the tab writes nothing either
+        loadUiCleanRef.current = true;
+        return;
+      }
+    }
+  }
   const _prevOther = autoSaveOtherRef.current;
   autoSaveOtherRef.current = _other;
   if (!_prevOther || _other.some((v, i) => !Object.is(v, _prevOther[i]))) autoSaveOtherDirtyRef.current = true;
@@ -5388,6 +5585,8 @@ useEffect(() => {
 useEffect(() => {
   if (!pat) return;
   uiGenRef.current++;
+  // A project opened just as it is stored (the autosave's load baseline): nothing to save.
+  if (loadUiCleanRef.current) { loadUiCleanRef.current = false; uiSavedGenRef.current = uiGenRef.current; }
   refreshSaveUi();
 }, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, beadsDone, bsDone, partialDone, specialtyStitches, specialtyDone,
     statsSessions, statsSettings, projectName, doneSnapshots, achievedMilestones, threadOwned,
@@ -5585,7 +5784,6 @@ function _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, view, focusColour, 
 // its outline (PARK_MARKER_RING wide, centred on the edge) stays inside the
 // cell. Shared by the chart (drawParkMarker) and the Spotlight overlay, which
 // cuts the same shape out of its dimming so markers stay at full strength.
-const PARK_MARKER_RING=3.5;
 function parkMarkerPath(ctx,pm,gut,cSz){
   const corner=pm.corner||"BL";
   const inset=Math.min(2,cSz*0.1);
@@ -6005,10 +6203,14 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   // highlight view, other colours' knots are faded like their stitches.
   if(knots.length>0&&layerVis.french_knot){
     const kr=Math.max(2,cSz*0.3);
+    // How far a knot reaches, in stitches: its radius and half its outline. Zoomed far
+    // out the 2 px minimum radius is more than half a stitch, and a knot culled at half
+    // a stitch could still reach into a partial repaint's clip and be left out of it.
+    const kReach=Math.max(0.5,knotReachPx(cSz)/cSz);
     ctx.save();
     knots.forEach(k=>{
       const kx=k.x/2,ky=k.y/2;
-      if(kx<startX-0.5||kx>endX+0.5||ky<startY-0.5||ky>endY+0.5)return;
+      if(kx<startX-kReach||kx>endX+kReach||ky<startY-kReach||ky>endY+kReach)return;
       const rgb=k.rgb||(cmap&&cmap[k.id]&&cmap[k.id].rgb)||[0,0,0];
       const col="rgb("+rgb[0]+","+rgb[1]+","+rgb[2]+")";
       const kDone=knotDoneSet.has(k.x+","+k.y);
@@ -6028,9 +6230,13 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     ctx.save();
     // Draw order (the selected bead last) and the done set are worked out once
     // per change (beadDrawOrder, beadsDoneSet), not copied and sorted per paint.
+    // How far a bead reaches, in stitches: its radius (3 px at least) and half the
+    // selected bead's 3 px outline. Zoomed far out that is more than half a stitch, and a
+    // bead culled at half a stitch could still reach into a partial repaint's clip.
+    const bReach=Math.max(0.5,beadReachPx(cSz)/cSz);
     beadDrawOrder.forEach(b=>{
       const x=b.x/2,y=b.y/2;
-      if(x<startX-0.5||x>endX+0.5||y<startY-0.5||y>endY+0.5)return;
+      if(x<startX-bReach||x>endX+bReach||y<startY-bReach||y>endY+bReach)return;
       const rgb=b.rgb||[128,128,128],r=Math.max(3,cSz*0.24),marked=beadsDoneSet.has(b.uid);
       ctx.beginPath();ctx.ellipse(gut+x*cSz,gut+y*cSz,r,r*0.7,-Math.PI/4,0,Math.PI*2);
       ctx.fillStyle=marked?'rgb('+rgb.join(',')+')':'white';ctx.fill();
@@ -6242,12 +6448,19 @@ useEffect(()=>{
   redrawInputsRef.current=inputs;
   const skip=skipNextFullRedrawRef.current;
   skipNextFullRedrawRef.current=null;
+  const fellBack=markPaintFellBackRef.current;
+  markPaintFellBackRef.current=false;
   const marksOnly=!!prev&&inputs.every((v,i)=>Object.is(v,prev[i]));
   // Already painted by this very renderStitch (a zoom commit paints before
   // its effect runs), so the canvas matches state.
   if(chartPaintedByRef.current===renderStitch)return;
-  // The mark painted its own cells, so the canvas matches state again.
-  if(skip&&(skip===done||skip===bsDone)&&marksOnly&&!specialtyStitches.length&&!beads.length){chartPaintedByRef.current=renderStitch;return;}
+  // The mark painted its own cells, so the canvas matches state again. That holds on a
+  // chart with beads, petites and long stitches too: the partial repaint is drawStitch
+  // itself, clipped, and draws every object that reaches into the clip (their culling
+  // allows for each object's size; see drawStitch). It used to be refused whenever the
+  // chart had any bead or petite or long stitch at all, so every mark on such a chart
+  // also repainted the whole tile (tests/mobile-audit/desktop-mixed-mark-repaint.spec.js).
+  if(skip&&(skip===done||skip===bsDone)&&marksOnly&&!fellBack){chartPaintedByRef.current=renderStitch;return;}
   renderStitch();
 },[renderStitch]);
 // The guide crosshair and park markers are repainted where they changed
@@ -6280,7 +6493,11 @@ useEffect(()=>{
   };
   const a=sig(prev.markers,prev.layers),b=sig(parkMarkers,parkLayers);
   const keys=new Set([...a.keys(),...b.keys()]);
-  keys.forEach(k=>{if(a.get(k)!==b.get(k)){const x=k%sW,y=(k-x)/sW;repaintChartCells(x,y,x+1,y+1);}});
+  // Grown by a marker's reach: a marker that is gone (moved, removed, its
+  // layer hidden) is no longer in the list the repaint grows around, and
+  // zoomed out it overhangs its stitch.
+  const g=Math.ceil(parkReachPx(scs)/scs);
+  keys.forEach(k=>{if(a.get(k)!==b.get(k)){const x=k%sW,y=(k-x)/sW;repaintChartCells(x-g,y-g,x+1+g,y+1+g);}});
 },[parkMarkers,parkLayers]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -6875,6 +7092,21 @@ const rafIdRef = useRef(null);
 // Only the part on the current tile is painted: the canvas covers just the
 // visible slice, and off-tile cells are repainted from state when scrolled
 // to (renderStitchIfScrolledOut), so drawing them would be clipped away.
+// objectDirtyCells (top of the file) for this chart, clamped to it.
+const chartObjectIndex=useMemo(()=>buildObjectIndex(specialtyStitches,beads,knots,bsLines),[specialtyStitches,beads,knots,bsLines]);
+// parkOnly: grow around park markers alone (repaintChartCells' fallback).
+function objectDirtyBox(x0,y0,x1,y1,pad,parkOnly){
+  // Every marker of a shown layer, spent or not: marking or unmarking its stitch
+  // hides or shows it.
+  const pl=parkLayersRef.current;
+  const park=(parkMarkersRef.current||[]).filter(m=>pl[m.colorId]!==false);
+  const halfShown=layerVis.half!==false,quarterShown=layerVis.quarter!==false;
+  const b=parkOnly?objectDirtyCells(x0,y0,x1,y1,pad,scs,{index:buildObjectIndex(),sW,sH,park})
+    :objectDirtyCells(x0,y0,x1,y1,pad,scs,{index:chartObjectIndex,specialtySelected,layerVis,sW,sH,park,
+    bsReachPx:backstitchReachPx(bsThickness),
+    cellHas:idx=>(halfShown&&halfStitches.has(idx))||(quarterShown&&partialStitches.has(idx))});
+  return{x0:Math.max(0,b.x0),y0:Math.max(0,b.y0),x1:Math.min(sW,b.x1),y1:Math.min(sH,b.y1),converged:b.converged};
+}
 function repaintChartCells(x0,y0,x1,y1,isDoneAt){
   const canvas=stitchRef.current;
   if(!canvas||!pat||!cmap)return;
@@ -6888,19 +7120,39 @@ function repaintChartCells(x0,y0,x1,y1,isDoneAt){
   // origin and render scale) that renderStitch left it in.
   const s=t.scale>0?t.scale:1;
   ctx.setTransform(s,0,0,s,-t.x*s,-t.y*s);
-  const left=G+x0*scs,top=G+y0*scs,right=G+x1*scs,bottom=G+y1*scs;
-  ctx.save();
   // The clip reaches a little past the cells: a park marker's outline (and
   // a cell's own outline) overhangs its edge by up to a pixel, and that
-  // overhang must be drawn or erased with the cell.
+  // overhang must be drawn or erased with the cell. It also takes in, whole,
+  // every bead, petite, long stitch and knot drawn over them (objectDirtyBox).
   const sp=2;
+  let box=objectDirtyBox(x0,y0,x1,y1,sp);
+  // Objects chained too far to settle (a long backstitch outline, or zoomed far out on
+  // a densely decorated chart): paint the cells and any park marker over them (a
+  // marker cut by the clip would leave fragments). Where a clip edge crosses a
+  // stroke, the pixels along it differ from a full paint by a few levels (up to
+  // ~35 on a handful of pixels): on a chart without beads, petites or long
+  // stitches marks have always been painted so, and that is left until the next
+  // full paint. On a chart with any, every mark used to repaint the tile in full,
+  // so report it and the mark's commit still does. A region that settles, however
+  // large, is painted as it is: exact, and never more than one full paint's work.
+  let fellBack=!box.converged;
+  if(fellBack){
+    box=objectDirtyBox(x0,y0,x1,y1,sp,true);
+    fellBack=!box.converged||specialtyStitches.length>0||beads.length>0;
+  }
+  const left=G+box.x0*scs,top=G+box.y0*scs,right=G+box.x1*scs,bottom=G+box.y1*scs;
+  ctx.save();
   ctx.beginPath();ctx.rect(left-sp,top-sp,right-left+2*sp,bottom-top+2*sp);ctx.clip();
   // Paint one cell further on every side than the cells themselves, so
   // everything that overlaps the clipped area — neighbours' outlines and
-  // markers — is drawn, in the same order as a full paint.
-  const m=scs;
+  // markers — is drawn, in the same order as a full paint. Stitches smaller
+  // than the clip's overhang (1 px, zoomed right out) need more than one: the
+  // clip reaches two stitches out, and drawStitch's opening fabric fill would
+  // blank any stitch inside it that is not also painted.
+  const m=scs<sp?scs*(Math.ceil(sp/scs)+1):scs;
   drawStitch(ctx,scs,{left:left-m,top:top-m,right:right+m,bottom:bottom+m,width:right-left+2*m,height:bottom-top+2*m,overdraw:0},isDoneAt);
   ctx.restore();
+  return fellBack;
 }
 // Paint stitches that were just marked or unmarked, ahead of the setDone
 // that will commit them (callers set skipNextFullRedrawRef so that commit
@@ -6926,8 +7178,8 @@ function paintDoneChanges(changes,nd){
   if(!on.length)return;
   const isDoneAt=i=>!!nd[i];
   const tileCells=(r.x1-r.x0)*(r.y1-r.y0);
-  if(on.length>Math.max(64,tileCells/8)){repaintChartCells(r.x0,r.y0,r.x1,r.y1,isDoneAt);return;}
-  for(let i=0;i<on.length;i++){const x=on[i]%sW,y=(on[i]-x)/sW;repaintChartCells(x,y,x+1,y+1,isDoneAt);}
+  if(on.length>Math.max(64,tileCells/8)){if(repaintChartCells(r.x0,r.y0,r.x1,r.y1,isDoneAt))markPaintFellBackRef.current=true;return;}
+  for(let i=0;i<on.length;i++){const x=on[i]%sW,y=(on[i]-x)/sW;if(repaintChartCells(x,y,x+1,y+1,isDoneAt))markPaintFellBackRef.current=true;}
 }
 // Memoised callers (_commitBulk, _dragMarkOnToggle) hold an older render's
 // closure; going through this ref makes them paint with the current zoom,
@@ -8729,7 +8981,7 @@ function paintBsKeys(keys){
   keys.forEach(k=>{(idx.get(k)||[]).forEach(i=>{const ln=bsLines[i];x0=Math.min(x0,ln.x1,ln.x2);x1=Math.max(x1,ln.x1,ln.x2);y0=Math.min(y0,ln.y1,ln.y2);y1=Math.max(y1,ln.y1,ln.y2);});});
   if(x0>x1)return;
   const nd=doneRef.current;
-  repaintChartCells(Math.floor(x0)-1,Math.floor(y0)-1,Math.ceil(x1)+1,Math.ceil(y1)+1,i=>!!(nd&&nd[i]));
+  if(repaintChartCells(Math.floor(x0)-1,Math.floor(y0)-1,Math.ceil(x1)+1,Math.ceil(y1)+1,i=>!!(nd&&nd[i])))markPaintFellBackRef.current=true;
 }
 function pushBsHistory(keys,on,colourId){
   if(!keys.length)return;
@@ -9110,7 +9362,7 @@ return(
     setProjectPickerOpen(false);
     flushBeforeSwitch().then(()=>ProjectStorage.get(meta.id)).then(p=>{
       if(p&&(p.pattern||p.p)&&p.settings){
-        processLoadedProject(p);
+        processLoadedProject(p,{stored:true});
         // Note: setActiveProject is synchronous (writes localStorage); do NOT chain .catch().
         try { ProjectStorage.setActiveProject(p.id); } catch(_) {}
       } else {
@@ -9344,7 +9596,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={combinedDone} totalStitches={combinedTotal} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onEditSession={editSessionDetails} onDeleteSession={deleteSessionById} onMergeSession={mergeSessionWithNext} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={updateCompareSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{flushBeforeSwitch().then(()=>ProjectStorage.get(meta.id)).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={combinedDone} totalStitches={combinedTotal} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onEditSession={editSessionDetails} onDeleteSession={deleteSessionById} onMergeSession={mergeSessionWithNext} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={updateCompareSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{flushBeforeSwitch().then(()=>ProjectStorage.get(meta.id)).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project,{stored:true});try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
 
   {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 

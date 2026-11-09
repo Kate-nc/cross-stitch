@@ -150,7 +150,10 @@ describe('audit fixes', () => {
     const effect = between('const redrawInputsRef=useRef(null);', '},[renderStitch]);');
     expect(effect).toMatch(/const skip=skipNextFullRedrawRef\.current;\n  skipNextFullRedrawRef\.current=null;/);
     // Skipping also records that the canvas matches state again (the mark painted its own cells), so a tile move can keep it.
-    expect(effect).toMatch(/if\(skip&&\(skip===done\|\|skip===bsDone\)&&marksOnly&&!specialtyStitches\.length&&!beads\.length\)\{chartPaintedByRef\.current=renderStitch;return;\}/);
+    // Charts with beads, petites and long stitches skip it too: the partial repaint covers
+    // every such object whole (objectDirtyCells; tests/chartPartialRepaint.test.js).
+    expect(effect).toMatch(/if\(skip&&\(skip===done\|\|skip===bsDone\)&&marksOnly&&!fellBack\)\{chartPaintedByRef\.current=renderStitch;return;\}/);
+    expect(effect).not.toMatch(/specialtyStitches\.length|beads\.length/);
     expect(SRC).not.toMatch(/skipNextFullRedrawRef\.current=true/);
     expect(SRC.match(/skipNextFullRedrawRef\.current=nd;/g).length).toBeGreaterThanOrEqual(6);
     expect(SRC).toMatch(/const next=Array\.from\(bsDoneSetRef\.current\);\n  skipNextFullRedrawRef\.current=next;\n  setBsDone\(next\);/);
