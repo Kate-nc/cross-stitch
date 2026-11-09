@@ -90,8 +90,35 @@ __MEASUREMENTS__
 
 ## Tests
 
-__TESTS__
+Unit (Jest, in CI): `npm test` 6 571 tests, all pass (one pre-existing skip set of 4).
+
+New suites:
+
+| Suite | What it holds |
+|---|---|
+| `tests/projectStorageOverlay.test.js` (17) | An unchanged chart is not rewritten (counted puts of `projects`: 0); later saves read nothing of the chart (counted gets: 0); the read-back marks, sync registers, values and sessions equal a full save of the same snapshot, through an unmark (undo); a changed chart writes in full and retires the overlay; any other full write, and a record written by a build that does not know overlays, retires it by its stamp; a chart race writes nothing; a progress write named against the overlay's stamp applies; newer marks this tab wrote during the save are kept, older ones and another tab's are not; another tab's overlay save is a `saveChecked` conflict, found from metadata alone; a navigation journal after an overlay save recovers on top of it; backups hold whole current records that read back the same once restored; an older build (progress record only) still sees the marks; sync status, material planning, chart-update review and Stats rebuild see the overlay; delete and clear remove it; library demand counted once per chart |
+| `tests/consumptionLedgerStorage.test.js` (9) | Over 25 random histories (every operation kind, retries, stale sequences, deductions on and off, two projects): the stored ledger commits exactly the events, receipts, baselines, stock and errors the whole-ledger `apply()` does; with a 3 000-event history a 5-event commit makes no range reads, 5 newest-event lookups and 12 puts; the summary's exact totals equal a recount and the whole-ledger sum to 15 places; duplicate batches and token-less retries commit once; concurrent tabs serialise and a stale sequence is refused; a whole ledger written beside the stored one is folded in; the history readers; deductions off and the project correction; a 20 000-unit baseline is written once in buckets and never re-read whole |
+| `tests/syncExportCache.test.js` (7) | A second export reads only the changed projects (an overlay save and a progress-only write), and its file is byte-identical to `JSON.stringify` and equal to an uncached export; every write path (full, overlay, progress, sync status, recovered journal, delete) changes the next export; incremental exports read only the chosen project; a save during an export is not acknowledged by it and is sent next time; cached entries still expose their data; the worker's zlib stream and the main-thread fallback both inflate to the same text |
+
+Mutation checks (each made a new test fail, then reverted): the cache key ignoring progress writes; a progress write not stamping metadata; the overlay fence ignoring the record's stamp; never keeping newer same-tab marks; the newest-event lookup reading the oldest. A cross-tab lock test runs forever on the old lock code.
+
+Existing suites updated where they read a storage shape directly (the raw ledger record, the raw project record, method signatures in source assertions); none had its expectation relaxed.
+
+Browser (Playwright, headless Chromium 1243 from `/opt/pw-browsers`, cdnjs answered locally from `node_modules` with the same versions; the configuration wrapper is not committed):
+
+- `tests/e2e`: save-durability (13), session-durability, consumption-accounting, track-history-accounting, tracker-load-sessions, save-badge, backup-save-failure, relay-sync, webdav-sync, critical-lifecycle, pattern-change: all pass. `save-durability`, `pattern-change` and `consumption-accounting` now read what a save writes (record, or record + overlay + its progress record) and the ledger in its whole form.
+- `tests/mobile-audit`: desktop-open-save (10: unchanged opens write nothing, legacy migration, progress-record marks folded and surviving reload, backed-up sessions, marks after opening, A to B to A switching, failed saves), tap-cost, open-cost: pass. `desktop-open-save`'s failure injection now also fails overlay writes.
+- Failing on `main` and on this branch alike (checked on a worktree of `114e11a`): cross-tab-merge (3), autosave-marks-deferral "any other change still saves within the normal few seconds", save-badge "Not saved yet while the changed-in-another-tab question is open", autosave-cost "serialises the pattern once" (vacuous: no autosave runs in its window on a large chart). The first two groups are the ones the earlier baseline already listed.
+- `track-history-accounting` "history across midnight" failed 1 in 4 on `main` and 3 in 4 here before the lock fix: the test fixes the clock three weeks back, which made a lease left by the previous page look valid for weeks and the lock wait endless. With the fix: 6 of 6.
 
 ## Not covered, and validation that was not possible
 
-__LIMITS__
+- **No physical device.** Every time is emulated: headless Chromium, canvases in software, "phone" is Pixel 5 emulation at 4x CPU throttle on a 4-core VM. CPU throttling slows script but not IndexedDB's own threads in the same proportion, so the storage share of a phone figure is probably understated. Counts (records read and written, puts, rows) are machine-independent.
+- **No WebKit.** Only Chromium is available here. Safari's IndexedDB and `CompressionStream` (16.4+) were not exercised; older Safari falls back to pako on the main thread.
+- **One run per case**, except where stated; the differences are large compared with the run-to-run spread seen in the baseline report, but single figures are not precise.
+- **The first Tracker save after an import or a Creator hand-off still writes the whole record**, once: imported cells are stored without the colour snapshots the Tracker's serialiser adds, so the chart compares different. It also compares the chart once per page by content (about 90 ms on the huge chart at desktop speed).
+- **Unload still writes the legacy `auto_save` copy in full**, as before (compatibility); the flush writes it once per project per page.
+- **Downgrade.** A build from before this change ignores overlay rows: it shows the marks (progress record) but the last full save's other fields (sessions, notes, name) until the project is saved there. Thread-usage history in the stored form is invisible to an older build, which would start a new history (and baseline) for a project it stitches on, writing it under the old key. When this build returns, it folds that ledger in as sync does: events that contradict the stored history are left out (the project is kept as stored here), while the stock those events took off stays taken off. A backup or sync file taken on this build restores everything on an older one. The service worker only switches builds when every tab is closed, so two builds never share storage at once.
+- **Folder export of a large library is still a full file**, by design (one complete file per device). After this change the main thread spends its time on the changed project, assembling the file from kept text, and the thread-usage history; the history (`_captureInventory`, `_inventoryValue`) is still read, validated and totalled whole on every export. That is the largest remaining part with a long history (see `sync-folder-small-50k-ledger`).
+- **Relay and WebDAV** use the same `exportSync`/`compressAsync` path; they were not timed (their browser specs pass).
+- **Totals.** The running per-project totals are exact sums; `ThreadAccounting.totals()` (used by sync and backups) still adds in event-id order and can differ from them in the last bit.

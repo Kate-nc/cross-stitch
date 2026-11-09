@@ -107,10 +107,10 @@ const SyncEngine = (() => {
     var db = await openManagerDB();
     try { return await new Promise(function(resolve,reject) {
       var tx = db.transaction('manager_state','readwrite'), store = tx.objectStore('manager_state'), stash = {};
-      var req = store.openCursor();
-      req.onsuccess = function(event) {
-        var c = event.target.result;
-        if (c) { stash[c.key] = c.value; c.continue(); return; }
+      // Two bulk reads, not a cursor: thread-usage history is a record per event.
+      var keysReq = store.getAllKeys(), req = store.getAll();
+      req.onsuccess = function() {
+        keysReq.result.forEach(function(k, i) { stash[k] = req.result[i]; });
         try { stash = _ledgerRows(stash); stash['sync:inventory'] = _inventoryEvents(stash); store.put(stash['sync:inventory'],'sync:inventory'); }
         catch(e) { tx.abort(); reject(e); }
       };
@@ -676,20 +676,16 @@ const SyncEngine = (() => {
         var tx = db.transaction("manager_state", "readonly");
         var store = tx.objectStore("manager_state");
         var result = {};
-        var cursorReq = store.openCursor();
-        cursorReq.onsuccess = function (e) {
-          var cursor = e.target.result;
-          if (cursor) {
-            result[cursor.key] = cursor.value;
-            cursor.continue();
-          } else {
-            db.close();
-            // The thread-usage ledger is stored as a record per event; readers
-            // here (and sync files) use its whole form under its usual key.
-            resolve(_ledgerRows(result));
-          }
+        // Two bulk reads, not a cursor: thread-usage history is a record per event.
+        var keysReq = store.getAllKeys(), valuesReq = store.getAll();
+        valuesReq.onsuccess = function () {
+          keysReq.result.forEach(function (k, i) { result[k] = valuesReq.result[i]; });
+          db.close();
+          // The thread-usage ledger is stored as a record per event; readers
+          // here (and sync files) use its whole form under its usual key.
+          resolve(_ledgerRows(result));
         };
-        cursorReq.onerror = function () { db.close(); reject(cursorReq.error); };
+        valuesReq.onerror = function () { db.close(); reject(valuesReq.error); };
       });
     }).catch(function (e) {
       throw new Error('Could not read stash database: ' + e.message);
@@ -2856,10 +2852,9 @@ const SyncEngine = (() => {
         var db = await openManagerDB();
         try { await new Promise(function(resolve,reject) {
           var tx = db.transaction('manager_state','readwrite'), store = tx.objectStore('manager_state'), local = {};
-          var req = store.openCursor();
-          req.onsuccess = function(event) {
-            var c = event.target.result;
-            if (c) { local[c.key] = c.value; c.continue(); return; }
+          var keysReq = store.getAllKeys(), req = store.getAll();
+          req.onsuccess = function() {
+            keysReq.result.forEach(function(k, i) { local[k] = req.result[i]; });
             try {
               local = _ledgerRows(local);
               var choice = gateResolutions['stash:inventory'];
