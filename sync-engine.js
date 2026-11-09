@@ -725,8 +725,14 @@ const SyncEngine = (() => {
   // flush, so anything the export promises to cover changed it.
   //
   // The cache holds JSON text only, never the project objects, and stops
-  // growing past EXPORT_CACHE_MAX_CHARS (a project past it is read every time).
-  var _exportCache = new Map(), _exportCacheChars = 0, EXPORT_CACHE_MAX_CHARS = 48 * 1024 * 1024;
+  // growing past EXPORT_CACHE_MAX_CHARS (a project past it is read every time):
+  // sized by the memory the device reports (a 120 x 120 project is about 0.6 M
+  // characters), and kept small where it says nothing.
+  var _exportCache = new Map(), _exportCacheChars = 0;
+  var EXPORT_CACHE_MAX_CHARS = (function () {
+    var gb = (typeof navigator !== "undefined" && navigator && typeof navigator.deviceMemory === "number") ? navigator.deviceMemory : 0;
+    return (gb >= 8 ? 128 : gb >= 4 || !gb ? 64 : 32) * 1024 * 1024;
+  })();
   function _exportKey(meta, includeImages) {
     var f = meta && meta.checkpointFence;
     if (!f || !f.token || typeof meta.lastWriteAt !== "number") return null;   // older metadata: no cache
