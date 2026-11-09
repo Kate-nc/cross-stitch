@@ -256,13 +256,18 @@ Mutation checks: disabling the journal comparison fails 2 of the new `ProjectSto
 **What changed** (all in `tracker-app.js`):
 
 - The redraw skip no longer looks at whether the chart has beads or specialty stitches.
-- A mark's repaint region (`objectDirtyCells`) is its stitches grown, **by whole stitches**, to take in whole every bead, petite, long stitch, French knot and backstitch line that reaches its clip (selection boxes and rings included, hidden layers excluded), and every neighbouring stitch holding a half or quarter stitch or a park marker. It repeats until nothing more reaches in. Its edges therefore stay on stitch boundaries and no clip cuts an object.
-- Each object's reach is one shared definition (`beadReachPx`, `knotReachPx`, `specialtyReachPx`, `backstitchReachPx`) used by `drawStitch`'s culling as well. Bead and knot culling now allow for their radius: at 3 px stitches a bead's 3 px minimum radius was more than the half stitch it was culled at.
+- A mark's repaint region (`objectDirtyCells`) is its stitches grown, **by whole stitches**, to take in whole every bead, petite, long stitch, French knot, backstitch line and park marker that reaches its clip (selection boxes and rings included, hidden layers excluded), and every neighbouring stitch holding a shown half or quarter stitch. It repeats until nothing more reaches in. Its edges therefore stay on stitch boundaries and no clip cuts an object.
+- Each object's reach is one shared definition (`beadReachPx`, `knotReachPx`, `specialtyReachPx`, `backstitchReachPx`, `parkReachPx`) used by `drawStitch`'s culling as well. Bead and knot culling now allow for their radius: at 3 px stitches a bead's 3 px minimum radius was more than the half stitch it was culled at.
 - Stitches smaller than the clip's 2 px overhang (1 px, zoomed right out) repaint more than one stitch around them. With one, `drawStitch`'s opening fabric fill blanked the stitches two away inside the clip. This was a bug on **every** chart: restoring the old range, the full-cross control at 1 px differed from a full redraw on 176-288 pixels per step, by up to 253 levels.
-- If the growth does not settle within 12 passes (objects chained across the chart), the mark paints just its stitches, as before, and its commit repaints in full (`markPaintFellBackRef`): exact, and no worse than before.
+- Park markers are taken by their drawn size (review fix). A marker keeps a 4 px triangle and a 3.5 px ring however small a stitch gets, so below about 6 px it overhangs its stitch on the far sides, at 1 px by almost 6 px, and below 17.5 px its ring pokes out of the near sides. They used to count only as a stitch beside the region, and a marker on a marked stitch not at all, so marking or unmarking a parked stitch zoomed out left pieces of the marker behind or cut it off: at 1-3 px, 20-296 pixels off by up to 253 levels. That happened on every chart (it predates this change), but on charts with beads or specialty stitches the full repaint hid it. A marker that is added, moved or removed repaints its stitch grown by its reach, since the old one is no longer in the list.
+- If the growth does not settle within 12 passes, the mark paints its stitches and any park marker over them, as before. A long backstitch outline is the common case: every segment reaches the next. Then:
+  - on a chart with no beads, petites or long stitches, nothing more. That is how every mark there was painted before this change; where the clip edge crosses a stroke, a few pixels differ from a full paint (up to ~35 levels in a standalone test with diagonal lines; within 1 level beside a straight 200-segment outline).
+  - on a chart with any, its commit repaints in full (`markPaintFellBackRef`), as every mark there did before.
+
+  An earlier version of this change repainted in full on every chart when the growth did not settle, so a mark beside a long outline on a full-cross chart cost a full repaint it had not before (review finding). Hidden layers (backstitch, half and quarter stitches, knots, petites, long stitches) no longer count towards the region at all.
 - Objects are bucketed in an 8-stitch spatial index, rebuilt when the object lists change (15 ms for the 12 000 objects of the large mixed fixture). Sizing a mark's region then takes about 8 µs.
 
-**Correctness** (`tests/mobile-audit/desktop-mixed-mark-repaint.spec.js`, 11 browser tests, all pass): the canvas after partial repaints against a forced full redraw, every device pixel, after each step:
+**Correctness** (`tests/mobile-audit/desktop-mixed-mark-repaint.spec.js`, 17 browser tests, all pass): the canvas after partial repaints against a forced full redraw, every device pixel, after each step:
 
 | Stitch size, DPR | Steps | Full repaints | Max difference (of 255) |
 |---|---|---:|---:|
@@ -272,6 +277,8 @@ Mutation checks: disabling the journal comparison fails 2 of the new `ProjectSto
 | 40 px, DPR 2 | same | 0 | 0 |
 | 3 px, DPR 1 | same; objects here chain across the chart, so marks fall back | 35 of 39 | 0 |
 | 1 px, DPR 2 | same; the region settles at most of the chart | 0 | 0 |
+| 1 px DPR 2, 2 px DPR 1, 3 px DPR 1 and 2 | full-cross chart, one bead far away, five park markers: mark and unmark the parked stitches and their neighbours, undo and redo | 0 | 0 |
+| 20 px, DPR 1 | full-cross chart, a 200-segment backstitch outline, hidden and shown: 5 marks beside it | 0 | 1 |
 
 Also: one bead and one long stitch far away on a full-cross chart (6 marks, 0 full repaints); Highlight view in Isolate and Tint; petites, long stitches and knots hidden; the chart's bottom-right corner, where the region runs past the chart's edge. Each is within 1 level of a full redraw. The same steps on a full-cross chart (`REPAINT_CONTROL=1`) are within 1 level at every size. `tests/chartObjectDirtyRegion.test.js` (Jest) holds the geometry: whole-stitch growth, chains, selection reach, hidden layers, the zoomed-out bead, the ring of neighbouring stitches, and, over random charts at 1-40 px, that anything reaching the clip lies wholly inside the region and that the index finds exactly what scanning every object finds.
 
@@ -290,7 +297,8 @@ Tap-to-paint does not change: the full repaint used to run in the commit after t
 **Remaining.**
 - A tap on a half stitch, a knot, a bead or a petite or long stitch changes their own mark state, which `renderStitch` depends on, so it repaints the tile in full on any chart. These are the two full repaints left in the runs above, and the slowest taps.
 - A strip painted after a tile move is clipped to its exact edges and can differ from a full paint by a few levels along them (the pan audit's tile-shift noise); the same growth could apply there.
-- On densely decorated charts at 2-4 px stitches, marks fall back as described.
+- On densely decorated charts at 2-4 px stitches, and beside long backstitch outlines on charts with beads or specialty stitches, marks fall back as described.
+- At DPR 1.5 with 3 px stitches (4.5 device pixels), marks on a plain full-cross chart differ from a full redraw by up to 57 levels on about 70 pixels, identically before this change. Not investigated; likely the low-zoom cell image at fractional device pixels.
 - In the Tracker on a 1440 x 900 desktop, the palette header covers the Beads button.
 - A tap on a hidden knot still toggles it.
 

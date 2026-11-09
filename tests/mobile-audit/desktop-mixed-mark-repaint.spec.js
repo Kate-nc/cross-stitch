@@ -13,7 +13,7 @@
    the same state (the full-stitch layer hidden and shown again). Counts come
    from trackProbes.js. Desktop project; zoom and DPR vary per configuration. */
 const { test, expect } = require('@playwright/test');
-const { fixtureFor, fixturePalette } = require('../_helpers/trackerFixture');
+const { fixtureFor, fixturePalette, SIZES } = require('../_helpers/trackerFixture');
 const { suppressOnboarding } = require('../_helpers/deviceEmulation');
 const { waitForSaved } = require('../_helpers/perfProbes');
 const { installTrackProbes } = require('../_helpers/trackProbes');
@@ -77,6 +77,18 @@ async function tapCell(page, cx, cy, fx = 0.75, fy = 0.75) {
   await page.waitForTimeout(250);
 }
 const paints = (page) => page.evaluate(() => ({ full: window.__tp.fullPaints.length, partial: window.__tp.partialPaints.length }));
+/** Wait until no full repaint has landed for 600 ms, so one owed to an earlier
+ *  action (selecting a bead from its list) is not counted against the next step:
+ *  under load it can land after a fixed wait. */
+async function settle(page) {
+  let last = -1;
+  for (let i = 0; i < 30; i++) {
+    const n = (await paints(page)).full;
+    if (n === last) return;
+    last = n;
+    await page.waitForTimeout(600);
+  }
+}
 
 /* Pixel comparison of the chart canvas: a copy now (after partial repaints),
    then a full redraw of the same state, then the difference. */
@@ -138,6 +150,7 @@ for (const c of CONFIGS) {
       const log = [];
       const counts = [];
       const step = async (label, fn) => {
+        await settle(page);
         const p0 = await paints(page);
         await fn();
         const p1 = await paints(page);
@@ -278,3 +291,83 @@ test('marks at the chart corner and the left of the view match a full redraw', a
   expect(d.moved).toBeFalsy();
   expect(d.over8, `${d.over8} pixels differ from a full redraw (max ${d.max})`).toBe(0);
 });
+
+/* Park markers zoomed far out. A marker keeps a 4 px triangle and a 3.5 px ring
+   however small a stitch gets, so at 1-3 px it overhangs its stitch by several
+   stitches: a mark that hides or shows it must repaint all of it, or pieces of it
+   are left behind (or cut off). Full-cross chart with one bead far away. */
+// (Not DPR 1.5 this far out: a 3 px stitch is then 4.5 device pixels, and marks on a
+// plain full-cross chart already differ from a full redraw there, by up to 57 levels
+// on ~70 pixels, with or without markers, before this region existed.)
+for (const c of [{ dpr: 2, zoom: 0.05 }, { dpr: 1, zoom: 0.1 }, { dpr: 1, zoom: 0.15 }, { dpr: 2, zoom: 0.15 }]) {
+  test.describe(`park markers, DPR ${c.dpr}`, () => {
+  test.use({ deviceScaleFactor: c.dpr });
+  test(`marks on and beside park markers at ${Math.round(20 * c.zoom)} px a stitch (DPR ${c.dpr}) match a full redraw`, async ({ page }) => {
+    test.setTimeout(240000);
+    const scs = Math.max(1, Math.round(20 * c.zoom));
+    // The view starts at stitch 118, 118 (open()); the markers sit a little inside it, on
+    // stitches still to do (odd columns: the fixture finishes every other stitch, and a
+    // marker on a finished stitch is spent and dropped on load).
+    const pal = fixturePalette(SIZES.large.nColours), col = (x, y) => pal[(y * W + x) % pal.length];
+    const at = [[141, 140, 'BL'], [143, 140, 'TR'], [145, 141, 'TL'], [141, 143, 'BR'], [151, 150, 'BL']];
+    const parkMarkers = at.map(([x, y, corner]) => ({ x, y, corner, colorId: col(x, y).id, rgb: col(x, y).rgb }));
+    const far = { beads: [{ uid: 'far-bead', x: 2 * 395 + 1, y: 2 * 495 + 1, id: 'MH-1', brand: 'millhill', label: 'Bead', rgb: [200, 40, 40] }], parkMarkers };
+    await open(page, { zoom: c.zoom, file: fixtureFor('large', { doneFraction: 0.5 }), fields: far });
+    const kept = await page.evaluate(async () => ((await window.ProjectStorage.get('proj_mixrepaint')).parkMarkers || []).length);
+    expect(kept, 'the park markers did not load, so nothing here tests them').toBe(at.length);
+    const log = [], counts = [];
+    const step = async (label, fn) => {
+      await settle(page);
+      const p0 = await paints(page);
+      await fn();
+      const p1 = await paints(page);
+      counts.push({ step: label, full: p1.full - p0.full, partial: p1.partial - p0.partial });
+      await compare(page, label, log);
+    };
+    // Each marked stitch, a stitch next to it, and one two stitches from a marker.
+    const cells = [[141, 140], [143, 140], [145, 141], [141, 143], [142, 142], [151, 150], [153, 150]];
+    await step('mark', async () => { for (const [x, y] of cells) await tapCell(page, x, y, 0.5, 0.5); });
+    await step('unmark', async () => { for (const [x, y] of cells) await tapCell(page, x, y, 0.5, 0.5); });
+    await step('undo and redo', async () => {
+      await page.mouse.move(2, 2);
+      for (let i = 0; i < 5; i++) { await page.keyboard.press('Control+z'); await page.waitForTimeout(200); }
+      for (let i = 0; i < 3; i++) { await page.keyboard.press('Control+y'); await page.waitForTimeout(200); }
+    });
+    console.log(`PARK_REPAINT dpr=${c.dpr} scs=${scs} ` + JSON.stringify({ counts, log }));
+    for (const k of counts) {
+      expect(k.partial, `${k.step}: nothing was painted, so nothing was marked`).toBeGreaterThan(0);
+      expect(k.full, `${k.step}: ${k.full} full repaints`).toBe(0);
+    }
+    for (const d of log) {
+      expect(d.moved, `${d.step}: the tile moved, so nothing was compared`).toBeFalsy();
+      expect(d.over8, `${d.step}: ${d.over8} pixels differ from a full redraw by more than 8 levels (max ${d.max}, at ${JSON.stringify(d.box)})`).toBe(0);
+    }
+  });
+  });
+}
+
+/* A long backstitch outline: every segment reaches the next, so a mark beside it
+   cannot take the whole outline in. Hidden, it is not drawn and does not count.
+   Shown, on a chart with no beads or specialty stitches, the mark is painted as
+   marks there always were (no full repaint); where the clip edge crosses the
+   line its pixels differ from a full paint by a few levels on a handful of pixels. */
+for (const shown of [false, true]) {
+  test(`marks beside a long ${shown ? 'shown' : 'hidden'} backstitch outline repaint no tile`, async ({ page }) => {
+    test.setTimeout(180000);
+    const pal = fixturePalette(SIZES.large.nColours);
+    const Y = 140, bsLines = Array.from({ length: 200 }, (_, i) => ({ x1: 60 + i, y1: Y, x2: 61 + i, y2: Y, colorId: pal[0].id }));
+    const vis = JSON.stringify({ full: true, half: true, backstitch: shown, quarter: true, petite: true, french_knot: true, long_stitch: true });
+    await open(page, { zoom: 1, file: fixtureFor('large', { doneFraction: 0.5 }), fields: { bsLines, bsDone: [] }, storage: { cs_layerVis_proj_mixrepaint: vis } });
+    const p0 = await paints(page), log = [];
+    // Stitches below and above the outline (it runs along the top edge of row Y).
+    for (const [x, y] of [[125, Y], [128, Y - 1], [131, Y], [134, Y - 1], [137, Y]]) await tapCell(page, x, y, 0.5, 0.5);
+    const p1 = await paints(page);
+    const d = await compare(page, shown ? 'shown outline' : 'hidden outline', log);
+    console.log(`BS_OUTLINE_${shown ? 'SHOWN' : 'HIDDEN'} ` + JSON.stringify({ full: p1.full - p0.full, partial: p1.partial - p0.partial, d }));
+    expect(p1.partial - p0.partial, 'the taps did not paint their stitches').toBeGreaterThanOrEqual(5);
+    expect(p1.full - p0.full, 'a mark beside a backstitch outline repainted the whole tile').toBe(0);
+    expect(d.moved).toBeFalsy();
+    if (!shown) expect(d.over8, `${d.over8} pixels differ from a full redraw (max ${d.max})`).toBe(0);
+    else expect(d.over48, `${d.over48} pixels differ from a full redraw by more than 48 levels (max ${d.max})`).toBe(0);
+  });
+}

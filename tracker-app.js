@@ -27,6 +27,19 @@ function specialtyReachPx(cSz,selected){const sw=Math.max(1,cSz*0.08)/2+1;return
 // A backstitch line: half its width (round caps reach as far) with the selected
 // line's 5 px halo, plus a pixel.
 function backstitchReachPx(thickness){return (Math.max(1,thickness||1)+5)/2+1;}
+// How far a park marker (parkMarkerPath, drawParkMarker) reaches past its stitch,
+// taken on every side. Its triangle sits inset into a corner, ts px a side, and
+// its ring reaches half PARK_MARKER_RING past that. From 17.5 px a stitch up (a
+// 2 px inset) all of it stays inside the stitch: 0, an in-stitch object, and a
+// region's clip edge, 2 px past a stitch boundary, is never within a pixel of it.
+// Smaller, the ring overhangs the near edges and, below about 6.4 px, the
+// triangle's 4 px minimum the far ones: by that much, plus a pixel.
+const PARK_MARKER_RING=3.5;
+function parkReachPx(cSz){
+  const inset=Math.min(2,cSz*0.1),ts=Math.max(4,Math.min(cSz*0.5,14)),half=PARK_MARKER_RING/2;
+  const over=Math.max(half-inset,inset+ts+half-cSz);
+  return over>0?over+1:0;
+}
 
 // The stitches a repaint of cells x0..x1, y0..y1 must cover so that every bead,
 // petite, long stitch, French knot and backstitch line drawn over them is
@@ -44,8 +57,9 @@ function backstitchReachPx(thickness){return (Math.max(1,thickness||1)+5)/2+1;}
 // the caller repaints its whole tile instead (no clip edge inside the canvas at
 // all). padPx: how far past its stitches the clip reaches. o: {specialty,
 // specialtySelected, beads, knots, bsLines (or index: buildObjectIndex of them),
-// layerVis, sW, sH, bsReachPx, and cellHas(idx): whether stitch idx holds a half
-// or quarter stitch or a park marker}. Not clamped to the chart.
+// park: the park markers drawn ({x,y}), layerVis, sW, sH, bsReachPx, and
+// cellHas(idx): whether stitch idx holds a shown half or quarter stitch}. Hidden
+// layers draw nothing, so their objects do not count. Not clamped to the chart.
 // Chart objects bucketed by position in OBJECT_BUCKET-stitch squares, built once per
 // change of the object lists, so sizing a repaint looks only at what is near it rather
 // than at every object on the chart on every pass (12 000 on a 400 x 500 test chart).
@@ -77,11 +91,11 @@ function objectDirtyCells(x0,y0,x1,y1,padPx,cSz,o){
   let bx0=x0,by0=y0,bx1=x1,by1=y1;
   const p=padPx/cSz,vis=o.layerVis||{};
   const sReach=specialtyReachPx(cSz,false)/cSz,sSel=specialtyReachPx(cSz,true)/cSz;
-  const bReach=beadReachPx(cSz)/cSz,kReach=knotReachPx(cSz)/cSz,bsReach=(o.bsReachPx||0)/cSz;
+  const bReach=beadReachPx(cSz)/cSz,kReach=knotReachPx(cSz)/cSz,bsReach=(o.bsReachPx||0)/cSz,pReach=parkReachPx(cSz)/cSz;
   const index=o.index||buildObjectIndex(o.specialty,o.beads,o.knots,o.bsLines);
   // How far any object can reach past its own geometry, and past the clip: what to look near.
   const look=Math.max(sSel,bReach,kReach,bsReach)+p;
-  const W=o.sW||0,H=o.sH||0,cellHas=o.cellHas,knotsShown=vis.french_knot!==false;
+  const W=o.sW||0,H=o.sH||0,cellHas=o.cellHas,knotsShown=vis.french_knot!==false,bsShown=vis.backstitch!==false,park=o.park||[];
   let converged=false;
   for(let pass=0;pass<12;pass++){
     let grew=false;
@@ -97,11 +111,14 @@ function objectDirtyCells(x0,y0,x1,y1,padPx,cSz,o){
       if(it.kind==='s'){if(vis[it.obj.type]===false)continue;r=o.specialtySelected===it.obj.uid?sSel:sReach;}
       else if(it.kind==='b')r=bReach;
       else if(it.kind==='k'){if(!knotsShown)continue;r=kReach;}
-      else r=bsReach;
+      else{if(!bsShown)continue;r=bsReach;}
       take(it.x0-r,it.y0-r,it.x1+r,it.y1+r);
     }
+    // Park markers, inside the region or not: zoomed out, one overhangs its
+    // stitch by several (a handful per chart, so no index).
+    for(let i=0;i<park.length;i++){const m=park[i];take(m.x-pReach,m.y-pReach,m.x+1+pReach,m.y+1+pReach);}
     // The ring of stitches around the region: one holding a half or quarter stitch
-    // or a park marker joins it whole.
+    // joins it whole.
     if(cellHas&&W){
       const rx0=Math.max(0,bx0-1),ry0=Math.max(0,by0-1),rx1=Math.min(W,bx1+1),ry1=Math.min(H||Infinity,by1+1);
       for(let y=ry0;y<ry1;y++)for(let x=rx0;x<rx1;x++){
@@ -5767,7 +5784,6 @@ function _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, view, focusColour, 
 // its outline (PARK_MARKER_RING wide, centred on the edge) stays inside the
 // cell. Shared by the chart (drawParkMarker) and the Spotlight overlay, which
 // cuts the same shape out of its dimming so markers stay at full strength.
-const PARK_MARKER_RING=3.5;
 function parkMarkerPath(ctx,pm,gut,cSz){
   const corner=pm.corner||"BL";
   const inset=Math.min(2,cSz*0.1);
@@ -6477,7 +6493,11 @@ useEffect(()=>{
   };
   const a=sig(prev.markers,prev.layers),b=sig(parkMarkers,parkLayers);
   const keys=new Set([...a.keys(),...b.keys()]);
-  keys.forEach(k=>{if(a.get(k)!==b.get(k)){const x=k%sW,y=(k-x)/sW;repaintChartCells(x,y,x+1,y+1);}});
+  // Grown by a marker's reach: a marker that is gone (moved, removed, its
+  // layer hidden) is no longer in the list the repaint grows around, and
+  // zoomed out it overhangs its stitch.
+  const g=Math.ceil(parkReachPx(scs)/scs);
+  keys.forEach(k=>{if(a.get(k)!==b.get(k)){const x=k%sW,y=(k-x)/sW;repaintChartCells(x-g,y-g,x+1+g,y+1+g);}});
 },[parkMarkers,parkLayers]);
 // Keep renderStitchRef current so animation callbacks always call the latest closure
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
@@ -7074,12 +7094,17 @@ const rafIdRef = useRef(null);
 // to (renderStitchIfScrolledOut), so drawing them would be clipped away.
 // objectDirtyCells (top of the file) for this chart, clamped to it.
 const chartObjectIndex=useMemo(()=>buildObjectIndex(specialtyStitches,beads,knots,bsLines),[specialtyStitches,beads,knots,bsLines]);
-function objectDirtyBox(x0,y0,x1,y1,pad){
-  const pm=parkMarkersRef.current;
-  const parkAt=pm&&pm.length?new Set(pm.map(m=>m.y*sW+m.x)):null;
-  const b=objectDirtyCells(x0,y0,x1,y1,pad,scs,{index:chartObjectIndex,specialtySelected,layerVis,sW,sH,
+// parkOnly: grow around park markers alone (repaintChartCells' fallback).
+function objectDirtyBox(x0,y0,x1,y1,pad,parkOnly){
+  // Every marker of a shown layer, spent or not: marking or unmarking its stitch
+  // hides or shows it.
+  const pl=parkLayersRef.current;
+  const park=(parkMarkersRef.current||[]).filter(m=>pl[m.colorId]!==false);
+  const halfShown=layerVis.half!==false,quarterShown=layerVis.quarter!==false;
+  const b=parkOnly?objectDirtyCells(x0,y0,x1,y1,pad,scs,{index:buildObjectIndex(),sW,sH,park})
+    :objectDirtyCells(x0,y0,x1,y1,pad,scs,{index:chartObjectIndex,specialtySelected,layerVis,sW,sH,park,
     bsReachPx:backstitchReachPx(bsThickness),
-    cellHas:idx=>halfStitches.has(idx)||partialStitches.has(idx)||(!!parkAt&&parkAt.has(idx))});
+    cellHas:idx=>(halfShown&&halfStitches.has(idx))||(quarterShown&&partialStitches.has(idx))});
   return{x0:Math.max(0,b.x0),y0:Math.max(0,b.y0),x1:Math.min(sW,b.x1),y1:Math.min(sH,b.y1),converged:b.converged};
 }
 function repaintChartCells(x0,y0,x1,y1,isDoneAt){
@@ -7101,12 +7126,20 @@ function repaintChartCells(x0,y0,x1,y1,isDoneAt){
   // every bead, petite, long stitch and knot drawn over them (objectDirtyBox).
   const sp=2;
   let box=objectDirtyBox(x0,y0,x1,y1,sp);
-  // Objects chained too far to settle (zoomed far out on a densely decorated chart):
-  // paint just the cells, as before, and report it, so a mark's commit repaints the
-  // tile in full rather than skipping. A region that settles, however large, is
-  // painted as it is: exact, and never more than one full paint's work.
-  const fellBack=!box.converged;
-  if(fellBack)box={x0,y0,x1,y1};
+  // Objects chained too far to settle (a long backstitch outline, or zoomed far out on
+  // a densely decorated chart): paint the cells and any park marker over them (a
+  // marker cut by the clip would leave fragments). Where a clip edge crosses a
+  // stroke, the pixels along it differ from a full paint by a few levels (up to
+  // ~35 on a handful of pixels): on a chart without beads, petites or long
+  // stitches marks have always been painted so, and that is left until the next
+  // full paint. On a chart with any, every mark used to repaint the tile in full,
+  // so report it and the mark's commit still does. A region that settles, however
+  // large, is painted as it is: exact, and never more than one full paint's work.
+  let fellBack=!box.converged;
+  if(fellBack){
+    box=objectDirtyBox(x0,y0,x1,y1,sp,true);
+    fellBack=!box.converged||specialtyStitches.length>0||beads.length>0;
+  }
   const left=G+box.x0*scs,top=G+box.y0*scs,right=G+box.x1*scs,bottom=G+box.y1*scs;
   ctx.save();
   ctx.beginPath();ctx.rect(left-sp,top-sp,right-left+2*sp,bottom-top+2*sp);ctx.clip();

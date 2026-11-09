@@ -4,9 +4,9 @@
    redraw. For that repaint to match a full one, no clip edge may cut through an
    anti-aliased shape: a stroke or ellipse clipped there rasterises a little
    differently from the same shape drawn whole. So the repaint takes in, whole,
-   every bead, petite, long stitch, knot and backstitch line that reaches its clip,
-   and every neighbouring stitch holding a half or quarter stitch or a park marker,
-   growing by whole stitches. tests/mobile-audit/desktop-mixed-mark-repaint.spec.js
+   every bead, petite, long stitch, knot, backstitch line and park marker that
+   reaches its clip (hidden layers excepted), and every neighbouring stitch holding
+   a half or quarter stitch, growing by whole stitches. tests/mobile-audit/desktop-mixed-mark-repaint.spec.js
    compares the result with a full redraw in the browser; this holds the geometry. */
 const fs = require('fs');
 const path = require('path');
@@ -24,9 +24,10 @@ function fnSource(name) {
 }
 // eslint-disable-next-line no-new-func
 const BUCKET = /const OBJECT_BUCKET=\d+;/.exec(SRC)[0];
-const lib = new Function(BUCKET + '\n' + ['beadReachPx', 'knotReachPx', 'specialtyReachPx', 'backstitchReachPx', 'buildObjectIndex', 'objectsNear', 'objectDirtyCells'].map(fnSource).join('\n') +
-  '\nreturn { beadReachPx, knotReachPx, specialtyReachPx, backstitchReachPx, buildObjectIndex, objectsNear, objectDirtyCells };')();
-const { beadReachPx, knotReachPx, specialtyReachPx, backstitchReachPx, buildObjectIndex, objectsNear, objectDirtyCells } = lib;
+const RING = /const PARK_MARKER_RING=[\d.]+;/.exec(SRC)[0];
+const lib = new Function(BUCKET + '\n' + RING + '\n' + ['beadReachPx', 'knotReachPx', 'specialtyReachPx', 'backstitchReachPx', 'parkReachPx', 'parkMarkerPath', 'buildObjectIndex', 'objectsNear', 'objectDirtyCells'].map(fnSource).join('\n') +
+  '\nreturn { beadReachPx, knotReachPx, specialtyReachPx, backstitchReachPx, parkReachPx, parkMarkerPath, PARK_MARKER_RING, buildObjectIndex, objectsNear, objectDirtyCells };')();
+const { beadReachPx, knotReachPx, specialtyReachPx, backstitchReachPx, parkReachPx, parkMarkerPath, PARK_MARKER_RING, buildObjectIndex, objectsNear, objectDirtyCells } = lib;
 
 const PAD = 2;   // repaintChartCells' clip overhang, px
 const box = (x0, y0, x1, y1, cSz, o) => objectDirtyCells(x0, y0, x1, y1, PAD, cSz, Object.assign({ layerVis: {}, sW: 400, sH: 500 }, o));
@@ -43,6 +44,28 @@ describe('reach of each object, in pixels', () => {
     expect(specialtyReachPx(20, false)).toBeCloseTo(0.8 + 1);
     expect(specialtyReachPx(20, true)).toBeCloseTo(0.8 + 1 + 4);   // the dashed box 3 px outside, 1 px wide
     expect(backstitchReachPx(2)).toBeCloseTo(4.5);          // half of 2 px plus the 5 px selection halo, plus a pixel
+    expect(parkReachPx(20)).toBe(0);                        // inset 2 px, its 3.5 px ring stays inside its stitch
+    expect(parkReachPx(1)).toBeCloseTo(0.1 + 4 + 1.75 - 1 + 1);   // the 4 px minimum triangle overhangs a 1 px stitch
+    expect(parkReachPx(12)).toBeCloseTo(1.75 - 1.2 + 1);   // a 1.2 px inset: the ring pokes out of the near edges
+    expect(parkReachPx(17)).toBeGreaterThan(0);
+    expect(parkReachPx(18)).toBe(0);
+  });
+
+  test('a park marker, ring included, lies within its reach of its stitch at every size and corner', () => {
+    for (let cSz = 0.5; cSz <= 60; cSz += 0.5) {
+      for (const corner of ['TL', 'TR', 'BR', 'BL']) {
+        const pts = [];
+        const ctx = { beginPath() {}, closePath() {}, moveTo(x, y) { pts.push([x, y]); }, lineTo(x, y) { pts.push([x, y]); } };
+        parkMarkerPath(ctx, { x: 10, y: 10, corner }, 0, cSz);
+        const r = parkReachPx(cSz), half = PARK_MARKER_RING / 2;   // a round-joined stroke reaches half its width from the path
+        for (const [x, y] of pts) {
+          expect(x - half).toBeGreaterThanOrEqual(10 * cSz - r);
+          expect(x + half).toBeLessThanOrEqual(11 * cSz + r);
+          expect(y - half).toBeGreaterThanOrEqual(10 * cSz - r);
+          expect(y + half).toBeLessThanOrEqual(11 * cSz + r);
+        }
+      }
+    }
   });
 });
 
@@ -104,6 +127,30 @@ describe('the region a mark repaints', () => {
     expect(box(10, 10, 11, 11, 20, { bsLines: [{ x1: 11, y1: 9, x2: 13, y2: 11 }], bsReachPx: backstitchReachPx(2) }))
       .toMatchObject({ x0: 10, y0: 8, x1: 14, y1: 12 });
   });
+
+  test('hidden backstitch is not drawn, so a chain of it does not grow the region', () => {
+    // 200 joined segments along row 10: shown, each reaches the next and the region never settles.
+    const chain = Array.from({ length: 200 }, (_, i) => ({ x1: i, y1: 10, x2: i + 1, y2: 10 }));
+    const o = { bsLines: chain, bsReachPx: backstitchReachPx(2) };
+    expect(box(100, 10, 101, 11, 20, o).converged).toBe(false);
+    expect(box(100, 10, 101, 11, 20, Object.assign({ layerVis: { backstitch: false } }, o)))
+      .toMatchObject({ x0: 100, y0: 10, x1: 101, y1: 11, converged: true });
+  });
+
+  test('a park marker on the marked stitch is taken in whole, overhang included', () => {
+    // At 1 px the marker on (10, 10) reaches 5.85 px past its stitch: stitches 4 to 16.
+    expect(box(10, 10, 11, 11, 1, { park: [{ x: 10, y: 10 }] })).toMatchObject({ x0: 4, y0: 4, x1: 17, y1: 17, converged: true });
+    expect(box(10, 10, 11, 11, 2, { park: [{ x: 10, y: 10 }] })).toMatchObject({ x0: 7, y0: 7, x1: 14, y1: 14, converged: true });
+    expect(box(10, 10, 11, 11, 3, { park: [{ x: 10, y: 10 }] })).toMatchObject({ x0: 8, y0: 8, x1: 13, y1: 13, converged: true });
+    // At 20 px it stays inside its stitch.
+    expect(box(10, 10, 11, 11, 20, { park: [{ x: 10, y: 10 }] })).toMatchObject({ x0: 10, y0: 10, x1: 11, y1: 11 });
+  });
+
+  test('a park marker in a neighbouring stitch joins whole; one further off only when zoomed out', () => {
+    expect(box(10, 10, 11, 11, 20, { park: [{ x: 11, y: 11 }] })).toMatchObject({ x0: 10, y0: 10, x1: 12, y1: 12 });
+    expect(box(10, 10, 11, 11, 20, { park: [{ x: 13, y: 10 }] })).toMatchObject({ x0: 10, y0: 10, x1: 11, y1: 11 });
+    expect(box(10, 10, 11, 11, 1, { park: [{ x: 18, y: 10 }] })).toMatchObject({ x0: 10, x1: 25, converged: true });
+  });
 });
 
 /* The invariant the browser comparison rests on: whatever reaches into the clip
@@ -116,7 +163,7 @@ describe('nothing that reaches the clip is cut by it', () => {
     let unsettled = 0;
     for (let trial = 0; trial < 300; trial++) {
       const n = (k) => Math.floor(r() * k);
-      const specialty = [], beads = [], knots = [], bsLines = [], cells = new Set();
+      const specialty = [], beads = [], knots = [], bsLines = [], park = [], cells = new Set();
       for (let i = 0; i < 12; i++) {
         const x = 20 + n(20), y = 20 + n(20);
         specialty.push(r() < 0.5 ? petite(x + (r() < 0.5 ? 0 : 0.5), y + (r() < 0.5 ? 0 : 0.5), 's' + i)
@@ -125,10 +172,11 @@ describe('nothing that reaches the clip is cut by it', () => {
         knots.push({ x: 40 + n(40), y: 40 + n(40) });
         bsLines.push({ x1: x, y1: y, x2: x + n(3) - 1, y2: y + n(3) - 1 });
         cells.add((20 + n(20)) * 400 + 20 + n(20));
+        if (i < 3) park.push({ x: 20 + n(20), y: 20 + n(20) });
       }
       const selected = r() < 0.3 ? 's' + n(12) : null;
       const x0 = 25 + n(10), y0 = 25 + n(10), x1 = x0 + 1 + n(3), y1 = y0 + 1 + n(3);
-      const o = { specialty, specialtySelected: selected, beads, knots, bsLines, bsReachPx: backstitchReachPx(2), cellHas: (i) => cells.has(i) };
+      const o = { specialty, specialtySelected: selected, beads, knots, bsLines, park, bsReachPx: backstitchReachPx(2), cellHas: (i) => cells.has(i) };
       const b = box(x0, y0, x1, y1, cSz, o);
       // A chain too long to settle is repainted as the whole tile instead (repaintChartCells).
       if (!b.converged) { unsettled++; continue; }
@@ -148,6 +196,8 @@ describe('nothing that reaches the clip is cut by it', () => {
       for (const e of beads) extents.push([e.x / 2 - bR, e.y / 2 - bR, e.x / 2 + bR, e.y / 2 + bR]);
       for (const k of knots) extents.push([k.x / 2 - kR, k.y / 2 - kR, k.x / 2 + kR, k.y / 2 + kR]);
       for (const l of bsLines) extents.push([Math.min(l.x1, l.x2) - lR, Math.min(l.y1, l.y2) - lR, Math.max(l.x1, l.x2) + lR, Math.max(l.y1, l.y2) + lR]);
+      const pR = parkReachPx(cSz) / cSz;
+      for (const m of park) extents.push([m.x - pR, m.y - pR, m.x + 1 + pR, m.y + 1 + pR]);
       // A stitch holding an in-cell object, touching the region (a neighbour), must be in it.
       for (const i of cells) { const cx = i % 400, cy = (i - cx) / 400; if (cx >= b.x0 - 1 && cx < b.x1 + 1 && cy >= b.y0 - 1 && cy < b.y1 + 1) extents.push([cx, cy, cx + 1, cy + 1]); }
       for (const e of extents) if (reaches(e) && !inside(e)) throw new Error('cut by the clip: ' + JSON.stringify({ cSz, e, b, region: [x0, y0, x1, y1], selected }));
@@ -183,7 +233,9 @@ function bruteForce(x0, y0, x1, y1, cSz, o) {
     }
     for (const b of o.beads) take(b.x / 2 - bR, b.y / 2 - bR, b.x / 2 + bR, b.y / 2 + bR);
     if (vis.french_knot !== false) for (const k of o.knots) take(k.x / 2 - kR, k.y / 2 - kR, k.x / 2 + kR, k.y / 2 + kR);
-    for (const l of o.bsLines) take(Math.min(l.x1, l.x2) - lR, Math.min(l.y1, l.y2) - lR, Math.max(l.x1, l.x2) + lR, Math.max(l.y1, l.y2) + lR);
+    if (vis.backstitch !== false) for (const l of o.bsLines) take(Math.min(l.x1, l.x2) - lR, Math.min(l.y1, l.y2) - lR, Math.max(l.x1, l.x2) + lR, Math.max(l.y1, l.y2) + lR);
+    const pR = parkReachPx(cSz) / cSz;
+    for (const m of o.park || []) take(m.x - pR, m.y - pR, m.x + 1 + pR, m.y + 1 + pR);
     if (!grew) { converged = true; break; }
   }
   return { x0: bx0, y0: by0, x1: bx1, y1: by1, converged };
@@ -209,7 +261,8 @@ describe('the object index', () => {
         bsLines.push({ x1: x, y1: y, x2: x + n(5) - 2, y2: y + n(5) - 2 });
       }
       const cSz = [1, 2, 3, 5, 12, 20, 40][n(7)], x0 = 10 + n(40), y0 = 10 + n(40);
-      const o = { specialty, beads, knots, bsLines, bsReachPx: backstitchReachPx(2), specialtySelected: 's' + n(30), layerVis: r() < 0.3 ? { petite: false, french_knot: false } : {} };
+      const park = [{ x: n(60), y: n(60) }, { x: n(60), y: n(60) }];
+      const o = { specialty, beads, knots, bsLines, park, bsReachPx: backstitchReachPx(2), specialtySelected: 's' + n(30), layerVis: r() < 0.3 ? { petite: false, french_knot: false, backstitch: false } : {} };
       const indexed = box(x0, y0, x0 + 1, y0 + 1, cSz, Object.assign({}, o, { index: buildObjectIndex(specialty, beads, knots, bsLines), specialty: null, beads: null, knots: null, bsLines: null }));
       expect(indexed).toEqual(bruteForce(x0, y0, x0 + 1, y0 + 1, cSz, o));
     }
