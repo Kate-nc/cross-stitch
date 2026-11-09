@@ -1,0 +1,257 @@
+{
+ "kind": "track-mode-baseline",
+ "startedAt": "2026-11-09T09:07:54.394Z",
+ "build": {
+  "appVersion": "1.0.241",
+  "commit": "76985d7fda79e828214fc3f12edd350d0c5ff3b6",
+  "dirtyFiles": 11,
+  "swCache": "cross-stitch-cache-v71",
+  "swBuildId": "cc27237e7344e38b7c686a0a9bed187f49ef5d37db94721d7a66e9b2d9e9b6bb",
+  "served": "working tree via serve.js (not dist/); service workers blocked"
+ },
+ "environment": {
+  "browser": "Chromium 153.0.8010.12 (headless)",
+  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "host": "Linux 6.18.44-fc-v310, 4 x Intel(R) Xeon(R) Processor @ 2.10GHz, 16 GB",
+  "node": "v22.23.4",
+  "profiling": false,
+  "profiles": {
+   "phone": "Pixel 5 emulation (393 x 851, DPR 2.75, touch), 4x CPU throttle",
+   "desktop": "1440 x 900, DPR 1, no throttle"
+  },
+  "caveat": "Emulated. Canvases are drawn in software; CPU throttling scales script, not GPU or raster. Not a physical-device measurement."
+ },
+ "scenarios": {
+  "zoom-large-50": [
+   {
+    "profile": "phone",
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 0.2,
+    "history": 0,
+    "collection": null,
+    "wallS": 31,
+    "interactions": {
+     "n": 16,
+     "p50": 288,
+     "p75": 352,
+     "p95": 744,
+     "max": 744,
+     "inputDelay": {
+      "n": 16,
+      "p50": 0,
+      "p75": 1,
+      "p95": 20,
+      "max": 20
+     },
+     "handler": {
+      "n": 16,
+      "p50": 114,
+      "p75": 143,
+      "p95": 276,
+      "max": 276
+     },
+     "presentation": {
+      "n": 16,
+      "p50": 167,
+      "p75": 231,
+      "p95": 468,
+      "max": 468
+     },
+     "samples": [
+      344,
+      432,
+      208,
+      192,
+      472,
+      352,
+      256,
+      232,
+      240,
+      272,
+      288,
+      288,
+      384,
+      744,
+      280,
+      344
+     ]
+    },
+    "longTasks": {
+     "n": 32,
+     "tbtMs": 3692,
+     "longestMs": 462,
+     "top": [
+      462,
+      339,
+      276,
+      252,
+      245
+     ]
+    },
+    "frames": {
+     "n": 818,
+     "over50": 21,
+     "over100": 19,
+     "worstMs": 733
+    },
+    "react": {
+     "commits": 17
+    },
+    "paints": {
+     "full": 20,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 17,
+     "scriptMs": 2230,
+     "forcedLayoutMs": 796,
+     "renderMs": 544,
+     "totalMs": 4441,
+     "longest": [
+      {
+       "t": 26417,
+       "d": 639,
+       "blocking": 536,
+       "renderMs": 226,
+       "scripts": [
+        {
+         "d": 276,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        },
+        {
+         "d": 215,
+         "invoker": "FrameRequestCallback",
+         "type": "user-callback",
+         "fn": "animate",
+         "at": "compiled/tracker-app.compiled.js:1421"
+        }
+       ]
+      },
+      {
+       "t": 12702,
+       "d": 369,
+       "blocking": 263,
+       "renderMs": 12,
+       "scripts": [
+        {
+         "d": 182,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        }
+       ]
+      },
+      {
+       "t": 25163,
+       "d": 359,
+       "blocking": 255,
+       "renderMs": 8,
+       "scripts": [
+        {
+         "d": 151,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        }
+       ]
+      },
+      {
+       "t": 28901,
+       "d": 312,
+       "blocking": 208,
+       "renderMs": 62,
+       "scripts": [
+        {
+         "d": 84,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        }
+       ]
+      },
+      {
+       "t": 17225,
+       "d": 307,
+       "blocking": 207,
+       "renderMs": 20,
+       "scripts": [
+        {
+         "d": 156,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        }
+       ]
+      },
+      {
+       "t": 16109,
+       "d": 272,
+       "blocking": 169,
+       "renderMs": 62,
+       "scripts": [
+        {
+         "d": 128,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        },
+        {
+         "d": 51,
+         "invoker": "FrameRequestCallback",
+         "type": "user-callback",
+         "fn": "animate",
+         "at": "compiled/tracker-app.compiled.js:1421"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 4.7,
+     "byStore": {},
+     "writeTx": 0,
+     "writeTxMs": {
+      "n": 0
+     },
+     "writeTxByStore": {},
+     "localStorageWrites": 14,
+     "localStorageChars": 1216
+    },
+    "spans": {},
+    "workers": {},
+    "zooms": [
+     20,
+     30,
+     40,
+     50,
+     60,
+     70,
+     80,
+     90,
+     100,
+     90,
+     80,
+     70,
+     60,
+     50,
+     40,
+     30,
+     20
+    ],
+    "steps": 16,
+    "cpuProfile": null
+   }
+  ]
+ }
+}

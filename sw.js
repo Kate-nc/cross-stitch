@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "25202041735ec42d5fe75e70e8edec29475957172a38596ae0834d68ea1b1c4b";
+var BUILD_ID = "434fbf364c5af25ade760c461d3a569043b5d5494faab256624f3fca9cfb9abd";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -329,7 +329,7 @@ var BUILD_ASSETS = {
     "sha256": "fc5d4139a89955c42125a84a122c9097200d18eec692602c75509c57e3bb7205"
   },
   "./changelog.js": {
-    "sha256": "6d0e91633739fc44aa90ad16f7008d5f6152874abdc691f2dc025a29e9c5319e"
+    "sha256": "3f5b340cdc5628d611c772c22b8d409bbd0253d36c8e93b105daf22991abcf2d"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -491,7 +491,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "a9d7cbd4bb5221c2dada035a0f77d954543e000b756fcfc84969e8d79a6ac7cd"
+    "sha256": "c8a70efc8550626f1b914afa4149e22427c493b33285656efb1f023dc064150c"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -581,7 +581,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "803fbfa03a83381d3ef8bb8decc1f42c12d0f7f2d4ec0be2ba9e05ece3688a78"
+    "sha256": "5ef280211d2629aacd6189838e23b24f7f3fa388018c4b1613c93ef76ab7aa30"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"

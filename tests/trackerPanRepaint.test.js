@@ -104,7 +104,7 @@ describe('a tile move keeps what is already drawn', () => {
     // 3/4 boundary painted the previous tier and nothing repainted it. A kept
     // tile would keep that mistake, so drawStitch works the tier out itself.
     const draw = tracker.slice(tracker.indexOf('function drawStitch(ctx,cSz,viewportRect,isDoneAt){'), tracker.indexOf('const symAlpha='));
-    expect(draw).toMatch(/if\(!lockDetailLevel\)tierRef\.current=computeDetailTier\(cSz,tierRef\.current\);\n  const tier=lockDetailLevel\?3:tierRef\.current;/);
+    expect(draw).toMatch(/tierRef\.current=lockDetailLevel\?3:computeDetailTier\(cSz,tierRef\.current\);\n  const tier=tierRef\.current;/);
   });
 });
 
