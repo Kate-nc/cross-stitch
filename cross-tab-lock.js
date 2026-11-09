@@ -159,8 +159,13 @@
     localStorage.removeItem(_leaseKey(resourceId));
   }
 
+  // A lease expiring further ahead than any lease is ever granted for was
+  // written before the clock went back (a system clock set back, or a page
+  // whose clock was moved): it is stale, or it would block for that long.
   function _isLeaseExpired(lease) {
-    return !lease || typeof lease.expiresAt !== 'number' || lease.expiresAt <= _now();
+    if (!lease || typeof lease.expiresAt !== 'number') return true;
+    var now = _now();
+    return lease.expiresAt <= now || lease.expiresAt - now > MAX_LEASE_MS;
   }
 
   function _noopRelease() {
@@ -305,7 +310,10 @@
 
     var token = _mkToken(resourceId);
     var deadline = _now() + timeoutMs;
-    while (_now() <= deadline) {
+    // Bounded by polls as well as by time: a clock that does not move (or
+    // moves back) must not turn the wait into an endless one.
+    var polls = Math.ceil(timeoutMs / POLL_MS) + 1;
+    while (_now() <= deadline && polls-- > 0) {
       try {
         var current = _readLease(resourceId);
         if (!current || _isLeaseExpired(current)) {
