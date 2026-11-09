@@ -145,3 +145,15 @@ describe("TrackerProgressStrip loading", () => {
     expect(src).not.toContain("info-strip-bar");
   });
 });
+
+test('memoised strip skips unrelated updates but refreshes counts and session state', () => {
+  const container=document.createElement('div'),root=createRoot(container);
+  let renders=0;
+  const Clock=()=>{renders++;return '0:01';};
+  let props=propsFor(CASES.midToday,{LiveElapsed:Clock});
+  const draw=()=>act(()=>root.render(React.createElement(Strip,props)));
+  draw();expect(renders).toBe(1);draw();expect(renders).toBe(1);
+  props={...props,progress:units(38,100)};draw();expect(container.textContent).toContain('38 done');expect(renders).toBe(2);
+  props={...props,session:{...props.session,paused:true,isTimer:true}};draw();expect(container.querySelector('.info-strip-timer').getAttribute('aria-label')).toContain('Timer, paused');expect(renders).toBe(3);
+  act(()=>root.unmount());
+});

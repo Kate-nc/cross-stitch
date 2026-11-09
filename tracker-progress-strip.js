@@ -72,6 +72,6 @@
     );
   }
 
-  window.TrackerProgressStrip = TrackerProgressStrip;
-  if (typeof module !== 'undefined' && module.exports) module.exports = TrackerProgressStrip;
+  window.TrackerProgressStrip = window.React.memo(TrackerProgressStrip);
+  if (typeof module !== 'undefined' && module.exports) module.exports = window.TrackerProgressStrip;
 })();
