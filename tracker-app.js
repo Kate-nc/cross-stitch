@@ -2701,7 +2701,6 @@ const[lowZoomFade,setLowZoomFade]=useState(()=>{try{const v=parseFloat(localStor
 useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}catch(_){}},[lowZoomFade]);
 // tierRef: current render tier (1–4) with hysteresis; default zoom=1→scs=20→Tier 3
 const tierRef=useRef(3);
-const tierFadeRef=useRef({symbolOpacity:1.0,bsHsOpacity:1.0,animRafId:null});
 const renderStitchRef=useRef(null);
 // PERF: set true by single/bulk stitch-toggle paths that already painted their
 // changed cells directly (see paintDoneChanges call sites) so the full-viewport
@@ -5834,15 +5833,17 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   const hlRow=guideRef.current.row,hlCol=guideRef.current.col;
   const parkMarkers=parkMarkersRef.current,parkLayers=parkLayersRef.current;
 
-  // Determine effective tier and animated feature opacities. The tier is
-  // brought up to date for this cell size here, not only in the tier effect:
-  // that effect runs after the redraw effect, so a zoom across the Tier 3/4
-  // boundary (where no fade animates, so nothing repaints) was painted with
-  // the previous tier and stayed that way. computeDetailTier is idempotent.
+  // The detail tier for this cell size, brought up to date here and only
+  // here, so every paint (full, strip or one stitch) draws the tier of the
+  // size it is drawn at. computeDetailTier is idempotent. Symbols show from
+  // Tier 3 and half stitches and backstitch from Tier 2, all or nothing: a
+  // zoom across a threshold is one paint. They used to fade in or out over
+  // 150-200 ms by repainting the whole chart every frame, 4-13 full paints
+  // per crossing (reports/track-zoom-tier-transition.md).
   if(!lockDetailLevel)tierRef.current=computeDetailTier(cSz,tierRef.current);
   const tier=lockDetailLevel?3:tierRef.current;
-  const symAlpha=lockDetailLevel?1.0:tierFadeRef.current.symbolOpacity;
-  const bsHsAlpha=lockDetailLevel?1.0:tierFadeRef.current.bsHsOpacity;
+  const symAlpha=tier>=3?1:0;
+  const bsHsAlpha=tier>=2?1:0;
 
   ctx.fillStyle=chartFabricColour||"#fff";
   ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);
@@ -6499,31 +6500,9 @@ useEffect(()=>{
   const g=Math.ceil(parkReachPx(scs)/scs);
   keys.forEach(k=>{if(a.get(k)!==b.get(k)){const x=k%sW,y=(k-x)/sW;repaintChartCells(x-g,y-g,x+1+g,y+1+g);}});
 },[parkMarkers,parkLayers]);
-// Keep renderStitchRef current so animation callbacks always call the latest closure
+// Keep renderStitchRef current so callbacks outside React (the return from a
+// hidden tab) always call the latest closure.
 useEffect(()=>{renderStitchRef.current=renderStitch;},[renderStitch]);
-// Tier-change handler: compute new tier, animate feature opacities across boundaries
-useEffect(()=>{
-  const eff=lockDetailLevel?3:computeDetailTier(scs,tierRef.current);
-  tierRef.current=eff;
-  const tSym=eff>=3?1.0:0.0,tBsHs=eff>=2?1.0:0.0;
-  const startSym=tierFadeRef.current.symbolOpacity,startBsHs=tierFadeRef.current.bsHsOpacity;
-  if(tierFadeRef.current.animRafId){cancelAnimationFrame(tierFadeRef.current.animRafId);tierFadeRef.current.animRafId=null;}
-  if(Math.abs(startSym-tSym)>=0.01||Math.abs(startBsHs-tBsHs)>=0.01){
-    const durSym=tSym>startSym?200:150,durBsHs=tBsHs>startBsHs?200:150;
-    const startMs=performance.now();
-    const animate=()=>{
-      const el=performance.now()-startMs;
-      const tS=Math.min(1,el/durSym),tB=Math.min(1,el/durBsHs);
-      tierFadeRef.current.symbolOpacity=startSym+(tSym-startSym)*tS;
-      tierFadeRef.current.bsHsOpacity=startBsHs+(tBsHs-startBsHs)*tB;
-      if(renderStitchRef.current)renderStitchRef.current();
-      if(tS<1||tB<1){tierFadeRef.current.animRafId=requestAnimationFrame(animate);}
-      else{tierFadeRef.current.animRafId=null;}
-    };
-    tierFadeRef.current.animRafId=requestAnimationFrame(animate);
-  }
-  return()=>{if(tierFadeRef.current.animRafId){cancelAnimationFrame(tierFadeRef.current.animRafId);tierFadeRef.current.animRafId=null;}};
-},[scs,lockDetailLevel]);
 
 // R3 (second half) — hand the chart's backing stores back while the tab is
 // hidden. Safari reclaims canvas memory aggressively under pressure and
