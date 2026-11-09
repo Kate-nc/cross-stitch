@@ -1,0 +1,4221 @@
+{
+ "kind": "zoom-settle",
+ "startedAt": "2026-11-09T19:27:23.903Z",
+ "build": {
+  "commit": "08c78b4fa3d6e02974eacc43cc7b4cbc004c64c5",
+  "dirtyFiles": 26
+ },
+ "environment": {
+  "browser": "Chromium 153.0.8010.12 (headless, software raster)",
+  "host": "Linux 6.18.44-fc-v310, 4 x Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "caveat": "Emulated. Canvases raster on the CPU; the phone profile throttles script 4x but not raster. Not a physical-device measurement."
+ },
+ "cases": {
+  "phone-full-30": {
+   "phases": {
+    "setup": 0.6,
+    "backgrounds": 12.5,
+    "cellLoop": 17.2,
+    "glyphMs": 0,
+    "outlines": 2.3,
+    "texture": 0,
+    "gridLines": 0.6,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 38.4,
+    "rasterMs": 134.3,
+    "symbolsDrawn": 0,
+    "cells": 32039,
+    "tier": 2,
+    "canvasPx": 4568676,
+    "tileCss": [
+     959,
+     1191
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "spread x2",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 11640,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 4050,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1500,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1500,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1800,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1800,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 220,
+     "longTasks": 2,
+     "worstFrameMs": 217,
+     "framesOver50": 3,
+     "loafMs": 210,
+     "loafScriptMs": 133,
+     "loafRenderMs": 22,
+     "zoom": 56,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4568676,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "pinch x0.5",
+     "paints": [
+      {
+       "cSz": 6,
+       "cells": 12960,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 4725,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 4860,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5705,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5705,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 69,
+     "longTasks": 1,
+     "worstFrameMs": 167,
+     "framesOver50": 4,
+     "loafMs": 202,
+     "loafScriptMs": 71,
+     "loafRenderMs": 12,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4568676,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "spread then back",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 11640,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 12864,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 4690,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 4824,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5868,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5868,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 237,
+     "longTasks": 5,
+     "worstFrameMs": 300,
+     "framesOver50": 6,
+     "loafMs": 587,
+     "loafScriptMs": 308,
+     "loafRenderMs": 35,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4568676,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "two pinches back to back",
+     "paints": [
+      {
+       "cSz": 4,
+       "cells": 28600,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 10400,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 10400,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 12636,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 31234,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 349,
+     "longTasks": 2,
+     "worstFrameMs": 350,
+     "framesOver50": 3,
+     "loafMs": 300,
+     "loafScriptMs": 217,
+     "loafRenderMs": 64,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4442088,
+     "tileShift": [
+      0,
+      -2
+     ]
+    },
+    {
+     "gesture": "spread, then pan at once",
+     "paints": [
+      {
+       "cSz": 8,
+       "cells": 7446,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 2754,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 2754,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 3321,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 3321,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 4408,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 2037,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 4408,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 1920,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 160,
+     "longTasks": 5,
+     "worstFrameMs": 167,
+     "framesOver50": 6,
+     "loafMs": 308,
+     "loafScriptMs": 155,
+     "loafRenderMs": 52,
+     "zoom": 41,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 3337236,
+     "tileShift": [
+      360,
+      240
+     ]
+    }
+   ],
+   "canvasMb": 22
+  },
+  "phone-full-100": {
+   "phases": {
+    "setup": 0.4,
+    "backgrounds": 2.3,
+    "cellLoop": 33,
+    "glyphMs": 23.2,
+    "outlines": 0.3,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 39.9,
+    "rasterMs": 113.2,
+    "symbolsDrawn": 2989,
+    "cells": 2989,
+    "tier": 3,
+    "canvasPx": 4568676,
+    "tileCss": [
+     959,
+     1191
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "spread x2",
+     "paints": [
+      {
+       "cSz": 33,
+       "cells": 1110,
+       "glyphs": 1110
+      },
+      {
+       "cSz": 38,
+       "cells": 408,
+       "glyphs": 408
+      },
+      {
+       "cSz": 38,
+       "cells": 192,
+       "glyphs": 192
+      },
+      {
+       "cSz": 38,
+       "cells": 192,
+       "glyphs": 192
+      },
+      {
+       "cSz": 38,
+       "cells": 203,
+       "glyphs": 203
+      },
+      {
+       "cSz": 38,
+       "cells": 203,
+       "glyphs": 203
+      }
+     ],
+     "longestTaskMs": 279,
+     "longTasks": 3,
+     "worstFrameMs": 267,
+     "framesOver50": 4,
+     "loafMs": 455,
+     "loafScriptMs": 285,
+     "loafRenderMs": 35,
+     "zoom": 188,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4568676,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "pinch x0.5",
+     "paints": [
+      {
+       "cSz": 20,
+       "cells": 1333,
+       "glyphs": 1333
+      },
+      {
+       "cSz": 20,
+       "cells": 516,
+       "glyphs": 516
+      },
+      {
+       "cSz": 20,
+       "cells": 516,
+       "glyphs": 516
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      }
+     ],
+     "longestTaskMs": 95,
+     "longTasks": 2,
+     "worstFrameMs": 200,
+     "framesOver50": 3,
+     "loafMs": 171,
+     "loafScriptMs": 89,
+     "loafRenderMs": 15,
+     "zoom": 99,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4568676,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "spread then back",
+     "paints": [
+      {
+       "cSz": 32,
+       "cells": 1178,
+       "glyphs": 1178
+      },
+      {
+       "cSz": 20,
+       "cells": 1302,
+       "glyphs": 1302
+      },
+      {
+       "cSz": 20,
+       "cells": 504,
+       "glyphs": 504
+      },
+      {
+       "cSz": 20,
+       "cells": 504,
+       "glyphs": 504
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      }
+     ],
+     "longestTaskMs": 142,
+     "longTasks": 3,
+     "worstFrameMs": 150,
+     "framesOver50": 4,
+     "loafMs": 281,
+     "loafScriptMs": 135,
+     "loafRenderMs": 13,
+     "zoom": 99,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4568676,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "two pinches back to back",
+     "paints": [
+      {
+       "cSz": 12,
+       "cells": 3381,
+       "glyphs": 3381
+      },
+      {
+       "cSz": 12,
+       "cells": 1311,
+       "glyphs": 1311
+      },
+      {
+       "cSz": 12,
+       "cells": 1311,
+       "glyphs": 1311
+      },
+      {
+       "cSz": 20,
+       "cells": 2940,
+       "glyphs": 2940
+      }
+     ],
+     "longestTaskMs": 225,
+     "longTasks": 2,
+     "worstFrameMs": 217,
+     "framesOver50": 3,
+     "loafMs": 362,
+     "loafScriptMs": 205,
+     "loafRenderMs": 29,
+     "zoom": 100,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4564840,
+     "tileShift": [
+      0,
+      -2
+     ]
+    },
+    {
+     "gesture": "spread, then pan at once",
+     "paints": [
+      {
+       "cSz": 27,
+       "cells": 736,
+       "glyphs": 736
+      },
+      {
+       "cSz": 27,
+       "cells": 320,
+       "glyphs": 320
+      },
+      {
+       "cSz": 27,
+       "cells": 320,
+       "glyphs": 320
+      },
+      {
+       "cSz": 27,
+       "cells": 390,
+       "glyphs": 390
+      },
+      {
+       "cSz": 27,
+       "cells": 390,
+       "glyphs": 390
+      },
+      {
+       "cSz": 27,
+       "cells": 517,
+       "glyphs": 517
+      },
+      {
+       "cSz": 27,
+       "cells": 248,
+       "glyphs": 248
+      },
+      {
+       "cSz": 27,
+       "cells": 470,
+       "glyphs": 470
+      },
+      {
+       "cSz": 27,
+       "cells": 248,
+       "glyphs": 248
+      }
+     ],
+     "longestTaskMs": 161,
+     "longTasks": 4,
+     "worstFrameMs": 183,
+     "framesOver50": 5,
+     "loafMs": 270,
+     "loafScriptMs": 170,
+     "loafRenderMs": 79,
+     "zoom": 137,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 3337236,
+     "tileShift": [
+      360,
+      240
+     ]
+    }
+   ],
+   "canvasMb": 22
+  },
+  "phone-mixed-30": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 10.3,
+    "cellLoop": 31.5,
+    "glyphMs": 0,
+    "outlines": 1.5,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 23.2,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 65,
+    "rasterMs": 152,
+    "symbolsDrawn": 0,
+    "cells": 30429,
+    "tier": 2,
+    "canvasPx": 4334680,
+    "tileCss": [
+     959,
+     1130
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "spread x2",
+     "paints": [
+      {
+       "cSz": 6,
+       "cells": 30429,
+       "glyphs": 0
+      },
+      {
+       "cSz": 10,
+       "cells": 11058,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 3905,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1420,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1349,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1800,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1800,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 207,
+     "longTasks": 3,
+     "worstFrameMs": 233,
+     "framesOver50": 5,
+     "loafMs": 494,
+     "loafScriptMs": 226,
+     "loafRenderMs": 19,
+     "zoom": 56,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4334680,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "pinch x0.5",
+     "paints": [
+      {
+       "cSz": 6,
+       "cells": 13952,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 3712,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 3712,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5705,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5216,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 81,
+     "longTasks": 1,
+     "worstFrameMs": 183,
+     "framesOver50": 3,
+     "loafMs": 164,
+     "loafScriptMs": 77,
+     "loafRenderMs": 7,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4334680,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "spread then back",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 11058,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 13952,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 3712,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 3712,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5868,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5053,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 204,
+     "longTasks": 3,
+     "worstFrameMs": 217,
+     "framesOver50": 6,
+     "loafMs": 298,
+     "loafScriptMs": 209,
+     "loafRenderMs": 80,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4334680,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "two pinches back to back",
+     "paints": [
+      {
+       "cSz": 4,
+       "cells": 68444,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 29624,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 390,
+     "longTasks": 3,
+     "worstFrameMs": 467,
+     "framesOver50": 4,
+     "loafMs": 740,
+     "loafScriptMs": 373,
+     "loafRenderMs": 75,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 39,
+     "staleMax": 32,
+     "compared": 4208092,
+     "tileShift": [
+      0,
+      -2
+     ]
+    },
+    {
+     "gesture": "spread, then pan at once",
+     "paints": [
+      {
+       "cSz": 8,
+       "cells": 7081,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 2619,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 2619,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 3198,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 3075,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 4176,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 2037,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 4752,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 1940,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 240,
+     "longTasks": 4,
+     "worstFrameMs": 250,
+     "framesOver50": 4,
+     "loafMs": 325,
+     "loafScriptMs": 224,
+     "loafRenderMs": 146,
+     "zoom": 41,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 1,
+     "staleMax": 3,
+     "compared": 3147160,
+     "tileShift": [
+      360,
+      240
+     ]
+    }
+   ],
+   "canvasMb": 20.8
+  },
+  "phone-mixed-100": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 1.6,
+    "cellLoop": 22.5,
+    "glyphMs": 13.1,
+    "outlines": 0.2,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 5.2,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 33.8,
+    "rasterMs": 90.9,
+    "symbolsDrawn": 2842,
+    "cells": 2842,
+    "tier": 3,
+    "canvasPx": 4334680,
+    "tileCss": [
+     959,
+     1130
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "spread x2",
+     "paints": [
+      {
+       "cSz": 33,
+       "cells": 1050,
+       "glyphs": 1050
+      },
+      {
+       "cSz": 38,
+       "cells": 437,
+       "glyphs": 437
+      },
+      {
+       "cSz": 38,
+       "cells": 161,
+       "glyphs": 161
+      },
+      {
+       "cSz": 38,
+       "cells": 161,
+       "glyphs": 161
+      },
+      {
+       "cSz": 38,
+       "cells": 232,
+       "glyphs": 232
+      },
+      {
+       "cSz": 38,
+       "cells": 174,
+       "glyphs": 174
+      }
+     ],
+     "longestTaskMs": 192,
+     "longTasks": 3,
+     "worstFrameMs": 200,
+     "framesOver50": 2,
+     "loafMs": 346,
+     "loafScriptMs": 228,
+     "loafRenderMs": 24,
+     "zoom": 188,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4334680,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "pinch x0.5",
+     "paints": [
+      {
+       "cSz": 20,
+       "cells": 1394,
+       "glyphs": 1394
+      },
+      {
+       "cSz": 20,
+       "cells": 369,
+       "glyphs": 369
+      },
+      {
+       "cSz": 20,
+       "cells": 492,
+       "glyphs": 492
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      },
+      {
+       "cSz": 20,
+       "cells": 510,
+       "glyphs": 510
+      }
+     ],
+     "longestTaskMs": 100,
+     "longTasks": 1,
+     "worstFrameMs": 167,
+     "framesOver50": 3,
+     "loafMs": 158,
+     "loafScriptMs": 94,
+     "loafRenderMs": 10,
+     "zoom": 99,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4334680,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "spread then back",
+     "paints": [
+      {
+       "cSz": 32,
+       "cells": 1116,
+       "glyphs": 1116
+      },
+      {
+       "cSz": 20,
+       "cells": 1394,
+       "glyphs": 1394
+      },
+      {
+       "cSz": 20,
+       "cells": 369,
+       "glyphs": 369
+      },
+      {
+       "cSz": 20,
+       "cells": 492,
+       "glyphs": 492
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      },
+      {
+       "cSz": 20,
+       "cells": 510,
+       "glyphs": 510
+      }
+     ],
+     "longestTaskMs": 240,
+     "longTasks": 2,
+     "worstFrameMs": 233,
+     "framesOver50": 4,
+     "loafMs": 343,
+     "loafScriptMs": 183,
+     "loafRenderMs": 23,
+     "zoom": 99,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4334680,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "two pinches back to back",
+     "paints": [
+      {
+       "cSz": 12,
+       "cells": 3380,
+       "glyphs": 3380
+      },
+      {
+       "cSz": 12,
+       "cells": 1040,
+       "glyphs": 1040
+      },
+      {
+       "cSz": 20,
+       "cells": 2793,
+       "glyphs": 2793
+      }
+     ],
+     "longestTaskMs": 292,
+     "longTasks": 2,
+     "worstFrameMs": 283,
+     "framesOver50": 2,
+     "loafMs": 393,
+     "loafScriptMs": 293,
+     "loafRenderMs": 20,
+     "zoom": 100,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 161,
+     "staleMax": 59,
+     "compared": 4330844,
+     "tileShift": [
+      0,
+      -2
+     ]
+    },
+    {
+     "gesture": "spread, then pan at once",
+     "paints": [
+      {
+       "cSz": 27,
+       "cells": 896,
+       "glyphs": 896
+      },
+      {
+       "cSz": 27,
+       "cells": 288,
+       "glyphs": 288
+      },
+      {
+       "cSz": 27,
+       "cells": 192,
+       "glyphs": 192
+      },
+      {
+       "cSz": 27,
+       "cells": 312,
+       "glyphs": 312
+      },
+      {
+       "cSz": 27,
+       "cells": 351,
+       "glyphs": 351
+      },
+      {
+       "cSz": 27,
+       "cells": 495,
+       "glyphs": 495
+      },
+      {
+       "cSz": 27,
+       "cells": 248,
+       "glyphs": 248
+      },
+      {
+       "cSz": 27,
+       "cells": 495,
+       "glyphs": 495
+      },
+      {
+       "cSz": 27,
+       "cells": 248,
+       "glyphs": 248
+      }
+     ],
+     "longestTaskMs": 204,
+     "longTasks": 6,
+     "worstFrameMs": 200,
+     "framesOver50": 5,
+     "loafMs": 391,
+     "loafScriptMs": 249,
+     "loafRenderMs": 107,
+     "zoom": 137,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 378,
+     "staleMax": 43,
+     "compared": 3147160,
+     "tileShift": [
+      360,
+      240
+     ]
+    }
+   ],
+   "canvasMb": 20.8
+  },
+  "phone-area-30": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 6.7,
+    "cellLoop": 16.6,
+    "glyphMs": 0,
+    "outlines": 1,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 28.1,
+    "rasterMs": 104.1,
+    "symbolsDrawn": 0,
+    "cells": 27300,
+    "tier": 2,
+    "canvasPx": 4135208,
+    "tileCss": [
+     959,
+     1078
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "spread x2",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 9870,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 3328,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 64,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 2304,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 430,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 2752,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 153,
+     "longTasks": 2,
+     "worstFrameMs": 150,
+     "framesOver50": 2,
+     "loafMs": 89,
+     "loafScriptMs": 43,
+     "loafRenderMs": 10,
+     "zoom": 56,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4135208,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "pinch x0.5",
+     "paints": [
+      {
+       "cSz": 6,
+       "cells": 6789,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 7998,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 13345,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 0,
+     "longTasks": 0,
+     "worstFrameMs": 83,
+     "framesOver50": 2,
+     "loafMs": 144,
+     "loafScriptMs": 54,
+     "loafRenderMs": 10,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4135208,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "spread then back",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 9870,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 6789,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 7998,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 13345,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 160,
+     "longTasks": 2,
+     "worstFrameMs": 150,
+     "framesOver50": 5,
+     "loafMs": 297,
+     "loafScriptMs": 112,
+     "loafRenderMs": 16,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4135208,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "two pinches back to back",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 39270,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 52530,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 26520,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 329,
+     "longTasks": 4,
+     "worstFrameMs": 333,
+     "framesOver50": 5,
+     "loafMs": 359,
+     "loafScriptMs": 313,
+     "loafRenderMs": 56,
+     "zoom": 31,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4008620,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "spread, then pan at once",
+     "paints": [
+      {
+       "cSz": 8,
+       "cells": 6336,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 352,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 4048,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 236,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 5546,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 4002,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 1248,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 4110,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 1920,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 201,
+     "longTasks": 4,
+     "worstFrameMs": 200,
+     "framesOver50": 5,
+     "loafMs": 427,
+     "loafScriptMs": 229,
+     "loafRenderMs": 110,
+     "zoom": 42,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 3931528,
+     "tileShift": [
+      60,
+      40
+     ]
+    }
+   ],
+   "canvasMb": 19.9
+  },
+  "phone-area-100": {
+   "phases": {
+    "setup": 0.7,
+    "backgrounds": 1.3,
+    "cellLoop": 15.2,
+    "glyphMs": 11.2,
+    "outlines": 0.1,
+    "texture": 0,
+    "gridLines": 0.3,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 19.3,
+    "rasterMs": 69.2,
+    "symbolsDrawn": 2695,
+    "cells": 2695,
+    "tier": 3,
+    "canvasPx": 4135208,
+    "tileCss": [
+     959,
+     1078
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "spread x2",
+     "paints": [
+      {
+       "cSz": 33,
+       "cells": 990,
+       "glyphs": 990
+      },
+      {
+       "cSz": 38,
+       "cells": 357,
+       "glyphs": 357
+      },
+      {
+       "cSz": 38,
+       "cells": 168,
+       "glyphs": 168
+      },
+      {
+       "cSz": 38,
+       "cells": 168,
+       "glyphs": 168
+      },
+      {
+       "cSz": 38,
+       "cells": 203,
+       "glyphs": 203
+      },
+      {
+       "cSz": 38,
+       "cells": 203,
+       "glyphs": 203
+      }
+     ],
+     "longestTaskMs": 148,
+     "longTasks": 3,
+     "worstFrameMs": 133,
+     "framesOver50": 3,
+     "loafMs": 182,
+     "loafScriptMs": 106,
+     "loafRenderMs": 15,
+     "zoom": 188,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4135208,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "pinch x0.5",
+     "paints": [
+      {
+       "cSz": 20,
+       "cells": 1147,
+       "glyphs": 1147
+      },
+      {
+       "cSz": 20,
+       "cells": 444,
+       "glyphs": 444
+      },
+      {
+       "cSz": 20,
+       "cells": 444,
+       "glyphs": 444
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      }
+     ],
+     "longestTaskMs": 84,
+     "longTasks": 1,
+     "worstFrameMs": 133,
+     "framesOver50": 1,
+     "loafMs": 130,
+     "loafScriptMs": 78,
+     "loafRenderMs": 8,
+     "zoom": 99,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4135208,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "spread then back",
+     "paints": [
+      {
+       "cSz": 32,
+       "cells": 1085,
+       "glyphs": 1085
+      },
+      {
+       "cSz": 20,
+       "cells": 1147,
+       "glyphs": 1147
+      },
+      {
+       "cSz": 20,
+       "cells": 444,
+       "glyphs": 444
+      },
+      {
+       "cSz": 20,
+       "cells": 444,
+       "glyphs": 444
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 612
+      }
+     ],
+     "longestTaskMs": 194,
+     "longTasks": 2,
+     "worstFrameMs": 183,
+     "framesOver50": 4,
+     "loafMs": 283,
+     "loafScriptMs": 132,
+     "loafRenderMs": 15,
+     "zoom": 99,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4135208,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "two pinches back to back",
+     "paints": [
+      {
+       "cSz": 12,
+       "cells": 2891,
+       "glyphs": 2891
+      },
+      {
+       "cSz": 12,
+       "cells": 472,
+       "glyphs": 472
+      },
+      {
+       "cSz": 12,
+       "cells": 1534,
+       "glyphs": 1534
+      },
+      {
+       "cSz": 20,
+       "cells": 2695,
+       "glyphs": 2695
+      }
+     ],
+     "longestTaskMs": 178,
+     "longTasks": 3,
+     "worstFrameMs": 167,
+     "framesOver50": 2,
+     "loafMs": 200,
+     "loafScriptMs": 126,
+     "loafRenderMs": 13,
+     "zoom": 100,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4131372,
+     "tileShift": [
+      0,
+      -2
+     ]
+    },
+    {
+     "gesture": "spread, then pan at once",
+     "paints": [
+      {
+       "cSz": 27,
+       "cells": 644,
+       "glyphs": 644
+      },
+      {
+       "cSz": 27,
+       "cells": 280,
+       "glyphs": 280
+      },
+      {
+       "cSz": 27,
+       "cells": 280,
+       "glyphs": 280
+      },
+      {
+       "cSz": 27,
+       "cells": 351,
+       "glyphs": 351
+      },
+      {
+       "cSz": 27,
+       "cells": 390,
+       "glyphs": 390
+      },
+      {
+       "cSz": 27,
+       "cells": 473,
+       "glyphs": 473
+      },
+      {
+       "cSz": 27,
+       "cells": 248,
+       "glyphs": 248
+      },
+      {
+       "cSz": 27,
+       "cells": 430,
+       "glyphs": 430
+      },
+      {
+       "cSz": 27,
+       "cells": 248,
+       "glyphs": 248
+      }
+     ],
+     "longestTaskMs": 166,
+     "longTasks": 4,
+     "worstFrameMs": 183,
+     "framesOver50": 4,
+     "loafMs": 241,
+     "loafScriptMs": 145,
+     "loafRenderMs": 97,
+     "zoom": 137,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 2985128,
+     "tileShift": [
+      360,
+      240
+     ]
+    }
+   ],
+   "canvasMb": 19.9
+  },
+  "phone-overlays-30": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 1.7,
+    "cellLoop": 9.3,
+    "glyphMs": 0,
+    "outlines": 1.3,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 15.3,
+    "rasterMs": 113.5,
+    "symbolsDrawn": 0,
+    "cells": 29785,
+    "tier": 2,
+    "canvasPx": 4231108,
+    "tileCss": [
+     959,
+     1103
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "spread x2",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 10767,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 3618,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1340,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1340,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1800,
+       "glyphs": 0
+      },
+      {
+       "cSz": 11,
+       "cells": 1800,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 225,
+     "longTasks": 2,
+     "worstFrameMs": 217,
+     "framesOver50": 2,
+     "loafMs": 231,
+     "loafScriptMs": 146,
+     "loafRenderMs": 17,
+     "zoom": 56,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4231108,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "pinch x0.5",
+     "paints": [
+      {
+       "cSz": 6,
+       "cells": 11520,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 4200,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 4320,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5705,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5705,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 70,
+     "longTasks": 1,
+     "worstFrameMs": 150,
+     "framesOver50": 1,
+     "loafMs": 133,
+     "loafScriptMs": 65,
+     "loafRenderMs": 9,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4231108,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "spread then back",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 10767,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 11520,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 4200,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 4320,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5868,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 5705,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 181,
+     "longTasks": 3,
+     "worstFrameMs": 200,
+     "framesOver50": 4,
+     "loafMs": 306,
+     "loafScriptMs": 216,
+     "loafRenderMs": 14,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4231108,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "two pinches back to back",
+     "paints": [
+      {
+       "cSz": 4,
+       "cells": 25597,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 9308,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 9308,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 12636,
+       "glyphs": 0
+      },
+      {
+       "cSz": 6,
+       "cells": 29785,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 202,
+     "longTasks": 2,
+     "worstFrameMs": 200,
+     "framesOver50": 5,
+     "loafMs": 295,
+     "loafScriptMs": 114,
+     "loafRenderMs": 14,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4227272,
+     "tileShift": [
+      0,
+      -2
+     ]
+    },
+    {
+     "gesture": "spread, then pan at once",
+     "paints": [
+      {
+       "cSz": 8,
+       "cells": 6643,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 2457,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 2457,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 3321,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 3321,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 4060,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 1940,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 4089,
+       "glyphs": 0
+      },
+      {
+       "cSz": 8,
+       "cells": 1920,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 173,
+     "longTasks": 5,
+     "worstFrameMs": 167,
+     "framesOver50": 6,
+     "loafMs": 182,
+     "loafScriptMs": 68,
+     "loafRenderMs": 12,
+     "zoom": 41,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 3063028,
+     "tileShift": [
+      360,
+      240
+     ]
+    }
+   ],
+   "canvasMb": 28.4
+  },
+  "phone-overlays-100": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 0.3,
+    "cellLoop": 37.5,
+    "glyphMs": 20.5,
+    "outlines": 0.2,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 55.8,
+    "rasterMs": 65.8,
+    "symbolsDrawn": 1904,
+    "cells": 2744,
+    "tier": 3,
+    "canvasPx": 4231108,
+    "tileCss": [
+     959,
+     1103
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "spread x2",
+     "paints": [
+      {
+       "cSz": 33,
+       "cells": 1020,
+       "glyphs": 714
+      },
+      {
+       "cSz": 38,
+       "cells": 357,
+       "glyphs": 252
+      },
+      {
+       "cSz": 38,
+       "cells": 168,
+       "glyphs": 105
+      },
+      {
+       "cSz": 38,
+       "cells": 168,
+       "glyphs": 126
+      },
+      {
+       "cSz": 38,
+       "cells": 232,
+       "glyphs": 160
+      },
+      {
+       "cSz": 38,
+       "cells": 203,
+       "glyphs": 140
+      }
+     ],
+     "longestTaskMs": 182,
+     "longTasks": 4,
+     "worstFrameMs": 183,
+     "framesOver50": 4,
+     "loafMs": 213,
+     "loafScriptMs": 139,
+     "loafRenderMs": 26,
+     "zoom": 188,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4231108,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "pinch x0.5",
+     "paints": [
+      {
+       "cSz": 20,
+       "cells": 1178,
+       "glyphs": 836
+      },
+      {
+       "cSz": 20,
+       "cells": 456,
+       "glyphs": 304
+      },
+      {
+       "cSz": 20,
+       "cells": 456,
+       "glyphs": 342
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 432
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 432
+      }
+     ],
+     "longestTaskMs": 85,
+     "longTasks": 2,
+     "worstFrameMs": 167,
+     "framesOver50": 1,
+     "loafMs": 143,
+     "loafScriptMs": 79,
+     "loafRenderMs": 14,
+     "zoom": 99,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4231108,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "spread then back",
+     "paints": [
+      {
+       "cSz": 32,
+       "cells": 1116,
+       "glyphs": 792
+      },
+      {
+       "cSz": 20,
+       "cells": 1178,
+       "glyphs": 836
+      },
+      {
+       "cSz": 20,
+       "cells": 456,
+       "glyphs": 304
+      },
+      {
+       "cSz": 20,
+       "cells": 456,
+       "glyphs": 342
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 432
+      },
+      {
+       "cSz": 20,
+       "cells": 612,
+       "glyphs": 432
+      }
+     ],
+     "longestTaskMs": 167,
+     "longTasks": 3,
+     "worstFrameMs": 183,
+     "framesOver50": 5,
+     "loafMs": 383,
+     "loafScriptMs": 143,
+     "loafRenderMs": 31,
+     "zoom": 99,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4231108,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "two pinches back to back",
+     "paints": [
+      {
+       "cSz": 12,
+       "cells": 3038,
+       "glyphs": 2108
+      },
+      {
+       "cSz": 12,
+       "cells": 1178,
+       "glyphs": 806
+      },
+      {
+       "cSz": 12,
+       "cells": 1178,
+       "glyphs": 868
+      },
+      {
+       "cSz": 12,
+       "cells": 1577,
+       "glyphs": 1102
+      },
+      {
+       "cSz": 20,
+       "cells": 2744,
+       "glyphs": 1904
+      }
+     ],
+     "longestTaskMs": 305,
+     "longTasks": 2,
+     "worstFrameMs": 300,
+     "framesOver50": 2,
+     "loafMs": 335,
+     "loafScriptMs": 244,
+     "loafRenderMs": 30,
+     "zoom": 100,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 4227272,
+     "tileShift": [
+      0,
+      -2
+     ]
+    },
+    {
+     "gesture": "spread, then pan at once",
+     "paints": [
+      {
+       "cSz": 27,
+       "cells": 667,
+       "glyphs": 464
+      },
+      {
+       "cSz": 27,
+       "cells": 290,
+       "glyphs": 203
+      },
+      {
+       "cSz": 27,
+       "cells": 290,
+       "glyphs": 203
+      },
+      {
+       "cSz": 27,
+       "cells": 351,
+       "glyphs": 243
+      },
+      {
+       "cSz": 27,
+       "cells": 351,
+       "glyphs": 243
+      },
+      {
+       "cSz": 27,
+       "cells": 484,
+       "glyphs": 352
+      },
+      {
+       "cSz": 27,
+       "cells": 279,
+       "glyphs": 189
+      },
+      {
+       "cSz": 27,
+       "cells": 440,
+       "glyphs": 308
+      },
+      {
+       "cSz": 27,
+       "cells": 248,
+       "glyphs": 176
+      }
+     ],
+     "longestTaskMs": 187,
+     "longTasks": 6,
+     "worstFrameMs": 200,
+     "framesOver50": 6,
+     "loafMs": 264,
+     "loafScriptMs": 171,
+     "loafRenderMs": 54,
+     "zoom": 137,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 3063028,
+     "tileShift": [
+      360,
+      240
+     ]
+    }
+   ],
+   "canvasMb": 28.4
+  },
+  "desktop-dpr1-full-30": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 2.5,
+    "cellLoop": 3.9,
+    "glyphMs": 0,
+    "outlines": 0.4,
+    "texture": 0,
+    "gridLines": 0,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 6.9,
+    "rasterMs": 8.8,
+    "symbolsDrawn": 0,
+    "cells": 56400,
+    "tier": 2,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "ctrl+wheel in",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 20400,
+       "glyphs": 0
+      },
+      {
+       "cSz": 18,
+       "cells": 6460,
+       "glyphs": 6460
+      },
+      {
+       "cSz": 30,
+       "cells": 2337,
+       "glyphs": 2337
+      },
+      {
+       "cSz": 50,
+       "cells": 875,
+       "glyphs": 875
+      },
+      {
+       "cSz": 80,
+       "cells": 352,
+       "glyphs": 352
+      }
+     ],
+     "longestTaskMs": 61,
+     "longTasks": 2,
+     "worstFrameMs": 50,
+     "framesOver50": 0,
+     "loafMs": 116,
+     "loafScriptMs": 80,
+     "loafRenderMs": 6,
+     "zoom": 400,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 1,
+     "compared": 2018142,
+     "tileShift": [
+      0,
+      -1
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel out",
+     "paints": [
+      {
+       "cSz": 48,
+       "cells": 936,
+       "glyphs": 936
+      },
+      {
+       "cSz": 28,
+       "cells": 2684,
+       "glyphs": 2684
+      },
+      {
+       "cSz": 16,
+       "cells": 8056,
+       "glyphs": 8056
+      },
+      {
+       "cSz": 8,
+       "cells": 32012,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 120000,
+       "glyphs": 0
+      },
+      {
+       "cSz": 1,
+       "cells": 200000,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 75,
+     "longTasks": 3,
+     "worstFrameMs": 67,
+     "framesOver50": 2,
+     "loafMs": 184,
+     "loafScriptMs": 141,
+     "loafRenderMs": 10,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 227900,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in then out",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 81217,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 29,
+       "cells": 2537,
+       "glyphs": 2537
+      },
+      {
+       "cSz": 1,
+       "cells": 200000,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 50,
+     "longTasks": 1,
+     "worstFrameMs": 50,
+     "framesOver50": 1,
+     "loafMs": 107,
+     "loafScriptMs": 70,
+     "loafRenderMs": 4,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 227900,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in, then pan at once",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 81217,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 25,
+       "cells": 3332,
+       "glyphs": 3332
+      },
+      {
+       "cSz": 25,
+       "cells": 828,
+       "glyphs": 828
+      }
+     ],
+     "longestTaskMs": 0,
+     "longTasks": 0,
+     "worstFrameMs": 33,
+     "framesOver50": 0,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 125,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 1716348,
+     "tileShift": [
+      0,
+      180
+     ]
+    }
+   ],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr1-full-100": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 0.4,
+    "cellLoop": 10.6,
+    "glyphMs": 8.1,
+    "outlines": 0.1,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 11.6,
+    "rasterMs": 9.6,
+    "symbolsDrawn": 5185,
+    "cells": 5185,
+    "tier": 3,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "ctrl+wheel in",
+     "paints": [
+      {
+       "cSz": 36,
+       "cells": 1680,
+       "glyphs": 1680
+      },
+      {
+       "cSz": 60,
+       "cells": 609,
+       "glyphs": 609
+      },
+      {
+       "cSz": 80,
+       "cells": 247,
+       "glyphs": 247
+      },
+      {
+       "cSz": 80,
+       "cells": 52,
+       "glyphs": 52
+      },
+      {
+       "cSz": 80,
+       "cells": 65,
+       "glyphs": 65
+      },
+      {
+       "cSz": 80,
+       "cells": 120,
+       "glyphs": 120
+      },
+      {
+       "cSz": 80,
+       "cells": 96,
+       "glyphs": 96
+      }
+     ],
+     "longestTaskMs": 0,
+     "longTasks": 0,
+     "worstFrameMs": 33,
+     "framesOver50": 0,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 400,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 2,
+     "compared": 2019828,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel out",
+     "paints": [
+      {
+       "cSz": 48,
+       "cells": 936,
+       "glyphs": 936
+      },
+      {
+       "cSz": 28,
+       "cells": 2623,
+       "glyphs": 2623
+      },
+      {
+       "cSz": 16,
+       "cells": 8056,
+       "glyphs": 8056
+      },
+      {
+       "cSz": 8,
+       "cells": 32012,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 120400,
+       "glyphs": 0
+      },
+      {
+       "cSz": 1,
+       "cells": 200000,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 113,
+     "longTasks": 4,
+     "worstFrameMs": 117,
+     "framesOver50": 2,
+     "loafMs": 228,
+     "loafScriptMs": 183,
+     "loafRenderMs": 7,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 227900,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in then out",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 81217,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 29,
+       "cells": 2537,
+       "glyphs": 2537
+      },
+      {
+       "cSz": 1,
+       "cells": 200000,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 59,
+     "longTasks": 2,
+     "worstFrameMs": 50,
+     "framesOver50": 0,
+     "loafMs": 57,
+     "loafScriptMs": 39,
+     "loafRenderMs": 2,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 227900,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in, then pan at once",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 81217,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 25,
+       "cells": 3332,
+       "glyphs": 3332
+      },
+      {
+       "cSz": 25,
+       "cells": 828,
+       "glyphs": 828
+      }
+     ],
+     "longestTaskMs": 53,
+     "longTasks": 2,
+     "worstFrameMs": 50,
+     "framesOver50": 0,
+     "loafMs": 53,
+     "loafScriptMs": 35,
+     "loafRenderMs": 2,
+     "zoom": 125,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 1716348,
+     "tileShift": [
+      0,
+      180
+     ]
+    }
+   ],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr1-mixed-30": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 2.8,
+    "cellLoop": 8.3,
+    "glyphMs": 0,
+    "outlines": 0.7,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 7.4,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 21.3,
+    "rasterMs": 19.2,
+    "symbolsDrawn": 0,
+    "cells": 56400,
+    "tier": 2,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "ctrl+wheel in",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 20400,
+       "glyphs": 0
+      },
+      {
+       "cSz": 18,
+       "cells": 6460,
+       "glyphs": 6460
+      },
+      {
+       "cSz": 30,
+       "cells": 2337,
+       "glyphs": 2337
+      },
+      {
+       "cSz": 50,
+       "cells": 875,
+       "glyphs": 875
+      },
+      {
+       "cSz": 80,
+       "cells": 352,
+       "glyphs": 352
+      }
+     ],
+     "longestTaskMs": 90,
+     "longTasks": 2,
+     "worstFrameMs": 83,
+     "framesOver50": 1,
+     "loafMs": 130,
+     "loafScriptMs": 90,
+     "loafRenderMs": 10,
+     "zoom": 400,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 31,
+     "staleMax": 38,
+     "compared": 2018142,
+     "tileShift": [
+      0,
+      -1
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel out",
+     "paints": [
+      {
+       "cSz": 48,
+       "cells": 936,
+       "glyphs": 936
+      },
+      {
+       "cSz": 28,
+       "cells": 2684,
+       "glyphs": 2684
+      },
+      {
+       "cSz": 16,
+       "cells": 8056,
+       "glyphs": 8056
+      },
+      {
+       "cSz": 8,
+       "cells": 32012,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 120000,
+       "glyphs": 0
+      },
+      {
+       "cSz": 1,
+       "cells": 200000,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 121,
+     "longTasks": 4,
+     "worstFrameMs": 117,
+     "framesOver50": 2,
+     "loafMs": 288,
+     "loafScriptMs": 220,
+     "loafRenderMs": 10,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 227900,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in then out",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 81217,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 29,
+       "cells": 2537,
+       "glyphs": 2537
+      },
+      {
+       "cSz": 1,
+       "cells": 200000,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 93,
+     "longTasks": 3,
+     "worstFrameMs": 83,
+     "framesOver50": 3,
+     "loafMs": 225,
+     "loafScriptMs": 170,
+     "loafRenderMs": 7,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 227900,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in, then pan at once",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 81217,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 25,
+       "cells": 3332,
+       "glyphs": 3332
+      },
+      {
+       "cSz": 25,
+       "cells": 828,
+       "glyphs": 828
+      }
+     ],
+     "longestTaskMs": 91,
+     "longTasks": 3,
+     "worstFrameMs": 83,
+     "framesOver50": 1,
+     "loafMs": 136,
+     "loafScriptMs": 100,
+     "loafRenderMs": 4,
+     "zoom": 125,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 222,
+     "staleMax": 37,
+     "compared": 1716348,
+     "tileShift": [
+      0,
+      180
+     ]
+    }
+   ],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr1-mixed-100": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 0.4,
+    "cellLoop": 11.9,
+    "glyphMs": 7.5,
+    "outlines": 0.1,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 1.5,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 14.4,
+    "rasterMs": 13.7,
+    "symbolsDrawn": 5185,
+    "cells": 5185,
+    "tier": 3,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "ctrl+wheel in",
+     "paints": [
+      {
+       "cSz": 36,
+       "cells": 1680,
+       "glyphs": 1680
+      },
+      {
+       "cSz": 60,
+       "cells": 609,
+       "glyphs": 609
+      },
+      {
+       "cSz": 80,
+       "cells": 247,
+       "glyphs": 247
+      },
+      {
+       "cSz": 80,
+       "cells": 52,
+       "glyphs": 52
+      },
+      {
+       "cSz": 80,
+       "cells": 65,
+       "glyphs": 65
+      },
+      {
+       "cSz": 80,
+       "cells": 120,
+       "glyphs": 120
+      },
+      {
+       "cSz": 80,
+       "cells": 96,
+       "glyphs": 96
+      }
+     ],
+     "longestTaskMs": 0,
+     "longTasks": 0,
+     "worstFrameMs": 33,
+     "framesOver50": 0,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 400,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 2,
+     "compared": 2019828,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel out",
+     "paints": [
+      {
+       "cSz": 48,
+       "cells": 936,
+       "glyphs": 936
+      },
+      {
+       "cSz": 28,
+       "cells": 2623,
+       "glyphs": 2623
+      },
+      {
+       "cSz": 16,
+       "cells": 8056,
+       "glyphs": 8056
+      },
+      {
+       "cSz": 8,
+       "cells": 32012,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 120400,
+       "glyphs": 0
+      },
+      {
+       "cSz": 1,
+       "cells": 200000,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 167,
+     "longTasks": 4,
+     "worstFrameMs": 167,
+     "framesOver50": 3,
+     "loafMs": 381,
+     "loafScriptMs": 309,
+     "loafRenderMs": 11,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 227900,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in then out",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 81217,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 29,
+       "cells": 2537,
+       "glyphs": 2537
+      },
+      {
+       "cSz": 1,
+       "cells": 200000,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 98,
+     "longTasks": 3,
+     "worstFrameMs": 83,
+     "framesOver50": 2,
+     "loafMs": 204,
+     "loafScriptMs": 149,
+     "loafRenderMs": 6,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 227900,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in, then pan at once",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 81217,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 25,
+       "cells": 3332,
+       "glyphs": 3332
+      },
+      {
+       "cSz": 25,
+       "cells": 828,
+       "glyphs": 828
+      }
+     ],
+     "longestTaskMs": 77,
+     "longTasks": 3,
+     "worstFrameMs": 67,
+     "framesOver50": 3,
+     "loafMs": 123,
+     "loafScriptMs": 86,
+     "loafRenderMs": 4,
+     "zoom": 125,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 222,
+     "staleMax": 37,
+     "compared": 1716348,
+     "tileShift": [
+      0,
+      180
+     ]
+    }
+   ],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr1-area-30": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 3.8,
+    "cellLoop": 4.8,
+    "glyphMs": 0,
+    "outlines": 0.4,
+    "texture": 0,
+    "gridLines": 0,
+    "specialty": 0.1,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 10.5,
+    "rasterMs": 6.3,
+    "symbolsDrawn": 0,
+    "cells": 40170,
+    "tier": 2,
+    "canvasPx": 1516668,
+    "tileCss": [
+     1266,
+     1198
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "ctrl+wheel in",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 19890,
+       "glyphs": 0
+      },
+      {
+       "cSz": 18,
+       "cells": 6460,
+       "glyphs": 6460
+      },
+      {
+       "cSz": 30,
+       "cells": 2337,
+       "glyphs": 2337
+      },
+      {
+       "cSz": 50,
+       "cells": 875,
+       "glyphs": 875
+      },
+      {
+       "cSz": 80,
+       "cells": 352,
+       "glyphs": 352
+      }
+     ],
+     "longestTaskMs": 51,
+     "longTasks": 1,
+     "worstFrameMs": 50,
+     "framesOver50": 1,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 400,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 1,
+     "compared": 2018142,
+     "tileShift": [
+      0,
+      -1
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel out",
+     "paints": [
+      {
+       "cSz": 48,
+       "cells": 936,
+       "glyphs": 936
+      },
+      {
+       "cSz": 28,
+       "cells": 2684,
+       "glyphs": 2684
+      },
+      {
+       "cSz": 16,
+       "cells": 8056,
+       "glyphs": 8056
+      },
+      {
+       "cSz": 8,
+       "cells": 30282,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 60358,
+       "glyphs": 0
+      },
+      {
+       "cSz": 1,
+       "cells": 63036,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 66,
+     "longTasks": 2,
+     "worstFrameMs": 67,
+     "framesOver50": 1,
+     "loafMs": 113,
+     "loafScriptMs": 74,
+     "loafRenderMs": 4,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 79296,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in then out",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 49440,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 29,
+       "cells": 2580,
+       "glyphs": 2580
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 5,
+       "cells": 49440,
+       "glyphs": 0
+      },
+      {
+       "cSz": 1,
+       "cells": 63036,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 0,
+     "longTasks": 0,
+     "worstFrameMs": 33,
+     "framesOver50": 0,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 79296,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in, then pan at once",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 49440,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 25,
+       "cells": 1890,
+       "glyphs": 1890
+      },
+      {
+       "cSz": 25,
+       "cells": 350,
+       "glyphs": 350
+      },
+      {
+       "cSz": 25,
+       "cells": 350,
+       "glyphs": 350
+      },
+      {
+       "cSz": 25,
+       "cells": 700,
+       "glyphs": 700
+      },
+      {
+       "cSz": 25,
+       "cells": 700,
+       "glyphs": 700
+      },
+      {
+       "cSz": 25,
+       "cells": 612,
+       "glyphs": 612
+      },
+      {
+       "cSz": 25,
+       "cells": 558,
+       "glyphs": 558
+      },
+      {
+       "cSz": 25,
+       "cells": 561,
+       "glyphs": 561
+      },
+      {
+       "cSz": 25,
+       "cells": 496,
+       "glyphs": 496
+      }
+     ],
+     "longestTaskMs": 0,
+     "longTasks": 0,
+     "worstFrameMs": 33,
+     "framesOver50": 0,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 125,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 2,
+     "compared": 1623468,
+     "tileShift": [
+      180,
+      120
+     ]
+    }
+   ],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr1-area-100": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 0.5,
+    "cellLoop": 10,
+    "glyphMs": 7.2,
+    "outlines": 0.1,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 10.9,
+    "rasterMs": 10.1,
+    "symbolsDrawn": 5185,
+    "cells": 5185,
+    "tier": 3,
+    "canvasPx": 2019828,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "ctrl+wheel in",
+     "paints": [
+      {
+       "cSz": 36,
+       "cells": 1680,
+       "glyphs": 1680
+      },
+      {
+       "cSz": 60,
+       "cells": 609,
+       "glyphs": 609
+      },
+      {
+       "cSz": 80,
+       "cells": 247,
+       "glyphs": 247
+      },
+      {
+       "cSz": 80,
+       "cells": 52,
+       "glyphs": 52
+      },
+      {
+       "cSz": 80,
+       "cells": 65,
+       "glyphs": 65
+      },
+      {
+       "cSz": 80,
+       "cells": 120,
+       "glyphs": 120
+      },
+      {
+       "cSz": 80,
+       "cells": 96,
+       "glyphs": 96
+      }
+     ],
+     "longestTaskMs": 0,
+     "longTasks": 0,
+     "worstFrameMs": 17,
+     "framesOver50": 0,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 400,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 2,
+     "compared": 2019828,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel out",
+     "paints": [
+      {
+       "cSz": 48,
+       "cells": 936,
+       "glyphs": 936
+      },
+      {
+       "cSz": 28,
+       "cells": 2623,
+       "glyphs": 2623
+      },
+      {
+       "cSz": 16,
+       "cells": 7904,
+       "glyphs": 7904
+      },
+      {
+       "cSz": 8,
+       "cells": 30282,
+       "glyphs": 0
+      },
+      {
+       "cSz": 4,
+       "cells": 60358,
+       "glyphs": 0
+      },
+      {
+       "cSz": 1,
+       "cells": 63036,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 53,
+     "longTasks": 2,
+     "worstFrameMs": 50,
+     "framesOver50": 0,
+     "loafMs": 107,
+     "loafScriptMs": 70,
+     "loafRenderMs": 3,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 79296,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in then out",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 49440,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 29,
+       "cells": 2580,
+       "glyphs": 2580
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 5,
+       "cells": 49440,
+       "glyphs": 0
+      },
+      {
+       "cSz": 1,
+       "cells": 63036,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 51,
+     "longTasks": 1,
+     "worstFrameMs": 50,
+     "framesOver50": 0,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 5,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 79296,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in, then pan at once",
+     "paints": [
+      {
+       "cSz": 5,
+       "cells": 49440,
+       "glyphs": 0
+      },
+      {
+       "cSz": 9,
+       "cells": 25192,
+       "glyphs": 0
+      },
+      {
+       "cSz": 17,
+       "cells": 7100,
+       "glyphs": 7100
+      },
+      {
+       "cSz": 25,
+       "cells": 1890,
+       "glyphs": 1890
+      },
+      {
+       "cSz": 25,
+       "cells": 350,
+       "glyphs": 350
+      },
+      {
+       "cSz": 25,
+       "cells": 350,
+       "glyphs": 350
+      },
+      {
+       "cSz": 25,
+       "cells": 700,
+       "glyphs": 700
+      },
+      {
+       "cSz": 25,
+       "cells": 700,
+       "glyphs": 700
+      },
+      {
+       "cSz": 25,
+       "cells": 612,
+       "glyphs": 612
+      },
+      {
+       "cSz": 25,
+       "cells": 558,
+       "glyphs": 558
+      },
+      {
+       "cSz": 25,
+       "cells": 561,
+       "glyphs": 561
+      },
+      {
+       "cSz": 25,
+       "cells": 496,
+       "glyphs": 496
+      }
+     ],
+     "longestTaskMs": 0,
+     "longTasks": 0,
+     "worstFrameMs": 33,
+     "framesOver50": 0,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 125,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 2,
+     "compared": 1623468,
+     "tileShift": [
+      180,
+      120
+     ]
+    }
+   ],
+   "canvasMb": 15.6
+  },
+  "desktop-dpr2-full-30": {
+   "phases": {
+    "setup": 0,
+    "backgrounds": 3,
+    "cellLoop": 2.7,
+    "glyphMs": 0,
+    "outlines": 0.4,
+    "texture": 0,
+    "gridLines": 0,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 7.6,
+    "rasterMs": 27.4,
+    "symbolsDrawn": 0,
+    "cells": 56400,
+    "tier": 2,
+    "canvasPx": 8079312,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "ctrl+wheel in",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 20400,
+       "glyphs": 0
+      },
+      {
+       "cSz": 18,
+       "cells": 6460,
+       "glyphs": 6460
+      },
+      {
+       "cSz": 30,
+       "cells": 2337,
+       "glyphs": 2337
+      },
+      {
+       "cSz": 46,
+       "cells": 620,
+       "glyphs": 620
+      },
+      {
+       "cSz": 46,
+       "cells": 120,
+       "glyphs": 120
+      },
+      {
+       "cSz": 46,
+       "cells": 140,
+       "glyphs": 140
+      },
+      {
+       "cSz": 46,
+       "cells": 280,
+       "glyphs": 280
+      },
+      {
+       "cSz": 46,
+       "cells": 240,
+       "glyphs": 240
+      }
+     ],
+     "longestTaskMs": 77,
+     "longTasks": 3,
+     "worstFrameMs": 67,
+     "framesOver50": 2,
+     "loafMs": 54,
+     "loafScriptMs": 35,
+     "loafRenderMs": 3,
+     "zoom": 230,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 8079312,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel out",
+     "paints": [
+      {
+       "cSz": 28,
+       "cells": 2684,
+       "glyphs": 2684
+      },
+      {
+       "cSz": 18,
+       "cells": 6460,
+       "glyphs": 6460
+      },
+      {
+       "cSz": 10,
+       "cells": 20570,
+       "glyphs": 20570
+      },
+      {
+       "cSz": 6,
+       "cells": 56682,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 131,
+     "longTasks": 4,
+     "worstFrameMs": 117,
+     "framesOver50": 4,
+     "loafMs": 153,
+     "loafScriptMs": 113,
+     "loafRenderMs": 7,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 8079312,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in then out",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 20570,
+       "glyphs": 0
+      },
+      {
+       "cSz": 16,
+       "cells": 8056,
+       "glyphs": 8056
+      },
+      {
+       "cSz": 26,
+       "cells": 3102,
+       "glyphs": 3102
+      },
+      {
+       "cSz": 16,
+       "cells": 8056,
+       "glyphs": 8056
+      },
+      {
+       "cSz": 10,
+       "cells": 20570,
+       "glyphs": 20570
+      },
+      {
+       "cSz": 6,
+       "cells": 56400,
+       "glyphs": 0
+      }
+     ],
+     "longestTaskMs": 96,
+     "longTasks": 6,
+     "worstFrameMs": 83,
+     "framesOver50": 3,
+     "loafMs": 128,
+     "loafScriptMs": 95,
+     "loafRenderMs": 5,
+     "zoom": 30,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 8079312,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in, then pan at once",
+     "paints": [
+      {
+       "cSz": 10,
+       "cells": 20400,
+       "glyphs": 0
+      },
+      {
+       "cSz": 16,
+       "cells": 8056,
+       "glyphs": 8056
+      },
+      {
+       "cSz": 18,
+       "cells": 3478,
+       "glyphs": 3478
+      },
+      {
+       "cSz": 18,
+       "cells": 611,
+       "glyphs": 611
+      },
+      {
+       "cSz": 18,
+       "cells": 611,
+       "glyphs": 611
+      },
+      {
+       "cSz": 18,
+       "cells": 1248,
+       "glyphs": 1248
+      },
+      {
+       "cSz": 18,
+       "cells": 1344,
+       "glyphs": 1344
+      },
+      {
+       "cSz": 18,
+       "cells": 1035,
+       "glyphs": 1035
+      },
+      {
+       "cSz": 18,
+       "cells": 850,
+       "glyphs": 850
+      },
+      {
+       "cSz": 18,
+       "cells": 966,
+       "glyphs": 966
+      },
+      {
+       "cSz": 18,
+       "cells": 935,
+       "glyphs": 935
+      }
+     ],
+     "longestTaskMs": 70,
+     "longTasks": 3,
+     "worstFrameMs": 67,
+     "framesOver50": 1,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 90,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 6493872,
+     "tileShift": [
+      360,
+      240
+     ]
+    }
+   ],
+   "canvasMb": 38.7
+  },
+  "desktop-dpr2-full-100": {
+   "phases": {
+    "setup": 0.1,
+    "backgrounds": 0.6,
+    "cellLoop": 10.8,
+    "glyphMs": 8.1,
+    "outlines": 0.2,
+    "texture": 0,
+    "gridLines": 0.1,
+    "specialty": 0,
+    "markers": 0,
+    "overlays": 0,
+    "totalMs": 12.1,
+    "rasterMs": 43.5,
+    "symbolsDrawn": 5185,
+    "cells": 5185,
+    "tier": 3,
+    "canvasPx": 8079312,
+    "tileCss": [
+     1686,
+     1198
+    ]
+   },
+   "gestures": [
+    {
+     "gesture": "ctrl+wheel in",
+     "paints": [
+      {
+       "cSz": 32,
+       "cells": 2106,
+       "glyphs": 2106
+      },
+      {
+       "cSz": 52,
+       "cells": 792,
+       "glyphs": 792
+      },
+      {
+       "cSz": 60,
+       "cells": 408,
+       "glyphs": 408
+      },
+      {
+       "cSz": 60,
+       "cells": 102,
+       "glyphs": 102
+      },
+      {
+       "cSz": 60,
+       "cells": 85,
+       "glyphs": 85
+      },
+      {
+       "cSz": 60,
+       "cells": 155,
+       "glyphs": 155
+      },
+      {
+       "cSz": 60,
+       "cells": 155,
+       "glyphs": 155
+      }
+     ],
+     "longestTaskMs": 64,
+     "longTasks": 2,
+     "worstFrameMs": 50,
+     "framesOver50": 0,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 300,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 8079312,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel out",
+     "paints": [
+      {
+       "cSz": 38,
+       "cells": 1485,
+       "glyphs": 1485
+      },
+      {
+       "cSz": 24,
+       "cells": 3621,
+       "glyphs": 3621
+      },
+      {
+       "cSz": 20,
+       "cells": 2881,
+       "glyphs": 2881
+      },
+      {
+       "cSz": 20,
+       "cells": 516,
+       "glyphs": 516
+      },
+      {
+       "cSz": 20,
+       "cells": 516,
+       "glyphs": 516
+      },
+      {
+       "cSz": 20,
+       "cells": 1044,
+       "glyphs": 1044
+      },
+      {
+       "cSz": 20,
+       "cells": 1044,
+       "glyphs": 1044
+      }
+     ],
+     "longestTaskMs": 59,
+     "longTasks": 1,
+     "worstFrameMs": 50,
+     "framesOver50": 1,
+     "loafMs": 52,
+     "loafScriptMs": 24,
+     "loafRenderMs": 2,
+     "zoom": 100,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 8079312,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in then out",
+     "paints": [
+      {
+       "cSz": 32,
+       "cells": 2106,
+       "glyphs": 2106
+      },
+      {
+       "cSz": 20,
+       "cells": 5185,
+       "glyphs": 5185
+      }
+     ],
+     "longestTaskMs": 70,
+     "longTasks": 2,
+     "worstFrameMs": 67,
+     "framesOver50": 2,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 100,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": null,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 8079312,
+     "tileShift": [
+      0,
+      0
+     ]
+    },
+    {
+     "gesture": "ctrl+wheel in, then pan at once",
+     "paints": [
+      {
+       "cSz": 32,
+       "cells": 2052,
+       "glyphs": 2052
+      },
+      {
+       "cSz": 32,
+       "cells": 369,
+       "glyphs": 369
+      },
+      {
+       "cSz": 32,
+       "cells": 400,
+       "glyphs": 400
+      },
+      {
+       "cSz": 32,
+       "cells": 400,
+       "glyphs": 400
+      },
+      {
+       "cSz": 32,
+       "cells": 343,
+       "glyphs": 343
+      }
+     ],
+     "longestTaskMs": 56,
+     "longTasks": 2,
+     "worstFrameMs": 67,
+     "framesOver50": 1,
+     "loafMs": 0,
+     "loafScriptMs": 0,
+     "loafRenderMs": 0,
+     "zoom": 160,
+     "blankAfterCommit": 0,
+     "blankWhilePanning": 0,
+     "stalePixels": 0,
+     "staleMax": 0,
+     "compared": 6493872,
+     "tileShift": [
+      360,
+      240
+     ]
+    }
+   ],
+   "canvasMb": 38.7
+  }
+ }
+}

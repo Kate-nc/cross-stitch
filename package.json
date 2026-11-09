@@ -27,7 +27,9 @@
     "test:tracking-accessibility": "playwright test --config=playwright.focused.config.js",
     "perf:tracking": "node tests/perf/focused-journey.cjs",
     "perf:save-cost": "node tests/perf/save-cost.cjs",
-    "perf:track-baseline": "node tests/perf/track-baseline.cjs"
+    "perf:track-baseline": "node tests/perf/track-baseline.cjs",
+    "perf:zoom-settle": "node tests/perf/zoom-settle.cjs",
+    "perf:area-counts": "node tests/perf/area-counts-bench.cjs"
   },
   "jest": {
     "setupFiles": [

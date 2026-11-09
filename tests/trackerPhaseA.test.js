@@ -89,6 +89,8 @@ eval(helpersSrc);
 // reference them.  Tests call resetCounterStubs() before each assertion.
 var doneCountRef = { current: 0 };
 var colourDoneCountsRef = { current: {} };
+// Work-area counts (useStitchCounts.js): none here, so the area paths are no-ops.
+var areaCountsRef = { current: null };
 function setCountsVer() { /* test stub — no-op */ }
 
 function resetCounterStubs() {

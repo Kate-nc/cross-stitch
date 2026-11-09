@@ -508,6 +508,16 @@ const SCENARIOS = [
   // Work area, and overlays (outline highlight, counting aids, Spotlight).
   { id: 'pmp-huge-50-workarea', run: runMarking, fixture: H50, plan: PMP,
     fields: { blockW: 10, blockH: 10, workArea: { active: true, x0: 200, y0: 300, x1: 300, y1: 400, bw: 10, bh: 10, setAt: Date.now() } } },
+  // Steady marking inside a work area: a 100 x 100 area, the whole huge chart as one area, and the whole
+  // mixed chart (half stitches) as one area (reports/track-work-area-counts.md).
+  { id: 'area-mark-huge-50-small', run: runMarking, fixture: H50, plan: STEADY,
+    fields: { blockW: 10, blockH: 10, workArea: { active: true, x0: 200, y0: 300, x1: 300, y1: 400, bw: 10, bh: 10, setAt: Date.now() } } },
+  { id: 'area-mark-huge-50-whole', run: runMarking, fixture: H50, plan: STEADY,
+    fields: { blockW: 10, blockH: 10, workArea: { active: true, x0: 0, y0: 0, x1: 600, y1: 800, bw: 60, bh: 80, setAt: Date.now() } } },
+  { id: 'area-mark-large-mixed-50-whole', run: runMarking, fixture: LM50, plan: STEADY,
+    fields: { blockW: 10, blockH: 10, workArea: { active: true, x0: 0, y0: 0, x1: 400, y1: 500, bw: 40, bh: 50, setAt: Date.now() } } },
+  { id: 'area-mark-huge-50-whole-desktop', run: runMarking, fixture: H50, plan: STEADY, profile: 'desktop',
+    fields: { blockW: 10, blockH: 10, workArea: { active: true, x0: 0, y0: 0, x1: 600, y1: 800, bw: 60, bh: 80, setAt: Date.now() } } },
   // In Highlight view only the highlighted colour marks: tap stitches of it.
   { id: 'pmp-large-50-overlays', run: runMarking, fixture: L50, plan: PMP, fields: OUTLINE('large'), focusColour: 3, storage: { cs_countAids: '1', cs_focusEnabled: '1' } },
   // Sync.

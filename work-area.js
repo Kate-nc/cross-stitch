@@ -144,6 +144,97 @@
     return rt > lt ? remote : local;
   }
 
+  /* ── Counts inside an area ────────────────────────────────────────────
+     The stitches inside an area and how many are done, overall and per
+     colour, in the shape of the whole-pattern counts (useStitchCounts.js):
+     { total, done, colours: { id: { total, done, halfTotal, halfDone } } }.
+     A full stitch counts 1; each side of a half stitch counts 0.5 in
+     total/done and 1 in the colour's halfTotal/halfDone.
+
+     buildCounts scans the area once. applyDoneDelta and applyHalfDelta then
+     keep the counts up to date from the cells a mark changed, so a tap costs
+     what it changed rather than the area's size. Both are only correct when
+     the counts were built from (or kept up to date with) the marks the
+     change started from: useStitchCounts.js checks that by identity
+     (doneSrc / halfSrc) and rebuilds otherwise.
+
+     `colours` is copied (shallowly) by every delta that changes it, and each
+     changed entry is replaced, so the object a render saw never changes
+     under it. */
+  function isStitchCell(m) { return !!m && m.id !== '__skip__' && m.id !== '__empty__'; }
+  function colourOf(cs, id) { return cs[id] || (cs[id] = { total: 0, done: 0, halfTotal: 0, halfDone: 0 }); }
+
+  function buildCounts(area, pat, sW, done, halfStitches, halfDone) {
+    var st = {
+      x0: area.x0, y0: area.y0, x1: area.x1, y1: area.y1, sW: sW,
+      pat: pat, hs: halfStitches || null, doneSrc: done || null, halfSrc: halfDone || null,
+      total: 0, done: 0, colours: {}, cells: 0
+    };
+    if (!pat) return st;
+    var cs = st.colours, total = 0, dn = 0;
+    for (var y = area.y0; y < area.y1; y++) {
+      var base = y * sW;
+      for (var x = area.x0; x < area.x1; x++) {
+        var m = pat[base + x];
+        if (!isStitchCell(m)) continue;
+        var c = colourOf(cs, m.id);
+        c.total++; total++;
+        if (done && done[base + x]) { c.done++; dn++; }
+      }
+    }
+    st.cells = (area.x1 - area.x0) * (area.y1 - area.y0);
+    if (halfStitches && halfStitches.size) halfStitches.forEach(function (hs, idx) {
+      if (!containsIndex(area, idx, sW)) return;
+      var hd = halfDone && halfDone.get(idx);
+      if (hs.fwd) { var c = colourOf(cs, hs.fwd.id); c.halfTotal++; total += 0.5; if (hd && hd.fwd) { c.halfDone++; dn += 0.5; } }
+      if (hs.bck) { var d = colourOf(cs, hs.bck.id); d.halfTotal++; total += 0.5; if (hd && hd.bck) { d.halfDone++; dn += 0.5; } }
+    });
+    st.total = total; st.done = dn;
+    return st;
+  }
+
+  // Replace a colour entry (and, once per delta, the colours object) before
+  // changing it. `fresh` is the set of ids already replaced by this delta.
+  function touchColour(st, fresh, id) {
+    if (!fresh.any) { st.colours = Object.assign({}, st.colours); fresh.any = true; }
+    if (!fresh[id]) {
+      var c = st.colours[id];
+      st.colours[id] = c ? { total: c.total, done: c.done, halfTotal: c.halfTotal, halfDone: c.halfDone } : { total: 0, done: 0, halfTotal: 0, halfDone: 0 };
+      fresh[id] = true;
+    }
+    return st.colours[id];
+  }
+
+  /** Full-stitch marks: `changes` is [{ idx, oldVal }], `newDone` the marks
+   *  after them. Returns how many changed cells were inside the area. */
+  function applyDoneDelta(st, changes, newDone) {
+    var fresh = {}, n = 0;
+    for (var i = 0; i < changes.length; i++) {
+      var idx = changes[i].idx, was = !!changes[i].oldVal, now = !!newDone[idx];
+      if (was === now) continue;
+      var y = Math.floor(idx / st.sW), x = idx - y * st.sW;
+      if (x < st.x0 || x >= st.x1 || y < st.y0 || y >= st.y1) continue;
+      var m = st.pat[idx];
+      if (!isStitchCell(m)) continue;
+      var c = touchColour(st, fresh, m.id);
+      if (now) { c.done++; st.done++; } else { c.done--; st.done--; }
+      n++;
+    }
+    return n;
+  }
+
+  /** One side ('fwd' or 'bck') of a half stitch went from oldVal to newVal. */
+  function applyHalfDelta(st, idx, dir, oldVal, newVal) {
+    if (!!oldVal === !!newVal || !st.hs) return 0;
+    var y = Math.floor(idx / st.sW), x = idx - y * st.sW;
+    if (x < st.x0 || x >= st.x1 || y < st.y0 || y >= st.y1) return 0;
+    var hs = st.hs.get(idx), side = hs && hs[dir];
+    if (!side) return 0;
+    var c = touchColour(st, {}, side.id);
+    if (newVal) { c.halfDone++; st.done += 0.5; } else { c.halfDone--; st.done -= 0.5; }
+    return 1;
+  }
+
   var api = {
     normalise: normalise,
     fromSections: fromSections,
@@ -156,6 +247,9 @@
     describe: describe,
     step: step,
     merge: merge,
+    buildCounts: buildCounts,
+    applyDoneDelta: applyDoneDelta,
+    applyHalfDelta: applyHalfDelta,
     DEFAULT_MARGIN: 3
   };
   root.WorkArea = api;

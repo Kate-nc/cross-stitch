@@ -8,6 +8,12 @@
                    be told apart from every other fill. A full tile repaint,
                    a strip after a tile move and a one-stitch repaint are one
                    each.
+     settles       of those, the paints that draw a whole view at once: an
+                   unclipped full tile repaint, or a zoom's settling paint (the
+                   view first, clipped, right after the whole canvas is
+                   cleared; reports/track-zoom-settle.md). The strips that
+                   finish the tile after a settling paint, a tile move's
+                   strips and one-stitch repaints are clipped and not counted.
      chartCopies   the chart canvas drawn onto itself: a tile move that kept
                    its pixels (shiftChartTile)
      overlayCopies the same for the overlay canvases (shiftChartOverlays)
@@ -20,8 +26,19 @@ const fs = require('fs');
 
 async function installPanProbes(page) {
   await page.addInitScript(() => {
-    const C = window.__pan = { paints: 0, chartCopies: 0, overlayCopies: 0, strokes: 0, saves: 0 };
+    const C = window.__pan = { paints: 0, settles: 0, chartCopies: 0, overlayCopies: 0, strokes: 0, saves: 0 };
     const P = CanvasRenderingContext2D.prototype;
+    // Clip state per context (save/restore stack), and whether the chart was just cleared whole.
+    const clipped = new WeakMap(), cleared = new WeakSet();
+    const stk = (c) => { let k = clipped.get(c); if (!k) { k = [false]; clipped.set(c, k); } return k; };
+    const oSave = P.save, oRestore = P.restore, oClip = P.clip, oClear = P.clearRect;
+    P.save = function () { const k = stk(this); k.push(k[k.length - 1]); return oSave.apply(this, arguments); };
+    P.restore = function () { const k = stk(this); if (k.length > 1) k.pop(); return oRestore.apply(this, arguments); };
+    P.clip = function () { const k = stk(this); k[k.length - 1] = true; return oClip.apply(this, arguments); };
+    P.clearRect = function (x, y, w, h) {
+      if (x === 0 && y === 0 && w >= this.canvas.width && h >= this.canvas.height && this.canvas.style.zIndex === '2') cleared.add(this);
+      return oClear.apply(this, arguments);
+    };
     const st = P.stroke;
     P.stroke = function () { C.strokes++; return st.apply(this, arguments); };
     // Full saves of the project: the save badge going to "Saving".
@@ -34,7 +51,12 @@ async function installPanProbes(page) {
     document.addEventListener('DOMContentLoaded', watch);
     const fr = P.fillRect;
     P.fillRect = function (x, y, w, h) {
-      if (x === 0 && y === 0 && w > 1000 && h > 1000) C.paints++;
+      if (x === 0 && y === 0 && w > 1000 && h > 1000) {
+        C.paints++;
+        const k = stk(this);
+        if (!k[k.length - 1] || cleared.has(this)) C.settles++;
+        cleared.delete(this);
+      }
       return fr.apply(this, arguments);
     };
     const di = P.drawImage;
@@ -47,7 +69,7 @@ async function installPanProbes(page) {
   });
 }
 
-const resetPanProbes = (page) => page.evaluate(() => { const C = window.__pan; C.paints = 0; C.chartCopies = 0; C.overlayCopies = 0; C.strokes = 0; C.saves = 0; });
+const resetPanProbes = (page) => page.evaluate(() => { const C = window.__pan; C.paints = 0; C.settles = 0; C.chartCopies = 0; C.overlayCopies = 0; C.strokes = 0; C.saves = 0; });
 const readPanProbes = (page) => page.evaluate(() => Object.assign({}, window.__pan));
 
 /** A fixture file's project with `fields` merged in, as setInputFiles input. */
