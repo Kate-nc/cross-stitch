@@ -1,0 +1,29 @@
+{
+  "kind": "Isolated React/jsdom, development React, 200 colours; no browser layout, rendering, storage or worker; not user-visible latency.",
+  "cases": {
+    "closed-comfortable": {
+      "commits": 60,
+      "elements": 0,
+      "renderMs": 0.798586999999543,
+      "elapsedMs": 5.520258999999896
+    },
+    "closed-compact": {
+      "commits": 60,
+      "elements": 0,
+      "renderMs": 0.3872990000002119,
+      "elapsedMs": 3.4478939999999056
+    },
+    "open-comfortable": {
+      "commits": 60,
+      "elements": 12600,
+      "renderMs": 80.35063699998955,
+      "elapsedMs": 114.30356699999993
+    },
+    "open-compact": {
+      "commits": 60,
+      "elements": 12300,
+      "renderMs": 74.38455400002067,
+      "elapsedMs": 114.69542300000012
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "environment": "Node v24.22.1; controlled debounce clock, vm worker protocol, structuredClone. No browser rendering, storage, worker scheduling or interaction latency.",
+  "before": {
+    "startup": {
+      "analyses": 1,
+      "patternTransfers": 1,
+      "updates": 3,
+      "workerMs": 2267.62457,
+      "outCloneMs": 0.22732600000000502,
+      "inCloneMs": 6.248772000000031
+    },
+    "steady30Marks": {
+      "analyses": 30,
+      "patternTransfers": 0,
+      "updates": 90,
+      "workerMs": 345.9651550000008,
+      "outCloneMs": 2.7284590000003845,
+      "inCloneMs": 94.8456029999993
+    },
+    "published": 31
+  },
+  "afterInactive": {
+    "startup": {
+      "analyses": 0,
+      "patternTransfers": 0,
+      "updates": 0,
+      "workerMs": 0,
+      "outCloneMs": 0,
+      "inCloneMs": 0
+    },
+    "steady30Marks": {
+      "analyses": 0,
+      "patternTransfers": 0,
+      "updates": 0,
+      "workerMs": 0,
+      "outCloneMs": 0,
+      "inCloneMs": 0
+    },
+    "published": 0
+  },
+  "afterStatic": {
+    "startup": {
+      "analyses": 1,
+      "patternTransfers": 1,
+      "updates": 1,
+      "workerMs": 2223.4940530000003,
+      "outCloneMs": 0.2553130000001147,
+      "inCloneMs": 5.333178999999291
+    },
+    "steady30Marks": {
+      "analyses": 0,
+      "patternTransfers": 0,
+      "updates": 0,
+      "workerMs": 0,
+      "outCloneMs": 0,
+      "inCloneMs": 0
+    },
+    "published": 1
+  },
+  "afterDynamic": {
+    "startup": {
+      "analyses": 1,
+      "patternTransfers": 1,
+      "updates": 1,
+      "workerMs": 2121.8774989999993,
+      "outCloneMs": 0.324334999999337,
+      "inCloneMs": 6.432102000000668
+    },
+    "steady30Marks": {
+      "analyses": 30,
+      "patternTransfers": 0,
+      "updates": 30,
+      "workerMs": 331.2283660000021,
+      "outCloneMs": 1.6591659999967305,
+      "inCloneMs": 88.52782900000057
+    },
+    "published": 31
+  }
+}

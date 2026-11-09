@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "c3cc0764f0936ccf2a6dd0bbaba7297617875aa87ee9b835c47521b197818a2e";
+var BUILD_ID = "d5c198bea3a9e44889d17b7e6ca1348f5bba33f025b3f7034610c2e718f97972";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -331,7 +331,7 @@ var BUILD_ASSETS = {
     "sha256": "46ba2d7e36c8faa2383e0355972adfb8b5d70ea95b1714034844b79c1c8fcf7c"
   },
   "./changelog.js": {
-    "sha256": "02d61b03ee8398807cf67b96d1752ec7450f2201e8c83b1b6758ae5040902a56"
+    "sha256": "db6a0df210cad7c493c2551875bfddae0e419d50191525e72235c64fe84ad2f0"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -493,7 +493,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "065d3db95e3c4be36109b2dd9e117f27b1d798c649eabed9153a34e4376c9b65"
+    "sha256": "ddca37f28afe5eaf71ec7c1c841fdb8a3f8181abab258a75ec008226e586f450"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -547,7 +547,7 @@ var BUILD_ASSETS = {
     "sha256": "5c3bcd3183fa5b087e392aee182d721eb87e67fb307cb24924c09fbe7dff7e85"
   },
   "./tracker-progress-strip.js": {
-    "sha256": "60473afa7426c23fe3a848cbf3b2ba0d51ccfe895b4cc3ced352cac952374e09"
+    "sha256": "ec0d75d18b7e68c191ac88d6fa151f83e30cbf9e163701fd122df8d46e81a7c1"
   },
   "./work-area.js": {
     "sha256": "479bca24bfc0a6acb9c15620c8c3fec26857cdb59f9bcf7de496f406f9f0d9a9"
@@ -583,7 +583,7 @@ var BUILD_ASSETS = {
     "sha256": "7bc3c7f3cd4670957946e2fe415421e6fda501a9e1000e4c58bb346999f244ae"
   },
   "./help-drawer.js": {
-    "sha256": "5ef280211d2629aacd6189838e23b24f7f3fa388018c4b1613c93ef76ab7aa30"
+    "sha256": "44d40a65bc62dbd8734d0ca6dd0ba7a5ef5f8a674ae9ea85b64beb3c91d272b1"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"

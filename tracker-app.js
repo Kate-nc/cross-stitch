@@ -1,4 +1,5 @@
 const{useState,useRef,useCallback,useEffect,useMemo}=React;
+const COUNTING_AIDS_MIN_CELL=12;
 // Central shortcut registry hooks (loaded by shortcuts.js before tracker-app.js).
 // Fall back to no-op stubs in case the script failed to load — tracker still
 // renders, just without keyboard shortcuts.
@@ -194,6 +195,71 @@ function encodeAnalysisPattern(pat){
     codes[i]=c;
   }
   return{codes,ids};
+}
+
+// At most one analysis in flight. Updates replace the pending snapshot, never
+// queue worker messages. Static consumers need one result per pattern only.
+function createTrackerAnalysisScheduler(createWorker,onResult){
+  let worker=null,latest=null,flight=null,timer=null,revision=0,requestId=0;
+  let pattern=null,patternId=0,statics=null,cached=null;
+  const samePattern=(a,b)=>!!a&&!!b&&a.pat===b.pat&&a.sW===b.sW&&a.sH===b.sH&&a.projectId===b.projectId;
+  const sameProgress=(a,b)=>samePattern(a,b)&&a.done===b.done&&a.blockW===b.blockW;
+  function clearTimer(){clearTimeout(timer);timer=null;}
+  function stop(){clearTimer();if(worker)worker.terminate();worker=null;flight=null;pattern=null;statics=null;cached=null;}
+  function receive(w,msg){
+    if(w!==worker||!flight||msg.requestId!==flight.id)return;
+    if(msg.type!=="result"&&msg.type!=="error")return;
+    const sent=flight;flight=null;
+    if(msg.type==="result"&&msg.patternId===patternId){
+      if(msg.result.perStitch)statics=msg.result.perStitch;
+      const result=msg.result;
+      result.perStitch=Object.assign({},statics,{isCompleted:sent.snapshot.done});
+      cached={snapshot:sent.snapshot,result};
+      // A reply can be obsolete before the next debounce fires. Revision is
+      // advanced on input changes, not only when another request is posted.
+      if(latest&&latest.demand&&samePattern(latest,sent.snapshot)&&
+          (latest.demand===1||sameProgress(latest,sent.snapshot)))onResult({...cached,demand:latest.demand});
+    }
+    if(latest&&latest.demand&&sent.revision!==revision){clearTimer();post();}
+  }
+  function post(){
+    timer=null;
+    const snap=latest;
+    if(!snap||!snap.demand||!snap.pat||!snap.sW||!snap.sH||flight)return;
+    if(cached&&samePattern(cached.snapshot,snap)&&(snap.demand===1||sameProgress(cached.snapshot,snap)))return;
+    try{
+      if(!worker){
+        const w=createWorker();worker=w;
+        w.onmessage=e=>receive(w,e.data);
+        w.onerror=()=>{if(worker===w)stop();};
+      }
+      const w=worker,sW=snap.sW,sH=snap.sH,done=snap.done,blockW=snap.blockW;
+      if(!samePattern(pattern,snap)){
+        const enc=encodeAnalysisPattern(snap.pat),id=++patternId;
+        pattern=snap;statics=null;cached=null;
+        w.postMessage({type:"setPattern",patternId:id,codes:enc.codes,ids:enc.ids,sW,sH},[enc.codes.buffer]);
+      }
+      const reqId=++requestId;
+      flight={id:reqId,revision,snapshot:snap};
+      w.postMessage({type:"analyse",patternId,done:done||null,sW,sH,requestId:reqId,blockSize:blockW});
+    }catch(_){stop();}
+  }
+  return{
+    update(snap){
+      const prev=latest;latest=snap;revision++;clearTimer();
+      if(!snap.demand)return;
+      if(cached&&samePattern(cached.snapshot,snap)&&(snap.demand===1||sameProgress(cached.snapshot,snap))){
+        if(!prev||prev.demand!==snap.demand)onResult({...cached,demand:snap.demand});
+        return;
+      }
+      if(flight)return;
+      // Activation and project changes are immediate; progress bursts get one
+      // trailing request. A running request always drains the newest input.
+      if(!prev||prev.demand!==snap.demand||!samePattern(prev,snap))post();
+      else timer=setTimeout(post,500);
+    },
+    dispose(){stop();latest=null;revision++;}
+  };
 }
 
 // Boundary of every cell of colour `id` inside cell range `r`, as SVG path
@@ -1060,6 +1126,111 @@ const DragMarkOverlay=React.memo(function DragMarkOverlay({store,pulse,w,h,scs,G
   );
 });
 
+const TILE_KEY_CLASSES={wrap:"ppal-tile-text",id:"ppal-tile-id",tag:"ppal-tile-tag",name:"ppal-tile-name",use:"ppal-tile-use"};
+// A legend row's count line. The whole-stitch figure is left out for a colour with no whole stitches but other kinds
+// (so a colour used only in quarter stitches or knots never reads "0/0").
+function legendCountText(dc,kn,qt,bsc){
+  const parts=[];
+  const other=(dc.petiteTotal>0)||(dc.longTotal>0)||(dc.halfTotal>0)||(kn&&kn.total>0)||(qt&&qt.total>0)||(bsc&&bsc.total>0);
+  if(dc.total>0||!other)parts.push(dc.done+"/"+dc.total);
+  if(dc.petiteTotal>0)parts.push((dc.petiteDone||0)+"/"+dc.petiteTotal+" petite");
+  if(dc.longTotal>0)parts.push((dc.longDone||0)+"/"+dc.longTotal+" long stitch");
+  if(dc.halfTotal>0)parts.push(dc.halfDone+"/"+dc.halfTotal+" half");
+  if(kn&&kn.total>0)parts.push(kn.done+"/"+kn.total+" knots");
+  if(qt&&qt.total>0)parts.push(qt.done+"/"+qt.total+" fractional");
+  if(bsc&&bsc.total>0)parts.push(bsc.done+"/"+bsc.total+" lines");
+  return parts.join(" · ");
+}
+
+function TrackerColourActions({p,kr,complete,parkCount,parkVisible,bsTotal,bsDone,hasStitches,actions}){
+  const swRgb="rgb("+p.rgb+")";
+  return <div className="ppal-tile-actions" onClick={e=>e.stopPropagation()}>
+    {parkCount>0&&<button
+      className="ppal-tile-park-btn"
+      onClick={e=>{e.stopPropagation();actions("park",p);}}
+      title={"Go to where "+kr.label+" is parked"+(parkCount>1?" ("+parkCount+" places; press again for the next)":"")}
+      aria-label={"Go to where "+kr.label+" is parked"}
+      style={{background:parkVisible?swRgb:undefined,borderColor:parkVisible?swRgb:"var(--border)",color:parkVisible?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)"}}
+    >P{parkCount>1?"×"+parkCount:""}</button>}
+    {bsTotal>0&&<button
+      className="ppal-tile-done-btn ppal-tile-bs-btn"
+      onClick={e=>{e.stopPropagation();actions("backstitch",p);}}
+      style={{borderColor:"var(--line)",background:"var(--surface-secondary)",color:"var(--text-secondary)"}}
+      title={"Mark all backstitch lines of "+colourDoneName(p)+(bsDone>=bsTotal?" as not done":" as done")}
+      aria-label={(bsDone>=bsTotal?"Mark all lines not done: ":"Mark all lines done: ")+colourDoneName(p)}
+    >{bsDone>=bsTotal?<>{Icons.x?Icons.x():null}<span>Mark all lines not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all lines done</span></>}</button>}
+    {hasStitches&&<button
+      className="ppal-tile-done-btn"
+      onClick={e=>{e.stopPropagation();actions("mark",p,!complete);}}
+      style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
+      title={"Mark all stitches of "+colourDoneName(p)+(complete?" as not done":" as done")}
+      aria-label={(complete?"Mark all not done: ":"Mark all done: ")+colourDoneName(p)}
+    >{complete?<>{Icons.x?Icons.x():null}<span>Mark all not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all done</span></>}</button>}
+  </div>;
+}
+
+// Count props are values, never references into the mutable count tables.
+// All events dispatch through the latest committed handlers in TrackerApp.
+function TrackerPaletteRow({p,kr,pct,complete,isFocused,compactColours,countText,parkCount,parkVisible,bsTotal,bsDone,hasStitches,actions}){
+  const swRgb="rgb("+p.rgb+")";
+  const openDetail=e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();actions("detail",p,{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height});};
+  const pick=e=>{e.stopPropagation();actions("pick",p);};
+  if(compactColours){
+    // One line: swatch, number and name, then % (a tick once finished), over a thin progress line.
+    return <div key={p.id} role="listitem"
+      className={"ppal-tile ppal-tile--compact"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
+      onClick={pick}>
+      <button type="button" className="ppal-tile-swatch" style={{background:swRgb}} aria-label={"View "+kr.title+" detail"} onClick={openDetail}/>
+      <button type="button" className="ppal-tile-select ppal-row-select" title={kr.title}
+        aria-pressed={isFocused} aria-label={"Select "+kr.title+", "+pct+" percent complete. "+kr.usageTitle}
+        onClick={pick}>
+        <ThreadKeyLabel row={{...kr,usage:""}} classes={TILE_KEY_CLASSES}/>
+        {complete
+          ?<span className="ppal-row-done" aria-hidden="true">{Icons.check()}</span>
+          :<span className="ppal-tile-pct">{pct}%</span>}
+        <span className="ppal-row-bar" aria-hidden="true"><span className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></span>
+      </button>
+    </div>;
+  }
+  return <div key={p.id} role="listitem"
+    className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
+    onClick={()=>{actions("pick",p);}}>
+    <button type="button" className="ppal-tile-swatch" style={{background:swRgb}}
+      aria-label={"View "+kr.title+" detail"}
+      onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();actions("detail",p,{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height});}}
+    />
+    <div className="ppal-tile-body">
+      <button type="button" className="ppal-tile-id-row ppal-tile-select" title={kr.title}
+        aria-pressed={isFocused} aria-label={"Select "+kr.title+", "+pct+" percent complete. "+kr.usageTitle}
+        onClick={e=>{e.stopPropagation();actions("pick",p);}}>
+        <ThreadKeyLabel row={kr} classes={TILE_KEY_CLASSES}/>
+        <span className="ppal-tile-pct">{pct}%</span>
+      </button>
+      <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
+      <div className="ppal-tile-count-row">
+        <span className="ppal-tile-count">{countText}</span>
+        {<TrackerColourActions p={p} kr={kr} complete={complete} parkCount={parkCount} parkVisible={parkVisible} bsTotal={bsTotal} bsDone={bsDone} hasStitches={hasStitches} actions={actions}/>}
+      </div>
+    </div>
+  </div>;
+}
+const MemoTrackerPaletteRow=React.memo(TrackerPaletteRow);
+
+// The save badge is presentation state. Its writers keep the existing epoch,
+// generations, errors and conflict logic; only the header subscribes.
+function createTrackerSaveStore(){
+  let snapshot={saveStatus:'idle',savedAt:null,saveError:null};
+  const listeners=new Set();
+  function set(key,value){if(Object.is(snapshot[key],value))return;snapshot={...snapshot,[key]:value};listeners.forEach(fn=>fn());}
+  return{getSnapshot:()=>snapshot,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);},
+    setSaveStatus:value=>set('saveStatus',value),setSavedAt:value=>set('savedAt',value),setSaveError:value=>set('saveError',value)};
+}
+function TrackerSaveHeader({saveStore,...props}){
+  const {saveStatus,savedAt,saveError}=React.useSyncExternalStore(saveStore.subscribe,saveStore.getSnapshot,saveStore.getSnapshot);
+  return <Header {...props} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError}/>;
+}
+
+
 // ─── Event-log timing engine ─────────────────────────────────────────────────
 // computeActiveMs: pure function — active stitching duration from an event log.
 // Events each carry {kind, t} (t = Unix ms). Recognised kinds:
@@ -1792,9 +1963,8 @@ const lastProgressWriteRef=useRef(0);   // when writeProgressNow last wrote (sch
 //   error > conflict > saving (a write in flight, or changes not yet written) > saved/idle
 // uiGenRef counts changes to saved data (not zoom or the guide); uiSavedGenRef is the newest
 // count known written. Neither is a React dependency.
-const[saveStatus,setSaveStatus]=useState('idle');
-const[savedAt,setSavedAt]=useState(null);
-const[saveError,setSaveError]=useState(null);
+const[saveStore]=useState(createTrackerSaveStore);
+const{setSaveStatus,setSavedAt,setSaveError}=saveStore;
 // epoch: bumped when another project is loaded; a write that finishes after that belongs to the old project and is ignored.
 const saveUiRef=useRef({inFlight:0,conflict:false,error:null,savedOnce:false,epoch:0});
 const uiGenRef=useRef(0);
@@ -2123,21 +2293,13 @@ useEffect(function(){
 const[altOpen,setAltOpen]=useState(null);
 
 // ═══ Spatial Analysis Engine ═══
-const[analysisResult,setAnalysisResult]=useState(null);
-const[analysisRunning,setAnalysisRunning]=useState(false);
-const analysisWorkerRef=useRef(null);
-const analysisRequestIdRef=useRef(0);
-const analysisThrottleRef=useRef(null);
-// PERF (F2, reports/track-view-performance-plan.md): the worker holds the
-// pattern. It is sent once per `pat` identity — and per worker instance — as a
-// transferred Uint16Array (see encodeAnalysisPattern), so a stitch mark posts
-// only `done`. Previously every mark structured-cloned one {id} object per
-// stitch on the main thread: 352 ms per tap on a 600x800 chart at 4x CPU.
-const analysisPatternRef=useRef({pat:null,worker:null,id:0,sW:0,sH:0});
-// Pattern-only per-stitch arrays (clusterSize, nearestDist, ...) arrive once
-// per pattern id, transferred, and are re-attached to every later result.
-const analysisStaticsRef=useRef({id:-1,perStitch:null});
-const analysisPostedDoneRef=useRef(null);
+const[analysisEnvelope,setAnalysisEnvelope]=useState(null);
+const[analysisScheduler]=useState(()=>createTrackerAnalysisScheduler(()=>new Worker("analysis-worker.js"),envelope=>{
+  // Painting may be ahead of a concurrent React transition. Never publish
+  // region counts from before those synchronous marks.
+  if(envelope.demand===2&&envelope.snapshot.done!==doneRef.current)return;
+  setAnalysisEnvelope(envelope);
+}));
 // Thread usage visualisation: null | "distance" | "cluster"
 const[threadUsageMode,setThreadUsageMode]=useState(null);
 const threadUsageRafRef=useRef(null);
@@ -2617,7 +2779,7 @@ useEffect(()=>{
 },[areaColourCounts,focusColour,pal]);
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:quarterCounts.total,petite:specialtyCounts.petite.total,french_knot:knots.length,long_stitch:specialtyCounts.long_stitch.total}),[totalStitchable,halfStitchCounts.total,bsLines.length,knots.length,quarterCounts.total,specialtyCounts]);
 // Shows every hidden layer again (the "hidden" chip's one click). The chip unmounts, so keyboard focus goes back to the chart.
-const showHiddenLayers=()=>{setLayerVis(ALL_LAYERS_VISIBLE);const c=stitchRef.current;if(c&&c.focus)c.focus();};
+const showHiddenLayers=useCallback(()=>{setLayerVis(ALL_LAYERS_VISIBLE);const c=stitchRef.current;if(c&&c.focus)c.focus();},[setLayerVis]);
 // PERF: the palette legend tile list (rendered below) used to be rebuilt and
 // re-sorted from `pal` on every single render of this component — including
 // re-renders triggered by unrelated state (drag-preview updates, hover, etc.)
@@ -2625,21 +2787,6 @@ const showHiddenLayers=()=>{setLayerVis(ALL_LAYERS_VISIBLE);const c=stitchRef.cu
 // (see the T-5 counts invariant), so `countsVer` — not `colourDoneCounts`
 // itself — is the correct "did the counts actually change" signal here.
 // Class names for the colour list's key text (components.js ThreadKeyLabel; the Creator palette uses its own).
-const TILE_KEY_CLASSES={wrap:"ppal-tile-text",id:"ppal-tile-id",tag:"ppal-tile-tag",name:"ppal-tile-name",use:"ppal-tile-use"};
-// A legend row's count line. The whole-stitch figure is left out for a colour with no whole stitches but other kinds
-// (so a colour used only in quarter stitches or knots never reads "0/0").
-function legendCountText(dc,kn,qt,bsc){
-  const parts=[];
-  const other=(dc.petiteTotal>0)||(dc.longTotal>0)||(dc.halfTotal>0)||(kn&&kn.total>0)||(qt&&qt.total>0)||(bsc&&bsc.total>0);
-  if(dc.total>0||!other)parts.push(dc.done+"/"+dc.total);
-  if(dc.petiteTotal>0)parts.push((dc.petiteDone||0)+"/"+dc.petiteTotal+" petite");
-  if(dc.longTotal>0)parts.push((dc.longDone||0)+"/"+dc.longTotal+" long stitch");
-  if(dc.halfTotal>0)parts.push(dc.halfDone+"/"+dc.halfTotal+" half");
-  if(kn&&kn.total>0)parts.push(kn.done+"/"+kn.total+" knots");
-  if(qt&&qt.total>0)parts.push(qt.done+"/"+qt.total+" fractional");
-  if(bsc&&bsc.total>0)parts.push(bsc.done+"/"+bsc.total+" lines");
-  return parts.join(" · ");
-}
 const legendRows=useMemo(()=>{
   if(!pal)return null;
   // In a work area: only the colours it contains, with its counts.
@@ -3174,73 +3321,29 @@ useEffect(()=>{
   }catch(e){}
 },[todayStitchesForBar,liveAutoStitches,statsSessions,statsSettings]);
 
-// ═══ Analysis worker lifecycle ═══
-useEffect(()=>{
-  try{
-    const w=new Worker("analysis-worker.js");
-    analysisWorkerRef.current=w;
-    w.onmessage=function(e){
-      const msg=e.data;
-      if(msg.type==="result"){
-        const result=msg.result;
-        // Keep the statics even from a superseded request: they are sent only
-        // once per pattern, so dropping them here would lose them for good.
-        if(result&&result.perStitch&&msg.patternId===analysisPatternRef.current.id){
-          analysisStaticsRef.current={id:msg.patternId,perStitch:result.perStitch};
-        }
-        if(msg.requestId!==analysisRequestIdRef.current)return;
-        const st=analysisStaticsRef.current;
-        if(result&&st.id===msg.patternId){
-          result.perStitch=Object.assign({},st.perStitch,{isCompleted:analysisPostedDoneRef.current});
-        }
-        setAnalysisResult(result);
-        setAnalysisRunning(false);
-      }else if(msg.type==="error"&&msg.requestId===analysisRequestIdRef.current){
-        setAnalysisRunning(false);
-      }
-    };
-    w.onerror=function(err){
-      // PERF (perf-8 #12): terminate the worker on error so a wedged worker doesn't
-      // leak; null the ref so the analyse useEffect skips until next mount.
-      setAnalysisRunning(false);
-      try{if(analysisWorkerRef.current){analysisWorkerRef.current.terminate();analysisWorkerRef.current=null;}}catch(_){}
-    };
-  }catch(e){}
-  return()=>{clearTimeout(analysisThrottleRef.current);if(analysisWorkerRef.current){analysisWorkerRef.current.terminate();analysisWorkerRef.current=null;}};
-},[]);
-
-// Re-run analysis whenever pattern or progress changes (debounced 500ms)
-useEffect(()=>{
-  if(!pat||!sW||!sH||!analysisWorkerRef.current)return;
-  clearTimeout(analysisThrottleRef.current);
-  analysisThrottleRef.current=setTimeout(()=>{
-    const w=analysisWorkerRef.current;
-    if(!w)return;
-    const reqId=++analysisRequestIdRef.current;
-    setAnalysisRunning(true);
-    // Send the pattern only when it (or the worker) has changed since the last
-    // post. Transferring the buffer makes the post itself free.
-    const pr=analysisPatternRef.current;
-    if(pr.pat!==pat||pr.worker!==w||pr.sW!==sW||pr.sH!==sH){
-      const enc=encodeAnalysisPattern(pat);
-      const id=pr.id+1;
-      analysisPatternRef.current={pat,worker:w,id,sW,sH};
-      w.postMessage({type:"setPattern",patternId:id,codes:enc.codes,ids:enc.ids,sW,sH},[enc.codes.buffer]);
-    }
-    // PERF: postMessage's structured clone copies a Uint8Array with a single
-    // memcpy; Array.from(done) instead boxed every byte into a JS number and
-    // built a full-size plain Array — much more expensive for large patterns,
-    // for no benefit since the worker immediately does `new Uint8Array(done)`
-    // on the other side regardless of which one it receives.
-    analysisPostedDoneRef.current=done||null;
-    w.postMessage({type:"analyse",patternId:analysisPatternRef.current.id,done:done||null,sW,sH,requestId:reqId,blockSize:blockW});
-  },500);
-  return()=>clearTimeout(analysisThrottleRef.current);
-},[pat,done,sW,sH,blockW]);
+// Visible recommendations and non-royal Spotlight navigation need progress.
+// Distance/cluster overlays and ninja badges use pattern-only arrays. Nothing
+// here feeds saving, accounting, sync, undo or import correctness.
+const analysisVisible=isActive&&!statsView&&!isEditMode;
+const analysisNavigation=focusEnabled&&stitchingStyle!=="royal"&&stitchingStyle!=="crosscountry";
+const analysisDynamic=(analysisVisible&&recEnabled)||analysisNavigation;
+const analysisDemand=analysisDynamic?2:(analysisVisible&&(threadUsageMode||
+  (countingAidsEnabled&&countNinjaEnabled&&stitchView==="highlight"&&focusColour&&scs>=COUNTING_AIDS_MIN_CELL))?1:0);
+const analysisProjectId=projectIdRef.current;
+React.useLayoutEffect(()=>{
+  analysisScheduler.update({pat,done,sW,sH,blockW,projectId:analysisProjectId,demand:analysisDemand});
+},[analysisScheduler,pat,done,sW,sH,blockW,analysisProjectId,analysisDemand]);
+React.useLayoutEffect(()=>()=>analysisScheduler.dispose(),[analysisScheduler]);
+// Do not show a previous project's arrays or old region counts, even for the
+// render before the scheduling effect runs. Static consumers ignore progress.
+const analysisSnapshot=analysisEnvelope&&analysisEnvelope.snapshot;
+const analysisResult=analysisDemand&&analysisSnapshot&&analysisSnapshot.pat===pat&&
+  analysisSnapshot.projectId===analysisProjectId&&analysisSnapshot.sW===sW&&analysisSnapshot.sH===sH&&
+  (analysisDemand===1||(analysisSnapshot.done===done&&analysisSnapshot.done===doneRef.current&&analysisSnapshot.blockW===blockW))?analysisEnvelope.result:null;
 
 // Derived recommendations from analysis result
 const recommendations=useMemo(()=>{
-  if(!analysisResult||!pat)return null;
+  if(!analysisDynamic||!analysisResult||!pat)return null;
   const pr=analysisResult.perRegion;
   if(!pr)return null;
   // Regions are Spotlight sections (the worker's blockSize is blockW): in a
@@ -3259,7 +3362,7 @@ const recommendations=useMemo(()=>{
   const pc=analysisResult.perColour;
   const quickWins=pc?Object.values(pc).filter(c=>c.totalStitches>0&&c.completedStitches<c.totalStitches).map(c=>({...c,remaining:c.totalStitches-c.completedStitches})).sort((a,b)=>a.remaining-b.remaining).slice(0,3):[];
   return{top:scored.slice(0,3),quickWins};
-},[analysisResult,pat,recDismissed,areaOn,workArea,blockW,blockH]);
+},[analysisDynamic,analysisResult,pat,recDismissed,areaOn,workArea,blockW,blockH]);
 
 // ── Focus block helper functions ──
 function _isFocusBlockComplete(bx,by){
@@ -3344,6 +3447,10 @@ useEffect(()=>{
   if(!focusBlock||!focusEnabled||!pat||!done||stitchingStyle==="crosscountry")return;
   const complete=_isFocusBlockComplete(focusBlock.bx,focusBlock.by);
   if(!prevFocusBlockDoneRef.current&&complete){
+    // Non-Royal navigation needs rankings for the completed progress revision.
+    // A slow reply must not latch completion with next=null: leave it pending
+    // so the analysisResult/recommendations dependencies retry this effect.
+    if(stitchingStyle!=="royal"&&(!analysisResult||!recommendations))return;
     if(blockAdvanceTimerRef.current)clearTimeout(blockAdvanceTimerRef.current);
     blockAdvanceTimerRef.current=setTimeout(()=>{
       const stitches=_getBlockStitchCount(focusBlock.bx,focusBlock.by);
@@ -3373,36 +3480,6 @@ useEffect(()=>{
   }
   return()=>{if(blockAdvanceTimerRef.current)clearTimeout(blockAdvanceTimerRef.current);};
 },[countsVer,focusBlock,focusEnabled,pat,done,parkMarkers,stitchingStyle,blockW,blockH,sW,sH,recommendations,analysisResult,statsSessions,breadcrumbs]);
-
-// Thread usage summary stats derived from analysis
-const threadUsageSummary=useMemo(()=>{
-  if(!analysisResult||!analysisResult.perStitch)return null;
-  const ps=analysisResult.perStitch;
-  let isolated=0,small=0,medium=0,large=0;
-  for(let i=0;i<ps.clusterSize.length;i++){
-    if(!pat||!pat[i])continue;
-    const id=pat[i].id;
-    if(id==="__skip__"||id==="__empty__")continue;
-    const sz=ps.clusterSize[i];
-    if(sz===1)isolated++;
-    else if(sz<=4)small++;
-    else if(sz<=19)medium++;
-    else large++;
-  }
-  const total=isolated+small+medium+large;
-  const pc=analysisResult.perColour;
-  let mostScattered=null,mostClustered=null;
-  if(pc){
-    const cols=Object.values(pc).filter(c=>c.totalStitches>0);
-    if(cols.length){
-      mostScattered=cols.reduce((best,c)=>c.confettiCount>best.confettiCount?c:best,cols[0]);
-      mostClustered=cols.reduce((best,c)=>c.largestClusterSize>best.largestClusterSize?c:best,cols[0]);
-    }
-  }
-  // Estimated thread changes ≈ isolated + small cluster count (each cluster needs thread up+rethread)
-  const estChanges=isolated+(analysisResult.perColour?Object.values(analysisResult.perColour).reduce((s,c)=>s+c.clusterCount,0):0);
-  return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
-},[analysisResult,pat]);
 
 statsSessionsLiveRef.current=statsSessionsRef.current;
 // Session journal: edit, delete, merge. The pure work is in helpers.js; here the result is applied once (one state
@@ -5667,7 +5744,7 @@ useEffect(() => () => { if (progressTimerRef.current) clearTimeout(progressTimer
 // style: a light fill with a dark outline and dark text, so they read on any thread colour in either theme.
 const COUNTING_AIDS_INK="#1B1814",COUNTING_AIDS_FILL="rgba(255,255,255,0.94)";
 // Smallest cell (px) at which they are drawn: a badge is 11 px tall, so on smaller cells they pile up.
-const COUNTING_AIDS_MIN_CELL=12;
+
 // ── Zoom-adaptive tier helpers ──
 // Compute rendering tier (1–4) from cell size with hysteresis.
 // Thresholds — appear/disappear: T1↔T2 5px/3px, T2↔T3 13px/10px, T3↔T4 26px/22px
@@ -7157,7 +7234,7 @@ useEffect(()=>{
             const dnIdx=row<sH-1?(row+1)*sW+col:-1;
             const ltIdx=col>0?row*sW+col-1:-1;
             const rtIdx=col<sW-1?row*sW+col+1:-1;
-            isolated=![upIdx,dnIdx,ltIdx,rtIdx].some(ni=>ni>=0&&pat[ni]&&pat[ni].id===focusColour&&!done[ni]);
+            isolated=![upIdx,dnIdx,ltIdx,rtIdx].some(ni=>ni>=0&&pat[ni]&&pat[ni].id===focusColour);
           }
           if(isolated){
             drawNinjaIcon(G+col*scs+scs/2,G+row*scs+scs/2,r);
@@ -9515,34 +9592,22 @@ useEffect(()=>{
   return()=>{delete window.__navigateToEditor;};
 },[!!pat,!!pal]); // eslint-disable-line react-hooks/exhaustive-deps
 
+const progressSession=useMemo(()=>({open:liveSessionOpen,isTimer:liveIsTimer,paused:liveAutoIsPaused||manuallyPaused,
+  timingLabel:formatTimingModeShortLabel(currentTimingMode),elapsedStore}),[liveSessionOpen,liveIsTimer,liveAutoIsPaused,manuallyPaused,currentTimingMode,elapsedStore]);
+const openProgressSession=useCallback(()=>{setLeftSidebarTab("session");setMorePanelOpen(true);},[]);
+const paletteHandlersRef=useRef(null);
+React.useLayoutEffect(()=>{paletteHandlersRef.current={pick:p=>{if(isEditMode)setEditModalColor(p);else selectTrackerColour(p.id);},
+  detail:(p,anchorRect)=>setPaletteDetail({id:p.id,type:p.type,brand:p.brand,threads:p.threads,name:p.name,rgb:p.rgb,anchorRect}),
+  park:p=>goToParkedThread(p.id),backstitch:confirmAndMarkBsOfColour,mark:confirmAndMarkColour};});
+const paletteActions=useCallback((action,p,value)=>paletteHandlersRef.current[action](p,value),[]);
+
 // A colour's action chips: go to its park marker, mark its backstitch lines, mark all its stitches. Shown on each
 // colour row, or (in the compact list) once, in the selected colour's card.
 function renderColourActions(row,kr){
   const {p,dc,kn,qt,bsc,complete}=row;
-  const swRgb="rgb("+p.rgb+")";
-  return <div className="ppal-tile-actions" onClick={e=>e.stopPropagation()}>
-    {parkCountsByColour[p.id]>0&&<button
-      className="ppal-tile-park-btn"
-      onClick={e=>{e.stopPropagation();goToParkedThread(p.id);}}
-      title={"Go to where "+kr.label+" is parked"+(parkCountsByColour[p.id]>1?" ("+parkCountsByColour[p.id]+" places; press again for the next)":"")}
-      aria-label={"Go to where "+kr.label+" is parked"}
-      style={{background:isParkLayerVisible(p.id)?swRgb:undefined,borderColor:isParkLayerVisible(p.id)?swRgb:"var(--border)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)"}}
-    >P{parkCountsByColour[p.id]>1?"×"+parkCountsByColour[p.id]:""}</button>}
-    {bsc&&bsc.total>0&&<button
-      className="ppal-tile-done-btn ppal-tile-bs-btn"
-      onClick={e=>{e.stopPropagation();confirmAndMarkBsOfColour(p);}}
-      style={{borderColor:"var(--line)",background:"var(--surface-secondary)",color:"var(--text-secondary)"}}
-      title={"Mark all backstitch lines of "+colourDoneName(p)+(bsc.done>=bsc.total?" as not done":" as done")}
-      aria-label={(bsc.done>=bsc.total?"Mark all lines not done: ":"Mark all lines done: ")+colourDoneName(p)}
-    >{bsc.done>=bsc.total?<>{Icons.x?Icons.x():null}<span>Mark all lines not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all lines done</span></>}</button>}
-    {!(dc.total===0&&dc.halfTotal===0&&kn.total===0&&qt.total===0&&bsc&&bsc.total>0)&&<button
-      className="ppal-tile-done-btn"
-      onClick={e=>{e.stopPropagation();confirmAndMarkColour(p,!complete);}}
-      style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
-      title={"Mark all stitches of "+colourDoneName(p)+(complete?" as not done":" as done")}
-      aria-label={(complete?"Mark all not done: ":"Mark all done: ")+colourDoneName(p)}
-    >{complete?<>{Icons.x?Icons.x():null}<span>Mark all not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all done</span></>}</button>}
-  </div>;
+  return <TrackerColourActions p={p} kr={kr} complete={complete} parkCount={parkCountsByColour[p.id]||0}
+    parkVisible={isParkLayerVisible(p.id)} bsTotal={bsc?bsc.total:0} bsDone={bsc?bsc.done:0}
+    hasStitches={!(dc.total===0&&dc.halfTotal===0&&kn.total===0&&qt.total===0&&bsc&&bsc.total>0)} actions={paletteActions}/>;
 }
 
 return(
@@ -9550,7 +9615,7 @@ return(
 {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to no UTI
     and would grey out every file in the Files picker. */}
 <input ref={loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{askConfirm({title:"Start fresh?",message:"Your current project is auto-saved.",confirmLabel:"Start fresh"}).then(ok=>{if(!ok)return;if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}});}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&combinedTotal>0?progAll.percent:undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
+<TrackerSaveHeader saveStore={saveStore} page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{askConfirm({title:"Start fresh?",message:"Your current project is auto-saved.",confirmLabel:"Start fresh"}).then(ok=>{if(!ok)return;if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}});}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&combinedTotal>0?progAll.percent:undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} onRetrySave={retrySave} />
 {projectPickerOpen&&<TrackerProjectPicker
   list={projectPickerList}
   currentId={projectIdRef.current}
@@ -9622,7 +9687,7 @@ return(
   </div>}
 </section>}
 {!isEditMode&&<div className="info-strip-wrap">
-{window.TrackerProgressStrip&&React.createElement(window.TrackerProgressStrip,{progress:progShown,prevBarPct,todayBarPct,bsCounts,layerVis,layerCounts,onShowHiddenLayers:showHiddenLayers,session:{open:liveSessionOpen,isTimer:liveIsTimer,paused:liveAutoIsPaused||manuallyPaused,timingLabel:formatTimingModeShortLabel(currentTimingMode),elapsedStore},LiveElapsed,onOpenSession:()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}})}
+{window.TrackerProgressStrip&&React.createElement(window.TrackerProgressStrip,{progress:progShown,prevBarPct,todayBarPct,bsCounts,layerVis,layerCounts,onShowHiddenLayers:showHiddenLayers,session:progressSession,LiveElapsed,onOpenSession:openProgressSession})}
 <div className="app-info-chip-wrap info-strip-chip-wrap">
   <button
     ref={progressChipRef}
@@ -9977,49 +10042,11 @@ return(
           const rows=legendRows||[];
           return rows.map(row=>{
             const {p,dc,kn,qt,bsc,pct,complete}=row;
-            const isFocused=focusColour===p.id;
-            const swRgb="rgb("+p.rgb+")";
-            const kr=keyRowsById[p.id]||threadKeyRow(p,{fabricCount:fabricCt});
-            const openDetail=e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,type:p.type,brand:p.brand,threads:p.threads,name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});};
-            const pick=e=>{e.stopPropagation();if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);};
-            if(compactColours){
-              // One line: swatch, number and name, then % (a tick once finished), over a thin progress line.
-              return <div key={p.id} role="listitem"
-                className={"ppal-tile ppal-tile--compact"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
-                onClick={pick}>
-                <button type="button" className="ppal-tile-swatch" style={{background:swRgb}} aria-label={"View "+kr.title+" detail"} onClick={openDetail}/>
-                <button type="button" className="ppal-tile-select ppal-row-select" title={kr.title}
-                  aria-pressed={isFocused} aria-label={"Select "+kr.title+", "+pct+" percent complete. "+kr.usageTitle}
-                  onClick={pick}>
-                  <ThreadKeyLabel row={{...kr,usage:""}} classes={TILE_KEY_CLASSES}/>
-                  {complete
-                    ?<span className="ppal-row-done" aria-hidden="true">{Icons.check()}</span>
-                    :<span className="ppal-tile-pct">{pct}%</span>}
-                  <span className="ppal-row-bar" aria-hidden="true"><span className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></span>
-                </button>
-              </div>;
-            }
-            return <div key={p.id} role="listitem"
-              className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
-              onClick={()=>{if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}>
-              <button type="button" className="ppal-tile-swatch" style={{background:swRgb}}
-                aria-label={"View "+kr.title+" detail"}
-                onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,type:p.type,brand:p.brand,threads:p.threads,name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}
-              />
-              <div className="ppal-tile-body">
-                <button type="button" className="ppal-tile-id-row ppal-tile-select" title={kr.title}
-                  aria-pressed={isFocused} aria-label={"Select "+kr.title+", "+pct+" percent complete. "+kr.usageTitle}
-                  onClick={e=>{e.stopPropagation();if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}>
-                  <ThreadKeyLabel row={kr} classes={TILE_KEY_CLASSES}/>
-                  <span className="ppal-tile-pct">{pct}%</span>
-                </button>
-                <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
-                <div className="ppal-tile-count-row">
-                  <span className="ppal-tile-count">{legendCountText(dc,kn,qt,bsc)}</span>
-                  {renderColourActions(row,kr)}
-                </div>
-              </div>
-            </div>;
+            return <MemoTrackerPaletteRow key={p.id} p={p} kr={keyRowsById[p.id]} pct={pct} complete={complete}
+              isFocused={focusColour===p.id} compactColours={compactColours} countText={legendCountText(dc,kn,qt,bsc)}
+              parkCount={parkCountsByColour[p.id]||0} parkVisible={isParkLayerVisible(p.id)}
+              bsTotal={bsc?bsc.total:0} bsDone={bsc?bsc.done:0}
+              hasStitches={!(dc.total===0&&dc.halfTotal===0&&kn.total===0&&qt.total===0&&bsc&&bsc.total>0)} actions={paletteActions}/>;
           });
         })()}
       </div>}

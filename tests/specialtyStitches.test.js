@@ -87,7 +87,7 @@ test('old catalogue-only petite cells recover their RGB before geometric validat
 
 test('object-only colour rows show their actual counts rather than a 0/0 full-cross label',()=>{
  const fs=require('fs'),src=fs.readFileSync(require.resolve('../tracker-app.js'),'utf8');
- const start=src.indexOf('function legendCountText('),end=src.indexOf('\nconst legendRows=',start);
+ const start=src.indexOf('function legendCountText('),end=src.indexOf('\nfunction TrackerColourActions(',start);
  const label=new Function(src.slice(start,end)+';return legendCountText;')();
  expect(label({total:0,done:0,petiteTotal:2,petiteDone:1,longTotal:1,longDone:1})).toBe('1/2 petite · 1/1 long stitch');
 });

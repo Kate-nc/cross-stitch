@@ -160,7 +160,7 @@ describe('wiring', () => {
     expect(trackerSrc).toContain('React.createElement(window.TrackerProgressStrip,{progress:progShown,prevBarPct,todayBarPct,bsCounts,layerVis,layerCounts,onShowHiddenLayers:showHiddenLayers');
     expect(stripSrc).toMatch(/window\.TrackerHiddenLayersChip && h\(window\.TrackerHiddenLayersChip, \{ layerVis: layerVis, counts: props\.layerCounts, onShow: props\.onShowHiddenLayers \}\)/);
     expect(stripSrc.indexOf('info-strip-row')).toBeLessThan(stripSrc.indexOf('TrackerHiddenLayersChip, {'));
-    expect(trackerSrc).toMatch(/const showHiddenLayers=\(\)=>\{setLayerVis\(ALL_LAYERS_VISIBLE\);/);
+    expect(trackerSrc).toMatch(/const showHiddenLayers=useCallback\(\(\)=>\{setLayerVis\(ALL_LAYERS_VISIBLE\);/);
     expect(trackerSrc).toMatch(/focusMode&&window\.TrackerHiddenLayersChip&&React\.createElement\(window\.TrackerHiddenLayersChip,\{[^}]*tracker-layers-chip--float/);
     expect(trackerSrc.indexOf('className="info-strip-wrap"')).toBeLessThan(trackerSrc.indexOf('window.TrackerProgressStrip'));
   });
