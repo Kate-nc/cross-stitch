@@ -172,7 +172,10 @@ async function settles(ctx, touch, box, zoom) {
       const Z = window.__zs;
       const lt = Z.longTasks.filter((l) => l.t >= tEnd - 1).sort((a, b) => a.t - b.t);
       const lo = Z.loafs.filter((l) => l.t + l.d >= tEnd).sort((a, b) => a.t - b.t);
-      const fr = Z.frames.filter((f) => f >= tEnd - 1);
+      // From the last frame before the gesture ended: the interval that holds the
+      // commit starts there.
+      const before = Z.frames.filter((f) => f < tEnd - 1);
+      const fr = (before.length ? [before[before.length - 1]] : []).concat(Z.frames.filter((f) => f >= tEnd - 1));
       const gaps = []; for (let i = 1; i < fr.length; i++) gaps.push(fr[i] - fr[i - 1]);
       const first = lt[0] && lt[0].t < tEnd + 400 ? lt[0] : null;
       return {

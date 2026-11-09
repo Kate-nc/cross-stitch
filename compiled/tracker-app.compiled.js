@@ -451,7 +451,9 @@ function countRect(r){let total=0,dn=0;if(!pat||!r)return{total,done:dn};const d
 // highlight cycling and "mark all" use while an area is active. Built by one
 // scan when the area, pattern or marks are replaced, then kept up to date
 // from each mark's changed cells (useStitchCounts.js, "Work-area counts").
-const areaCounts=useMemo(()=>{const st=areaOn?areaCountsFor(workArea,doneRef.current||done,halfDoneRef.current||halfDone):null;return st?{stats:{total:st.total,done:st.done},colours:st.colours}:null;},[areaOn,workArea,pat,done,halfStitches,halfDone,sW,countsVer]);const areaStats=areaCounts&&areaCounts.stats;const areaColourCounts=areaCounts&&areaCounts.colours;// The neighbouring area in reading order: any (for enabling the buttons,
+const areaCounts=useMemo(()=>{// Called with no area when none is active, so the hook lets go of the counts
+// (and the pattern and marks they refer to) instead of keeping them.
+const st=areaCountsFor(areaOn?workArea:null,doneRef.current||done,halfDoneRef.current||halfDone);return st?{stats:{total:st.total,done:st.done},colours:st.colours}:null;},[areaOn,workArea,pat,done,halfStitches,halfDone,sW,countsVer]);const areaStats=areaCounts&&areaCounts.stats;const areaColourCounts=areaCounts&&areaCounts.colours;// The neighbouring area in reading order: any (for enabling the buttons,
 // cheap) or the nearest unfinished one (on click — it may scan many areas).
 function neighbourArea(dir,unfinishedOnly){if(!areaOn||!window.WorkArea)return null;return window.WorkArea.step(workArea,dir,blockW,blockH,sW,sH,unfinishedOnly?r=>{const c=countRect(r);return c.total===0||c.done>=c.total;}:null);}function stepWorkArea(dir){const a=neighbourArea(dir,true);if(a){enterWorkArea(a);return;}try{window.Toast&&window.Toast.show&&window.Toast.show({message:dir>0?"No unfinished areas after this one":"No unfinished areas before this one",type:"info"});}catch(_){}}// The next unfinished area after this one, or failing that before it.
 function nextUnfinishedArea(){return neighbourArea(1,true)||neighbourArea(-1,true);}// Finishing the area's last stitch offers the next one. Keyed on the area,

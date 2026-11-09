@@ -1944,7 +1944,9 @@ function countRect(r){
 // scan when the area, pattern or marks are replaced, then kept up to date
 // from each mark's changed cells (useStitchCounts.js, "Work-area counts").
 const areaCounts=useMemo(()=>{
-  const st=areaOn?areaCountsFor(workArea,doneRef.current||done,halfDoneRef.current||halfDone):null;
+  // Called with no area when none is active, so the hook lets go of the counts
+  // (and the pattern and marks they refer to) instead of keeping them.
+  const st=areaCountsFor(areaOn?workArea:null,doneRef.current||done,halfDoneRef.current||halfDone);
   return st?{stats:{total:st.total,done:st.done},colours:st.colours}:null;
 },[areaOn,workArea,pat,done,halfStitches,halfDone,sW,countsVer]);
 const areaStats=areaCounts&&areaCounts.stats;

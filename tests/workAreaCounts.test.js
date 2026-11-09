@@ -284,7 +284,8 @@ describe('useStitchCounts work-area counts', () => {
     const area2 = { x0: 0, y0: 0, x1: 20, y1: 10 };
     h.render({ done, hd, area: area2 }); expect(builds(h)).toBe(++b); check(area2);
     // Leaving the area: no counts, and deltas while off do nothing.
-    h.render({ done, hd, area: null }); expect(h.st).toBeNull();
+    // ...and the hook lets go of them (and the pattern and marks they refer to).
+    h.render({ done, hd, area: null }); expect(h.st).toBeNull(); expect(h.counts.areaCountsRef.current).toBeNull();
     { const nd = new Uint8Array(done); nd[0] = nd[0] ? 0 : 1; h.render({ done: nd, hd, area: null }, () => h.counts.applyDoneCountsDelta([{ idx: 0, oldVal: done[0] }], c.pat, nd, done)); done = nd; }
     h.render({ done, hd, area }); expect(builds(h)).toBe(++b); check(area);
 
@@ -325,7 +326,8 @@ describe('useStitchCounts work-area counts', () => {
 describe('tracker-app.js wiring', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'tracker-app.js'), 'utf8');
   test('the area counts come from the hook, not a rescan per mark', () => {
-    expect(src).toMatch(/areaCountsFor\(workArea,doneRef\.current\|\|done,halfDoneRef\.current\|\|halfDone\)/);
+    // Always called, with no area when none is active, so the cached counts are let go.
+    expect(src).toMatch(/areaCountsFor\(areaOn\?workArea:null,doneRef\.current\|\|done,halfDoneRef\.current\|\|halfDone\)/);
     expect(src).not.toMatch(/countRect\(workArea\)/);
   });
   test('every mark path tells the counters which marks it started from', () => {
