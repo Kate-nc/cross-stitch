@@ -1226,8 +1226,11 @@ const hlRow=guideRef.current.row,hlCol=guideRef.current.col;const parkMarkers=pa
 // Tier 3 and half stitches and backstitch from Tier 2, all or nothing: a
 // zoom across a threshold is one paint. They used to fade in or out over
 // 150-200 ms by repainting the whole chart every frame, 4-13 full paints
-// per crossing (reports/track-zoom-tier-transition.md).
-if(!lockDetailLevel)tierRef.current=computeDetailTier(cSz,tierRef.current);const tier=lockDetailLevel?3:tierRef.current;const symAlpha=tier>=3?1:0;const bsHsAlpha=tier>=2?1:0;ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);// Viewport culling: 20-cell overdraw buffer for smooth panning. A tiled
+// per crossing (reports/track-zoom-tier-transition.md). Lock detail level
+// holds the tier at 3, and the ref with it, so unlocking carries on from
+// Tier 3 (hysteresis keeps symbols down to 10 px), as it did when the fade
+// effect set the ref.
+tierRef.current=lockDetailLevel?3:computeDetailTier(cSz,tierRef.current);const tier=tierRef.current;const symAlpha=tier>=3?1:0;const bsHsAlpha=tier>=2?1:0;ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);// Viewport culling: 20-cell overdraw buffer for smooth panning. A tiled
 // caller passes its own margin (0 — the tile already includes it), so the
 // paint cannot spill past the backing store it was sized for.
 const OVERDRAW=viewportRect&&typeof viewportRect.overdraw==="number"?viewportRect.overdraw:chartOverdraw(cSz);let startX=0,startY=0,endX=dW,endY=dH;if(viewportRect){startX=Math.max(0,Math.floor((viewportRect.left-gut-OVERDRAW)/cSz));startY=Math.max(0,Math.floor((viewportRect.top-gut-OVERDRAW)/cSz));endX=Math.min(dW,Math.ceil((viewportRect.right-gut+OVERDRAW)/cSz));endY=Math.min(dH,Math.ceil((viewportRect.bottom-gut+OVERDRAW)/cSz));}// A work area clips the chart to its view: nothing outside is visible, so

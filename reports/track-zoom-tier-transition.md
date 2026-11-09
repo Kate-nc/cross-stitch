@@ -230,7 +230,10 @@ second, as Tier 4 detail already did.
   `tier>=2?1:0`. The tier is still worked out at the top of `drawStitch` for
   the cell size it is drawing at. That already happens for every paint (full,
   strip after a tile move, or one stitch), so it applies to each. Lock detail
-  level still forces Tier 3 with both at full strength.
+  level still forces Tier 3 with both at full strength. It also sets the
+  remembered tier to 3, which the removed effect used to do: unlocking at a
+  size between the thresholds (say 60%) then keeps symbols, as before, rather
+  than falling back to the tier from before the lock (review on the PR).
 - `renderStitchRef` stays: the return from a hidden tab uses it.
 
 Also: `compiled/tracker-app.compiled.js` (rebuilt), `sw.js` (fingerprints),

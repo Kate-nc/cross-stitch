@@ -5839,9 +5839,12 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   // Tier 3 and half stitches and backstitch from Tier 2, all or nothing: a
   // zoom across a threshold is one paint. They used to fade in or out over
   // 150-200 ms by repainting the whole chart every frame, 4-13 full paints
-  // per crossing (reports/track-zoom-tier-transition.md).
-  if(!lockDetailLevel)tierRef.current=computeDetailTier(cSz,tierRef.current);
-  const tier=lockDetailLevel?3:tierRef.current;
+  // per crossing (reports/track-zoom-tier-transition.md). Lock detail level
+  // holds the tier at 3, and the ref with it, so unlocking carries on from
+  // Tier 3 (hysteresis keeps symbols down to 10 px), as it did when the fade
+  // effect set the ref.
+  tierRef.current=lockDetailLevel?3:computeDetailTier(cSz,tierRef.current);
+  const tier=tierRef.current;
   const symAlpha=tier>=3?1:0;
   const bsHsAlpha=tier>=2?1:0;
 

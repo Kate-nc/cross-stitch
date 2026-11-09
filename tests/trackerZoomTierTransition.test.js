@@ -38,7 +38,7 @@ const computeDetailTier = new Function(sliceBalanced(tracker, 'function computeD
 /* drawStitch's tier block, from the tier update to the two opacities, run as
    a function of (cell size, lock, tierRef). */
 const tierBlock = (() => {
-  const a = drawStitch.indexOf('if(!lockDetailLevel)tierRef.current=');
+  const a = drawStitch.indexOf('tierRef.current=lockDetailLevel?3:');
   const b = drawStitch.indexOf('\n', drawStitch.indexOf('const bsHsAlpha='));
   if (a < 0 || b < 0) throw new Error('tier block not found in drawStitch');
   // eslint-disable-next-line no-new-func
@@ -98,6 +98,22 @@ describe('the detail drawn depends on the tier alone', () => {
     for (const p of paintAll([2, 6, 11, 30], true)) {
       expect(p).toMatchObject({ tier: 3, symAlpha: 1, bsHsAlpha: 1 });
     }
+  });
+
+  test('unlocking carries on from Tier 3, as the lock left it', () => {
+    // Open at 40% (8 px, Tier 2), lock, zoom to 60% (12 px), unlock: 12 px is
+    // between the thresholds, so the tier the lock held (3) stays and the
+    // symbols with it. They go once the zoom drops below 10 px.
+    const tierRef = { current: 3 };
+    const paint = (c, lock) => tierBlock(c, lock, tierRef, computeDetailTier);
+    expect(paint(8, false)).toMatchObject({ tier: 2, symAlpha: 0 });
+    expect(paint(8, true)).toMatchObject({ tier: 3, symAlpha: 1 });
+    expect(paint(12, true)).toMatchObject({ tier: 3, symAlpha: 1 });
+    expect(paint(12, false)).toMatchObject({ tier: 3, symAlpha: 1 });
+    expect(paint(8, false)).toMatchObject({ tier: 2, symAlpha: 0 });
+    // Unlocked below the threshold: straight to the tier for that size.
+    expect(paint(8, true)).toMatchObject({ tier: 3 });
+    expect(paint(4, false)).toMatchObject({ tier: 2, symAlpha: 0, bsHsAlpha: 1 });
   });
 });
 
