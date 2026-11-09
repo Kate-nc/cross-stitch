@@ -101,3 +101,19 @@ Final checks:
 - Browser/E2E/WebKit/physical-device checks: unavailable, with the Chromium startup failure described above. Full-app interactions including rapid taps, bulk marks, undo/redo and cross-tab replacement have unit coverage but were not newly exercised in a browser here.
 
 No merge or deployment is part of this change.
+
+## Review follow-up: delayed Spotlight analysis
+
+The review identified a completion race: both the analysis debounce and the
+Spotlight completion delay were 500 ms, so a slower worker could let completion
+latch with no destination before fresh rankings arrived. Non-Royal completion
+now waits for matching analysis and recommendations; the existing effect
+reruns when they arrive. Royal Rows remains independent of analysis. A valid
+empty ranking still records completion once, with no destination.
+
+`tests/trackerSpotlightAnalysis.test.js` runs the actual scheduler, worker
+protocol, recommendation memo and completion effect together with delayed
+replies. Three cases failed before the fix and pass afterwards: delayed
+completion, undo while waiting (including an obsolete reply), and completion
+with no remaining section. It also verifies Royal Rows and exactly-once
+advancement. Browser validation remains unavailable as documented above.

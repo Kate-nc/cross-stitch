@@ -3447,6 +3447,10 @@ useEffect(()=>{
   if(!focusBlock||!focusEnabled||!pat||!done||stitchingStyle==="crosscountry")return;
   const complete=_isFocusBlockComplete(focusBlock.bx,focusBlock.by);
   if(!prevFocusBlockDoneRef.current&&complete){
+    // Non-Royal navigation needs rankings for the completed progress revision.
+    // A slow reply must not latch completion with next=null: leave it pending
+    // so the analysisResult/recommendations dependencies retry this effect.
+    if(stitchingStyle!=="royal"&&(!analysisResult||!recommendations))return;
     if(blockAdvanceTimerRef.current)clearTimeout(blockAdvanceTimerRef.current);
     blockAdvanceTimerRef.current=setTimeout(()=>{
       const stitches=_getBlockStitchCount(focusBlock.bx,focusBlock.by);
