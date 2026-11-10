@@ -100,7 +100,13 @@ on a working host to check drift and compare distributions, not one pair.
 The runner serves a deterministic 100 by 100 project through the public
 `ProjectStorage` path. It keeps the HTTP cache enabled (no Playwright route
 interception), clears it for cold loading, and reuses the same context for a
-warm reopen. Only CDN transport is mirrored: exact production npm bytes with
+warm reopen. Each navigation starts from a newly restored test seed (including
+clearing the disposable context's journal, session and accounting databases),
+so the warm arm measures HTTP caching rather than storage migrations performed
+by the cold arm. Seed scripts include the real progress-unit and tracking-sync
+dependencies. HTTP-cache cold does not mean a fresh browser process or cold
+JavaScript compilation cache. Only CDN transport is mirrored: exact production
+npm bytes with
 the HTML's existing SRI, gzip and cache headers. Latency is simulated at 80 ms
 and 200,000 bytes/s, with no CPU throttle. This is a controlled HTTP experiment,
 not a live CDN/TLS benchmark, Vercel cache measurement or physical-device test.
@@ -108,40 +114,50 @@ Service workers are blocked so a previous build cannot replace measured bytes.
 
 The JSON is intended to separate:
 
-- **User-visible readiness proxy:** two animation frames after chart drawing
-  starts and the flush API is installed. This is stricter than finding a canvas
-  element, but is not proof that every first interaction works.
-- **Requests:** all resource timing records, decoded/encoded/transfer sizes,
-  start/end times and initiator types. Check that the entry is fetched once
+- **User-visible readiness proxy:** an animation-frame check finds a visible
+  chart after drawing starts, with the symbol font loaded and the flush API
+  installed; the next frame rechecks those conditions. Font failure is an
+  error. This is not proof that every first interaction works.
+- **Requests:** resource timing records completed by readiness,
+  decoded/encoded/transfer sizes, start/end times and initiator types. Check that the entry is fetched once
   and is discovered earlier in the candidate.
 - **JavaScript:** main-renderer `EvaluateScript` inclusive time by URL and
   main-thread compile time reported separately. Do not add compile time to
-  evaluation: they overlap. Background parsing and later hydration callbacks
-  are not completely represented by these totals.
+  evaluation: they overlap. User Timing marks bound all trace totals to the
+  current navigation before readiness; matching uses both process and thread
+  IDs, and nested/duplicate duration events are counted once per category.
+  Background parsing and hydration callbacks outside script evaluation are
+  not completely represented by these totals.
 - **Hydration:** `ProjectStorage.get` start/settle and its completion-to-usable
-  interval. The latter includes project processing, React, font readiness and
-  drawing; it is deliberately not labelled JavaScript-only hydration time.
+  interval for the first successful observed read completed before readiness
+  (otherwise null). The latter includes project processing, React, font
+  readiness and drawing; it is deliberately not labelled JavaScript-only hydration time.
 - **Rendering:** main-renderer layout/style/paint trace time, plus full/partial
   chart paints and React commits from the existing `trackProbes` counters.
   This omits compositor/raster-thread time; software drawing is not a GPU test.
 - **Storage and workers:** existing probe counts, synchronous IDB/clone costs,
   write transaction completion and worker post/reply time. These overlap
-  other wall-clock spans and must not be summed into one latency total.
+  other wall-clock spans and must not be summed into one latency total. Async
+  completions after readiness are left incomplete in the startup snapshot.
 
 New unit tests verify SRI after decompression, actual cacheable responses,
 byte-identical compiled assets, candidate-only HTML changes, renderer/worker
-trace separation and rejection of missing trace attribution. They validate the
-measurement helpers, not browser startup performance.
+trace-window boundaries, process/thread separation, nested-event accounting,
+font/visibility readiness, warm-seed isolation and cleanup on failure. They
+validate the measurement helpers, not browser startup performance. Results also
+record dirty-tree status and SHA-256 hashes of the served HTML, compiled entry
+and worker; a change to those files during a run fails the experiment.
 
 ## Available verification and unavailable acceptance checks
 
 | Validation | Result |
 | --- | --- |
-| Final full Jest suite (`npm test -- --maxWorkers=2`) | 453 suites passed, 1 skipped; 6,635 tests passed, 4 skipped; 1 snapshot passed |
-| New measurement-helper tests | 7 passed |
+| Final full Jest suite (`npm test -- --maxWorkers=2`) | 453 suites passed, 1 skipped; 6,650 tests passed, 4 skipped; 1 snapshot passed |
+| New measurement-helper tests | 22 passed after the follow-up audit |
 | `node scripts/build-dist.js` | Passed: 229 files, 208 minified; generated minified service-worker manifest; `node build-sw.js --root dist --check` and minified HTML transport smoke passed |
 | `node build-runtime-js.js --check` | Passed; committed compiled assets current |
 | `node build-sw.js --check` | Passed; committed worker fingerprints current |
+| Seed and HTTP transport smoke checks | Public storage save/read passed in Node VM with fake IndexedDB; source/dist baseline/candidate responses and an actual local HTTP minified response passed |
 | Terminology lint | Passed |
 | CSS token lint | Passed with 7 existing advisories in unchanged CSS |
 | Cold network / warm HTTP cache usable-chart timing | Unavailable: Chromium launch blocked |
@@ -179,3 +195,24 @@ replaces a live-network/device check.
 There is no user-visible change, so the help, app changelog and generated
 application assets are unchanged. The report and harness live under existing
 non-deployment directories; no new directory exclusion is needed.
+
+## Follow-up audit of the draft
+
+The audit covered all three changed files. It found and fixed defects in the
+measurement tooling; no application runtime changes were introduced:
+
+| Finding | Correction and regression coverage |
+| --- | --- |
+| Trace totals included unload/late work and matched thread IDs without process IDs; nested aliases could inflate compile/render time | Bound to navigation-specific User Timing marks, match process plus thread, clip and union durations; synthetic traces cover pre/post-window work, PID collisions and nesting |
+| Warm reload inherited journals, sessions and migrations from cold; seed omitted real storage dependencies | Restore disposable storage before both navigations; include progress-units and tracking-sync; test deletion and preference isolation |
+| A background/hidden chart or missing font could count as usable | Require font success and visible chart geometry, recheck next frame; test delayed/failed fonts and a chart hidden between frames |
+| Post-readiness reads/completions could produce negative hydration intervals or inflate startup storage time | Select only successful reads completed by readiness; bound async completion records; test failed/late reads and immutable snapshots |
+| HTTP failures could be missed; gzip;q=0 was ignored and responses lacked Vary | Reject failed required-resource requests; honour encoding negotiation and Vary; test uncompressed, compressed and HEAD responses with exact SRI |
+| Resource cleanup could stop if browser.close failed; launch was outside the main cleanup guard | Guard launch and close context/browser/server with nested finally; test launch, page and close failures |
+| Env-mutating tests, truthy CANDIDATE=0, invalid repeats and even-run median | Use explicit handler configuration, validate env and calculate median correctly; regression tests cover each |
+| Output identified HEAD but not the served build | Record dirty state and hashes of actual transformed HTML, entry and worker; check again before saving results; test baseline/candidate HTML fingerprints |
+
+Chromium was retried after the fixes with a writable workspace TMPDIR and
+still failed at the same denied socket operation before creating a page.
+The runner remains browser-unverified; neither this audit nor its tests
+establishes startup latency or offline acceptance.
