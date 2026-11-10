@@ -1,0 +1,536 @@
+{
+ "commit": "88819f0",
+ "dirty": 17,
+ "browser": "153.0.8010.12",
+ "environment": "headless Chromium, SwiftShader canvas, 4-core VM; emulated, not a physical device",
+ "results": [
+  {
+   "id": "phone4x-normal",
+   "profile": "phone4x",
+   "variant": "normal",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 166.6,
+    "max": 233.3,
+    "over50": 20,
+    "totalMs": 6564
+   },
+   "loaf": {
+    "n": 2,
+    "ms": 165,
+    "script": 103,
+    "render": 109
+   },
+   "threads": {
+    "other": 131,
+    "rendererMain": 9660,
+    "vizCompositor": 439,
+    "rendererCompositor": 167,
+    "gpuMain": 7,
+    "otherByName": {
+     "ThreadPoolForegroundWorker": 65
+    }
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 76.4
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 183,
+    "appJsMs": 282,
+    "gcMs": 0,
+    "idleMs": 30,
+    "otherMs": 7590,
+    "topCanvas": {
+     "setTransform": 64,
+     "putImageData": 16,
+     "fillText": 84,
+     "drawImage": 8,
+     "save": 3,
+     "stroke": 3,
+     "clearRect": 3,
+     "strokeRect": 1,
+     "fillRect": 3
+    }
+   }
+  },
+  {
+   "id": "phone4x-tileshift0",
+   "profile": "phone4x",
+   "variant": "tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 116.7,
+    "max": 183.3,
+    "over50": 21,
+    "totalMs": 6090
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 83,
+    "script": 79,
+    "render": 83
+   },
+   "threads": {
+    "other": 152,
+    "rendererMain": 9419,
+    "vizCompositor": 465,
+    "rendererCompositor": 191,
+    "gpuMain": 8,
+    "otherByName": {
+     "ThreadPoolForegroundWorker": 87
+    }
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 291,
+    "appJsMs": 349,
+    "gcMs": 1,
+    "idleMs": 56,
+    "otherMs": 7073,
+    "topCanvas": {
+     "clearRect": 7,
+     "setTransform": 67,
+     "getImageData": 1,
+     "fillText": 205,
+     "stroke": 1,
+     "strokeRect": 1,
+     "drawImage": 4,
+     "moveTo": 2,
+     "putImageData": 3,
+     "fillRect": 1
+    }
+   }
+  },
+  {
+   "id": "phone4x-scale1",
+   "profile": "phone4x",
+   "variant": "scale1",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 66.6,
+    "max": 100,
+    "over50": 15,
+    "totalMs": 4004
+   },
+   "loaf": {
+    "n": 1,
+    "ms": 70,
+    "script": 59,
+    "render": 63
+   },
+   "threads": {
+    "other": 129,
+    "rendererMain": 6581,
+    "vizCompositor": 323,
+    "rendererCompositor": 152,
+    "gpuMain": 4,
+    "otherByName": {
+     "ThreadPoolForegroundWorker": 71
+    }
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 30.6
+   },
+   "canvasMpx": 2.33,
+   "canvases": [
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 1,
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 171,
+    "appJsMs": 364,
+    "gcMs": 0,
+    "idleMs": 1219,
+    "otherMs": 3971,
+    "topCanvas": {
+     "clearRect": 3,
+     "setTransform": 32,
+     "fillText": 107,
+     "putImageData": 6,
+     "stroke": 2,
+     "drawImage": 10,
+     "fillRect": 4,
+     "strokeRect": 2,
+     "restore": 3,
+     "rect": 1,
+     "save": 1
+    }
+   }
+  },
+  {
+   "id": "phone1x-normal",
+   "profile": "phone1x",
+   "variant": "normal",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.8,
+    "max": 33.4,
+    "over50": 0,
+    "totalMs": 3001
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 93,
+    "rendererMain": 1812,
+    "vizCompositor": 381,
+    "rendererCompositor": 112,
+    "gpuMain": 5,
+    "otherByName": {
+     "ThreadPoolForegroundWorker": 55
+    }
+   },
+   "counts": {
+    "paints": 39,
+    "chartCopies": 19,
+    "overlayCopies": 19,
+    "copiedMpx": 76.4
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 34,
+    "appJsMs": 45,
+    "gcMs": 0,
+    "idleMs": 2150,
+    "otherMs": 1144,
+    "topCanvas": {
+     "setTransform": 11,
+     "fillText": 21,
+     "save": 1,
+     "putImageData": 1,
+     "drawImage": 1,
+     "clearRect": 1
+    }
+   }
+  },
+  {
+   "id": "phone1x-tileshift0",
+   "profile": "phone1x",
+   "variant": "tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 16.7,
+    "max": 33.3,
+    "over50": 0,
+    "totalMs": 3008
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 112,
+    "rendererMain": 1670,
+    "vizCompositor": 385,
+    "rendererCompositor": 99,
+    "gpuMain": 5,
+    "otherByName": {
+     "ThreadPoolForegroundWorker": 78
+    }
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 5.76,
+   "canvases": [
+    {
+     "w": 1918,
+     "h": 2382,
+     "shown": true
+    },
+    {
+     "w": 959,
+     "h": 1191,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    }
+   ],
+   "chartScale": 2,
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 51,
+    "appJsMs": 61,
+    "gcMs": 0,
+    "idleMs": 2238,
+    "otherMs": 1006,
+    "topCanvas": {
+     "setTransform": 10,
+     "fillText": 38,
+     "fillRect": 1,
+     "drawImage": 1,
+     "clearRect": 1,
+     "restore": 1
+    }
+   }
+  },
+  {
+   "id": "desktop-overlays",
+   "profile": "desktop",
+   "variant": "overlays",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 33.3,
+    "max": 33.4,
+    "over50": 0,
+    "totalMs": 3292
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 2061,
+    "rendererMain": 2353,
+    "vizCompositor": 1027,
+    "rendererCompositor": 173,
+    "gpuMain": 1,
+    "otherByName": {
+     "ThreadPoolForegroundWorker": 2020
+    }
+   },
+   "counts": {
+    "paints": 40,
+    "chartCopies": 20,
+    "overlayCopies": 60,
+    "copiedMpx": 128.2
+   },
+   "canvasMpx": 8.12,
+   "canvases": [
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    }
+   ],
+   "chartScale": 1,
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 38,
+    "appJsMs": 69,
+    "gcMs": 34,
+    "idleMs": 1816,
+    "otherMs": 1686,
+    "topCanvas": {
+     "save": 18,
+     "fillText": 10,
+     "drawImage": 3,
+     "strokeRect": 2,
+     "putImageData": 1,
+     "moveTo": 1,
+     "restore": 1,
+     "fillRect": 1
+    }
+   }
+  },
+  {
+   "id": "desktop-overlays-tileshift0",
+   "profile": "desktop",
+   "variant": "overlays-tileshift0",
+   "frames": {
+    "n": 180,
+    "median": 16.7,
+    "p95": 33.3,
+    "max": 50,
+    "over50": 0,
+    "totalMs": 3150
+   },
+   "loaf": {
+    "n": 0,
+    "ms": 0,
+    "script": 0,
+    "render": 0
+   },
+   "threads": {
+    "other": 2008,
+    "rendererMain": 2376,
+    "vizCompositor": 982,
+    "rendererCompositor": 163,
+    "gpuMain": 0,
+    "otherByName": {
+     "ThreadPoolForegroundWorker": 1970
+    }
+   },
+   "counts": {
+    "paints": 20,
+    "chartCopies": 0,
+    "overlayCopies": 0,
+    "copiedMpx": 0
+   },
+   "canvasMpx": 8.12,
+   "canvases": [
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 300,
+     "h": 150,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    },
+    {
+     "w": 1686,
+     "h": 1198,
+     "shown": true
+    }
+   ],
+   "chartScale": 1,
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 136,
+    "appJsMs": 134,
+    "gcMs": 40,
+    "idleMs": 1767,
+    "otherMs": 1475,
+    "topCanvas": {
+     "fillText": 32,
+     "save": 97,
+     "putImageData": 1,
+     "fillRect": 1,
+     "strokeRect": 1,
+     "restore": 2,
+     "stroke": 1,
+     "setTransform": 1,
+     "moveTo": 1,
+     "clearRect": 1
+    }
+   }
+  }
+ ]
+}

@@ -29,7 +29,9 @@
     "perf:save-cost": "node tests/perf/save-cost.cjs",
     "perf:track-baseline": "node tests/perf/track-baseline.cjs",
     "perf:zoom-settle": "node tests/perf/zoom-settle.cjs",
-    "perf:area-counts": "node tests/perf/area-counts-bench.cjs"
+    "perf:area-counts": "node tests/perf/area-counts-bench.cjs",
+    "perf:progress-write": "node tests/perf/progress-write-cost.cjs",
+    "perf:pan-copy": "node tests/perf/pan-copy-cost.cjs"
   },
   "jest": {
     "setupFiles": [

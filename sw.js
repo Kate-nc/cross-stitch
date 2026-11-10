@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "e52cff30801e0be11010a1f760ecd4cb118daa29efc8ce0f8639226f565be70b";
+var BUILD_ID = "efce4bbf1113a92630c527b4729a69746f57b2e2f245c784ce85dcafa00e8020";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -331,7 +331,7 @@ var BUILD_ASSETS = {
     "sha256": "62bb738e0bf42e1e7cfa5dcc6337ffc24d16737e781410ada9d76ec5a461a026"
   },
   "./changelog.js": {
-    "sha256": "db6a0df210cad7c493c2551875bfddae0e419d50191525e72235c64fe84ad2f0"
+    "sha256": "82ff42b188a79916d1b49272cb16f00b9455b18c9af6a308870e9c0d7f5526f2"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -391,7 +391,7 @@ var BUILD_ASSETS = {
     "sha256": "8e541427d27420148aa0ec591e88668ba69b4e4ef9d9dfcf7e0e24d2383dc816"
   },
   "./tracking-sync.js": {
-    "sha256": "c1b41e93294c9936720575d0f5b5a86e0fd3631d5c1019459e5dec12123f133b"
+    "sha256": "249650eb01b9abd5324ea071a85e807a3b743e73b556090391efa4a978517065"
   },
   "./icons.js": {
     "sha256": "cdff8394675ae0243c1b24860c7079826b3cfa737be932733640a21832b13eae"
@@ -436,7 +436,7 @@ var BUILD_ASSETS = {
     "sha256": "ee290e9f8fda8595302704b1ba85acbecef07d0e1282b038aea79c34e6bd822d"
   },
   "./project-storage.js": {
-    "sha256": "6e747c3869779bb7967fde99b26895f7b35f78c9334bbdbd5da4f948ee1d8741"
+    "sha256": "383aade06f2a12838d82349f7c3f6608d158e1934fda9eb1bbe234c20ecc5922"
   },
   "./blob-store.js": {
     "sha256": "869beee9fe5502c2ad614ef9e8b3d6d452abb7ff1fbc6bcf7667dba99f083113"
@@ -493,7 +493,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "ddca37f28afe5eaf71ec7c1c841fdb8a3f8181abab258a75ec008226e586f450"
+    "sha256": "56fb750d0055bbc315c17f6bb0af1ece5c497af9b2e506dc754c8d24e469e19d"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -529,7 +529,7 @@ var BUILD_ASSETS = {
     "sha256": "ed92d68c4ec04dab726d7ee4b996290476fc03e08f3a6db481c4c40eeaafa7ed"
   },
   "./useCanvasOverlays.js": {
-    "sha256": "dfd7c53525fa2b70602790f1f120940d866a2230f6d22d2938bc76d56770fba0"
+    "sha256": "0087615021c2b89e36b17820595593f6c68bd899aa521c902c8cf45200c38d7c"
   },
   "./useAutoSession.js": {
     "sha256": "0c91b1a1fa79f1cce51417cbcbd9ba7ed3c6aac36975f6e42b0cf96b8d4b5458"

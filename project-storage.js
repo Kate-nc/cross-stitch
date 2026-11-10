@@ -277,6 +277,84 @@ const ProjectStorage = (() => {
     store.delete(IDBKeyRange.bound("photothumb:" + id + ":", "photothumb:" + id + ":\uffff"));
   }
 
+  // ── Changed cells between progress writes ──────────────────────────
+  // One per Tracker page (progressChanges() below). The Tracker tells it each
+  // time it replaces its done array with one that differs only at known cells
+  // (link), and asks it, for each progress write, which cells may differ from
+  // the marks of its last write that is known to be on disk (begin / confirm).
+  // saveProgress believes the answer only if that write's record is still the
+  // one stored (see `since` there); otherwise it compares every cell.
+  //
+  // Arrays are known by a number, never held: a chain of 1 000 taps on a
+  // 480 000-cell chart would otherwise keep 1 000 copies alive. Links are
+  // dropped once a later write is confirmed, and all of them (so the next write
+  // compares every cell) if more than `limit` cells are waiting, as when writes
+  // keep failing. A done array set without a link (a load, a merge, a
+  // reconcile) has no way back to the last write: the next write compares
+  // every cell.
+  function progressChanges(limit) {
+    const LIMIT = limit || 50000;
+    const seqOf = new WeakMap();
+    let nextSeq = 1, links = new Map(), held = 0, confirmed = null, order = 0;
+    const broken = new Set();
+    function seq(arr) {
+      let s = seqOf.get(arr);
+      if (!s) { s = nextSeq++; seqOf.set(arr, s); }
+      return s;
+    }
+    function clear() { links = new Map(); broken.clear(); held = 0; }
+    function newId() {
+      return (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+    return {
+      // `next` is `prev` with only the cells in `changes` ([{idx}] or numbers) changed.
+      link(prev, next, changes) {
+        if (!prev || !next || typeof prev !== "object" || typeof next !== "object" || prev === next || !changes) return;
+        const idx = new Array(changes.length);
+        for (let i = 0; i < changes.length; i++) {
+          const c = changes[i], v = typeof c === "number" ? c : (c && c.idx);
+          if (!Number.isSafeInteger(v) || v < 0) return;   // not a list of cells: leave unlinked
+          idx[i] = v;
+        }
+        const to = seq(next), from = seq(prev);
+        if (broken.has(to)) return;
+        // Two different ways to one array: believe neither.
+        if (links.has(to)) { const l = links.get(to); if (l.from !== from) { held -= l.idx.length; links.delete(to); broken.add(to); return; } }
+        links.set(to, { from, idx: links.has(to) ? links.get(to).idx.concat(idx) : idx });
+        held += idx.length;
+        if (held > LIMIT) clear();
+      },
+      // A write of `done` for project `id` is about to start: its writeId, and
+      // `since` ({ writeId, indices }) when the cells changed since the last
+      // confirmed write are all known.
+      begin(id, done) {
+        const w = { id, writeId: newId(), since: null, seq: done && typeof done === "object" ? seq(done) : 0, order: ++order };
+        const c = confirmed;
+        if (!c || c.id !== id || !w.seq) return w;
+        const indices = [];
+        let cur = w.seq, steps = 0;
+        while (cur !== c.seq) {
+          const l = links.get(cur);
+          if (!l || ++steps > links.size) return w;
+          for (let i = 0; i < l.idx.length; i++) indices.push(l.idx[i]);
+          cur = l.from;
+        }
+        w.since = { writeId: c.writeId, indices };
+        return w;
+      },
+      // The write `begin` returned as `w` is on disk (saveProgress returned true).
+      confirm(w) {
+        if (!w || !w.seq || (confirmed && confirmed.id === w.id && confirmed.order > w.order)) return;
+        confirmed = { id: w.id, writeId: w.writeId, seq: w.seq, order: w.order };
+        // Nothing older than this write is asked about again.
+        for (const [to, l] of links) if (to <= w.seq) { held -= l.idx.length; links.delete(to); }
+      },
+      // Another project, or nothing known: the next write compares every cell.
+      reset() { confirmed = null; clear(); },
+      size() { return { links: links.size, held, confirmed: confirmed ? confirmed.writeId : null }; }
+    };
+  }
+
   // Extract lightweight metadata from a full project object.
   const PROGRESS_PREFIX = "progress:";
   const RECOVERY_PREFIX = "crossstitch_progress_recovery:";
@@ -583,6 +661,8 @@ const ProjectStorage = (() => {
   }
 
   return {
+    // The Tracker's journal of changed cells between progress writes (see above).
+    progressChanges,
     // Backup uses the same validity checks as get(), without suppressing read errors.
     // Rebuild both summary rows when newer persisted progress is included.
     // overlay: the project's "overlay:<id>" row, when it has one (see Overlay).
@@ -1319,7 +1399,8 @@ const ProjectStorage = (() => {
     // to the project (the Tracker's own full save, a sync import, a restore, a
     // rename) changes lastWriteAt, which makes the record stale and ignored.
     // data: { done: Uint8Array|Array, halfDone: [[idx,{fwd,bck}]], knotsDone: [], bsDone: [], partialDone: [[idx,[pos]]],
-    //         baseWriteAt: number|null, tabId }
+    //         baseWriteAt: number|null, tabId,
+    //         writeId: string (names this write), since: { writeId, indices } (see below) }
     async saveProgress(id, data) {
       if (!id || !data || !data.done || this._deletedIds.has(id)) return false;
       if (typeof window !== "undefined" && window.__restoringBackup > Date.now()) return false;
@@ -1332,8 +1413,20 @@ const ProjectStorage = (() => {
           halfDone: data.halfDone, knotsDone: data.knotsDone, beadsDone: data.beadsDone,
           bsDone: data.bsDone, partialDone: data.partialDone, specialtyDone:data.specialtyDone,
           baseWriteAt: typeof data.baseWriteAt === "number" ? data.baseWriteAt : null,
-          tabId: data.tabId || null, updatedAt: Date.now()
+          tabId: data.tabId || null, updatedAt: Date.now(),
+          // Names this record's marks for the caller's next write (see `since`).
+          writeId: typeof data.writeId === "string" && data.writeId ? data.writeId : null
         };
+        // data.since, optional: { writeId, indices }. The caller's full crosses
+        // differ from those of the record it wrote as `writeId` at most at
+        // `indices`. Believed only while that record is the one stored, still
+        // current and in this format, checked in the transaction below; any other
+        // write in between (another tab, a full or overlay save, a recovery, a
+        // write turned away) stores a different writeId or none, and every cell is
+        // compared as before. Only the sync registers use it: the record always
+        // stores the whole done array.
+        const since = data.since && typeof data.since.writeId === "string" && data.since.writeId
+          && data.since.indices && typeof data.since.indices.length === "number" ? data.since : null;
         const db = await getDB();
         if (!db.objectStoreNames.contains("pendingImports")) return false;
         // Whether the marks are now on disk in a form reloading applies. False when the
@@ -1388,12 +1481,18 @@ const ProjectStorage = (() => {
               // Only the registers that differ from the base's (TrackingSync.recordDelta):
               // the marks changed since the last full save, not one per finished stitch.
               // A record from an older build holds them all; it is cut down once here.
-              let delta = null;
+              let delta = null, known = null;
               if (previous !== project) {
                 if (prev.trackingSyncDelta) delta = prev.trackingSyncDelta;
                 else delta = TrackingSync.deltaFrom(previous, applyProgressRecord(project, prev, null, {typed:true}).trackingSync);
+                // The stored record is the caller's own last write (same base, as
+                // `previous !== project` says): compare only the cells it names,
+                // over registers this code wrote.
+                if (since && prev.writeId === since.writeId && prev.trackingSyncDelta && prev.done && prev.done.length === rec.done.length) {
+                  known = { indices: since.indices, trusted: true };
+                }
               }
-              rec.trackingSyncDelta = TrackingSync.recordDelta(previous, delta, next);
+              rec.trackingSyncDelta = TrackingSync.recordDelta(previous, delta, next, undefined, known || undefined);
             }
             // A delayed call must not undo a newer navigation recovery (or unpick).
             // Turned away (a newer record stands), nothing of this call is stored: false.
@@ -1426,9 +1525,11 @@ const ProjectStorage = (() => {
       if (!id || !data || !data.done || this._deletedIds.has(id)) return false;
       if (typeof window !== "undefined" && window.__restoringBackup > Date.now()) return false;
       try {
-        localStorage.setItem(RECOVERY_PREFIX + id, JSON.stringify(Object.assign({}, data, {
-          projectId: id, v: 1, done: Array.from(data.done), updatedAt: Date.now()
-        })));
+        // The journal names no write (writeId, since: saveProgress's), and its
+        // recovery is a new write of its own.
+        const journal = Object.assign({}, data, { projectId: id, v: 1, done: Array.from(data.done), updatedAt: Date.now() });
+        delete journal.since; delete journal.writeId;
+        localStorage.setItem(RECOVERY_PREFIX + id, JSON.stringify(journal));
         return true;
       } catch (err) {
         console.warn("ProjectStorage progress recovery unavailable:", err);
@@ -1475,7 +1576,7 @@ const ProjectStorage = (() => {
           } else {
             // `next` is also put as the project below, under the same lastWriteAt, so
             // the record differs from its base in no register.
-            pending.put(Object.assign({}, rec, { id: PROGRESS_PREFIX + id, baseWriteAt: typeof next.lastWriteAt === "number" ? next.lastWriteAt : rec.baseWriteAt, trackingSyncDelta: {version:1, marks:{}} }));
+            pending.put(Object.assign({}, rec, { id: PROGRESS_PREFIX + id, baseWriteAt: typeof next.lastWriteAt === "number" ? next.lastWriteAt : rec.baseWriteAt, trackingSyncDelta: {version:1, marks:{}}, writeId: null }));
           }
           // The overlay is folded into the record written below.
           pending.delete(OVERLAY_PREFIX + id);

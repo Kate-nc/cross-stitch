@@ -1,0 +1,1074 @@
+{
+ "commit": "88819f0",
+ "dirty": 19,
+ "browser": "153.0.8010.12",
+ "results": [
+  {
+   "id": "large-50-since0",
+   "spec": {
+    "id": "large-50-since0",
+    "w": 400,
+    "h": 500,
+    "fraction": 0.5,
+    "since": 0,
+    "per": 3
+   },
+   "mode": "full",
+   "seeded": {
+    "n": 200000,
+    "since": 0
+   },
+   "summary": {
+    "total": 3.7000000001862645,
+    "copy": 0.10000000009313226,
+    "diff": 1.099999999627471,
+    "idbGet": 0,
+    "idbPut": 0.5,
+    "cellsRead": 200000
+   },
+   "allOk": true,
+   "sinceUsed": 0,
+   "check": {
+    "diff": 0,
+    "regs": 100020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 6.600000000093132,
+     "copy": 0.10000000009313226,
+     "diff": 3.2000000001862645,
+     "idbGet": 0.09999999962747097,
+     "idbPut": 1.1000000000931323,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5.2000000001862645,
+     "copy": 0.10000000009313226,
+     "diff": 2,
+     "idbGet": 0,
+     "idbPut": 0.6000000000931323,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 3.7000000001862645,
+     "copy": 0.10000000009313226,
+     "diff": 1.099999999627471,
+     "idbGet": 0,
+     "idbPut": 0.6000000000931323,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 3.6000000000931323,
+     "copy": 0.19999999972060323,
+     "diff": 1.099999999627471,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 0.3000000002793968,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 3.7000000001862645,
+     "copy": 0.10000000009313226,
+     "diff": 1,
+     "idbGet": 0.09999999962747097,
+     "idbPut": 0.599999999627471,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 3.2999999998137355,
+     "copy": 0,
+     "diff": 0.8000000002793968,
+     "idbGet": 0,
+     "idbPut": 0.39999999990686774,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 3.1999999997206032,
+     "copy": 0,
+     "diff": 0.7999999998137355,
+     "idbGet": 0,
+     "idbPut": 0.5,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 4.2999999998137355,
+     "copy": 0.10000000009313226,
+     "diff": 1.7999999998137355,
+     "idbGet": 0,
+     "idbPut": 0.39999999990686774,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 3.900000000372529,
+     "copy": 0.10000000009313226,
+     "diff": 1.3999999999068677,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 0.5,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 4.100000000093132,
+     "copy": 0.20000000018626451,
+     "diff": 1.2000000001862645,
+     "idbGet": 0,
+     "idbPut": 0.6000000000931323,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 3.8999999999068677,
+     "copy": 0.10000000009313226,
+     "diff": 1.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 0.5,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 3.3999999999068677,
+     "copy": 0,
+     "diff": 1,
+     "idbGet": 0,
+     "idbPut": 0.5,
+     "cellsRead": 200000
+    }
+   ]
+  },
+  {
+   "id": "large-50-since2000",
+   "spec": {
+    "id": "large-50-since2000",
+    "w": 400,
+    "h": 500,
+    "fraction": 0.5,
+    "since": 2000,
+    "per": 3
+   },
+   "mode": "full",
+   "seeded": {
+    "n": 200000,
+    "since": 2000
+   },
+   "summary": {
+    "total": 5.2000000001862645,
+    "copy": 0.10000000009313226,
+    "diff": 1.1999999997206032,
+    "idbGet": 0,
+    "idbPut": 0.900000000372529,
+    "cellsRead": 200000
+   },
+   "allOk": true,
+   "sinceUsed": 0,
+   "check": {
+    "diff": 0,
+    "regs": 101020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 4.099999999627471,
+     "copy": 0.09999999962747097,
+     "diff": 1.1000000000931323,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5.100000000093132,
+     "copy": 0,
+     "diff": 1.6000000000931323,
+     "idbGet": 0,
+     "idbPut": 1,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5.400000000372529,
+     "copy": 0.10000000009313226,
+     "diff": 1.2000000001862645,
+     "idbGet": 0.20000000018626451,
+     "idbPut": 1.1999999997206032,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5.100000000093132,
+     "copy": 0.10000000009313226,
+     "diff": 1.099999999627471,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.1000000000931323,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5.2999999998137355,
+     "copy": 0.09999999962747097,
+     "diff": 1.3000000002793968,
+     "idbGet": 0,
+     "idbPut": 0.7999999998137355,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5,
+     "copy": 0,
+     "diff": 1.1000000000931323,
+     "idbGet": 0,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 4.899999999906868,
+     "copy": 0.10000000009313226,
+     "diff": 1.2000000001862645,
+     "idbGet": 0,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5,
+     "copy": 0.10000000009313226,
+     "diff": 1.1999999997206032,
+     "idbGet": 0,
+     "idbPut": 0.900000000372529,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 4.600000000093132,
+     "copy": 0.10000000009313226,
+     "diff": 1.1000000000931323,
+     "idbGet": 0,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5.2000000001862645,
+     "copy": 0.10000000009313226,
+     "diff": 1.1000000000931323,
+     "idbGet": 0,
+     "idbPut": 0.7999999998137355,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5.399999999906868,
+     "copy": 0.20000000018626451,
+     "diff": 1.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 1,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 5.399999999906868,
+     "copy": 0,
+     "diff": 1.1000000000931323,
+     "idbGet": 0,
+     "idbPut": 1,
+     "cellsRead": 200000
+    }
+   ]
+  },
+  {
+   "id": "huge-50-since0",
+   "spec": {
+    "id": "huge-50-since0",
+    "w": 600,
+    "h": 800,
+    "fraction": 0.5,
+    "since": 0,
+    "per": 3
+   },
+   "mode": "full",
+   "seeded": {
+    "n": 480000,
+    "since": 0
+   },
+   "summary": {
+    "total": 6.699999999720603,
+    "copy": 0.2999999998137355,
+    "diff": 2,
+    "idbGet": 0.10000000009313226,
+    "idbPut": 1.1000000000931323,
+    "cellsRead": 480000
+   },
+   "allOk": true,
+   "sinceUsed": 0,
+   "check": {
+    "diff": 0,
+    "regs": 240020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 22.800000000279397,
+     "copy": 0.2999999998137355,
+     "diff": 6,
+     "idbGet": 0,
+     "idbPut": 1.3000000002793968,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 9.200000000186265,
+     "copy": 0.20000000018626451,
+     "diff": 4.5,
+     "idbGet": 0,
+     "idbPut": 1.099999999627471,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 6.699999999720603,
+     "copy": 0.2999999998137355,
+     "diff": 2.2999999998137355,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.1000000000931323,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 6.399999999906868,
+     "copy": 0.10000000009313226,
+     "diff": 2.1000000000931323,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.099999999627471,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 7.899999999906868,
+     "copy": 0.19999999972060323,
+     "diff": 2.7999999998137355,
+     "idbGet": 0,
+     "idbPut": 1.3999999999068677,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 6.399999999906868,
+     "copy": 0.2999999998137355,
+     "diff": 1.7999999998137355,
+     "idbGet": 0,
+     "idbPut": 1.1000000000931323,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 6.5,
+     "copy": 0.19999999972060323,
+     "diff": 2,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 0.8999999999068677,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 6.7999999998137355,
+     "copy": 0.2999999998137355,
+     "diff": 1.8999999999068677,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.2000000001862645,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 7.099999999627471,
+     "copy": 0.19999999972060323,
+     "diff": 1.8999999999068677,
+     "idbGet": 0,
+     "idbPut": 1.1000000000931323,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 6.100000000093132,
+     "copy": 0.2999999998137355,
+     "diff": 1.8999999999068677,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.1000000000931323,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 6.399999999906868,
+     "copy": 0.2999999998137355,
+     "diff": 2,
+     "idbGet": 0,
+     "idbPut": 0.7999999998137355,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 7.300000000279397,
+     "copy": 0.40000000037252903,
+     "diff": 2.5,
+     "idbGet": 0,
+     "idbPut": 1.2999999998137355,
+     "cellsRead": 480000
+    }
+   ]
+  },
+  {
+   "id": "huge-50-since2000",
+   "spec": {
+    "id": "huge-50-since2000",
+    "w": 600,
+    "h": 800,
+    "fraction": 0.5,
+    "since": 2000,
+    "per": 3
+   },
+   "mode": "full",
+   "seeded": {
+    "n": 480000,
+    "since": 2000
+   },
+   "summary": {
+    "total": 9.899999999906868,
+    "copy": 0.20000000018626451,
+    "diff": 3.2999999998137355,
+    "idbGet": 0,
+    "idbPut": 1.7999999998137355,
+    "cellsRead": 480000
+   },
+   "allOk": true,
+   "sinceUsed": 0,
+   "check": {
+    "diff": 0,
+    "regs": 241020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 8.5,
+     "copy": 0.2999999998137355,
+     "diff": 3.2000000001862645,
+     "idbGet": 0,
+     "idbPut": 1.3999999999068677,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 11.399999999906868,
+     "copy": 0.3000000002793968,
+     "diff": 3.3999999999068677,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.6999999997206032,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 9.699999999720603,
+     "copy": 0.09999999962747097,
+     "diff": 3.3000000002793968,
+     "idbGet": 0.20000000018626451,
+     "idbPut": 1.6999999997206032,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 8.600000000093132,
+     "copy": 0.2999999998137355,
+     "diff": 3.3000000002793968,
+     "idbGet": 0,
+     "idbPut": 1.5,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 10.899999999906868,
+     "copy": 0.2999999998137355,
+     "diff": 4,
+     "idbGet": 0,
+     "idbPut": 2.3999999999068677,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 9.899999999906868,
+     "copy": 0.19999999972060323,
+     "diff": 3.1999999997206032,
+     "idbGet": 0,
+     "idbPut": 1.7000000001862645,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 9.799999999813735,
+     "copy": 0.19999999972060323,
+     "diff": 3.1000000000931323,
+     "idbGet": 0,
+     "idbPut": 1.7999999998137355,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 12.899999999906868,
+     "copy": 0.19999999972060323,
+     "diff": 6.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 1.7000000001862645,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 9.399999999906868,
+     "copy": 0.2999999998137355,
+     "diff": 3.1000000000931323,
+     "idbGet": 0,
+     "idbPut": 1.7000000001862645,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 11.399999999906868,
+     "copy": 0.2999999998137355,
+     "diff": 3.1000000000931323,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 2,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 9.899999999906868,
+     "copy": 0.20000000018626451,
+     "diff": 3.2000000001862645,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 1.8999999999068677,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 9.799999999813735,
+     "copy": 0.10000000009313226,
+     "diff": 3.2999999998137355,
+     "idbGet": 0,
+     "idbPut": 1.900000000372529,
+     "cellsRead": 480000
+    }
+   ]
+  },
+  {
+   "id": "huge-50-since0-phone",
+   "spec": {
+    "id": "huge-50-since0-phone",
+    "w": 600,
+    "h": 800,
+    "fraction": 0.5,
+    "since": 0,
+    "per": 3,
+    "profile": "phone"
+   },
+   "mode": "full",
+   "seeded": {
+    "n": 480000,
+    "since": 0
+   },
+   "summary": {
+    "total": 24.600000000093132,
+    "copy": 1.3999999999068677,
+    "diff": 10.299999999813735,
+    "idbGet": 0.10000000009313226,
+    "idbPut": 5.600000000093132,
+    "cellsRead": 480000
+   },
+   "allOk": true,
+   "sinceUsed": 0,
+   "check": {
+    "diff": 0,
+    "regs": 240020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 90.29999999981374,
+     "copy": 0.2999999998137355,
+     "diff": 16.699999999720603,
+     "idbGet": 0.19999999972060323,
+     "idbPut": 6.400000000372529,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 24.299999999813735,
+     "copy": 1,
+     "diff": 10.5,
+     "idbGet": 0,
+     "idbPut": 4.7000000001862645,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 24.600000000093132,
+     "copy": 1.2000000001862645,
+     "diff": 10.299999999813735,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 5.600000000093132,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 27.5,
+     "copy": 1.3999999999068677,
+     "diff": 11.600000000093132,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 7.499999999534339,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 21.90000000037253,
+     "copy": 1.3000000002793968,
+     "diff": 9.799999999813735,
+     "idbGet": 0,
+     "idbPut": 4.399999999906868,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 24.100000000093132,
+     "copy": 0.8999999999068677,
+     "diff": 9.399999999906868,
+     "idbGet": 0,
+     "idbPut": 6.100000000093132,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 37,
+     "copy": 1.7000000001862645,
+     "diff": 15.200000000186265,
+     "idbGet": 1,
+     "idbPut": 9,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 37.39999999990687,
+     "copy": 2.1999999997206032,
+     "diff": 14.700000000186265,
+     "idbGet": 0.39999999990686774,
+     "idbPut": 9.399999999906868,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 24.600000000093132,
+     "copy": 3.2999999998137355,
+     "diff": 9.600000000093132,
+     "idbGet": 0,
+     "idbPut": 4.5,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 21.600000000093132,
+     "copy": 0.8999999999068677,
+     "diff": 9.299999999813735,
+     "idbGet": 0.8999999999068677,
+     "idbPut": 3.7000000001862645,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 24.700000000186265,
+     "copy": 1.7000000001862645,
+     "diff": 10.899999999906868,
+     "idbGet": 0,
+     "idbPut": 5,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 22.09999999962747,
+     "copy": 1.099999999627471,
+     "diff": 8.899999999906868,
+     "idbGet": 0,
+     "idbPut": 5.400000000372529,
+     "cellsRead": 480000
+    }
+   ]
+  },
+  {
+   "id": "huge-50-since2000-phone",
+   "spec": {
+    "id": "huge-50-since2000-phone",
+    "w": 600,
+    "h": 800,
+    "fraction": 0.5,
+    "since": 2000,
+    "per": 3,
+    "profile": "phone"
+   },
+   "mode": "full",
+   "seeded": {
+    "n": 480000,
+    "since": 2000
+   },
+   "summary": {
+    "total": 32.5,
+    "copy": 1.5,
+    "diff": 10.899999999906868,
+    "idbGet": 0.09999999962747097,
+    "idbPut": 9.099999999627471,
+    "cellsRead": 480000
+   },
+   "allOk": true,
+   "sinceUsed": 0,
+   "check": {
+    "diff": 0,
+    "regs": 241020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 30.90000000037253,
+     "copy": 1.8000000002793968,
+     "diff": 11,
+     "idbGet": 0,
+     "idbPut": 8.199999999720603,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 33.89999999990687,
+     "copy": 0.8000000002793968,
+     "diff": 10.700000000186265,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 11,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 34.5,
+     "copy": 2.5,
+     "diff": 10.799999999813735,
+     "idbGet": 0,
+     "idbPut": 9.100000000093132,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 30.100000000093132,
+     "copy": 0.6000000000931323,
+     "diff": 10.899999999906868,
+     "idbGet": 0.09999999962747097,
+     "idbPut": 7.899999999906868,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 29.600000000093132,
+     "copy": 1.3000000002793968,
+     "diff": 10.899999999906868,
+     "idbGet": 0.8000000002793968,
+     "idbPut": 7.600000000093132,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 30,
+     "copy": 1.7000000001862645,
+     "diff": 10.299999999813735,
+     "idbGet": 0,
+     "idbPut": 8,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 28.399999999906868,
+     "copy": 1.7000000001862645,
+     "diff": 9.600000000093132,
+     "idbGet": 0.599999999627471,
+     "idbPut": 8.700000000186265,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 46.1999999997206,
+     "copy": 2.1999999997206032,
+     "diff": 15.699999999720603,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 15.100000000093132,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 32.5,
+     "copy": 1.3000000002793968,
+     "diff": 11.100000000093132,
+     "idbGet": 0,
+     "idbPut": 9.099999999627471,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 40.09999999962747,
+     "copy": 1,
+     "diff": 10.299999999813735,
+     "idbGet": 0,
+     "idbPut": 8,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 34.10000000009313,
+     "copy": 1.5,
+     "diff": 10.899999999906868,
+     "idbGet": 0,
+     "idbPut": 9.399999999906868,
+     "cellsRead": 480000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 31.399999999906868,
+     "copy": 1.1000000000931323,
+     "diff": 10.5,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 10.299999999813735,
+     "cellsRead": 480000
+    }
+   ]
+  },
+  {
+   "id": "large-50-since2000-phone",
+   "spec": {
+    "id": "large-50-since2000-phone",
+    "w": 400,
+    "h": 500,
+    "fraction": 0.5,
+    "since": 2000,
+    "per": 3,
+    "profile": "phone"
+   },
+   "mode": "full",
+   "seeded": {
+    "n": 200000,
+    "since": 2000
+   },
+   "summary": {
+    "total": 22.40000000037253,
+    "copy": 0.6000000000931323,
+    "diff": 6.899999999906868,
+    "idbGet": 0.5,
+    "idbPut": 6.199999999720603,
+    "cellsRead": 200000
+   },
+   "allOk": true,
+   "sinceUsed": 0,
+   "check": {
+    "diff": 0,
+    "regs": 101020
+   },
+   "writes": [
+    {
+     "ok": true,
+     "since": false,
+     "total": 19.800000000279397,
+     "copy": 0.10000000009313226,
+     "diff": 7.2000000001862645,
+     "idbGet": 0.10000000009313226,
+     "idbPut": 5.399999999906868,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 26.199999999720603,
+     "copy": 0.09999999962747097,
+     "diff": 9.099999999627471,
+     "idbGet": 0.5,
+     "idbPut": 7.7000000001862645,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 21.799999999813735,
+     "copy": 0.10000000009313226,
+     "diff": 7.7999999998137355,
+     "idbGet": 0.39999999990686774,
+     "idbPut": 6.100000000093132,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 27.199999999720603,
+     "copy": 0.39999999990686774,
+     "diff": 10.100000000093132,
+     "idbGet": 1.1000000000931323,
+     "idbPut": 6.899999999906868,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 21.5,
+     "copy": 0.8000000002793968,
+     "diff": 7.600000000093132,
+     "idbGet": 0.8000000002793968,
+     "idbPut": 5.800000000279397,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 22.09999999962747,
+     "copy": 0.599999999627471,
+     "diff": 6.800000000279397,
+     "idbGet": 0,
+     "idbPut": 6.199999999720603,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 23.200000000186265,
+     "copy": 0.900000000372529,
+     "diff": 6.899999999906868,
+     "idbGet": 0,
+     "idbPut": 7.300000000279397,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 22.399999999906868,
+     "copy": 0.6000000000931323,
+     "diff": 6.300000000279397,
+     "idbGet": 0,
+     "idbPut": 6.699999999720603,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 22.700000000186265,
+     "copy": 0.5,
+     "diff": 6.600000000093132,
+     "idbGet": 0.7000000001862645,
+     "idbPut": 6.7000000001862645,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 22.40000000037253,
+     "copy": 1.5,
+     "diff": 6.7000000001862645,
+     "idbGet": 0.6999999997206032,
+     "idbPut": 5.899999999906868,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 23.399999999906868,
+     "copy": 1.1000000000931323,
+     "diff": 7.5,
+     "idbGet": 0.5,
+     "idbPut": 5.5,
+     "cellsRead": 200000
+    },
+    {
+     "ok": true,
+     "since": false,
+     "total": 21.200000000186265,
+     "copy": 0.10000000009313226,
+     "diff": 6.7999999998137355,
+     "idbGet": 0,
+     "idbPut": 5.7000000001862645,
+     "cellsRead": 200000
+    }
+   ]
+  }
+ ]
+}

@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Improved: saving your marks while you stitch on a very large pattern does less work. Each save used to check every stitch in the pattern to find the ones you had changed; the Stitch Tracker now tells it which stitches you marked or unmarked, so it checks only those. On the largest patterns this roughly halves the work each save does at phone speed. Anything it cannot be sure of, such as marks from another tab or a sync, is still checked stitch by stitch.',
       'Fixed: Spotlight no longer misses the next section when pattern analysis takes longer to finish. Non-Royal section navigation waits for current recommendations before recording completion and moving on.',
       'Improved: the Tracker avoids background analysis when its helpers are inactive, reuses pattern-only analysis for counting aids, and combines overlapping requests. Colour rows whose counts have not changed stay in place while marking, and save-status updates no longer redraw the rest of the Tracker.',
       'Improved: pinching or Ctrl-scrolling to zoom the Stitch Tracker settles sooner. When you lift your fingers, the chart used to redraw about three screens of stitches before showing the new zoom; it now draws what is on screen first and the stitches just off screen in the moments after, so they are ready before you pan to them. Moving around the chart afterwards also redraws mixed-stitch charts more cleanly, without faint seams along beads, knots and long stitches.',

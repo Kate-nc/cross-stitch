@@ -59,6 +59,39 @@
     }
   } catch (_) {}
 
+  // ── Tile moves that kept their pixels (a canvas drawn onto itself) ─────
+  // Panning copies the chart tile and its overlays (shiftChartTile); on a
+  // device that is GPU work this readout cannot time, so it counts it, and
+  // the snapshot says how the chart was set up (?tileshift, ?overscan,
+  // ?chartscale), so readings taken with different settings can be compared.
+  var copies = { n: 0, px: 0 };
+  try {
+    var cproto = window.CanvasRenderingContext2D && window.CanvasRenderingContext2D.prototype;
+    if (cproto && !cproto.__perfHudCopies) {
+      var odi = cproto.drawImage;
+      cproto.drawImage = function (src) {
+        if (src === this.canvas && arguments.length >= 9) { copies.n++; copies.px += arguments[3] * arguments[4]; }
+        return odi.apply(this, arguments);
+      };
+      cproto.__perfHudCopies = true;
+    }
+  } catch (_) {}
+  function chart() {
+    var out = { tileShift: !/[?&]tileshift=0(&|$)/.test(location.search), overscan: window.chartTileOverscan || null,
+      tileCopies: copies.n, tileCopiedMpx: Math.round(copies.px / 1e5) / 10, scale: null, canvases: [], backingMpx: 0 };
+    try {
+      var list = document.querySelectorAll('.tracker-chart-layer canvas');
+      for (var i = 0; i < list.length; i++) {
+        var cv = list[i];
+        out.canvases.push(cv.width + 'x' + cv.height);
+        out.backingMpx += cv.width * cv.height;
+        if (i === 0 && cv.__chartTile) out.scale = cv.__chartTile.scale || 1;
+      }
+      out.backingMpx = Math.round(out.backingMpx / 1e4) / 100;
+    } catch (_) {}
+    return out;
+  }
+
   // ── Worker postMessage: the synchronous structured-clone cost ─────────
   try {
     var wp = window.Worker && window.Worker.prototype;
@@ -177,6 +210,7 @@
       at: new Date().toISOString(),
       page: location.pathname,
       device: device(),
+      chart: chart(),
       now: summary(),
       perSecond: history.slice(),
       taps: taps.map(function (x) { return { type: x.type, ms: Math.round(x.ms) }; }),
@@ -185,6 +219,7 @@
   }
   function reset() {
     frames.length = 0; longTasks.length = 0; posts.length = 0; taps.length = 0; history.length = 0;
+    copies.n = 0; copies.px = 0;
     lastFrame = 0;
     lastSec = { elements: c.elements, fills: c.fills };
     render();
@@ -241,6 +276,7 @@
       (s.longTaskBlockingMs10s != null ? row('Long-task TBT 10s', s.longTaskBlockingMs10s + ' ms') : '') +
       row('React elements/s', s.elementsPerSec) +
       row('Canvas fills/s', s.fillsPerSec) +
+      row('Tile copies', copies.n + ' (' + (Math.round(copies.px / 1e5) / 10) + ' Mpx)') +
       row('Worker posts 10s', s.workerPosts10s + ' (' + s.workerPostMs10s + ' ms, worst ' + s.workerPostWorstMs + ')') +
       row('Last tap', s.lastTapMs != null ? s.lastTapMs + ' ms' : '-') +
       row('Worst tap 30s', s.worstTapMs30s != null ? s.worstTapMs30s + ' ms' : '-') +
