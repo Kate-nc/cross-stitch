@@ -154,7 +154,7 @@ async function runCase(browser, port, spec) {
       requestAnimationFrame(step);
     })(performance.now());
   }), [24, 12, 180]);
-  const profile = process.env.PROFILE ? splitProfile((await cdp.send('Profiler.stop')).profile) : undefined;
+  const cpuProfile = process.env.PROFILE ? splitProfile((await cdp.send('Profiler.stop')).profile) : undefined;
   await sleep(500);
   const t1 = await page.evaluate(() => performance.now());
   const stream = await new Promise((resolve) => { cdp.once('Tracing.tracingComplete', (e) => resolve(e.stream)); cdp.send('Tracing.end'); });
@@ -181,7 +181,7 @@ async function runCase(browser, port, spec) {
     loaf, threads,
     counts: { paints: counts.paints, chartCopies: counts.chartCopies, overlayCopies: counts.overlayCopies, copiedMpx: extra.copiedMpx },
     canvasMpx: +(extra.canvases.reduce((a, c) => a + c.w * c.h, 0) / 1e6).toFixed(2),
-    canvases: extra.canvases, chartScale: extra.scale, profile,
+    canvases: extra.canvases, chartScale: extra.scale, cpuProfile,
   };
 }
 
@@ -248,7 +248,7 @@ function threadBusy(trace) {
       const r = await runCase(browser, port, c);
       r.run = k + 1;
       results.push(r);
-      console.log(`${(c.id + ' #' + r.run).padEnd(32)} frames p50/p95/max ${r.frames.median}/${r.frames.p95}/${r.frames.max} >50:${r.frames.over50}  loaf ${r.loaf.ms} (script ${r.loaf.script}, render ${r.loaf.render})  threads ${JSON.stringify(r.threads)}  paints ${r.counts.paints} copies ${r.counts.chartCopies}/${r.counts.overlayCopies} ${r.counts.copiedMpx} Mpx  canvas ${r.canvasMpx} Mpx x${r.chartScale}${r.profile ? '  profile ' + JSON.stringify(r.profile) : ''}`);
+      console.log(`${(c.id + ' #' + r.run).padEnd(32)} frames p50/p95/max ${r.frames.median}/${r.frames.p95}/${r.frames.max} >50:${r.frames.over50}  loaf ${r.loaf.ms} (script ${r.loaf.script}, render ${r.loaf.render})  threads ${JSON.stringify(r.threads)}  paints ${r.counts.paints} copies ${r.counts.chartCopies}/${r.counts.overlayCopies} ${r.counts.copiedMpx} Mpx  canvas ${r.canvasMpx} Mpx x${r.chartScale}${r.cpuProfile ? '  cpu ' + JSON.stringify(r.cpuProfile) : ''}`);
     }
   } finally {
     await browser.close();

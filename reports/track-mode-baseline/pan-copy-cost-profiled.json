@@ -6,24 +6,7 @@
  "results": [
   {
    "id": "phone4x-normal",
-   "profile": {
-    "canvasMs": 183,
-    "appJsMs": 282,
-    "gcMs": 0,
-    "idleMs": 30,
-    "otherMs": 7590,
-    "topCanvas": {
-     "setTransform": 64,
-     "putImageData": 16,
-     "fillText": 84,
-     "drawImage": 8,
-     "save": 3,
-     "stroke": 3,
-     "clearRect": 3,
-     "strokeRect": 1,
-     "fillRect": 3
-    }
-   },
+   "profile": "phone4x",
    "variant": "normal",
    "frames": {
     "n": 180,
@@ -74,29 +57,29 @@
     }
    ],
    "chartScale": 2,
-   "run": 1
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 183,
+    "appJsMs": 282,
+    "gcMs": 0,
+    "idleMs": 30,
+    "otherMs": 7590,
+    "topCanvas": {
+     "setTransform": 64,
+     "putImageData": 16,
+     "fillText": 84,
+     "drawImage": 8,
+     "save": 3,
+     "stroke": 3,
+     "clearRect": 3,
+     "strokeRect": 1,
+     "fillRect": 3
+    }
+   }
   },
   {
    "id": "phone4x-tileshift0",
-   "profile": {
-    "canvasMs": 291,
-    "appJsMs": 349,
-    "gcMs": 1,
-    "idleMs": 56,
-    "otherMs": 7073,
-    "topCanvas": {
-     "clearRect": 7,
-     "setTransform": 67,
-     "getImageData": 1,
-     "fillText": 205,
-     "stroke": 1,
-     "strokeRect": 1,
-     "drawImage": 4,
-     "moveTo": 2,
-     "putImageData": 3,
-     "fillRect": 1
-    }
-   },
+   "profile": "phone4x",
    "variant": "tileshift0",
    "frames": {
     "n": 180,
@@ -147,30 +130,30 @@
     }
    ],
    "chartScale": 2,
-   "run": 1
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 291,
+    "appJsMs": 349,
+    "gcMs": 1,
+    "idleMs": 56,
+    "otherMs": 7073,
+    "topCanvas": {
+     "clearRect": 7,
+     "setTransform": 67,
+     "getImageData": 1,
+     "fillText": 205,
+     "stroke": 1,
+     "strokeRect": 1,
+     "drawImage": 4,
+     "moveTo": 2,
+     "putImageData": 3,
+     "fillRect": 1
+    }
+   }
   },
   {
    "id": "phone4x-scale1",
-   "profile": {
-    "canvasMs": 171,
-    "appJsMs": 364,
-    "gcMs": 0,
-    "idleMs": 1219,
-    "otherMs": 3971,
-    "topCanvas": {
-     "clearRect": 3,
-     "setTransform": 32,
-     "fillText": 107,
-     "putImageData": 6,
-     "stroke": 2,
-     "drawImage": 10,
-     "fillRect": 4,
-     "strokeRect": 2,
-     "restore": 3,
-     "rect": 1,
-     "save": 1
-    }
-   },
+   "profile": "phone4x",
    "variant": "scale1",
    "frames": {
     "n": 180,
@@ -221,25 +204,31 @@
     }
    ],
    "chartScale": 1,
-   "run": 1
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 171,
+    "appJsMs": 364,
+    "gcMs": 0,
+    "idleMs": 1219,
+    "otherMs": 3971,
+    "topCanvas": {
+     "clearRect": 3,
+     "setTransform": 32,
+     "fillText": 107,
+     "putImageData": 6,
+     "stroke": 2,
+     "drawImage": 10,
+     "fillRect": 4,
+     "strokeRect": 2,
+     "restore": 3,
+     "rect": 1,
+     "save": 1
+    }
+   }
   },
   {
    "id": "phone1x-normal",
-   "profile": {
-    "canvasMs": 34,
-    "appJsMs": 45,
-    "gcMs": 0,
-    "idleMs": 2150,
-    "otherMs": 1144,
-    "topCanvas": {
-     "setTransform": 11,
-     "fillText": 21,
-     "save": 1,
-     "putImageData": 1,
-     "drawImage": 1,
-     "clearRect": 1
-    }
-   },
+   "profile": "phone1x",
    "variant": "normal",
    "frames": {
     "n": 180,
@@ -290,25 +279,26 @@
     }
    ],
    "chartScale": 2,
-   "run": 1
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 34,
+    "appJsMs": 45,
+    "gcMs": 0,
+    "idleMs": 2150,
+    "otherMs": 1144,
+    "topCanvas": {
+     "setTransform": 11,
+     "fillText": 21,
+     "save": 1,
+     "putImageData": 1,
+     "drawImage": 1,
+     "clearRect": 1
+    }
+   }
   },
   {
    "id": "phone1x-tileshift0",
-   "profile": {
-    "canvasMs": 51,
-    "appJsMs": 61,
-    "gcMs": 0,
-    "idleMs": 2238,
-    "otherMs": 1006,
-    "topCanvas": {
-     "setTransform": 10,
-     "fillText": 38,
-     "fillRect": 1,
-     "drawImage": 1,
-     "clearRect": 1,
-     "restore": 1
-    }
-   },
+   "profile": "phone1x",
    "variant": "tileshift0",
    "frames": {
     "n": 180,
@@ -359,27 +349,26 @@
     }
    ],
    "chartScale": 2,
-   "run": 1
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 51,
+    "appJsMs": 61,
+    "gcMs": 0,
+    "idleMs": 2238,
+    "otherMs": 1006,
+    "topCanvas": {
+     "setTransform": 10,
+     "fillText": 38,
+     "fillRect": 1,
+     "drawImage": 1,
+     "clearRect": 1,
+     "restore": 1
+    }
+   }
   },
   {
    "id": "desktop-overlays",
-   "profile": {
-    "canvasMs": 38,
-    "appJsMs": 69,
-    "gcMs": 34,
-    "idleMs": 1816,
-    "otherMs": 1686,
-    "topCanvas": {
-     "save": 18,
-     "fillText": 10,
-     "drawImage": 3,
-     "strokeRect": 2,
-     "putImageData": 1,
-     "moveTo": 1,
-     "restore": 1,
-     "fillRect": 1
-    }
-   },
+   "profile": "desktop",
    "variant": "overlays",
    "frames": {
     "n": 180,
@@ -440,29 +429,28 @@
     }
    ],
    "chartScale": 1,
-   "run": 1
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 38,
+    "appJsMs": 69,
+    "gcMs": 34,
+    "idleMs": 1816,
+    "otherMs": 1686,
+    "topCanvas": {
+     "save": 18,
+     "fillText": 10,
+     "drawImage": 3,
+     "strokeRect": 2,
+     "putImageData": 1,
+     "moveTo": 1,
+     "restore": 1,
+     "fillRect": 1
+    }
+   }
   },
   {
    "id": "desktop-overlays-tileshift0",
-   "profile": {
-    "canvasMs": 136,
-    "appJsMs": 134,
-    "gcMs": 40,
-    "idleMs": 1767,
-    "otherMs": 1475,
-    "topCanvas": {
-     "fillText": 32,
-     "save": 97,
-     "putImageData": 1,
-     "fillRect": 1,
-     "strokeRect": 1,
-     "restore": 2,
-     "stroke": 1,
-     "setTransform": 1,
-     "moveTo": 1,
-     "clearRect": 1
-    }
-   },
+   "profile": "desktop",
    "variant": "overlays-tileshift0",
    "frames": {
     "n": 180,
@@ -523,7 +511,26 @@
     }
    ],
    "chartScale": 1,
-   "run": 1
+   "run": 1,
+   "cpuProfile": {
+    "canvasMs": 136,
+    "appJsMs": 134,
+    "gcMs": 40,
+    "idleMs": 1767,
+    "otherMs": 1475,
+    "topCanvas": {
+     "fillText": 32,
+     "save": 97,
+     "putImageData": 1,
+     "fillRect": 1,
+     "strokeRect": 1,
+     "restore": 2,
+     "stroke": 1,
+     "setTransform": 1,
+     "moveTo": 1,
+     "clearRect": 1
+    }
+   }
   }
  ]
 }
