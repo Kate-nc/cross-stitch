@@ -33,6 +33,69 @@ function listJoin(items) {
   return items[0] + ", " + items[1] + " and " + (items.length - 2) + " more";
 }
 
+// ── Shopping checklist (hub plan, Phase 5) ─────────────────────────────
+// Bought ticks are kept on this device so they survive leaving the page or
+// losing signal in the shop. Device-local on purpose: backups use an
+// explicit key list (backup-restore.js LS_KEYS) that leaves this out.
+const BOUGHT_TICKS_KEY = "cs_stash_bought_v1";
+function readBoughtTicks(storage) {
+  try {
+    const raw = storage && storage.getItem(BOUGHT_TICKS_KEY);
+    if (!raw) return {};
+    const o = JSON.parse(raw);
+    const out = {};
+    if (o && typeof o === "object" && !Array.isArray(o)) {
+      for (const k of Object.keys(o)) {
+        const n = Math.round(Number(o[k]));
+        if (Number.isFinite(n) && n >= 1 && n <= 999) out[k] = n;
+      }
+    }
+    return out;
+  } catch (_) { return {}; }
+}
+function writeBoughtTicks(storage, ticks) {
+  try {
+    if (!storage) return;
+    if (!ticks || !Object.keys(ticks).length) storage.removeItem(BOUGHT_TICKS_KEY);
+    else storage.setItem(BOUGHT_TICKS_KEY, JSON.stringify(ticks));
+  } catch (_) {}
+}
+// Drop ticks for threads no longer on the list (bought on another device,
+// a pattern finished). Returns the same object when nothing changed.
+function pruneBoughtTicks(ticks, rows) {
+  const keep = new Set(rows.map(r => r.key));
+  const out = {};
+  let changed = false;
+  for (const k of Object.keys(ticks)) { if (keep.has(k)) out[k] = ticks[k]; else changed = true; }
+  return changed ? out : ticks;
+}
+// Phone checklist: one group per pattern, in the order patterns are short,
+// then any other pattern names, then "Added by you". A thread two patterns
+// need is listed once, under the first.
+function groupShoppingRows(rows, projectOrder, projectsByKey) {
+  const groups = new Map();
+  const add = (title, r) => { if (!groups.has(title)) groups.set(title, []); groups.get(title).push(r); };
+  rows.forEach(r => { const titles = projectsByKey[r.key]; add(titles && titles.length ? titles[0] : "Added by you", r); });
+  const order = projectOrder.filter(t => groups.has(t));
+  groups.forEach((_, t) => { if (order.indexOf(t) < 0 && t !== "Added by you") order.push(t); });
+  if (groups.has("Added by you")) order.push("Added by you");
+  return order.map(title => ({ title, rows: groups.get(title) }));
+}
+// True while the window is at most `px` wide.
+function useNarrow(px) {
+  const query = "(max-width: " + px + "px)";
+  const [narrow, setNarrow] = useState(() => { try { return window.matchMedia(query).matches; } catch (_) { return false; } });
+  useEffect(() => {
+    let mql;
+    try { mql = window.matchMedia(query); } catch (_) { return undefined; }
+    const on = () => setNarrow(mql.matches);
+    if (mql.addEventListener) mql.addEventListener("change", on); else if (mql.addListener) mql.addListener(on);
+    on();
+    return () => { if (mql.removeEventListener) mql.removeEventListener("change", on); else if (mql.removeListener) mql.removeListener(on); };
+  }, [query]);
+  return narrow;
+}
+
 function usableSkeins(t) {
   if (!t) return 0;
   return (Number(t.owned) || 0) + (OPENED_SKEIN[t.partialStatus] || 0);
@@ -296,7 +359,9 @@ function ManagerApp() {
   const [catalogueRecords, setCatalogueRecords] = useState([]);
   // Shopping list rows ticked as bought: { [key]: skeins to add }. Nothing
   // is written until "Add ... to stash".
-  const [boughtTicks, setBoughtTicks] = useState({});
+  const [boughtTicks, setBoughtTicks] = useState(() => readBoughtTicks(window.localStorage));
+  useEffect(() => { writeBoughtTicks(window.localStorage, boughtTicks); }, [boughtTicks]);
+  const narrow = useNarrow(760);
   const [stockTakeOpen, setStockTakeOpen] = useState(false);
   useEffect(() => { ThreadCatalogues.read().then(setCatalogueRecords).catch(e => console.warn('Custom catalogues could not be read:', e)); }, []);
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
@@ -896,6 +961,8 @@ function ManagerApp() {
     setLowStockAlerts(alerts);
   }, [threads, patterns]);
 
+  // Forget ticks for threads that have left the shopping list.
+  useEffect(() => { if (toBuy) setBoughtTicks(prev => pruneBoughtTicks(prev, toBuy.shopping)); }, [toBuy]);
   // Latest-wins: a slow read must not overwrite a newer one.
   const toBuyReadRef = useRef(0);
   function refreshToBuy() {
@@ -1442,9 +1509,12 @@ function ManagerApp() {
   }
   // One Shopping list row, shared by the Shopping list tab and the
   // Overview's Buy next list (the Bought ticks are shared too).
-  function renderShopRow(r) {
+  // exceptTitle: in a pattern's group on the phone checklist, leave out
+  // that pattern's own name (it is the group heading).
+  function renderShopRow(r, exceptTitle) {
     const label = formatThread(r, { variant: 'short' });
-    const forTitles = projectsByKey[r.key] || NO_TITLES;
+    const allTitles = projectsByKey[r.key] || NO_TITLES;
+    const forTitles = typeof exceptTitle === "string" ? allTitles.filter(t => t !== exceptTitle) : allTitles;
     const byHand = !!(threads[r.key] && threads[r.key].tobuy);
     const ticked = boughtTicks[r.key] != null;
     return (
@@ -1461,7 +1531,7 @@ function ManagerApp() {
         </button>
         <span className="stash-uses">
           {forTitles.map(t => <span key={t} className="stash-chip">{t}</span>)}
-          {byHand && forTitles.length === 0 && <span className="stash-chip stash-chip--quiet">Added by you</span>}
+          {byHand && allTitles.length === 0 && exceptTitle !== "Added by you" && <span className="stash-chip stash-chip--quiet">Added by you</span>}
         </span>
         {ticked
           ? <span className="stash-shop-qty"><SkeinStepper value={boughtTicks[r.key]} label={"Skeins bought of " + label} onChange={v => setBoughtQty(r.key, v)} /></span>
@@ -1667,7 +1737,7 @@ function ManagerApp() {
                 : shoppingCount === 0
                   ? <p className="stash-muted">Nothing to buy. Anything your patterns need that your stash doesn't cover appears here.</p>
                   : <>
-                      <ul className="stash-shop-list">{toBuy.shopping.slice(0, OVERVIEW_BUY_ROWS).map(renderShopRow)}</ul>
+                      <ul className="stash-shop-list">{toBuy.shopping.slice(0, OVERVIEW_BUY_ROWS).map(r => renderShopRow(r))}</ul>
                       {shoppingCount > OVERVIEW_BUY_ROWS && (
                         <button type="button" className="stash-btn stash-btn--quiet stash-see-all" onClick={() => { setTab("shopping"); setSearchQuery(""); }}>
                           {"See all " + shoppingCount + " threads"}{Icons.chevronRight()}
@@ -1913,19 +1983,30 @@ function ManagerApp() {
             <div className="stash-card-head">
               <h2 id="stash-shop-heading">{Icons.cart()}<span>To buy</span></h2>
               {shoppingCount > 0 && <span className="stash-muted">{plural(shoppingCount, 'thread') + ", " + plural(shoppingSkeins, 'skein')}</span>}
-              <div className="stash-card-action stash-form-row">
-                <button type="button" className="stash-btn" disabled={!shoppingCount} onClick={copyShoppingList}>{Icons.copy()}<span>Copy list</span></button>
-                {shoppingCount > 0 && addTickedButton}
-              </div>
+              {!narrow && (
+                <div className="stash-card-action stash-form-row">
+                  <button type="button" className="stash-btn" disabled={!shoppingCount} onClick={copyShoppingList}>{Icons.copy()}<span>Copy list</span></button>
+                  {shoppingCount > 0 && addTickedButton}
+                </div>
+              )}
             </div>
-            {shoppingCount > 0 && <p className="stash-muted stash-shop-hint">Tick the threads you've bought, check the number of skeins, then add them to your stash.</p>}
+            {shoppingCount > 0 && <p className="stash-muted stash-shop-hint">{narrow
+              ? "Tick threads as you buy them. Your ticks stay on this phone until you add them, even if you leave the page or lose signal."
+              : "Tick the threads you've bought, check the number of skeins, then add them to your stash."}</p>}
             {toBuy === null
               ? <p className="stash-muted">Checking your patterns against your stash…</p>
               : shoppingCount === 0
                 ? <p className="stash-empty">Nothing to buy. Patterns in your library are checked against your stash, and anything they need appears here.</p>
                 : (
                   <ul className="stash-shop-list">
-                    {toBuy.shopping.map(renderShopRow)}
+                    {narrow
+                      ? groupShoppingRows(toBuy.shopping, projectTitles, projectsByKey).map(g => (
+                          <li key={"g-" + g.title} className="stash-shop-group">
+                            <h3 className="stash-shop-group-title">{g.title}</h3>
+                            <ul className="stash-shop-list">{g.rows.map(r => renderShopRow(r, g.title))}</ul>
+                          </li>
+                        ))
+                      : toBuy.shopping.map(r => renderShopRow(r))}
                   </ul>
                 )}
           </section>
@@ -1997,6 +2078,17 @@ function ManagerApp() {
           )}
 
           <ProjectMaterials catalogues={catalogueRecords} />
+
+          {/* Phone checklist footer: stays at the bottom of the screen while
+              the list scrolls (position: sticky, last child of the page). */}
+          {narrow && shoppingCount > 0 && (
+            <div className="stash-shop-footer">
+              <button type="button" className="stash-btn" onClick={copyShoppingList}>{Icons.copy()}<span>Copy</span></button>
+              <button type="button" className="stash-btn stash-btn--primary" disabled={!tickedRows.length} onClick={addTickedToStash}>
+                {tickedRows.length ? "Done: add " + plural(tickedSkeins, 'skein') : "Tick what you've bought"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

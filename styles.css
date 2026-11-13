@@ -4316,6 +4316,16 @@ span.stash-ident{cursor:default;}
 .stash-tick input{width:20px;height:20px;margin:0;accent-color:var(--success);cursor:pointer;}
 .stash-tick:focus-within{outline:2px solid var(--accent);outline-offset:-2px;}
 .stash-shop-hint{margin:-4px 0 0;}
+/* Phone shopping checklist (hub plan, Phase 5): grouped by pattern, with
+   Copy and Done pinned to the bottom of the screen. */
+.stash-shop-group+.stash-shop-group{margin-top:12px;}
+.stash-shop-group-title{margin:0;padding:6px 0;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-tertiary);border-bottom:1px solid var(--border-subtle);}
+.stash-shop-footer{position:sticky;bottom:0;z-index:5;display:flex;gap:8px;width:auto;max-width:none;margin:0 -12px -88px;padding:10px 12px calc(10px + env(safe-area-inset-bottom, 0px));background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -4px 12px rgba(0,0,0,.06);}
+.stash-shop-footer .stash-btn{flex:1 1 0;justify-content:center;min-height:48px;font-size:14px;}
+.stash-shop-footer .stash-btn--primary{flex:2 1 0;}
+/* On phones the document scrolls, not the page; let the footer stick to
+   the screen rather than to a box that never scrolls. */
+@media (max-width: 760px){.stash-page.stash-shop{overflow:visible;}}
 .stash-shop-row:last-child{border-bottom:0;}
 .stash-shop-qty{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .stash-page .stash-alert{margin-bottom:0;}

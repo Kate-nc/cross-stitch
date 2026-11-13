@@ -59,9 +59,9 @@ describe('tiles', () => {
 
 describe('lists', () => {
   test('Buy next shares the Shopping list rows and Bought ticks', () => {
-    expect(overview).toMatch(/toBuy\.shopping\.slice\(0, OVERVIEW_BUY_ROWS\)\.map\(renderShopRow\)/);
+    expect(overview).toMatch(/toBuy\.shopping\.slice\(0, OVERVIEW_BUY_ROWS\)\.map\(r => renderShopRow\(r\)\)/);
     expect(overview).toMatch(/\{addTickedButton\}/);
-    expect(manager).toMatch(/\{toBuy\.shopping\.map\(renderShopRow\)\}/);
+    expect(manager).toMatch(/: toBuy\.shopping\.map\(r => renderShopRow\(r\)\)\}/);
   });
 
   test('each list is capped and links to its full view', () => {

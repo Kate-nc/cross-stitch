@@ -257,6 +257,22 @@ For sitting down with a floss box and counting everything in one go.
 
 ## Phase 5: Shopping checklist on phones
 
+**Status: built.** Details of what shipped:
+
+- **Where ticks are kept.** Ticks are kept in `localStorage` under
+  `cs_stash_bought_v1` at every width, not only on phones. That key is not
+  in the backup key list, so ticks stay on the device. Unreadable values are
+  ignored, and ticks for threads that leave the list are dropped.
+- **Grouping.** `groupShoppingRows` puts a thread two patterns need under
+  the first, and gives a pattern named only by a conflict its own group,
+  before "Added by you". Inside a group, a row leaves out that pattern's
+  own name.
+- **Pinned footer.** On phones the document scrolls rather than the page
+  box, so the Shopping page is not a scroll container there and the footer
+  sticks to the screen.
+- **Tests.** `tests/stashChecklist.test.js` and
+  `tests/e2e/stash-checklist.spec.js`.
+
 - On a phone, the Shopping list rows from Phase 1 get 44 px checkboxes and
   group by pattern, with "Added by you" last.
 - A sticky footer holds **Copy** and **Done: add n skeins**.

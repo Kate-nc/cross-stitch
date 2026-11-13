@@ -69,6 +69,95 @@ function listJoin(items) {
   if (items.length === 3) return items[0] + ", " + items[1] + " and " + items[2];
   return items[0] + ", " + items[1] + " and " + (items.length - 2) + " more";
 }
+
+// ── Shopping checklist (hub plan, Phase 5) ─────────────────────────────
+// Bought ticks are kept on this device so they survive leaving the page or
+// losing signal in the shop. Device-local on purpose: backups use an
+// explicit key list (backup-restore.js LS_KEYS) that leaves this out.
+const BOUGHT_TICKS_KEY = "cs_stash_bought_v1";
+function readBoughtTicks(storage) {
+  try {
+    const raw = storage && storage.getItem(BOUGHT_TICKS_KEY);
+    if (!raw) return {};
+    const o = JSON.parse(raw);
+    const out = {};
+    if (o && typeof o === "object" && !Array.isArray(o)) {
+      for (const k of Object.keys(o)) {
+        const n = Math.round(Number(o[k]));
+        if (Number.isFinite(n) && n >= 1 && n <= 999) out[k] = n;
+      }
+    }
+    return out;
+  } catch (_) {
+    return {};
+  }
+}
+function writeBoughtTicks(storage, ticks) {
+  try {
+    if (!storage) return;
+    if (!ticks || !Object.keys(ticks).length) storage.removeItem(BOUGHT_TICKS_KEY);else storage.setItem(BOUGHT_TICKS_KEY, JSON.stringify(ticks));
+  } catch (_) {}
+}
+// Drop ticks for threads no longer on the list (bought on another device,
+// a pattern finished). Returns the same object when nothing changed.
+function pruneBoughtTicks(ticks, rows) {
+  const keep = new Set(rows.map(r => r.key));
+  const out = {};
+  let changed = false;
+  for (const k of Object.keys(ticks)) {
+    if (keep.has(k)) out[k] = ticks[k];else changed = true;
+  }
+  return changed ? out : ticks;
+}
+// Phone checklist: one group per pattern, in the order patterns are short,
+// then any other pattern names, then "Added by you". A thread two patterns
+// need is listed once, under the first.
+function groupShoppingRows(rows, projectOrder, projectsByKey) {
+  const groups = new Map();
+  const add = (title, r) => {
+    if (!groups.has(title)) groups.set(title, []);
+    groups.get(title).push(r);
+  };
+  rows.forEach(r => {
+    const titles = projectsByKey[r.key];
+    add(titles && titles.length ? titles[0] : "Added by you", r);
+  });
+  const order = projectOrder.filter(t => groups.has(t));
+  groups.forEach((_, t) => {
+    if (order.indexOf(t) < 0 && t !== "Added by you") order.push(t);
+  });
+  if (groups.has("Added by you")) order.push("Added by you");
+  return order.map(title => ({
+    title,
+    rows: groups.get(title)
+  }));
+}
+// True while the window is at most `px` wide.
+function useNarrow(px) {
+  const query = "(max-width: " + px + "px)";
+  const [narrow, setNarrow] = useState(() => {
+    try {
+      return window.matchMedia(query).matches;
+    } catch (_) {
+      return false;
+    }
+  });
+  useEffect(() => {
+    let mql;
+    try {
+      mql = window.matchMedia(query);
+    } catch (_) {
+      return undefined;
+    }
+    const on = () => setNarrow(mql.matches);
+    if (mql.addEventListener) mql.addEventListener("change", on);else if (mql.addListener) mql.addListener(on);
+    on();
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", on);else if (mql.removeListener) mql.removeListener(on);
+    };
+  }, [query]);
+  return narrow;
+}
 function usableSkeins(t) {
   if (!t) return 0;
   return (Number(t.owned) || 0) + (OPENED_SKEIN[t.partialStatus] || 0);
@@ -503,7 +592,11 @@ function ManagerApp() {
   const [catalogueRecords, setCatalogueRecords] = useState([]);
   // Shopping list rows ticked as bought: { [key]: skeins to add }. Nothing
   // is written until "Add ... to stash".
-  const [boughtTicks, setBoughtTicks] = useState({});
+  const [boughtTicks, setBoughtTicks] = useState(() => readBoughtTicks(window.localStorage));
+  useEffect(() => {
+    writeBoughtTicks(window.localStorage, boughtTicks);
+  }, [boughtTicks]);
+  const narrow = useNarrow(760);
   const [stockTakeOpen, setStockTakeOpen] = useState(false);
   useEffect(() => {
     ThreadCatalogues.read().then(setCatalogueRecords).catch(e => console.warn('Custom catalogues could not be read:', e));
@@ -1249,6 +1342,10 @@ function ManagerApp() {
     setLowStockAlerts(alerts);
   }, [threads, patterns]);
 
+  // Forget ticks for threads that have left the shopping list.
+  useEffect(() => {
+    if (toBuy) setBoughtTicks(prev => pruneBoughtTicks(prev, toBuy.shopping));
+  }, [toBuy]);
   // Latest-wins: a slow read must not overwrite a newer one.
   const toBuyReadRef = useRef(0);
   function refreshToBuy() {
@@ -1929,11 +2026,14 @@ function ManagerApp() {
   }
   // One Shopping list row, shared by the Shopping list tab and the
   // Overview's Buy next list (the Bought ticks are shared too).
-  function renderShopRow(r) {
+  // exceptTitle: in a pattern's group on the phone checklist, leave out
+  // that pattern's own name (it is the group heading).
+  function renderShopRow(r, exceptTitle) {
     const label = formatThread(r, {
       variant: 'short'
     });
-    const forTitles = projectsByKey[r.key] || NO_TITLES;
+    const allTitles = projectsByKey[r.key] || NO_TITLES;
+    const forTitles = typeof exceptTitle === "string" ? allTitles.filter(t => t !== exceptTitle) : allTitles;
     const byHand = !!(threads[r.key] && threads[r.key].tobuy);
     const ticked = boughtTicks[r.key] != null;
     return /*#__PURE__*/React.createElement("li", {
@@ -1969,7 +2069,7 @@ function ManagerApp() {
     }, forTitles.map(t => /*#__PURE__*/React.createElement("span", {
       key: t,
       className: "stash-chip"
-    }, t)), byHand && forTitles.length === 0 && /*#__PURE__*/React.createElement("span", {
+    }, t)), byHand && allTitles.length === 0 && exceptTitle !== "Added by you" && /*#__PURE__*/React.createElement("span", {
       className: "stash-chip stash-chip--quiet"
     }, "Added by you")), ticked ? /*#__PURE__*/React.createElement("span", {
       className: "stash-shop-qty"
@@ -2341,7 +2441,7 @@ function ManagerApp() {
     className: "stash-muted"
   }, "Nothing to buy. Anything your patterns need that your stash doesn't cover appears here.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("ul", {
     className: "stash-shop-list"
-  }, toBuy.shopping.slice(0, OVERVIEW_BUY_ROWS).map(renderShopRow)), shoppingCount > OVERVIEW_BUY_ROWS && /*#__PURE__*/React.createElement("button", {
+  }, toBuy.shopping.slice(0, OVERVIEW_BUY_ROWS).map(r => renderShopRow(r))), shoppingCount > OVERVIEW_BUY_ROWS && /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "stash-btn stash-btn--quiet stash-see-all",
     onClick: () => {
@@ -2670,7 +2770,7 @@ function ManagerApp() {
     id: "stash-shop-heading"
   }, Icons.cart(), /*#__PURE__*/React.createElement("span", null, "To buy")), shoppingCount > 0 && /*#__PURE__*/React.createElement("span", {
     className: "stash-muted"
-  }, plural(shoppingCount, 'thread') + ", " + plural(shoppingSkeins, 'skein')), /*#__PURE__*/React.createElement("div", {
+  }, plural(shoppingCount, 'thread') + ", " + plural(shoppingSkeins, 'skein')), !narrow && /*#__PURE__*/React.createElement("div", {
     className: "stash-card-action stash-form-row"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -2679,13 +2779,20 @@ function ManagerApp() {
     onClick: copyShoppingList
   }, Icons.copy(), /*#__PURE__*/React.createElement("span", null, "Copy list")), shoppingCount > 0 && addTickedButton)), shoppingCount > 0 && /*#__PURE__*/React.createElement("p", {
     className: "stash-muted stash-shop-hint"
-  }, "Tick the threads you've bought, check the number of skeins, then add them to your stash."), toBuy === null ? /*#__PURE__*/React.createElement("p", {
+  }, narrow ? "Tick threads as you buy them. Your ticks stay on this phone until you add them, even if you leave the page or lose signal." : "Tick the threads you've bought, check the number of skeins, then add them to your stash."), toBuy === null ? /*#__PURE__*/React.createElement("p", {
     className: "stash-muted"
   }, "Checking your patterns against your stash\u2026") : shoppingCount === 0 ? /*#__PURE__*/React.createElement("p", {
     className: "stash-empty"
   }, "Nothing to buy. Patterns in your library are checked against your stash, and anything they need appears here.") : /*#__PURE__*/React.createElement("ul", {
     className: "stash-shop-list"
-  }, toBuy.shopping.map(renderShopRow))), conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
+  }, narrow ? groupShoppingRows(toBuy.shopping, projectTitles, projectsByKey).map(g => /*#__PURE__*/React.createElement("li", {
+    key: "g-" + g.title,
+    className: "stash-shop-group"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "stash-shop-group-title"
+  }, g.title), /*#__PURE__*/React.createElement("ul", {
+    className: "stash-shop-list"
+  }, g.rows.map(r => renderShopRow(r, g.title))))) : toBuy.shopping.map(r => renderShopRow(r)))), conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
     id: "stash-conflicts",
     title: "Thread Conflicts",
     count: conflicts.length,
@@ -2798,7 +2905,18 @@ function ManagerApp() {
     className: "stash-alert-qty"
   }, "have " + formatSkeins(a.owned) + ", minimum " + formatSkeins(a.min_stock))))))), /*#__PURE__*/React.createElement(ProjectMaterials, {
     catalogues: catalogueRecords
-  })), tab === "patterns" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }), narrow && shoppingCount > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "stash-shop-footer"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn",
+    onClick: copyShoppingList
+  }, Icons.copy(), /*#__PURE__*/React.createElement("span", null, "Copy")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--primary",
+    disabled: !tickedRows.length,
+    onClick: addTickedToStash
+  }, tickedRows.length ? "Done: add " + plural(tickedSkeins, 'skein') : "Tick what you've bought"))), tab === "patterns" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "mgr-filter-bar"
   }, /*#__PURE__*/React.createElement("input", {
     type: "search",
