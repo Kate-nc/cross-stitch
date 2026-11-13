@@ -1,6 +1,6 @@
 # Custom thread catalogues
 
-In Stash Manager, open **Custom thread catalogues**. Select a CSV file or paste CSV, preview the validation results, then import. Any error or duplicate rejects the whole import, including duplicates already stored by another tab. Imports append reference records; they cannot overwrite DMC, Anchor or existing custom records. Export custom CSV to keep a portable copy (full application backups do not currently include this new reference store).
+In the Stash Manager, open **Custom catalogues** (in the menu on a wide screen, or Thread Stash > Add threads > Custom thread catalogues). Select a CSV file or paste CSV, preview the validation results, then import. Any error or duplicate rejects the whole import, including duplicates already stored by another tab. Imports append reference records; they cannot overwrite DMC, Anchor or existing custom records. Export custom CSV to keep a portable copy (full application backups do not currently include this new reference store).
 
 Required header, in this order:
 

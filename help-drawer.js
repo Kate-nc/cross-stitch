@@ -378,11 +378,11 @@
         },
         {
           heading: "Pattern Library",
-          body: "The Pattern Library tab lists every project you save in the Creator or Tracker automatically, plus any pattern you add by hand here.",
+          body: "The Pattern Library lists every project you save in the Creator or Tracker automatically, plus any pattern you add by hand here.",
           bullets: [
             ["Coverage", "Each pattern shows how many of its threads you already own."],
             ["Stash Manager only", "Patterns added here without a linked project are flagged so you don't expect Tracker progress."],
-            ["Showcase", "The Showcase link opens the Stats page's Showcase tab, a summary of your stitching so far."]
+            ["Showcase", "Showcase, at the end of the Stash Manager's tabs (or the bottom of the menu on a wide screen), opens the Stats page's Showcase tab, a summary of your stitching so far."]
           ]
         }
       ]
@@ -776,7 +776,7 @@
     {
       id: "stash",
       heading: "Manage your stash",
-      body: "The Stash Manager keeps a tally of every DMC and Anchor skein you own, alongside a pattern library that fills itself from your saved projects.",
+      body: "The Stash Manager opens on an Overview of your threads: what you own, what to buy next, which patterns you could start and what is running low. Thread Stash lists your threads to change in place, the Shopping list ticks off what you buy, Stock-take counts a whole box in one go, and the Pattern Library fills itself from your saved projects.",
       action: { label: "Replay the Stash walkthrough", kind: "wizard", page: "manager" }
     },
     {

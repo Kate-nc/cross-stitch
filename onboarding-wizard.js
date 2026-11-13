@@ -132,7 +132,7 @@
     manager: [
       {
         title: "Welcome to the Stash Manager",
-        body: "Track which DMC and Anchor threads you own, and manage a library of patterns. We'll give you a 60-second tour."
+        body: "Track which DMC and Anchor threads you own, what to buy for your patterns, and a library of patterns. We'll give you a 60-second tour."
       },
       {
         title: "Your stash at a glance",
