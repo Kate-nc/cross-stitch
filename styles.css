@@ -4228,7 +4228,12 @@ a.mgr-tab{text-decoration:none;}
 /* The list */
 .stash-list-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);overflow:hidden;}
 .stash-list{list-style:none;margin:0;padding:0;}
-.stash-list-head,.stash-row-main{display:grid;grid-template-columns:minmax(180px,1.3fr) 128px 116px minmax(140px,1.4fr) minmax(96px,auto) 34px;gap:12px;align-items:center;padding:6px 12px;}
+/* Every track has an explicit minimum, so the header and each row resolve
+   to the same columns, and the narrowest the row can be (~600px with touch
+   targets) fits the list between the phone layout (761px) and the side menu
+   (1024px plus 228px). --stash-tap is the stepper button and arrow size. */
+.stash-list-wrap{--stash-tap:32px;}
+.stash-list-head,.stash-row-main{display:grid;grid-template-columns:minmax(150px,1.3fr) calc(var(--stash-tap) * 2 + 48px) 104px minmax(0,1.4fr) minmax(80px,.6fr) var(--stash-tap);gap:12px;align-items:center;padding:6px 12px;}
 .stash-list-head{padding-top:8px;padding-bottom:8px;background:var(--surface-secondary);border-bottom:1px solid var(--border-subtle);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-tertiary);}
 .stash-row{border-bottom:1px solid var(--border-subtle);content-visibility:auto;contain-intrinsic-size:auto 54px;}
 .stash-row:last-child{border-bottom:0;}
@@ -4278,7 +4283,7 @@ span.stash-ident{cursor:default;}
 .stash-chev svg{width:16px;height:16px;}
 
 /* Rows for shades you don't own (Every shade, search results). */
-.stash-row--add .stash-row-main{grid-template-columns:minmax(180px,1.3fr) minmax(140px,1.4fr) minmax(96px,auto) auto;}
+.stash-row--add .stash-row-main{grid-template-columns:minmax(150px,1.3fr) minmax(0,1.4fr) minmax(80px,.6fr) auto;}
 .stash-add{color:var(--accent-text);}
 
 /* The editor under an expanded row (replaces the side panel). */
@@ -4310,7 +4315,7 @@ span.stash-ident{cursor:default;}
 .stash-card-head h2 svg{width:18px;height:18px;color:var(--text-secondary);}
 .stash-card-action{margin-left:auto;}
 .stash-shop-list{margin:0;padding:0;list-style:none;}
-.stash-shop-row{display:grid;grid-template-columns:34px minmax(180px,1.2fr) minmax(0,1.6fr) auto 34px;gap:12px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-subtle);}
+.stash-shop-row{--stash-tap:34px;display:grid;grid-template-columns:var(--stash-tap) minmax(150px,1.2fr) minmax(0,1.6fr) auto var(--stash-tap);gap:12px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-subtle);}
 .stash-shop-row.is-ticked{background:var(--success-soft);margin:0 -16px;padding-left:16px;padding-right:16px;}
 .stash-tick{display:grid;place-items:center;width:34px;height:34px;border-radius:var(--radius-md);cursor:pointer;}
 .stash-tick input{width:20px;height:20px;margin:0;accent-color:var(--success);cursor:pointer;}
@@ -4466,7 +4471,7 @@ span.stash-ident{cursor:default;}
 .stash-alert-list--flat .stash-alert-row .stash-name{white-space:normal;}
 /* Buy next sits in a narrower column, so its rows always stack: the
    patterns a thread is for go on their own line under it. */
-.stash-overview .stash-shop-row{grid-template-columns:34px minmax(0,1fr) auto 34px;grid-template-areas:"tick id qty x" ". uses uses uses";row-gap:2px;}
+.stash-overview .stash-shop-row{grid-template-columns:var(--stash-tap) minmax(0,1fr) auto var(--stash-tap);grid-template-areas:"tick id qty x" ". uses uses uses";row-gap:2px;}
 .stash-overview .stash-shop-row .stash-tick{grid-area:tick;}
 .stash-overview .stash-shop-row .stash-ident{grid-area:id;}
 .stash-overview .stash-shop-row .stash-shop-qty{grid-area:qty;}
@@ -4490,6 +4495,8 @@ span.stash-ident{cursor:default;}
   .stash-levels button{min-height:44px;padding:0 13px;}
   .stash-search input,.stash-inline-form input{font-size:16px;}
   .stash-tick{width:44px;height:44px;}
+  .stash-list-wrap{--stash-tap:44px;}
+  .stash-shop-row{--stash-tap:44px;}
   .stash-tick input{width:24px;height:24px;}
 }
 

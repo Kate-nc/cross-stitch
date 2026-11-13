@@ -48,6 +48,28 @@ test('number keys switch sections, but not while typing', async ({ page }) => {
   await expect(nav(page).getByRole('link', { name: /^Overview/ })).toHaveAttribute('aria-current', 'page');
 });
 
+test('thread rows fit the list between the phone layout and the side menu', async ({ page }) => {
+  await page.goto('/manager.html?from=home&tab=inventory');
+  await page.evaluate(async () => {
+    for (const k of ['dmc:310', 'dmc:321', 'dmc:798']) await StashBridge.updateThreadOwned(k, 2);
+  });
+  // The project is a touch tablet, so these use the 44px touch targets.
+  for (const width of [761, 768, 800, 1023, 1024, 1040, 1060]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator('.stash-row')).toHaveCount(3);
+    const r = await page.evaluate(() => {
+      const wrap = document.querySelector('.stash-list-wrap').getBoundingClientRect();
+      const chev = [...document.querySelectorAll('.stash-row .stash-chev')].map(e => e.getBoundingClientRect().right);
+      const head = document.querySelectorAll('.stash-list-head span')[1].getBoundingClientRect().left;
+      const step = document.querySelector('.stash-row .stash-stepper').getBoundingClientRect().left;
+      return { wrapRight: wrap.right, chevRight: Math.max(...chev), aligned: Math.round(head) === Math.round(step), fits: document.documentElement.scrollWidth <= innerWidth };
+    });
+    expect(r.chevRight, 'width ' + width).toBeLessThanOrEqual(r.wrapRight);
+    expect(r.aligned, 'width ' + width).toBe(true);
+    expect(r.fits, 'width ' + width).toBe(true);
+  }
+});
+
 test('narrow screens keep the tab bar and reach the extra pages from Add threads', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1000 });
   await page.goto('/manager.html?from=home&tab=inventory');

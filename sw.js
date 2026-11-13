@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "43d3c091a9982a653315e68464b13cdc37afb660107b781a3a8dcf6c2ff6b33a";
+var BUILD_ID = "4683ac0d11143fa7cd816d93bfac837b6fbaf58e33dc2716c1ac40a09276e02a";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -325,7 +325,7 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "a601dd479d3218c50eb8bb8757467aa8d7ad2027e29b458e920e555ee6c9b029"
+    "sha256": "e102cf1739d404746af565ac3c55e9ecb59c09500783245445bfdc88fc7faac5"
   },
   "./version.js": {
     "sha256": "25d05d297b2b6514f145850f9faaaa842fdf373e43cab0acdec831ef240dd491"
@@ -484,7 +484,7 @@ var BUILD_ASSETS = {
     "sha256": "3127d717941394cd826ed68607a324bc84d3d3f02def4d3943544da35b95a60a"
   },
   "./compiled/manager-app.compiled.js": {
-    "sha256": "349162c69f723294ce7ed4f286be750165b171ec59c8227191a339e4909f981f"
+    "sha256": "fa3f39497d74899dd2697e1993ec64045dee107bdc0e35aadc635b82a7e5e018"
   },
   "./compiled/embroidery.compiled.js": {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"

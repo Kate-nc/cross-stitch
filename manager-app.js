@@ -360,6 +360,10 @@ function ManagerApp() {
   // Shopping list rows ticked as bought: { [key]: skeins to add }. Nothing
   // is written until "Add ... to stash".
   const [boughtTicks, setBoughtTicks] = useState(() => readBoughtTicks(window.localStorage));
+  // A purchase being written. The ref blocks a second click before React
+  // re-renders; the state disables the buttons.
+  const buyingRef = useRef(false);
+  const [buying, setBuying] = useState(false);
   useEffect(() => { writeBoughtTicks(window.localStorage, boughtTicks); }, [boughtTicks]);
   const narrow = useNarrow(760);
   const [stockTakeOpen, setStockTakeOpen] = useState(false);
@@ -1480,7 +1484,13 @@ function ManagerApp() {
   // the skeins and clears the list flags; Undo takes back exactly those
   // skeins and puts hand-added threads back on the list.
   async function addTickedToStash() {
-    if (typeof StashBridge === "undefined" || !tickedRows.length) return;
+    if (typeof StashBridge === "undefined" || !tickedRows.length || buyingRef.current) return;
+    buyingRef.current = true;
+    setBuying(true);
+    try { await addTicked(); }
+    finally { buyingRef.current = false; setBuying(false); }
+  }
+  async function addTicked() {
     const qtyMap = {};
     const handAdded = {};
     tickedRows.forEach(r => {
@@ -1543,7 +1553,7 @@ function ManagerApp() {
     );
   }
   const addTickedButton = (
-    <button type="button" className="stash-btn stash-btn--primary" disabled={!tickedRows.length} onClick={addTickedToStash}>
+    <button type="button" className="stash-btn stash-btn--primary" disabled={!tickedRows.length || buying} onClick={addTickedToStash}>
       {Icons.box()}<span>{tickedRows.length ? "Add " + plural(tickedSkeins, 'skein') + " to stash" : "Add ticked to stash"}</span>
     </button>
   );
@@ -2084,7 +2094,7 @@ function ManagerApp() {
           {narrow && shoppingCount > 0 && (
             <div className="stash-shop-footer">
               <button type="button" className="stash-btn" onClick={copyShoppingList}>{Icons.copy()}<span>Copy</span></button>
-              <button type="button" className="stash-btn stash-btn--primary" disabled={!tickedRows.length} onClick={addTickedToStash}>
+              <button type="button" className="stash-btn stash-btn--primary" disabled={!tickedRows.length || buying} onClick={addTickedToStash}>
                 {tickedRows.length ? "Done: add " + plural(tickedSkeins, 'skein') : "Tick what you've bought"}
               </button>
             </div>

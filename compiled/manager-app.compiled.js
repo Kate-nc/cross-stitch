@@ -593,6 +593,10 @@ function ManagerApp() {
   // Shopping list rows ticked as bought: { [key]: skeins to add }. Nothing
   // is written until "Add ... to stash".
   const [boughtTicks, setBoughtTicks] = useState(() => readBoughtTicks(window.localStorage));
+  // A purchase being written. The ref blocks a second click before React
+  // re-renders; the state disables the buttons.
+  const buyingRef = useRef(false);
+  const [buying, setBuying] = useState(false);
   useEffect(() => {
     writeBoughtTicks(window.localStorage, boughtTicks);
   }, [boughtTicks]);
@@ -1989,7 +1993,17 @@ function ManagerApp() {
   // the skeins and clears the list flags; Undo takes back exactly those
   // skeins and puts hand-added threads back on the list.
   async function addTickedToStash() {
-    if (typeof StashBridge === "undefined" || !tickedRows.length) return;
+    if (typeof StashBridge === "undefined" || !tickedRows.length || buyingRef.current) return;
+    buyingRef.current = true;
+    setBuying(true);
+    try {
+      await addTicked();
+    } finally {
+      buyingRef.current = false;
+      setBuying(false);
+    }
+  }
+  async function addTicked() {
     const qtyMap = {};
     const handAdded = {};
     tickedRows.forEach(r => {
@@ -2093,7 +2107,7 @@ function ManagerApp() {
   const addTickedButton = /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "stash-btn stash-btn--primary",
-    disabled: !tickedRows.length,
+    disabled: !tickedRows.length || buying,
     onClick: addTickedToStash
   }, Icons.box(), /*#__PURE__*/React.createElement("span", null, tickedRows.length ? "Add " + plural(tickedSkeins, 'skein') + " to stash" : "Add ticked to stash"));
   function copyShoppingList() {
@@ -2914,7 +2928,7 @@ function ManagerApp() {
   }, Icons.copy(), /*#__PURE__*/React.createElement("span", null, "Copy")), /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "stash-btn stash-btn--primary",
-    disabled: !tickedRows.length,
+    disabled: !tickedRows.length || buying,
     onClick: addTickedToStash
   }, tickedRows.length ? "Done: add " + plural(tickedSkeins, 'skein') : "Tick what you've bought"))), tab === "patterns" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "mgr-filter-bar"

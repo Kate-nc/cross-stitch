@@ -55,6 +55,15 @@ test('tick, adjust, add to stash and undo', async ({ page }) => {
   expect(await stash(page)).toEqual({ 310: 1, 720: 0, 3753: 2, onList: true });
 });
 
+test('a double click adds the skeins once', async ({ page }) => {
+  await page.getByRole('checkbox', { name: 'Bought DMC 720' }).check();
+  const add = page.locator('.stash-card-head').getByRole('button', { name: 'Add 2 skeins to stash' });
+  // Two clicks in one task, before React can re-render the disabled button.
+  await add.evaluate(el => { el.click(); el.click(); });
+  await expect(page.locator('.stash-shop-row')).toHaveCount(2);
+  await expect.poll(() => stash(page)).toEqual({ 310: 1, 720: 2, 3753: 2, onList: true });
+});
+
 test('unticking leaves the stash alone', async ({ page }) => {
   const box = page.getByRole('checkbox', { name: 'Bought DMC 310' });
   await box.check(); await box.uncheck();

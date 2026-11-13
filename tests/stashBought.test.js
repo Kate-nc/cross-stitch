@@ -103,4 +103,14 @@ describe('Shopping list wiring', () => {
     expect(fn).toMatch(/undoAction:/);
     expect(fn).toMatch(/Could not add these threads to your stash/);
   });
+
+  test('a second click while the purchase is being written is ignored', () => {
+    const fn = manager.slice(manager.indexOf('async function addTickedToStash()'), manager.indexOf('async function addTicked()'));
+    // A synchronous guard (React state alone updates too late for a fast double click)...
+    expect(fn).toMatch(/\|\| buyingRef\.current\) return;\s*buyingRef\.current = true;/);
+    // ...released whatever happens.
+    expect(fn).toMatch(/finally \{ buyingRef\.current = false; setBuying\(false\); \}/);
+    // Both add buttons are disabled meanwhile.
+    expect(manager.match(/disabled=\{!tickedRows\.length \|\| buying\}/g)).toHaveLength(2);
+  });
 });
