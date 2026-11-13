@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "93a0d1c199f45fc6c7d09104c6001e53cf6bb16cbcf81765e6591f45e4e87adc";
+var BUILD_ID = "e0b7fac77aadb8b941bb6513fb1505ec1ed88b3c7196daaf17cf38dbb2b92945";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -331,7 +331,7 @@ var BUILD_ASSETS = {
     "sha256": "ce0cabe217e2646c2691a3bd67d4fee37fbad648cd1b3062cc2faa8912b98165"
   },
   "./changelog.js": {
-    "sha256": "61d2aeabfeb7ef458f3650aa1929789d6ddf79e2cb61e66c9166d76e1156c318"
+    "sha256": "757b472ec359a8492324c2c6d1db9d98265f680b0d190015e295eea05d62fffd"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -463,7 +463,7 @@ var BUILD_ASSETS = {
     "sha256": "441c79d9d84927493db4c68c1f82782092b0c66342df1f89dc715ccef2ec144a"
   },
   "./sw-register.js": {
-    "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
+    "sha256": "900c3c00ab705de8f7fa1a5bce34b2add7d46049782ae17d1d06bd7a3b66724d"
   },
   "./creator/bundle.js": {
     "sha256": "101ae7b70eff31c746d88bb79d388c96a5c58fbb920b6c8debc9bd2c6cbe86d7"
@@ -583,7 +583,7 @@ var BUILD_ASSETS = {
     "sha256": "7bc3c7f3cd4670957946e2fe415421e6fda501a9e1000e4c58bb346999f244ae"
   },
   "./help-drawer.js": {
-    "sha256": "1a720b958bb5a1c325456750298f7138d4c09bb204069e272f290b271218a53f"
+    "sha256": "ba0cd98c0a8d7ddf5e8583886a3c8829cd90e5d769e0cc36e1c694becb830bf2"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
@@ -664,7 +664,7 @@ var BUILD_ASSETS = {
     "sha256": "939ac378ce06c86a18c8e42cefc4907ec8c065edf51cb898eaead75db24a8ae7"
   },
   "./preferences-modal.js": {
-    "sha256": "7f2e7f4d992b6b1c4eee2f1e941f33792263a8dd95862225616bb0136cfbf409"
+    "sha256": "a12072d2b2b89d32bcd7d2d9536caf46f5b8db59d68deb26fcd5fc8ce8fb0128"
   },
   "./coaching.js": {
     "sha256": "fdd2a7cea5a5780f52b6c3f5e240344d3dabe1faa6a4d8f2ad76db47f319ab4c"
@@ -801,7 +801,8 @@ self.addEventListener('install', function (event) {
       await caches.delete(BUILD_CACHE);
       throw error;
     }
-    // No skipWaiting: all controlled tabs must close before this build takes over.
+    // No skipWaiting here: all controlled tabs must close before this build
+    // takes over, unless the person chooses Update now (message handler below).
   })());
 });
 self.addEventListener('activate', function (event) {
@@ -823,6 +824,12 @@ self.addEventListener('activate', function (event) {
     // Do not claim uncontrolled pages: their in-memory scripts may be another
     // build. They become controlled on their next navigation, without a reload.
   })());
+});
+// The one way a waiting build takes over before every tab has closed: the
+// person chose Update now (sw-register.js AppUpdate.apply), which reloads
+// that tab and asks the other open tabs to reload. Never sent automatically.
+self.addEventListener('message', function (event) {
+  if (event.data && event.data.type === 'stitchx:activate-update') event.waitUntil(self.skipWaiting());
 });
 self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;

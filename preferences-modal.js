@@ -1696,6 +1696,37 @@
     var experimental = usePref("flagExperimentalPreview", false);
     var swStatus = useState("Checking…");
     var msg = useState(null);
+    var upd = useState(function () { return window.AppUpdate ? window.AppUpdate.getState() : { status: "unsupported" }; });
+    var update = upd[0];
+
+    // Check for a new version each time this panel opens; the result (and
+    // any download that finishes meanwhile) arrives through subscribe.
+    useEffect(function () {
+      if (!window.AppUpdate) return;
+      var off = window.AppUpdate.subscribe(function (s) { upd[1](s); });
+      window.AppUpdate.check();
+      return off;
+    }, []);
+
+    function checkForUpdate() { if (window.AppUpdate) window.AppUpdate.check(); }
+    function updateNow() { if (window.AppUpdate) window.AppUpdate.apply(); }
+
+    var updateText = {
+      unsupported: "This browser does not keep an offline copy of stitchx, so reloading the page always gets the latest version.",
+      checking: "Checking for a new version…",
+      downloading: "Downloading the new version…",
+      ready: "A new version has downloaded. Update now reloads stitchx to use it; any other open stitchx tabs will ask to be reloaded.",
+      current: "You have the latest version. New versions download in the background and normally take effect once every stitchx tab is closed.",
+      failed: update.error || "Could not check for a new version.",
+      applying: "Updating… stitchx will reload in a moment."
+    }[update.status] || "";
+    var busy = update.status === "checking" || update.status === "downloading" || update.status === "applying";
+    var updateButton = update.status === "unsupported" ? null
+      : update.status === "ready" || update.status === "applying"
+        ? h("button", { style: styles.btnPrimary, disabled: update.status === "applying", onClick: updateNow },
+            update.status === "applying" ? "Updating…" : "Update now")
+        : h("button", { style: styles.btn, disabled: busy, onClick: checkForUpdate },
+            update.status === "checking" ? "Checking…" : update.status === "downloading" ? "Downloading…" : "Check for updates");
 
     useEffect(function () {
       if (!("serviceWorker" in navigator)) { swStatus[1]("Not supported in this browser"); return; }
@@ -1755,11 +1786,17 @@
       // Keyboard hotkey customisation and experimental-preview flag hidden
       // until the underlying features are implemented.
 
+      h(Section, { title: "App updates" },
+        h(Row, { last: true, label: "Version " + (window.APP_VERSION || ""), desc: h("span", { role: "status", "aria-live": "polite" }, updateText) },
+          updateButton
+        )
+      ),
+
       h(Section, { title: "Storage & cache" },
         h(Row, { label: "Service worker", desc: "Lets the app work offline." },
           h("span", { style: { fontSize: 12, color: COLOURS.slate2 } }, swStatus[0])
         ),
-        h(Row, { label: "Clear cached app files", desc: "Forces the browser to download the latest version of the app." },
+        h(Row, { label: "Clear cached app files", desc: "If Update now does not help, this deletes the offline copy of stitchx and downloads every file again. Your patterns and settings are not affected." },
           h("button", { style: styles.btn, onClick: clearCacheAndReload }, "Clear cache & reload")
         ),
         h(Row, { last: true, label: "Reset all preferences to defaults",

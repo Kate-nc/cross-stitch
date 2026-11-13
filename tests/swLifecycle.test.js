@@ -22,7 +22,9 @@ function harness(fail = () => false, scope = origin) {
     },
   };
   const listeners = {};
-  const self = { registration: { scope }, addEventListener: (name, fn) => listeners[name] = fn };
+  const skipped = [];
+  const self = { registration: { scope }, addEventListener: (name, fn) => listeners[name] = fn,
+    skipWaiting: async () => { skipped.push(true); } };
   const assets = Object.fromEntries(Object.entries(fixture).map(([url, value]) => [url, { sha256: digest(value) }]));
   const code = source.replace(/\/\/ BEGIN GENERATED BUILD MANIFEST[\s\S]*?\/\/ END GENERATED BUILD MANIFEST/,
     `var BUILD_ID = '${'a'.repeat(64)}'; var BUILD_ASSETS = ${JSON.stringify(assets)}; var REQUIRED_URLS = ${JSON.stringify(Object.keys(fixture))};`);
@@ -41,7 +43,8 @@ function harness(fail = () => false, scope = origin) {
     listeners.fetch({ request: { url: new URL(url, origin).href, mode, method }, respondWith: value => task = value });
     return task;
   };
-  return { caches, stores, deleted, dispatch, fetch, context };
+  const message = data => { let task; listeners.message({ data, waitUntil: value => task = value }); return task; };
+  return { caches, stores, deleted, dispatch, fetch, message, skipped, context };
 }
 async function seed(h, name, complete = false) {
   const cache = await h.caches.open(name);
@@ -94,9 +97,17 @@ test('controlled fetches pin bytes, normalise aliases/queries and never search r
   expect(await h.fetch('projects.csb')).toBeUndefined();
   expect(await h.fetch('app.js', 'cors', 'POST')).toBeUndefined();
 });
-test('worker has no forced activation or uncontrolled-page takeover', () => {
-  expect(source).not.toMatch(/self\.skipWaiting\s*\(|clients\.claim\s*\(/);
-  expect(fs.readFileSync('sw-register.js', 'utf8')).not.toMatch(/location\.reload|controllerchange|postMessage/);
+test('worker never takes over by itself; only an explicit Update now request activates it early', async () => {
+  expect(source).not.toMatch(/clients\.claim\s*\(/);
+  // The single skipWaiting call is the one in the message handler.
+  expect(source.match(/self\.skipWaiting\s*\(/g)).toHaveLength(1);
+  const h = harness();
+  await h.dispatch('install');
+  expect(h.skipped).toHaveLength(0);
+  for (const data of [null, 'stitchx:activate-update', { type: 'SKIP_WAITING' }, { type: 'other' }]) h.message(data);
+  expect(h.skipped).toHaveLength(0);
+  await h.message({ type: 'stitchx:activate-update' });
+  expect(h.skipped).toHaveLength(1);
 });
 
 test("a subpath deployment cannot clean another registration's caches", async () => {
