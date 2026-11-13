@@ -8,72 +8,390 @@ const {
   useRef
 } = React;
 
-// Hoisted out of PartialGauge so the lookup table isn't reallocated each render.
-const PARTIAL_GAUGE_SEGMENTS = {
-  "null": {
-    count: 0,
-    color: "var(--border)",
-    text: "No partial",
-    textColor: "var(--text-tertiary)"
-  },
-  "mostly-full": {
-    count: 3,
-    color: "#378ADD",
-    text: "Mostly full",
-    textColor: "#378ADD"
-  },
-  "about-half": {
-    count: 2,
-    color: "#378ADD",
-    text: "About half",
-    textColor: "#378ADD"
-  },
-  "remnant": {
-    count: 1,
-    color: "#EF9F27",
-    text: "Remnant",
-    textColor: "#EF9F27"
-  },
-  "used-up": {
-    count: 4,
-    color: "#888780",
-    text: "Used up",
-    textColor: "#888780"
-  }
+// ════════════════════════════════════════════════════════════════════
+// Stash rules — one definition of "in your stash", "opened" and "low",
+// shared by the thread list, its filters, the Low stock panel and the
+// attention line. (They used to disagree: the card badge used the global
+// threshold with <=, the alerts used each thread's minimum with <.)
+// ════════════════════════════════════════════════════════════════════
+const OPENED_SKEIN = {
+  "mostly-full": 0.75,
+  "about-half": 0.5,
+  "remnant": 0.25
 };
-function PartialGauge({
+// Order matters: the opened-skein control lists these left to right.
+const OPENED_LEVELS = [{
+  value: null,
+  label: "None",
+  title: "No opened skein"
+}, {
+  value: "mostly-full",
+  label: "¾",
+  title: "About three quarters left"
+}, {
+  value: "about-half",
+  label: "½",
+  title: "About half left"
+}, {
+  value: "remnant",
+  label: "¼",
+  title: "A remnant left"
+}, {
+  value: "used-up",
+  label: "Used up",
+  title: "Used up"
+}];
+const OPENED_TEXT = {
+  "mostly-full": "¾ left",
+  "about-half": "½ left",
+  "remnant": "Remnant",
+  "used-up": "Used up"
+};
+// The thread list renders this many rows, then offers "Show more".
+const STASH_PAGE_SIZE = 200;
+const EMPTY_THREAD = {
+  owned: 0,
+  tobuy: false,
+  partialStatus: null,
+  min_stock: 0
+};
+const NO_USES = [];
+const NO_TITLES = [];
+// "A", "A and B", "A, B and 3 more"
+function listJoin(items) {
+  if (items.length <= 1) return items.join("");
+  if (items.length === 2) return items[0] + " and " + items[1];
+  if (items.length === 3) return items[0] + ", " + items[1] + " and " + items[2];
+  return items[0] + ", " + items[1] + " and " + (items.length - 2) + " more";
+}
+function usableSkeins(t) {
+  if (!t) return 0;
+  return (Number(t.owned) || 0) + (OPENED_SKEIN[t.partialStatus] || 0);
+}
+function isInStash(t) {
+  return !!t && ((Number(t.owned) || 0) > 0 || !!OPENED_SKEIN[t.partialStatus]);
+}
+function isOpenedSkein(t) {
+  return !!t && !!OPENED_SKEIN[t.partialStatus];
+}
+function isUsedUp(t) {
+  return !!t && t.partialStatus === "used-up" && !((Number(t.owned) || 0) > 0);
+}
+// A thread's own "Keep at least" value wins; otherwise the Preferences value.
+function stashMinimum(t, threshold) {
+  const own = t && Number(t.min_stock);
+  return own > 0 ? own : threshold;
+}
+// Low = you have less than the minimum. A thread with its own minimum
+// counts even at zero, so using up a thread you keep stocked is flagged.
+function isThreadLow(t, threshold) {
+  if (!t) return false;
+  const tracked = isInStash(t) || (Number(t.min_stock) || 0) > 0;
+  return tracked && usableSkeins(t) < stashMinimum(t, threshold);
+}
+function matchesStashFilter(t, filter, threshold) {
+  if (filter === "owned") return isInStash(t);
+  if (filter === "low") return isThreadLow(t, threshold);
+  if (filter === "opened") return isOpenedSkein(t);
+  if (filter === "usedup") return isUsedUp(t);
+  return true; // "all": every shade in the catalogue
+}
+function formatSkeins(n) {
+  const v = Number(n) || 0;
+  return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
+}
+
+// Opened-skein level as a small pie. Used up is an empty dashed circle, so it
+// can never look fuller than a part-used skein (the old 4-bar gauge filled
+// every bar for "used up").
+function SkeinLevel({
   status
 }) {
-  const current = PARTIAL_GAUGE_SEGMENTS[status || "null"];
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 2,
-      width: 52
-    }
-  }, [0, 1, 2, 3].map(i => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    style: {
-      flex: 1,
-      height: 4,
-      borderRadius: 2,
-      background: i < current.count ? current.color : "var(--border)"
-    }
-  }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: current.textColor,
-      fontWeight: status ? 600 : 400,
-      whiteSpace: "nowrap"
-    }
-  }, current.text));
+  const f = OPENED_SKEIN[status] || 0;
+  const r = 6,
+    c = 8;
+  let wedge = null;
+  if (f > 0) {
+    const a = 2 * Math.PI * f;
+    const x = c + r * Math.sin(a),
+      y = c - r * Math.cos(a);
+    wedge = /*#__PURE__*/React.createElement("path", {
+      className: "stash-level-fill",
+      d: "M" + c + " " + c + " L" + c + " " + (c - r) + " A" + r + " " + r + " 0 " + (f > 0.5 ? 1 : 0) + " 1 " + x.toFixed(2) + " " + y.toFixed(2) + " Z"
+    });
+  }
+  return /*#__PURE__*/React.createElement("svg", {
+    className: "stash-level" + (status === "used-up" ? " stash-level--empty" : ""),
+    width: "16",
+    height: "16",
+    viewBox: "0 0 16 16",
+    "aria-hidden": "true",
+    focusable: "false"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: c,
+    cy: c,
+    r: r
+  }), wedge);
 }
+
+// Full-skein stepper. The number is an input so a big delivery can be typed
+// in one go; owned can be fractional after live deductions, so it keeps
+// whatever value is there and steps by whole skeins.
+function SkeinStepper({
+  value,
+  onChange,
+  label,
+  size
+}) {
+  const [draft, setDraft] = useState(null);
+  const shown = draft != null ? draft : formatSkeins(value);
+  const commit = () => {
+    if (draft == null) return;
+    const n = Number(draft);
+    setDraft(null);
+    if (Number.isFinite(n) && n >= 0 && n !== value) onChange(n);
+  };
+  return /*#__PURE__*/React.createElement("span", {
+    className: "stash-stepper" + (size === "lg" ? " stash-stepper--lg" : ""),
+    role: "group",
+    "aria-label": label
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": "One fewer: " + label,
+    disabled: !(value > 0),
+    onClick: () => onChange(Math.max(0, (Number(value) || 0) - 1))
+  }, Icons.minus()), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    inputMode: "decimal",
+    min: "0",
+    step: "any",
+    "aria-label": label,
+    value: shown,
+    onChange: e => setDraft(e.target.value),
+    onBlur: commit,
+    onKeyDown: e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        commit();
+        e.currentTarget.blur();
+      }
+      if (e.key === "Escape") {
+        setDraft(null);
+        e.currentTarget.blur();
+      }
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": "One more: " + label,
+    onClick: () => onChange((Number(value) || 0) + 1)
+  }, Icons.plus()));
+}
+
+// A small anchored menu (View, Add threads). Closes on outside press and Esc.
+function StashMenuButton({
+  label,
+  ariaLabel,
+  icon,
+  className,
+  children,
+  align
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = e => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = e => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        const b = wrapRef.current && wrapRef.current.querySelector("button");
+        if (b) b.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "stash-menu" + (align === "end" ? " stash-menu--end" : ""),
+    ref: wrapRef
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn " + (className || ""),
+    "aria-label": ariaLabel || (typeof label === "string" ? label : undefined),
+    "aria-haspopup": "true",
+    "aria-expanded": open,
+    onClick: () => setOpen(o => !o)
+  }, icon, /*#__PURE__*/React.createElement("span", null, label), Icons.chevronDown()), open && /*#__PURE__*/React.createElement("div", {
+    className: "stash-menu-panel"
+  }, children(() => setOpen(false))));
+}
+
+// One thread in the list. Memoised: typing in search re-renders the list,
+// and most rows have not changed.
+const StashRow = React.memo(function StashRow({
+  item,
+  state,
+  expanded,
+  owned,
+  uses,
+  short,
+  low,
+  onToggle,
+  onUpdate,
+  onAdd,
+  onShopping,
+  onRemove
+}) {
+  const key = item.compositeKey;
+  const brandLabel = item.brand === "anchor" ? "Anchor" : "DMC";
+  const title = brandLabel + " " + item.id;
+  const bodyId = "stash-row-" + key.replace(/[^a-z0-9]/gi, "-");
+  const swatch = /*#__PURE__*/React.createElement("span", {
+    className: "stash-swatch",
+    style: {
+      background: "rgb(" + item.rgb.join(",") + ")"
+    },
+    "aria-hidden": "true"
+  });
+  const identity = /*#__PURE__*/React.createElement(React.Fragment, null, swatch, /*#__PURE__*/React.createElement("span", {
+    className: "stash-id"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-code"
+  }, item.id), /*#__PURE__*/React.createElement("span", {
+    className: "stash-brand stash-brand--" + item.brand
+  }, brandLabel), /*#__PURE__*/React.createElement("span", {
+    className: "stash-name"
+  }, item.name)));
+  if (!owned) {
+    // Not in your stash: a compact row with one action.
+    return /*#__PURE__*/React.createElement("li", {
+      className: "stash-row stash-row--add"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "stash-row-main"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "stash-ident"
+    }, identity), uses.length > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "stash-uses"
+    }, uses.map(u => /*#__PURE__*/React.createElement("span", {
+      key: u.title,
+      className: "stash-chip"
+    }, u.title))), /*#__PURE__*/React.createElement("span", {
+      className: "stash-status"
+    }, short > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "stash-pill stash-pill--short"
+    }, "Need ", formatSkeins(short))), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "stash-btn stash-btn--quiet stash-add",
+      onClick: () => onAdd(key),
+      "aria-label": "Add " + title + " to your stash"
+    }, Icons.plus(), /*#__PURE__*/React.createElement("span", null, "Add"))));
+  }
+  return /*#__PURE__*/React.createElement("li", {
+    className: "stash-row" + (expanded ? " is-open" : "")
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-row-main"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-ident",
+    "aria-expanded": expanded,
+    "aria-controls": bodyId,
+    onClick: () => onToggle(key),
+    title: expanded ? "Hide details for " + title : "Show details for " + title
+  }, identity), /*#__PURE__*/React.createElement(SkeinStepper, {
+    value: Number(state.owned) || 0,
+    label: "Full skeins of " + title,
+    onChange: v => onUpdate(key, "owned", v)
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "stash-opened" + (state.partialStatus ? "" : " is-none")
+  }, /*#__PURE__*/React.createElement(SkeinLevel, {
+    status: state.partialStatus
+  }), /*#__PURE__*/React.createElement("span", null, state.partialStatus ? OPENED_TEXT[state.partialStatus] : "Not opened")), /*#__PURE__*/React.createElement("span", {
+    className: "stash-uses"
+  }, uses.length ? uses.map(u => /*#__PURE__*/React.createElement("span", {
+    key: u.title,
+    className: "stash-chip"
+  }, u.title)) : /*#__PURE__*/React.createElement("span", {
+    className: "stash-muted"
+  }, "Not in any pattern")), /*#__PURE__*/React.createElement("span", {
+    className: "stash-status"
+  }, short > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "stash-pill stash-pill--short"
+  }, "Short ", formatSkeins(short)), low && /*#__PURE__*/React.createElement("span", {
+    className: "stash-pill stash-pill--low"
+  }, "Low"), state.tobuy && /*#__PURE__*/React.createElement("span", {
+    className: "stash-pill stash-pill--list"
+  }, Icons.cart(), "On list")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-chev",
+    "aria-expanded": expanded,
+    "aria-controls": bodyId,
+    "aria-label": (expanded ? "Hide details for " : "Show details for ") + title,
+    onClick: () => onToggle(key)
+  }, expanded ? Icons.chevronUp() : Icons.chevronDown())), expanded && /*#__PURE__*/React.createElement("div", {
+    className: "stash-row-edit",
+    id: bodyId
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-field"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-field-label",
+    id: bodyId + "-opened"
+  }, "Opened skein"), /*#__PURE__*/React.createElement("div", {
+    className: "stash-levels",
+    role: "radiogroup",
+    "aria-labelledby": bodyId + "-opened"
+  }, OPENED_LEVELS.map(l => {
+    const on = (state.partialStatus || null) === l.value;
+    return /*#__PURE__*/React.createElement("button", {
+      key: l.value || "none",
+      type: "button",
+      role: "radio",
+      "aria-checked": on,
+      className: on ? "on" : "",
+      title: l.title,
+      onClick: () => onUpdate(key, "partialStatus", l.value)
+    }, l.label);
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "stash-field"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-field-label"
+  }, "Keep at least"), /*#__PURE__*/React.createElement(SkeinStepper, {
+    value: Number(state.min_stock) || 0,
+    label: "Minimum skeins of " + title,
+    onChange: v => onUpdate(key, "min_stock", v)
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "stash-hint"
+  }, (Number(state.min_stock) || 0) > 0 ? "Low below " + formatSkeins(state.min_stock) : "Uses your Preferences default")), /*#__PURE__*/React.createElement("div", {
+    className: "stash-field stash-field--grow"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-field-label"
+  }, "Patterns"), uses.length ? /*#__PURE__*/React.createElement("ul", {
+    className: "stash-needs"
+  }, uses.map(u => /*#__PURE__*/React.createElement("li", {
+    key: u.title
+  }, /*#__PURE__*/React.createElement("span", null, u.title), u.need != null && /*#__PURE__*/React.createElement("b", null, u.need)))) : /*#__PURE__*/React.createElement("span", {
+    className: "stash-muted"
+  }, "Not in any pattern")), /*#__PURE__*/React.createElement("div", {
+    className: "stash-field stash-actions"
+  }, state.tobuy ? /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn",
+    onClick: () => onShopping(key, false)
+  }, Icons.x(), /*#__PURE__*/React.createElement("span", null, "Remove from shopping list")) : /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--primary",
+    onClick: () => onShopping(key, true, short > 0 ? short : 1)
+  }, Icons.cart(), /*#__PURE__*/React.createElement("span", null, short > 0 ? "Add " + formatSkeins(short) + " to shopping list" : "Add to shopping list")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--danger",
+    onClick: () => onRemove(key, title)
+  }, Icons.trash(), /*#__PURE__*/React.createElement("span", null, "Remove from stash")))));
+});
 
 // Presentation only: stable preference keys survive empty alert sets and tab visits.
 function StashAlertPanel({
@@ -130,17 +448,22 @@ function StashAlertPanel({
 }
 function ManagerApp() {
   const [tab, setTab] = useState(() => {
-    // Allow deep-linking from /home and the Creator's Open-Stash button
-    // via ?tab=inventory|patterns. Legacy ?tab=shopping links fall through
-    // to inventory now that the shopping feature has been removed.
+    // Deep links: ?tab=inventory|patterns from /home and the Creator's
+    // Open-Stash button; ?tab=shopping from the Creator's shopping list;
+    // ?tab=materials (the old Project materials tab) now lives inside the
+    // Shopping list tab.
     try {
       const p = new URLSearchParams(window.location.search).get('tab');
-      if (p === 'inventory' || p === 'patterns' || p === 'materials') return p;
+      if (p === 'inventory' || p === 'patterns') return p;
+      if (p === 'shopping' || p === 'materials') return 'shopping';
     } catch (_) {}
     return "inventory";
-  }); // 'inventory' | 'patterns'
+  }); // 'inventory' | 'shopping' | 'patterns'
   const [modal, setModal] = useState(null); // 'help', 'about', 'add_pattern'
   const [threads, setThreads] = useState({}); // { [id]: { owned: number, tobuy: boolean } }
+  // Latest threads for stable callbacks (Undo needs the values before an edit).
+  const latestThreadsRef = useRef(threads);
+  latestThreadsRef.current = threads;
   const threadsBaselineRef = useRef({});
   const threadsSaveQueueRef = useRef(Promise.resolve());
   const threadsSavingRef = useRef(false);
@@ -162,38 +485,15 @@ function ManagerApp() {
   const [storedProjects, setStoredProjects] = useState([]); // Cross-stitch projects from ProjectStorage
   const [storageUsage, setStorageUsage] = useState(null); // { used, quota, persistent } bytes
   const [searchQuery, setSearchQuery] = useState("");
-  const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
+  // Owned is the default: the list opens on your threads, not on all 1,229
+  // catalogue shades. 'owned' | 'low' | 'opened' | 'usedup' | 'all'
+  const [threadFilter, setThreadFilter] = useState("owned");
+  const [listLimit, setListLimit] = useState(STASH_PAGE_SIZE);
   const [catalogueRecords, setCatalogueRecords] = useState([]);
-  const [catalogueText, setCatalogueText] = useState('');
-  const [cataloguePreview, setCataloguePreview] = useState(null);
-  const [catalogueMessage, setCatalogueMessage] = useState('');
-  const [catalogueBusy, setCatalogueBusy] = useState(false);
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
   useEffect(() => {
-    ThreadCatalogues.read().then(setCatalogueRecords).catch(e => setCatalogueMessage(e.message));
+    ThreadCatalogues.read().then(setCatalogueRecords).catch(e => console.warn('Custom catalogues could not be read:', e));
   }, []);
-  async function importCatalogue() {
-    setCatalogueBusy(true);
-    try {
-      setCatalogueRecords(await ThreadCatalogues.commit(catalogueText));
-      setCatalogueText('');
-      setCataloguePreview(null);
-      setCatalogueMessage('Catalogue imported. Projects and matching palettes are unchanged.');
-    } catch (e) {
-      setCatalogueMessage(e.message);
-    } finally {
-      setCatalogueBusy(false);
-    }
-  }
-  function exportCatalogue() {
-    const url = URL.createObjectURL(new Blob([ThreadCatalogues.exportCSV(catalogueRecords)], {
-      type: 'text/csv;charset=utf-8'
-    }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'custom-thread-catalogues.csv';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
   const [threadSort, setThreadSort] = useState("number"); // 'number', 'colour', 'name', 'owned_desc', 'owned_asc'
   const _UP = (k, fb) => {
@@ -207,16 +507,23 @@ function ManagerApp() {
   const [patternSort, setPatternSort] = useState(() => _UP("patternsDefaultSort", "date_desc")); // 'date_desc', 'date_asc', 'title_asc', 'designer_asc', 'status'
   const [editingPattern, setEditingPattern] = useState(null); // Pattern object currently being added/edited
   const [viewingPattern, setViewingPattern] = useState(null); // Pattern object currently being viewed for details
+  // The thread row whose editor is open. It stays listed even if an edit
+  // moves it out of the current filter (see filteredThreads).
   const [expandedThread, setExpandedThread] = useState(null);
-  const [selectedThread, setSelectedThread] = useState(null);
   const [conflicts, setConflicts] = useState(null);
   // What the stash is short of: { projects, total, shopping } from StashBridge.getToBuy().
   const [toBuy, setToBuy] = useState(null);
   const [readyToStart, setReadyToStart] = useState(null);
   const [lowStockAlerts, setLowStockAlerts] = useState(null);
-  // Plan B Phase 2: Stash info chip + popover.
-  const [stashChipOpen, setStashChipOpen] = useState(false);
-  const stashChipRef = useRef(null);
+  // Signature of the attention line the user last dismissed; it comes back
+  // when the numbers change.
+  const [attentionDismissed, setAttentionDismissed] = useState(() => {
+    try {
+      return window.UserPrefs && window.UserPrefs.get("stashAttentionDismissed") || "";
+    } catch (_) {
+      return "";
+    }
+  });
   const [userProfile, setUserProfile] = useState(() => {
     const get = (k, fb) => {
       try {
@@ -855,14 +1162,13 @@ function ManagerApp() {
     StashBridge.detectConflicts().then(setConflicts).catch(e => console.warn('detectConflicts failed:', e));
     refreshToBuy();
     StashBridge.whatCanIStart().then(setReadyToStart).catch(e => console.warn('whatCanIStart failed:', e));
-    // Low-stock: threads where owned > 0 but below min_stock (explicit), or below the
-    // global lowStockThreshold (1 skein) when no per-thread minimum has been set.
-    const alerts = Object.entries(threads).filter(([, t]) => t.owned && t.owned > 0).filter(([compositeKey, t]) => isThreadLowStock(t, lowStockThreshold)).map(([compositeKey, t]) => {
+    // Low stock uses the shared rule (isThreadLow): opened skeins count
+    // towards what you have, and a thread's own minimum beats the default.
+    const alerts = Object.entries(threads).filter(([, t]) => isThreadLow(t, lowStockThreshold)).map(([compositeKey, t]) => {
       const {
         brand,
         bareId
       } = extractBrandAndId(compositeKey);
-      const effectiveMin = calculateEffectiveMinStock(t, lowStockThreshold);
       const info = typeof getThreadByKey === 'function' ? getThreadByKey(compositeKey) : findThreadInCatalog('dmc', bareId);
       return {
         id: compositeKey,
@@ -870,11 +1176,11 @@ function ManagerApp() {
         bareId,
         name: info ? info.name : bareId,
         rgb: info ? info.rgb : [128, 128, 128],
-        owned: t.owned,
-        min_stock: effectiveMin
+        owned: usableSkeins(t),
+        min_stock: stashMinimum(t, lowStockThreshold)
       };
     });
-    alerts.sort((a, b) => a.min_stock - a.owned - (b.min_stock - b.owned));
+    alerts.sort((a, b) => b.min_stock - b.owned - (a.min_stock - a.owned));
     setLowStockAlerts(alerts);
   }, [threads, patterns]);
 
@@ -917,13 +1223,6 @@ function ManagerApp() {
       brand: parts[0],
       bareId: parts.slice(1).join(':')
     };
-  }
-  function calculateEffectiveMinStock(thread, lowStockThreshold) {
-    const minStock = thread.min_stock || 0;
-    return minStock > 0 ? minStock : lowStockThreshold;
-  }
-  function isThreadLowStock(thread, lowStockThreshold) {
-    return thread.owned < calculateEffectiveMinStock(thread, lowStockThreshold);
   }
 
   // Split low-stock alerts into those needed by active projects vs. not
@@ -1128,7 +1427,12 @@ function ManagerApp() {
       };
     });
   };
-  const filteredThreads = useMemo(() => {
+
+  // The whole catalogue: DMC then Anchor. Anchor's list loads on demand (see
+  // loadManagerData), so rebuild once it arrives or owned Anchor threads
+  // would be missing from the list.
+  const anchorLoaded = typeof ANCHOR !== 'undefined' && ANCHOR.length > 0;
+  const catalogueItems = useMemo(() => {
     const dmcItems = DMC.map(d => ({
       ...d,
       brand: 'dmc',
@@ -1139,31 +1443,102 @@ function ManagerApp() {
       brand: 'anchor',
       compositeKey: threadKey('anchor', a.id)
     })) : [];
-    const allItems = brandFilter === 'dmc' ? dmcItems : brandFilter === 'anchor' ? anchorItems : [...dmcItems, ...anchorItems];
-    const q = searchQuery.toLowerCase();
+    return dmcItems.concat(anchorItems);
+  }, [anchorLoaded]);
+  const filteredThreads = useMemo(() => {
+    const allItems = brandFilter === 'all' ? catalogueItems : catalogueItems.filter(d => d.brand === brandFilter);
+    const q = searchQuery.trim().toLowerCase();
     const searched = q ? allItems.filter(d => d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)) : allItems;
     const filtered = searched.filter(d => {
       if (d.compositeKey === expandedThread) return true;
-      const t = threads[d.compositeKey] || {
-        owned: 0,
-        tobuy: false,
-        partialStatus: null
-      };
-      return matchesThreadFilter(t, threadFilter, lowStockThreshold);
+      return matchesStashFilter(threads[d.compositeKey], threadFilter, lowStockThreshold);
     });
     if (threadSort === 'number') return filtered;
     const sorted = filtered.slice();
+    const owned = d => usableSkeins(threads[d.compositeKey]);
     if (threadSort === 'colour') {
       sorted.sort((a, b) => rgbToHue(a.rgb) - rgbToHue(b.rgb));
     } else if (threadSort === 'name') {
       sorted.sort((a, b) => a.name.localeCompare(b.name));
     } else if (threadSort === 'owned_desc') {
-      sorted.sort((a, b) => ((threads[b.compositeKey] || {}).owned || 0) - ((threads[a.compositeKey] || {}).owned || 0));
+      sorted.sort((a, b) => owned(b) - owned(a));
     } else if (threadSort === 'owned_asc') {
-      sorted.sort((a, b) => ((threads[a.compositeKey] || {}).owned || 0) - ((threads[b.compositeKey] || {}).owned || 0));
+      sorted.sort((a, b) => owned(a) - owned(b));
     }
     return sorted;
-  }, [searchQuery, threads, threadFilter, brandFilter, expandedThread, threadSort]);
+  }, [catalogueItems, searchQuery, threads, threadFilter, brandFilter, expandedThread, threadSort, lowStockThreshold]);
+
+  // Searching from a stash view also offers shades you don't own yet, so the
+  // search box doubles as "add a thread".
+  const searchAdditions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || threadFilter === 'all') return [];
+    const listed = new Set(filteredThreads.map(d => d.compositeKey));
+    const pool = brandFilter === 'all' ? catalogueItems : catalogueItems.filter(d => d.brand === brandFilter);
+    const out = [];
+    for (const d of pool) {
+      if (listed.has(d.compositeKey) || isInStash(threads[d.compositeKey])) continue;
+      if (d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q)) {
+        out.push(d);
+        if (out.length >= 24) break;
+      }
+    }
+    // Exact number matches first: typing "72" should show 720 before 3072.
+    out.sort((a, b) => (b.id.toLowerCase().startsWith(q) ? 1 : 0) - (a.id.toLowerCase().startsWith(q) ? 1 : 0));
+    return out;
+  }, [catalogueItems, searchQuery, threadFilter, brandFilter, threads, filteredThreads]);
+
+  // Reset paging whenever the list changes shape.
+  useEffect(() => {
+    setListLimit(STASH_PAGE_SIZE);
+  }, [threadFilter, brandFilter, searchQuery, threadSort]);
+
+  // Counts for the filter control and the tab badge.
+  const stashCounts = useMemo(() => {
+    const c = {
+      owned: 0,
+      low: 0,
+      opened: 0,
+      usedup: 0
+    };
+    for (const k in threads) {
+      if (!Object.prototype.hasOwnProperty.call(threads, k)) continue;
+      const t = threads[k];
+      if (isInStash(t)) c.owned++;
+      if (isThreadLow(t, lowStockThreshold)) c.low++;
+      if (isOpenedSkein(t)) c.opened++;
+      if (isUsedUp(t)) c.usedup++;
+    }
+    return c;
+  }, [threads, lowStockThreshold]);
+
+  // Which active patterns use each thread, keyed by composite key.
+  const usesByKey = useMemo(() => {
+    const map = {};
+    patterns.forEach(p => {
+      if (!p || p.status === 'completed' || !Array.isArray(p.threads)) return;
+      p.threads.forEach(t => {
+        const k = typeof libraryThreadKey === 'function' ? libraryThreadKey(t) : normaliseStashKey(t.id);
+        const list = map[k] || (map[k] = []);
+        if (list.some(u => u.title === (p.title || 'Untitled'))) return;
+        const isSkeins = !t.unit || t.unit === 'skeins';
+        list.push({
+          title: p.title || 'Untitled',
+          need: isSkeins && t.qty ? plural(t.qty, 'skein') : null
+        });
+      });
+    });
+    return map;
+  }, [patterns]);
+
+  // How many skeins short each thread is across all active patterns.
+  const shortByKey = useMemo(() => {
+    const map = {};
+    if (toBuy && toBuy.total) toBuy.total.forEach(t => {
+      map[t.key] = t.toBuy;
+    });
+    return map;
+  }, [toBuy]);
   function rgbToHue(rgb) {
     const r = rgb[0] / 255,
       g = rgb[1] / 255,
@@ -1171,19 +1546,63 @@ function ManagerApp() {
     const max = Math.max(r, g, b),
       min = Math.min(r, g, b),
       d = max - min;
-    if (d < 0.05) return 361; // near-grey/white/black ? sort to end
+    if (d < 0.05) return 361; // near-grey/white/black sort to the end
     let h;
     if (max === r) h = ((g - b) / d + 6) % 6;else if (max === g) h = (b - r) / d + 2;else h = (r - g) / d + 4;
     return h * 60;
   }
-  function matchesThreadFilter(t, filter, lowStockThreshold) {
-    if (filter === 'owned') return t.owned > 0 || ["mostly-full", "about-half", "remnant"].includes(t.partialStatus);
-    if (filter === 'tobuy') return t.tobuy;
-    if (filter === 'lowstock') return t.owned > 0 && t.owned <= lowStockThreshold || t.owned === 0 && ["about-half", "remnant"].includes(t.partialStatus);
-    if (filter === 'remnants') return t.partialStatus === "remnant";
-    if (filter === 'usedup') return t.partialStatus === "used-up" && t.owned === 0;
-    return true;
-  }
+
+  // Row callbacks are stable so React.memo can skip unchanged rows.
+  const toggleRow = useCallback(key => setExpandedThread(cur => cur === key ? null : key), []);
+  const updateThreadCb = useCallback((key, field, value) => updateThread(key, field, value), []);
+  const addThreadToStash = useCallback(key => {
+    updateThread(key, "owned", 1);
+    setExpandedThread(key);
+  }, []);
+  const removeFromStash = useCallback((key, label) => {
+    const prev = latestThreadsRef.current[key] || {};
+    const prevOwned = prev.owned || 0,
+      prevPartial = prev.partialStatus || null;
+    updateThread(key, "owned", 0);
+    updateThread(key, "partialStatus", null);
+    if (window.Toast) {
+      window.Toast.show({
+        message: label + " removed from stash",
+        type: "info",
+        undoAction: () => {
+          updateThread(key, "owned", prevOwned);
+          updateThread(key, "partialStatus", prevPartial);
+        }
+      });
+    }
+  }, []);
+  const setOnShoppingList = useCallback((key, add, qty) => {
+    if (typeof StashBridge === "undefined") return;
+    const work = add ? StashBridge.markManyToBuy([key], true, {
+      [key]: qty || 1
+    }) : StashBridge.updateThreadToBuy(key, false);
+    Promise.resolve(work).then(() => {
+      refreshToBuy();
+      if (window.Toast) window.Toast.show({
+        message: add ? "Added to your shopping list" : "Removed from your shopping list",
+        type: "success"
+      });
+    }).catch(() => {
+      if (window.Toast) window.Toast.show({
+        message: "Could not update your shopping list",
+        type: "error"
+      });
+    });
+  }, []);
+  // Jump from anywhere (Shopping list rows, pattern details) to one thread.
+  const openThread = useCallback(key => {
+    const parts = String(key).split(':');
+    setTab("inventory");
+    setBrandFilter("all");
+    setThreadFilter("all");
+    setSearchQuery(parts.length > 1 ? parts.slice(1).join(':') : parts[0]);
+    setExpandedThread(key);
+  }, []);
   const totalOwnedCount = useMemo(() => {
     return Object.values(threads).reduce((sum, t) => sum + (t.owned || 0), 0);
   }, [threads]);
@@ -1288,6 +1707,41 @@ function ManagerApp() {
       });
     }
   };
+
+  // Attention line and Shopping list tab.
+  const shoppingCount = toBuy ? toBuy.shopping.length : 0;
+  const shoppingSkeins = toBuy ? toBuy.shopping.reduce((n, r) => n + (r.tobuyQty || 1), 0) : 0;
+  const projectTitles = toBuy ? toBuy.projects.map(p => p.title || "Untitled") : [];
+  const conflictCount = conflicts ? conflicts.length : 0;
+  const attentionSig = shoppingCount + "|" + projectTitles.join(",") + "|" + (conflicts || []).map(c => c.key).join(",");
+  const showAttention = (shoppingCount > 0 || conflictCount > 0) && attentionSig !== attentionDismissed;
+  // Which patterns each shopping-list thread is for. A thread short only
+  // because two patterns share it is in no single pattern's list, so fall
+  // back to the patterns named in its conflict.
+  const projectsByKey = {};
+  if (toBuy) toBuy.projects.forEach(p => p.threads.forEach(t => {
+    (projectsByKey[t.key] || (projectsByKey[t.key] = [])).push(p.title || "Untitled");
+  }));
+  (conflicts || []).forEach(c => {
+    if (!projectsByKey[c.key]) projectsByKey[c.key] = c.patterns.map(p => p.title || "Untitled");
+  });
+  function copyShoppingList() {
+    if (!toBuy || !toBuy.shopping.length) return;
+    const text = toBuy.shopping.map(r => formatThread(r, {
+      variant: 'short'
+    }) + " " + r.name + " \u00D7 " + (r.tobuyQty || 1)).join("\n");
+    const done = ok => {
+      if (window.Toast) window.Toast.show({
+        message: ok ? "Shopping list copied" : "Could not copy the list",
+        type: ok ? "success" : "error"
+      });
+    };
+    try {
+      navigator.clipboard.writeText(text).then(() => done(true), () => done(false));
+    } catch (_) {
+      done(false);
+    }
+  }
   const statusColors = {
     wishlist: {
       bg: "var(--warning-soft)",
@@ -1372,174 +1826,132 @@ function ManagerApp() {
       cursor: "pointer"
     }
   }, "Cancel")))), /*#__PURE__*/React.createElement("div", {
-    className: "mgr-tab-bar",
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between"
-    }
+    className: "mgr-tab-bar"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex"
-    }
+    className: "mgr-tabs"
   }, /*#__PURE__*/React.createElement("button", {
     "data-onboard": "mgr-stash-tab",
     className: "mgr-tab" + (tab === "inventory" ? " on" : ""),
+    "aria-pressed": tab === "inventory",
     onClick: () => {
       setTab("inventory");
       setSearchQuery("");
-      setSelectedThread(null);
       setPanelOpen(false);
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "icon"
   }, Icons.thread()), " Thread Stash ", /*#__PURE__*/React.createElement("span", {
-    className: "cnt"
-  }, totalOwnedCount)), /*#__PURE__*/React.createElement("button", {
-    className: "mgr-tab" + (tab === "materials" ? " on" : ""),
-    onClick: () => setTab("materials")
-  }, "Project materials"), /*#__PURE__*/React.createElement("button", {
-    "data-onboard": "mgr-patterns-tab",
-    className: "mgr-tab" + (tab === "patterns" ? " on" : ""),
+    className: "cnt",
+    title: plural(stashCounts.owned, 'thread') + " in your stash"
+  }, stashCounts.owned)), /*#__PURE__*/React.createElement("button", {
+    className: "mgr-tab" + (tab === "shopping" ? " on" : ""),
+    "aria-pressed": tab === "shopping",
     onClick: () => {
-      setTab("patterns");
+      setTab("shopping");
       setSearchQuery("");
-      setSelectedThread(null);
       setPanelOpen(false);
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "icon"
-  }, Icons.clipboard()), " Pattern Library ", /*#__PURE__*/React.createElement("span", {
+  }, Icons.cart()), " Shopping", /*#__PURE__*/React.createElement("span", {
+    className: "lbl-long"
+  }, " list"), " ", shoppingCount > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "cnt",
+    title: plural(shoppingCount, 'thread') + " to buy"
+  }, shoppingCount)), /*#__PURE__*/React.createElement("button", {
+    "data-onboard": "mgr-patterns-tab",
+    className: "mgr-tab" + (tab === "patterns" ? " on" : ""),
+    "aria-pressed": tab === "patterns",
+    onClick: () => {
+      setTab("patterns");
+      setSearchQuery("");
+      setPanelOpen(false);
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "icon"
+  }, Icons.clipboard()), " ", /*#__PURE__*/React.createElement("span", {
+    className: "lbl-long"
+  }, "Pattern "), "Library ", /*#__PURE__*/React.createElement("span", {
     className: "cnt"
   }, patterns.length))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "mgr-showcase",
     onClick: () => {
       window.location.href = "index.html?mode=stats&tab=showcase&from=home";
     },
     title: "See your stitching journey",
-    style: {
-      fontSize: 12,
-      fontWeight: 600,
-      color: "var(--accent)",
-      background: "none",
-      border: "none",
-      cursor: "pointer",
-      padding: "0 14px",
-      fontFamily: "inherit",
-      flexShrink: 0,
-      whiteSpace: "nowrap"
-    },
     "aria-label": "Open Showcase view"
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, Icons.sparkles(), " Showcase"))), tab === "materials" && /*#__PURE__*/React.createElement(ProjectMaterials, {
-    catalogues: catalogueRecords
-  }), tab === "inventory" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("details", {
-    style: {
-      padding: 12
-    }
-  }, /*#__PURE__*/React.createElement("summary", null, "Custom thread catalogues (", catalogueRecords.length, " records)"), /*#__PURE__*/React.createElement("p", null, "User-owned reference catalogues are separate from manufacturer matching palettes and project colours. RGB values are optional screen approximations, never calibrated measurements. Substitutions are suggestions and are never applied automatically."), /*#__PURE__*/React.createElement("p", null, "CSV columns: brand,code,name,rgb,status,substitute,provenance. Use a lowercase custom brand slug, #RRGGBB or an empty colour, active/discontinued/unknown status, and an optional brand:code substitution. Built-in DMC and Anchor data cannot be overwritten."), /*#__PURE__*/React.createElement("label", null, "Catalogue CSV file ", /*#__PURE__*/React.createElement("input", {
-    type: "file",
-    accept: ".csv,text/csv",
-    disabled: catalogueBusy,
-    onChange: async e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      try {
-        if (file.size > 5000000) throw Error('CSV must be under 5 MB.');
-        const text = await file.text();
-        setCatalogueText(text);
-        setCataloguePreview(ThreadCatalogues.preview(text, catalogueRecords));
-        setCatalogueMessage('');
-      } catch (err) {
-        setCatalogueMessage(err.message);
-      }
-      e.target.value = '';
-    }
-  })), /*#__PURE__*/React.createElement("label", null, "Catalogue CSV ", /*#__PURE__*/React.createElement("textarea", {
-    "aria-label": "Catalogue CSV",
-    value: catalogueText,
-    disabled: catalogueBusy,
-    onChange: e => {
-      setCatalogueText(e.target.value);
-      setCataloguePreview(null);
-    }
-  })), /*#__PURE__*/React.createElement("button", {
-    disabled: catalogueBusy,
-    onClick: () => setCataloguePreview(ThreadCatalogues.preview(catalogueText, catalogueRecords))
-  }, "Preview import"), /*#__PURE__*/React.createElement("button", {
-    disabled: catalogueBusy || !catalogueRecords.length,
-    onClick: exportCatalogue
-  }, "Export custom CSV"), cataloguePreview && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", null, cataloguePreview.records.length, " valid records; ", cataloguePreview.errors.length, " errors; ", cataloguePreview.duplicates.length, " duplicates. Imports with errors or duplicates save nothing."), /*#__PURE__*/React.createElement("ul", null, [...cataloguePreview.errors, ...cataloguePreview.duplicates].map((message, i) => /*#__PURE__*/React.createElement("li", {
-    key: i
-  }, message))), /*#__PURE__*/React.createElement("ul", null, cataloguePreview.records.map(t => /*#__PURE__*/React.createElement("li", {
-    key: t.key
-  }, t.brand, " ", t.code, ": ", t.name, " \u2014 ", t.status, "; ", t.rgb ? 'approximate RGB ' + t.rgb.join(',') : 'no colour approximation', "; substitute: ", t.substitute || 'none', "; provenance (user supplied): ", t.provenance))), /*#__PURE__*/React.createElement("button", {
-    disabled: catalogueBusy || !cataloguePreview.records.length || !!cataloguePreview.errors.length || !!cataloguePreview.duplicates.length,
-    onClick: importCatalogue
-  }, "Import catalogue")), /*#__PURE__*/React.createElement("p", {
-    role: "status"
-  }, catalogueMessage), /*#__PURE__*/React.createElement("ul", null, catalogueRecords.map(t => /*#__PURE__*/React.createElement("li", {
-    key: t.key
-  }, t.brand, " ", t.code, ": ", t.name, " \u2014 ", t.status, "; substitute: ", t.substitute || 'none', "; provenance (user supplied): ", t.provenance)))), /*#__PURE__*/React.createElement("div", {
-    className: "mgr-filter-bar"
-  }, /*#__PURE__*/React.createElement("input", {
+  }, Icons.sparkles(), /*#__PURE__*/React.createElement("span", {
+    className: "mgr-showcase-label"
+  }, "Showcase"))), tab === "inventory" && /*#__PURE__*/React.createElement("div", {
+    className: "stash-page"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-toolbar"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "stash-search"
+  }, Icons.magnify(), /*#__PURE__*/React.createElement("input", {
     type: "search",
     "aria-label": "Search threads",
     enterKeyHint: "search",
-    placeholder: "Search thread number or name...",
+    placeholder: "Find a thread, or type a number to add one",
     value: searchQuery,
     onChange: e => setSearchQuery(e.target.value)
-  }), [{
-    id: "all",
-    label: "All"
-  }, {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "stash-seg",
+    role: "radiogroup",
+    "aria-label": "Show threads"
+  }, [{
     id: "owned",
-    label: "Owned"
+    label: "Owned",
+    count: stashCounts.owned
   }, {
-    id: "lowstock",
-    label: "Low Stock"
+    id: "low",
+    label: "Running low",
+    short: "Low",
+    count: stashCounts.low
   }, {
-    id: "remnants",
-    label: "Remnants"
-  }, {
+    id: "opened",
+    label: "Opened",
+    count: stashCounts.opened
+  }, (stashCounts.usedup > 0 || threadFilter === "usedup") && {
     id: "usedup",
-    label: "Used Up"
-  }].map(f => /*#__PURE__*/React.createElement("button", {
-    key: f.id,
-    className: "mgr-chip" + (threadFilter === f.id ? " on" : ""),
-    onClick: () => setThreadFilter(f.id)
-  }, f.label)), /*#__PURE__*/React.createElement("span", {
-    style: {
-      marginLeft: 4,
-      marginRight: 2,
-      color: 'var(--text-tertiary)',
-      fontSize: 11
-    }
-  }, "Brand:"), [{
+    label: "Used up",
+    count: stashCounts.usedup
+  }, {
     id: "all",
-    label: "All"
-  }, {
-    id: "dmc",
-    label: "DMC"
-  }, {
-    id: "anchor",
-    label: "Anchor"
-  }].map(f => /*#__PURE__*/React.createElement("button", {
-    key: 'brand-' + f.id,
-    className: "mgr-chip" + (brandFilter === f.id ? " on" : ""),
-    onClick: () => setBrandFilter(f.id)
-  }, f.label)), /*#__PURE__*/React.createElement("span", {
-    style: {
-      marginLeft: 8,
-      marginRight: 2,
-      color: 'var(--text-tertiary)',
-      fontSize: 11
-    }
-  }, "Sort:"), /*#__PURE__*/React.createElement("select", {
+    label: "Every shade",
+    short: "All",
+    count: null
+  }].filter(Boolean).map(f => /*#__PURE__*/React.createElement("button", {
+    key: f.id,
+    type: "button",
+    role: "radio",
+    "aria-checked": threadFilter === f.id,
+    className: threadFilter === f.id ? "on" : "",
+    onClick: () => setThreadFilter(f.id)
+  }, f.short ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    className: "lbl-long"
+  }, f.label), /*#__PURE__*/React.createElement("span", {
+    className: "lbl-short",
+    "aria-hidden": "true"
+  }, f.short)) : f.label, f.count != null && /*#__PURE__*/React.createElement("span", {
+    className: "n"
+  }, f.count)))), /*#__PURE__*/React.createElement("div", {
+    className: "stash-toolbar-end"
+  }, /*#__PURE__*/React.createElement(StashMenuButton, {
+    align: "end",
+    className: "stash-view-btn",
+    icon: Icons.sliders(),
+    label: ({
+      number: "Number",
+      colour: "Colour",
+      name: "Name",
+      owned_desc: "Most owned",
+      owned_asc: "Fewest owned"
+    }[threadSort] || "Number") + ", " + (brandFilter === "dmc" ? "DMC" : brandFilter === "anchor" ? "Anchor" : "all brands")
+  }, () => /*#__PURE__*/React.createElement("div", {
+    className: "stash-view-panel"
+  }, /*#__PURE__*/React.createElement("label", null, /*#__PURE__*/React.createElement("span", null, "Sort by"), /*#__PURE__*/React.createElement("select", {
     "aria-label": "Sort threads",
     className: "mgr-sort-select",
     value: threadSort,
@@ -1554,106 +1966,234 @@ function ManagerApp() {
     value: "owned_desc"
   }, "Owned: most first"), /*#__PURE__*/React.createElement("option", {
     value: "owned_asc"
-  }, "Owned: fewest first")), typeof window.BulkAddModal !== 'undefined' && /*#__PURE__*/React.createElement("button", {
-    onClick: () => setBulkAddOpen(true),
-    style: {
-      marginLeft: 'auto',
-      padding: '5px 12px',
-      fontSize: 12,
-      fontWeight: 600,
-      background: 'var(--surface-secondary)',
-      color: 'var(--accent)',
-      border: '1px solid #bfdbfe',
-      borderRadius: 6,
-      cursor: 'pointer',
-      whiteSpace: 'nowrap'
-    },
-    title: "Bulk-add threads to your stash by pasting a list or choosing a starter kit"
-  }, "+ Bulk Add"))), tab === "inventory" && /*#__PURE__*/React.createElement("div", {
-    className: "mgr-stats-strip"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "app-info-chip-wrap mgr-stash-chip-wrap"
-  }, /*#__PURE__*/React.createElement("button", {
-    ref: stashChipRef,
+  }, "Owned: fewest first"))), /*#__PURE__*/React.createElement("label", null, /*#__PURE__*/React.createElement("span", null, "Brand"), /*#__PURE__*/React.createElement("select", {
+    "aria-label": "Thread brand",
+    className: "mgr-sort-select",
+    value: brandFilter,
+    onChange: e => setBrandFilter(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "All brands"), /*#__PURE__*/React.createElement("option", {
+    value: "dmc"
+  }, "DMC"), /*#__PURE__*/React.createElement("option", {
+    value: "anchor"
+  }, "Anchor"))))), /*#__PURE__*/React.createElement(StashMenuButton, {
+    align: "end",
+    icon: Icons.plus(),
+    ariaLabel: "Add threads",
+    label: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+      className: "lbl-long"
+    }, "Add threads"), /*#__PURE__*/React.createElement("span", {
+      className: "lbl-short"
+    }, "Add")),
+    className: "stash-btn--primary"
+  }, close => /*#__PURE__*/React.createElement("div", {
+    className: "stash-menu-list"
+  }, typeof window.BulkAddModal !== 'undefined' && /*#__PURE__*/React.createElement("button", {
     type: "button",
-    className: "app-info-chip mgr-stash-chip",
-    "aria-haspopup": "dialog",
-    "aria-expanded": stashChipOpen,
-    onClick: () => setStashChipOpen(o => !o),
-    title: "Stash overview"
+    onClick: () => {
+      close();
+      setBulkAddOpen(true);
+    }
+  }, Icons.listComfortable(), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Bulk add"), /*#__PURE__*/React.createElement("small", null, "Paste a list of numbers, or choose a starter kit"))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      close();
+      setCatalogueOpen(true);
+    }
+  }, Icons.document(), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Custom thread catalogues"), /*#__PURE__*/React.createElement("small", null, "Import or export your own thread references (" + plural(catalogueRecords.length, 'record') + ")"))))))), showAttention && /*#__PURE__*/React.createElement("div", {
+    className: "stash-attention",
+    role: "status"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "app-info-chip__label"
-  }, "Stash"), /*#__PURE__*/React.createElement("span", {
-    className: "mgr-stash-chip-summary"
-  }, totalOwnedCount, " skeins", lowStockNeeded && lowStockNeeded.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, " \u00B7 ", lowStockNeeded.length, " low")), /*#__PURE__*/React.createElement("span", {
-    className: "app-info-chip__chevron",
+    className: "stash-attention-icon",
     "aria-hidden": "true"
-  }, Icons.chevronDown ? Icons.chevronDown() : null)), stashChipOpen && window.AppInfoPopover && (() => {
-    // PERF (perf-4 #10): single-pass count avoids Object.values() + .filter()
-    // intermediate arrays on every popover open.
-    let distinctOwned = 0;
-    for (const k in threads) {
-      if (Object.prototype.hasOwnProperty.call(threads, k) && (threads[k].owned || 0) > 0) distinctOwned++;
+  }, conflictCount > 0 ? Icons.warning() : Icons.cart()), /*#__PURE__*/React.createElement("p", null, shoppingCount > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("b", null, plural(shoppingCount, 'thread'), " to buy"), projectTitles.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, " for " + listJoin(projectTitles)), ". "), conflictCount > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, listJoin(conflicts.map(c => formatThread(c, {
+    variant: 'short'
+  }))), " ", conflictCount === 1 ? "is" : "are", " needed by more than one pattern.")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn",
+    onClick: () => {
+      setTab("shopping");
+      setSearchQuery("");
     }
-    const conflictCount = conflicts && conflicts.length || 0;
-    const readyCount = readyToStart && readyToStart.length || 0;
-    const lowNeeded = lowStockNeeded && lowStockNeeded.length || 0;
-    const lowNotNeeded = lowStockNotNeeded && lowStockNotNeeded.length || 0;
-    const inventoryRows = [['Total skeins owned', totalOwnedCount.toLocaleString('en-GB')], ['Distinct threads owned', distinctOwned.toLocaleString('en-GB')], ['Low-stock threshold', String(lowStockThreshold)]];
-    const statusRows = [];
-    if (lowNeeded > 0) statusRows.push(['Low stock (needed)', lowNeeded]);
-    if (lowNotNeeded > 0) statusRows.push(['Low stock (other)', lowNotNeeded]);
-    const toBuyCount = toBuy && toBuy.shopping.length || 0;
-    if (toBuyCount > 0) statusRows.push(['To buy', plural(toBuyCount, 'thread')]);
-    if (conflictCount > 0) statusRows.push(['Conflicts', conflictCount]);
-    if (readyCount > 0) statusRows.push(['Ready to start', readyCount]);
-    const badges = [];
-    if (conflictCount > 0) badges.push({
-      label: plural(conflictCount, 'conflict'),
-      kind: 'danger'
-    });
-    if (lowNeeded > 0) badges.push({
-      label: lowNeeded + ' low',
-      kind: 'warning'
-    });
-    if (readyCount > 0) badges.push({
-      label: readyCount + ' ready',
-      kind: 'success'
-    });
-    const children = [React.createElement(window.AppInfoSection, {
-      key: 's-inv',
-      title: 'Stash'
-    }, React.createElement(window.AppInfoGrid, {
-      rows: inventoryRows
-    })), React.createElement(window.AppInfoDivider, {
-      key: 'd1'
-    }), React.createElement(window.AppInfoSection, {
-      key: 's-status',
-      title: 'Status'
-    }, React.createElement(window.AppInfoGrid, {
-      rows: statusRows
-    }))];
-    if (badges.length) {
-      children.push(React.createElement(window.AppInfoDivider, {
-        key: 'd2'
-      }));
-      children.push(React.createElement(window.AppInfoBadges, {
-        key: 'b',
-        items: badges
-      }));
+  }, "Open shopping list", Icons.chevronRight()), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--quiet stash-btn--icon",
+    "aria-label": "Hide this until something changes",
+    title: "Hide this until something changes",
+    onClick: () => {
+      setAttentionDismissed(attentionSig);
+      try {
+        if (window.UserPrefs) window.UserPrefs.set("stashAttentionDismissed", attentionSig);
+      } catch (_) {}
     }
-    return React.createElement(window.AppInfoPopover, {
-      open: true,
-      onClose: () => setStashChipOpen(false),
-      triggerRef: stashChipRef,
-      ariaLabel: 'Stash overview',
-      className: 'app-info-popover--left'
-    }, children);
-  })())), tab === "inventory" && /*#__PURE__*/React.createElement("div", {
-    className: "mgr-main"
+  }, Icons.x())), filteredThreads.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "stash-list-wrap"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "mgr-content"
-  }, toBuy && toBuy.projects.map((p, i) => {
+    className: "stash-list-head",
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement("span", null, "Thread"), /*#__PURE__*/React.createElement("span", null, "Full skeins"), /*#__PURE__*/React.createElement("span", null, "Opened skein"), /*#__PURE__*/React.createElement("span", null, "Used in"), /*#__PURE__*/React.createElement("span", null, "Status")), /*#__PURE__*/React.createElement("ul", {
+    className: "stash-list",
+    "aria-label": "Threads"
+  }, filteredThreads.slice(0, listLimit).map(d => {
+    const st = threads[d.compositeKey] || EMPTY_THREAD;
+    const expanded = expandedThread === d.compositeKey;
+    const full = expanded || isInStash(st) || st.partialStatus === "used-up" || (Number(st.min_stock) || 0) > 0;
+    return /*#__PURE__*/React.createElement(StashRow, {
+      key: d.compositeKey,
+      item: d,
+      state: st,
+      expanded: expanded,
+      owned: full,
+      uses: usesByKey[d.compositeKey] || NO_USES,
+      short: shortByKey[d.compositeKey] || 0,
+      low: isThreadLow(st, lowStockThreshold),
+      onToggle: toggleRow,
+      onUpdate: updateThreadCb,
+      onAdd: addThreadToStash,
+      onShopping: setOnShoppingList,
+      onRemove: removeFromStash
+    });
+  })), filteredThreads.length > listLimit && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-more",
+    onClick: () => setListLimit(n => n + STASH_PAGE_SIZE)
+  }, "Show " + Math.min(STASH_PAGE_SIZE, filteredThreads.length - listLimit) + " more (" + (filteredThreads.length - listLimit) + " left)")), filteredThreads.length === 0 && (stashCounts.owned === 0 && threadFilter === "owned" && !searchQuery.trim() && window.EmptyState ? /*#__PURE__*/React.createElement("div", {
+    className: "stash-empty-wrap"
+  }, React.createElement(window.EmptyState, {
+    icon: Icons.thread(),
+    title: "Your stash is empty",
+    description: "Record the DMC and Anchor threads you own so you can plan projects and see what you still need. Type a thread number in the search box to add it, or add several at once.",
+    ctaLabel: "Bulk add threads",
+    ctaAction: () => setBulkAddOpen(true)
+  })) : /*#__PURE__*/React.createElement("p", {
+    className: "stash-empty"
+  }, searchQuery.trim() ? threadFilter === "all" ? "No shades match “" + searchQuery.trim() + "”." : "Nothing in this view matches “" + searchQuery.trim() + "”." : threadFilter === "low" ? "Nothing is running low." : threadFilter === "opened" ? "No opened skeins. Open a thread's details to record a part-used skein." : threadFilter === "usedup" ? "No used-up threads." : "No threads found.")), searchAdditions.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "stash-list-wrap"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "stash-group"
+  }, "Not in your stash"), /*#__PURE__*/React.createElement("ul", {
+    className: "stash-list",
+    "aria-label": "Threads you could add"
+  }, searchAdditions.map(d => /*#__PURE__*/React.createElement(StashRow, {
+    key: d.compositeKey,
+    item: d,
+    state: threads[d.compositeKey] || EMPTY_THREAD,
+    expanded: false,
+    owned: false,
+    uses: usesByKey[d.compositeKey] || NO_USES,
+    short: shortByKey[d.compositeKey] || 0,
+    low: false,
+    onToggle: toggleRow,
+    onUpdate: updateThreadCb,
+    onAdd: addThreadToStash,
+    onShopping: setOnShoppingList,
+    onRemove: removeFromStash
+  }))))), tab === "shopping" && /*#__PURE__*/React.createElement("div", {
+    className: "stash-page stash-shop"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "stash-card",
+    "aria-labelledby": "stash-shop-heading"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-card-head"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "stash-shop-heading"
+  }, Icons.cart(), /*#__PURE__*/React.createElement("span", null, "To buy")), shoppingCount > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "stash-muted"
+  }, plural(shoppingCount, 'thread') + ", " + plural(shoppingSkeins, 'skein')), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-card-action",
+    disabled: !shoppingCount,
+    onClick: copyShoppingList
+  }, Icons.copy(), /*#__PURE__*/React.createElement("span", null, "Copy list"))), toBuy === null ? /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "Checking your patterns against your stash\u2026") : shoppingCount === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "stash-empty"
+  }, "Nothing to buy. Patterns in your library are checked against your stash, and anything they need appears here.") : /*#__PURE__*/React.createElement("ul", {
+    className: "stash-shop-list"
+  }, toBuy.shopping.map(r => {
+    const label = formatThread(r, {
+      variant: 'short'
+    });
+    const forTitles = projectsByKey[r.key] || NO_TITLES;
+    const byHand = !!(threads[r.key] && threads[r.key].tobuy);
+    return /*#__PURE__*/React.createElement("li", {
+      key: r.key,
+      className: "stash-shop-row"
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "stash-ident",
+      onClick: () => openThread(r.key),
+      title: "Show " + label + " in Thread Stash"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "stash-swatch",
+      style: {
+        background: "rgb(" + r.rgb.join(",") + ")"
+      },
+      "aria-hidden": "true"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "stash-id"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "stash-code"
+    }, label), /*#__PURE__*/React.createElement("span", {
+      className: "stash-name"
+    }, r.name))), /*#__PURE__*/React.createElement("span", {
+      className: "stash-uses"
+    }, forTitles.map(t => /*#__PURE__*/React.createElement("span", {
+      key: t,
+      className: "stash-chip"
+    }, t)), byHand && forTitles.length === 0 && /*#__PURE__*/React.createElement("span", {
+      className: "stash-chip stash-chip--quiet"
+    }, "Added by you")), /*#__PURE__*/React.createElement("span", {
+      className: "stash-shop-qty"
+    }, plural(r.tobuyQty || 1, 'skein')), byHand ? /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "stash-btn stash-btn--quiet stash-btn--icon",
+      "aria-label": "Remove " + label + " from your shopping list",
+      title: "Remove from shopping list",
+      onClick: () => setOnShoppingList(r.key, false)
+    }, Icons.x()) : /*#__PURE__*/React.createElement("span", {
+      className: "stash-btn--icon",
+      "aria-hidden": "true"
+    }));
+  }))), conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
+    id: "stash-conflicts",
+    title: "Thread Conflicts",
+    count: conflicts.length,
+    countLabel: plural(conflicts.length, 'thread'),
+    icon: Icons.warning(),
+    tone: "danger",
+    preferenceKey: "stashConflictsCollapsed"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "stash-alert-desc"
+  }, "More than one pattern needs these threads, and your stash can't cover them all."), /*#__PURE__*/React.createElement("ul", {
+    className: "stash-alert-list"
+  }, conflicts.map(c => /*#__PURE__*/React.createElement("li", {
+    key: c.key
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-alert-row",
+    title: "Show " + formatThread(c, {
+      variant: 'title'
+    }) + " in Thread Stash",
+    onClick: () => openThread(c.key)
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-swatch stash-swatch--sm",
+    style: {
+      background: "rgb(" + c.rgb.join(",") + ")"
+    },
+    "aria-hidden": "true"
+  }), /*#__PURE__*/React.createElement("b", null, formatThread(c, {
+    variant: 'short'
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "stash-name"
+  }, formatThread(c, {
+    variant: 'name'
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "stash-alert-qty"
+  }, "own " + formatSkeins(c.owned) + ", need " + formatSkeins(c.totalNeeded)), /*#__PURE__*/React.createElement("span", {
+    className: "stash-alert-who"
+  }, c.patterns.map(p => p.title).join(", "))))))), toBuy && toBuy.projects.map((p, i) => {
     const unflagged = p.threads.filter(t => !(threads[t.key] && threads[t.key].tobuy)).length;
     return /*#__PURE__*/React.createElement(StashAlertPanel, {
       key: p.id,
@@ -1663,557 +2203,73 @@ function ManagerApp() {
       countLabel: plural(p.threads.length, 'thread'),
       icon: Icons.cart(),
       preferenceKey: "stashToBuyCollapsed"
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        color: "var(--text-secondary)",
-        marginBottom: 10
-      }
-    }, "Threads this pattern needs that your stash doesn't cover.", toBuy.projects.length > 1 && " Your whole shopping list is " + plural(toBuy.shopping.length, 'thread') + "."), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        maxHeight: 200,
-        overflow: "auto"
-      }
-    }, p.threads.map(t => /*#__PURE__*/React.createElement("div", {
-      key: t.key,
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "6px 10px",
-        borderRadius: 6,
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        cursor: "pointer"
-      },
-      title: "Open thread card for " + formatThread(t, {
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "stash-alert-desc"
+    }, "Threads this pattern needs that your stash doesn't cover."), /*#__PURE__*/React.createElement("ul", {
+      className: "stash-alert-list"
+    }, p.threads.map(t => /*#__PURE__*/React.createElement("li", {
+      key: t.key
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "stash-alert-row",
+      title: "Show " + formatThread(t, {
         variant: 'title'
-      }),
-      onClick: () => {
-        setTab("inventory");
-        setThreadFilter("all");
-        setBrandFilter("all");
-        setSearchQuery("");
-        setSelectedThread(t.key);
-        setPanelOpen(true);
-      }
+      }) + " in Thread Stash",
+      onClick: () => openThread(t.key)
     }, /*#__PURE__*/React.createElement("span", {
+      className: "stash-swatch stash-swatch--sm",
       style: {
-        width: 14,
-        height: 14,
-        borderRadius: 3,
-        background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`,
-        border: "1px solid var(--border)",
-        flexShrink: 0
-      }
-    }), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontWeight: 600,
-        fontSize: 12
-      }
-    }, formatThread(t, {
+        background: "rgb(" + t.rgb.join(",") + ")"
+      },
+      "aria-hidden": "true"
+    }), /*#__PURE__*/React.createElement("b", null, formatThread(t, {
       variant: 'short'
     })), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 11,
-        color: "var(--text-secondary)",
-        flex: 1
-      }
+      className: "stash-name"
     }, formatThread(t, {
       variant: 'name'
     })), /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 11,
-        color: "var(--text-secondary)",
-        fontWeight: 600
-      }
-    }, "own ", t.owned, ", need ", t.need)))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginTop: 10
-      }
+      className: "stash-alert-qty"
+    }, "own " + formatSkeins(t.owned) + ", need " + formatSkeins(t.need)))))), /*#__PURE__*/React.createElement("div", {
+      className: "stash-alert-foot"
     }, unflagged > 0 ? /*#__PURE__*/React.createElement("button", {
       type: "button",
-      className: "g-btn",
+      className: "stash-btn",
       onClick: () => addToShoppingList(p)
-    }, Icons.cart(), " Add to shopping list") : /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 12,
-        color: "var(--text-secondary)"
-      }
+    }, Icons.cart(), /*#__PURE__*/React.createElement("span", null, "Add to shopping list")) : /*#__PURE__*/React.createElement("span", {
+      className: "stash-muted"
     }, "All of these are on your shopping list.")));
-  }), conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
-    id: "stash-conflicts",
-    title: "Thread Conflicts",
-    count: conflicts.length,
-    countLabel: plural(conflicts.length, 'thread'),
-    icon: Icons.warning(),
-    tone: "danger",
-    preferenceKey: "stashConflictsCollapsed"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--text-secondary)",
-      marginBottom: 10
-    }
-  }, "More than one pattern needs these threads, and your stash can't cover them all."), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-      maxHeight: 200,
-      overflow: "auto"
-    }
-  }, conflicts.map(c => /*#__PURE__*/React.createElement("div", {
-    key: c.key,
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      padding: "6px 10px",
-      borderRadius: 6,
-      background: "var(--surface)",
-      border: "1px solid var(--danger-soft)",
-      cursor: "pointer"
-    },
-    title: "Open thread card for " + formatThread(c, {
-      variant: 'title'
-    }),
-    onClick: () => {
-      setTab("inventory");
-      setThreadFilter("all");
-      setBrandFilter("all");
-      setSearchQuery("");
-      setSelectedThread(c.key);
-      setPanelOpen(true);
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      width: 14,
-      height: 14,
-      borderRadius: 3,
-      background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`,
-      border: "1px solid var(--border)",
-      flexShrink: 0
-    }
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontWeight: 600,
-      fontSize: 12
-    }
-  }, formatThread(c, {
-    variant: 'short'
-  })), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: "var(--text-secondary)",
-      flex: 1
-    }
-  }, formatThread(c, {
-    variant: 'name'
-  })), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: "var(--danger)",
-      fontWeight: 600
-    }
-  }, "own ", c.owned, ", need ", c.totalNeeded), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 10,
-      color: "var(--text-tertiary)"
-    }
-  }, c.patterns.map(p => p.title).join(", ")))))), lowStockNeeded && lowStockNeeded.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
+  }), lowStockNeeded && lowStockNeeded.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
     id: "stash-low-needed",
-    title: "Low Stock \u2014 Needed",
+    title: "Low stock: needed",
     count: lowStockNeeded.length,
     icon: Icons.box(),
     tone: "warn",
     preferenceKey: "stashLowStockNeededCollapsed"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "stash-alert-desc"
+  }, "Threads your active patterns use that are below their minimum."), /*#__PURE__*/React.createElement("ul", {
+    className: "stash-alert-list"
+  }, lowStockNeeded.map(a => /*#__PURE__*/React.createElement("li", {
+    key: a.id
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-alert-row",
+    title: "Show " + formatBrandLabel(a.brand) + " " + (a.bareId || a.id) + " in Thread Stash",
+    onClick: () => openThread(a.id)
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-swatch stash-swatch--sm",
     style: {
-      fontSize: 12,
-      color: "var(--text-secondary)",
-      marginBottom: 10
-    }
-  }, "Threads below your minimum stock level that are used by active projects."), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-      maxHeight: 160,
-      overflow: "auto"
-    }
-  }, lowStockNeeded.map(a => /*#__PURE__*/React.createElement("div", {
-    key: a.id,
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      padding: "6px 10px",
-      borderRadius: 6,
-      background: "var(--surface)",
-      border: "1px solid var(--warning)",
-      cursor: "pointer"
+      background: "rgb(" + a.rgb.join(",") + ")"
     },
-    title: "Open thread card for " + formatBrandLabel(a.brand) + " " + (a.bareId || a.id),
-    onClick: () => {
-      setTab("inventory");
-      setThreadFilter("all");
-      setBrandFilter("all");
-      setSearchQuery("");
-      setSelectedThread(a.id);
-      setPanelOpen(true);
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      width: 14,
-      height: 14,
-      borderRadius: 3,
-      background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`,
-      border: "1px solid var(--border)",
-      flexShrink: 0
-    }
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontWeight: 600,
-      fontSize: 12
-    }
-  }, formatBrandLabel(a.brand), " ", a.bareId || a.id), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: "var(--text-secondary)",
-      flex: 1
-    }
+    "aria-hidden": "true"
+  }), /*#__PURE__*/React.createElement("b", null, formatBrandLabel(a.brand), " ", a.bareId || a.id), /*#__PURE__*/React.createElement("span", {
+    className: "stash-name"
   }, a.name), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: "var(--accent-ink)",
-      fontWeight: 600
-    }
-  }, "have ", a.owned, ", min ", a.min_stock))))), lowStockNotNeeded && lowStockNotNeeded.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
-    id: "stash-low-unused",
-    title: "Low stash \u2014 not currently needed",
-    count: lowStockNotNeeded.length,
-    icon: Icons.box(),
-    tone: "quiet",
-    preferenceKey: "stashLowStockNotNeededCollapsed"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 12,
-      color: "var(--text-tertiary)",
-      marginBottom: 10
-    }
-  }, "These threads are below minimum stock but aren't used by any active project."), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-      maxHeight: 160,
-      overflow: "auto"
-    }
-  }, lowStockNotNeeded.map(a => /*#__PURE__*/React.createElement("div", {
-    key: a.id,
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      padding: "6px 10px",
-      borderRadius: 6,
-      background: "var(--surface)",
-      border: "1px solid var(--border)"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      width: 14,
-      height: 14,
-      borderRadius: 3,
-      background: `rgb(${a.rgb[0]},${a.rgb[1]},${a.rgb[2]})`,
-      border: "1px solid var(--border)",
-      flexShrink: 0
-    }
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontWeight: 600,
-      fontSize: 12
-    }
-  }, formatBrandLabel(a.brand), " ", a.bareId || a.id), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: "var(--text-secondary)",
-      flex: 1
-    }
-  }, a.name), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 11,
-      color: "var(--text-tertiary)",
-      fontWeight: 600
-    }
-  }, "have ", a.owned, ", min ", a.min_stock))))), /*#__PURE__*/React.createElement("div", {
-    className: "thread-grid"
-  }, filteredThreads.map(d => {
-    const state = threads[d.compositeKey] || {
-      owned: 0,
-      tobuy: false,
-      partialStatus: null
-    };
-    const isSelected = selectedThread === d.compositeKey;
-    const isLowStock = state.owned > 0 && state.owned <= lowStockThreshold;
-    const gaugeLevel = !state.partialStatus ? 0 : state.partialStatus === "mostly-full" ? 3 : state.partialStatus === "about-half" ? 2 : state.partialStatus === "remnant" ? 1 : state.partialStatus === "used-up" ? 4 : 0;
-    return /*#__PURE__*/React.createElement("div", {
-      key: d.compositeKey,
-      className: "tcard" + (isSelected ? " on" : ""),
-      onClick: () => {
-        const next = isSelected ? null : d.compositeKey;
-        setSelectedThread(next);
-        if (next) setPanelOpen(true);
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "sw",
-      style: {
-        background: `rgb(${d.rgb})`
-      }
-    }), /*#__PURE__*/React.createElement("div", {
-      className: "info"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "tid"
-    }, d.id, d.brand === 'anchor' && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 9,
-        fontWeight: 700,
-        background: '#e0f2fe',
-        color: '#0369a1',
-        borderRadius: 3,
-        padding: '0 3px',
-        marginLeft: 4,
-        verticalAlign: 'middle'
-      }
-    }, "A")), /*#__PURE__*/React.createElement("div", {
-      className: "tnm"
-    }, d.name)), isLowStock && /*#__PURE__*/React.createElement("span", {
-      className: "badge-low"
-    }, "Low"), /*#__PURE__*/React.createElement("div", {
-      className: "owned"
-    }, state.owned), /*#__PURE__*/React.createElement("div", {
-      className: "gauge",
-      "data-level": gaugeLevel
-    }));
-  }), filteredThreads.length === 0 && (totalOwnedCount === 0 && threadFilter === 'all' && window.EmptyState ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      gridColumn: "1 / -1",
-      padding: "20px 0"
-    }
-  }, React.createElement(window.EmptyState, {
-    icon: Icons.thread(),
-    title: "Your stash is empty",
-    description: "Track which DMC and Anchor threads you own so you can plan projects and see what you still need.",
-    ctaLabel: "Bulk add threads",
-    ctaAction: () => setBulkAddOpen(true)
-  })) : /*#__PURE__*/React.createElement("div", {
-    style: {
-      gridColumn: "1 / -1",
-      textAlign: "center",
-      padding: "40px 20px",
-      color: "var(--text-secondary)",
-      fontSize: 14
-    }
-  }, threadFilter === 'remnants' ? "Threads marked as remnants will appear here. You can change a thread's status from its entry in the All tab." : threadFilter === 'usedup' ? "Threads marked as used up will appear here." : "No threads found.")))), panelOpen && /*#__PURE__*/React.createElement("div", {
-    className: "rpanel-backdrop",
-    onClick: () => setPanelOpen(false)
-  }), /*#__PURE__*/React.createElement("div", {
-    className: "mgr-rpanel" + (panelOpen ? " mgr-rpanel--open" : "")
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "mgr-panel-handle",
-    onClick: () => setPanelOpen(o => !o)
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "rpanel-handle-bar"
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 10,
-      color: "var(--text-tertiary)",
-      marginTop: 2
-    }
-  }, selectedThread ? "Thread Detail" : "Thread Detail")), selectedThread ? (() => {
-    const d = typeof getThreadByKey === 'function' ? getThreadByKey(selectedThread) : findThreadInCatalog('dmc', selectedThread);
-    if (!d) return /*#__PURE__*/React.createElement("div", {
-      className: "rp-s",
-      style: {
-        color: "var(--text-tertiary)",
-        textAlign: "center",
-        padding: 20
-      }
-    }, "Thread not found");
-    const selBrand = selectedThread.indexOf(':') < 0 ? 'dmc' : selectedThread.split(':')[0];
-    const brandLabel = selBrand === 'anchor' ? 'Anchor' : 'DMC';
-    const state = threads[selectedThread] || {
-      owned: 0,
-      tobuy: false,
-      partialStatus: null,
-      min_stock: 0
-    };
-    return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-      className: "rp-s",
-      style: {
-        textAlign: "center"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "td-swatch",
-      style: {
-        background: `rgb(${d.rgb})`
-      }
-    }), /*#__PURE__*/React.createElement("div", {
-      className: "td-title"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "dmc"
-    }, brandLabel, " ", d.id, selBrand === 'anchor' && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 9,
-        fontWeight: 700,
-        background: '#e0f2fe',
-        color: '#0369a1',
-        borderRadius: 3,
-        padding: '0 3px',
-        marginLeft: 4
-      }
-    }, "A")), /*#__PURE__*/React.createElement("div", {
-      className: "tnm"
-    }, d.name))), /*#__PURE__*/React.createElement("div", {
-      className: "rp-s"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "rp-h"
-    }, "Stash"), /*#__PURE__*/React.createElement("div", {
-      className: "td-row"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "lbl"
-    }, "Full skeins"), /*#__PURE__*/React.createElement("div", {
-      className: "qty-ctrl"
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: () => updateThread(selectedThread, "owned", Math.max(0, state.owned - 1))
-    }, "-"), /*#__PURE__*/React.createElement("span", {
-      className: "num"
-    }, state.owned), /*#__PURE__*/React.createElement("button", {
-      onClick: () => updateThread(selectedThread, "owned", state.owned + 1)
-    }, "+"))), /*#__PURE__*/React.createElement("div", {
-      className: "td-row"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "lbl"
-    }, "Min stock"), /*#__PURE__*/React.createElement("div", {
-      className: "qty-ctrl"
-    }, /*#__PURE__*/React.createElement("button", {
-      onClick: () => updateThread(selectedThread, "min_stock", Math.max(0, (state.min_stock || 0) - 1))
-    }, "-"), /*#__PURE__*/React.createElement("span", {
-      className: "num"
-    }, state.min_stock || 0), /*#__PURE__*/React.createElement("button", {
-      onClick: () => updateThread(selectedThread, "min_stock", (state.min_stock || 0) + 1)
-    }, "+"))), /*#__PURE__*/React.createElement("div", {
-      className: "td-row"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "lbl"
-    }, "Opened skein"), /*#__PURE__*/React.createElement("span", {
-      className: "val",
-      style: {
-        fontSize: 11
-      }
-    }, !state.partialStatus ? "None" : state.partialStatus === "mostly-full" ? "Mostly full" : state.partialStatus === "about-half" ? "About half" : state.partialStatus === "remnant" ? "Remnant" : "Used up")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginTop: 8
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "var(--text-tertiary)",
-        marginBottom: 4,
-        textAlign: "center"
-      }
-    }, "Opened skein level"), /*#__PURE__*/React.createElement("div", {
-      className: "gauge-lg"
-    }, [{
-      val: null,
-      label: "0"
-    }, {
-      val: "mostly-full",
-      label: "3/4"
-    }, {
-      val: "about-half",
-      label: "1/2"
-    }, {
-      val: "remnant",
-      label: "1/4"
-    }].map(opt => {
-      const isActive = state.partialStatus === opt.val || opt.val === null && !state.partialStatus;
-      return /*#__PURE__*/React.createElement("div", {
-        key: opt.val || "none",
-        className: "seg" + (isActive ? " full" : ""),
-        title: opt.val || "None",
-        onClick: () => updateThread(selectedThread, "partialStatus", opt.val)
-      }, opt.label);
-    })))), /*#__PURE__*/React.createElement("div", {
-      className: "rp-s"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "rp-h"
-    }, "Used In"), /*#__PURE__*/React.createElement("div", {
-      className: "used-in"
-    }, patternsUsingThread(d.id).length > 0 ? patternsUsingThread(d.id).map(p => /*#__PURE__*/React.createElement("div", {
-      key: p.id || p.title,
-      className: "ui-row"
-    }, Icons.clipboard(), " ", p.title, " ", /*#__PURE__*/React.createElement("span", {
-      className: "need"
-    }, p.threads.find(t => t.id === d.id) ? `need ${p.threads.find(t => t.id === d.id).qty} sk` : ""))) : /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11,
-        color: "var(--text-tertiary)",
-        padding: "4px 6px"
-      }
-    }, "Not used in any patterns"))), /*#__PURE__*/React.createElement("div", {
-      className: "rp-s"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "rp-h"
-    }, "Actions"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 4
-      }
-    }, /*#__PURE__*/React.createElement("button", {
-      className: "g-btn",
-      style: {
-        width: "100%",
-        justifyContent: "center",
-        color: "#B85555",
-        borderColor: "var(--danger-soft)"
-      },
-      onClick: () => {
-        // Capture current values so Undo can restore them.
-        const prevOwned = state.owned;
-        const prevPartial = state.partialStatus;
-        const prevTobuy = state.tobuy;
-        const threadKey = selectedThread;
-        updateThread(threadKey, "owned", 0);
-        updateThread(threadKey, "partialStatus", null);
-        updateThread(threadKey, "tobuy", false);
-        if (window.Toast) {
-          window.Toast.show({
-            message: `${brandLabel} ${d.id} removed from stash`,
-            type: "info",
-            undoAction: () => {
-              updateThread(threadKey, "owned", prevOwned);
-              updateThread(threadKey, "partialStatus", prevPartial);
-              updateThread(threadKey, "tobuy", prevTobuy);
-            }
-          });
-        }
-      }
-    }, Icons.trash(), " Remove from stash"))));
-  })() : /*#__PURE__*/React.createElement("div", {
-    className: "rp-s",
-    style: {
-      color: "var(--text-tertiary)",
-      textAlign: "center",
-      padding: "40px 16px",
-      fontSize: 13
-    }
-  }, "Click a thread to view details"))), tab === "patterns" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "stash-alert-qty"
+  }, "have " + formatSkeins(a.owned) + ", minimum " + formatSkeins(a.min_stock))))))), /*#__PURE__*/React.createElement(ProjectMaterials, {
+    catalogues: catalogueRecords
+  })), tab === "patterns" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "mgr-filter-bar"
   }, /*#__PURE__*/React.createElement("input", {
     type: "search",
@@ -2897,13 +2953,7 @@ function ManagerApp() {
           cursor: "pointer"
         },
         title: "Open thread card for " + threadBrandLabel(libraryThreadBrand(t)) + " " + t.id,
-        onClick: () => {
-          setTab("inventory");
-          setThreadFilter("all");
-          setBrandFilter("all");
-          setSearchQuery("");
-          setSelectedThread(compositeKey);
-        }
+        onClick: () => openThread(compositeKey)
       }, /*#__PURE__*/React.createElement("div", {
         style: {
           width: 12,
@@ -3029,6 +3079,10 @@ function ManagerApp() {
     onClose: () => setProfileModalOpen(false)
   }), bulkAddOpen && window.BulkAddModal && React.createElement(window.BulkAddModal, {
     onClose: () => setBulkAddOpen(false)
+  }), catalogueOpen && /*#__PURE__*/React.createElement(CatalogueDialog, {
+    records: catalogueRecords,
+    onRecords: setCatalogueRecords,
+    onClose: () => setCatalogueOpen(false)
   }), modal === "help" && /*#__PURE__*/React.createElement(SharedModals.Help, {
     defaultTab: "manager",
     onClose: () => setModal(null)
@@ -4398,6 +4452,140 @@ function UserProfileModal({
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(ManagerApp, null));
 if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
+
+// Custom thread catalogues: user-owned reference records, kept apart from the
+// manufacturer matching palettes. Opened from Thread Stash > Add threads.
+function CatalogueDialog({
+  records,
+  onRecords,
+  onClose
+}) {
+  const [text, setText] = useState('');
+  const [preview, setPreview] = useState(null);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function importCatalogue() {
+    setBusy(true);
+    try {
+      onRecords(await ThreadCatalogues.commit(text));
+      setText('');
+      setPreview(null);
+      setMessage('Catalogue imported. Projects and matching palettes are unchanged.');
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  function exportCatalogue() {
+    const url = URL.createObjectURL(new Blob([ThreadCatalogues.exportCSV(records)], {
+      type: 'text/csv;charset=utf-8'
+    }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'custom-thread-catalogues.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  const Overlay = window.Overlay;
+  const body = /*#__PURE__*/React.createElement("div", {
+    className: "stash-dialog-body"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "Your own reference catalogues stay separate from the DMC and Anchor matching palettes and from project colours. Colours are optional screen approximations. Substitutions are suggestions and are never applied automatically. Built-in DMC and Anchor data cannot be overwritten."), /*#__PURE__*/React.createElement("details", {
+    className: "stash-details"
+  }, /*#__PURE__*/React.createElement("summary", null, "CSV format"), /*#__PURE__*/React.createElement("p", null, "Columns: brand,code,name,rgb,status,substitute,provenance. Use a lowercase custom brand slug, #RRGGBB or an empty colour, active, discontinued or unknown status, and an optional brand:code substitution.")), /*#__PURE__*/React.createElement("div", {
+    className: "stash-form-row"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "stash-file"
+  }, /*#__PURE__*/React.createElement("span", null, "Choose a CSV file"), /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".csv,text/csv",
+    disabled: busy,
+    onChange: async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        if (file.size > 5000000) throw Error('CSV must be under 5 MB.');
+        const t = await file.text();
+        setText(t);
+        setPreview(ThreadCatalogues.preview(t, records));
+        setMessage('');
+      } catch (err) {
+        setMessage(err.message);
+      }
+      e.target.value = '';
+    }
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "stash-muted"
+  }, "or paste it below")), /*#__PURE__*/React.createElement("label", {
+    className: "stash-textarea"
+  }, /*#__PURE__*/React.createElement("span", null, "Catalogue CSV"), /*#__PURE__*/React.createElement("textarea", {
+    "aria-label": "Catalogue CSV",
+    rows: 5,
+    value: text,
+    disabled: busy,
+    onChange: e => {
+      setText(e.target.value);
+      setPreview(null);
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "stash-form-row"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn",
+    disabled: busy || !text.trim(),
+    onClick: () => setPreview(ThreadCatalogues.preview(text, records))
+  }, "Preview import"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn",
+    disabled: busy || !records.length,
+    onClick: exportCatalogue
+  }, Icons.download(), /*#__PURE__*/React.createElement("span", null, "Export custom CSV"))), preview && /*#__PURE__*/React.createElement("div", {
+    className: "stash-preview"
+  }, /*#__PURE__*/React.createElement("p", null, preview.records.length, " valid records; ", preview.errors.length, " errors; ", preview.duplicates.length, " duplicates. Imports with errors or duplicates save nothing."), preview.errors.length + preview.duplicates.length > 0 && /*#__PURE__*/React.createElement("ul", {
+    className: "stash-preview-errors"
+  }, [...preview.errors, ...preview.duplicates].map((m, i) => /*#__PURE__*/React.createElement("li", {
+    key: i
+  }, m))), preview.records.length > 0 && /*#__PURE__*/React.createElement("ul", {
+    className: "stash-preview-list"
+  }, preview.records.map(t => /*#__PURE__*/React.createElement("li", {
+    key: t.key
+  }, /*#__PURE__*/React.createElement("b", null, t.brand, " ", t.code), " ", t.name, ": ", t.status, "; ", t.rgb ? 'approximate RGB ' + t.rgb.join(',') : 'no colour approximation', "; substitute: ", t.substitute || 'none', "; provenance (user supplied): ", t.provenance))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--primary",
+    disabled: busy || !preview.records.length || !!preview.errors.length || !!preview.duplicates.length,
+    onClick: importCatalogue
+  }, "Import catalogue")), /*#__PURE__*/React.createElement("p", {
+    role: "status",
+    className: "stash-status-msg"
+  }, message), /*#__PURE__*/React.createElement("h3", {
+    className: "stash-subhead"
+  }, "Saved records (" + records.length + ")"), records.length ? /*#__PURE__*/React.createElement("ul", {
+    className: "stash-preview-list"
+  }, records.map(t => /*#__PURE__*/React.createElement("li", {
+    key: t.key
+  }, /*#__PURE__*/React.createElement("b", null, t.brand, " ", t.code), " ", t.name, ": ", t.status, "; substitute: ", t.substitute || 'none', "; provenance (user supplied): ", t.provenance))) : /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "No custom records yet."));
+  if (!Overlay) return null;
+  return /*#__PURE__*/React.createElement(Overlay, {
+    onClose: onClose,
+    variant: "dialog",
+    maxWidth: 640,
+    labelledBy: "stash-catalogue-title"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-dialog-head"
+  }, /*#__PURE__*/React.createElement(Overlay.Title, {
+    id: "stash-catalogue-title"
+  }, "Custom thread catalogues"), /*#__PURE__*/React.createElement(Overlay.CloseButton, {
+    onClose: onClose
+  })), /*#__PURE__*/React.createElement(Overlay.Body, null, body));
+}
+
+// Project material reservations. Lives at the foot of the Shopping list tab
+// (it used to be its own unstyled "Project materials" tab). Labels and
+// controls are unchanged; the rules moved under "How reservations work".
 function ProjectMaterials({
   catalogues
 }) {
@@ -4464,36 +4652,66 @@ function ProjectMaterials({
     }
   }
   const fmt = n => n.toLocaleString('en-GB', {
-    maximumFractionDigits: 6
+    maximumFractionDigits: 2
   });
   return /*#__PURE__*/React.createElement("section", {
-    style: {
-      padding: 20
-    },
-    "aria-label": "Project materials"
-  }, /*#__PURE__*/React.createElement("h2", null, "Project materials and shopping lists"), /*#__PURE__*/React.createElement("p", null, "Owned is usable stash, including opened skeins. Reserved is held for a project; available excludes every reservation. Reserving never consumes stock. Earlier project IDs have allocation priority."), /*#__PURE__*/React.createElement("p", null, "Needs cover unfinished chart units using the same planning model as Materials: project fabric count, two strands for crosses and 20% allowance unless project settings specify otherwise. Skein lengths follow each thread brand. Outlines use one strand unless specified. Estimates include fractional stitches and approximate knot and specialty-stitch lengths. Fabric and beads are excluded. Recorded consumption and stock balances are unchanged."), /*#__PURE__*/React.createElement("p", null, "Shortages share remaining free stock once in project order. Buy from the combined list: individual lists must not be rounded and added together. After purchasing, add the quantity to your stash and refresh; this list records no orders."), /*#__PURE__*/React.createElement("button", {
+    className: "stash-card stash-materials",
+    "aria-labelledby": "stash-materials-heading"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-card-head"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "stash-materials-heading"
+  }, Icons.box(), /*#__PURE__*/React.createElement("span", null, "Project materials")), /*#__PURE__*/React.createElement("div", {
+    className: "stash-card-action stash-form-row"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn",
     onClick: refresh,
     disabled: busy
-  }, "Refresh estimates"), ' ', /*#__PURE__*/React.createElement("button", {
+  }, Icons.refresh(), /*#__PURE__*/React.createElement("span", null, "Refresh estimates")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn",
     onClick: exportList,
     disabled: busy || !plan
-  }, "Export shopping list JSON"), error && /*#__PURE__*/React.createElement("p", {
-    role: "alert"
+  }, Icons.download(), /*#__PURE__*/React.createElement("span", null, "Export shopping list JSON")))), /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "Reserve stash for a project so other patterns don't count on it. Reserving never uses up thread."), /*#__PURE__*/React.createElement("details", {
+    className: "stash-details"
+  }, /*#__PURE__*/React.createElement("summary", null, "How reservations work"), /*#__PURE__*/React.createElement("p", null, "Owned is usable stash, including opened skeins. Reserved is held for a project; available excludes every reservation. Earlier project IDs have allocation priority."), /*#__PURE__*/React.createElement("p", null, "Needs cover unfinished chart units using the same planning model as Materials: project fabric count, two strands for crosses and 20% allowance unless project settings specify otherwise. Skein lengths follow each thread brand. Outlines use one strand unless specified. Estimates include fractional stitches and approximate knot and specialty-stitch lengths. Fabric and beads are excluded. Recorded consumption and stock balances are unchanged."), /*#__PURE__*/React.createElement("p", null, "Shortages share remaining free stock once in project order. Buy from the combined list: individual lists must not be rounded and added together. After purchasing, add the quantity to your stash and refresh; this list records no orders. Changed estimates adjust claims automatically. Completed, archived, abandoned (UFO) and deleted projects release their claims.")), error && /*#__PURE__*/React.createElement("p", {
+    role: "alert",
+    className: "stash-error"
   }, error), !plan && !error && /*#__PURE__*/React.createElement("p", {
-    role: "status"
-  }, "Loading materials\u2026"), plan && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h3", null, "Combined shopping list"), !plan.combined.length ? /*#__PURE__*/React.createElement("p", null, "No shortages.") : /*#__PURE__*/React.createElement("ul", null, plan.combined.map(r => /*#__PURE__*/React.createElement("li", {
+    role: "status",
+    className: "stash-muted"
+  }, "Loading materials\u2026"), plan && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h3", {
+    className: "stash-subhead"
+  }, "Combined shortage"), !plan.combined.length ? /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "No shortages.") : /*#__PURE__*/React.createElement("ul", {
+    className: "stash-plain-list"
+  }, plan.combined.map(r => /*#__PURE__*/React.createElement("li", {
     key: r.key
-  }, r.key, ": shortage ", fmt(r.shortage), " skeins; buy ", r.buySkeins, " whole skein(s)"))), !plan.groups.length && /*#__PURE__*/React.createElement("p", null, "No active saved projects."), plan.groups.map(g => /*#__PURE__*/React.createElement("section", {
+  }, /*#__PURE__*/React.createElement("b", null, r.key), ": short ", fmt(r.shortage), " skeins; buy ", plural(r.buySkeins, 'whole skein')))), !plan.groups.length && /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "No active saved projects."), plan.groups.map(g => /*#__PURE__*/React.createElement("section", {
     key: g.id,
-    "aria-label": g.name
+    "aria-label": g.name,
+    className: "stash-material-group"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-material-head"
   }, /*#__PURE__*/React.createElement("h3", null, g.name), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn" + (g.enabled ? "" : " stash-btn--primary"),
     disabled: busy,
     onClick: () => change(g, {
       enabled: !g.enabled
     })
-  }, g.enabled ? 'Release reservations' : 'Reserve estimated needs'), /*#__PURE__*/React.createElement("p", null, "Changed estimates adjust claims automatically. Completed, archived, abandoned (UFO) and deleted projects release their claims. Refresh after editing a project or stash."), Object.entries(g.substitutions).map(([from, s]) => /*#__PURE__*/React.createElement("p", {
-    key: from
+  }, g.enabled ? 'Release reservations' : 'Reserve estimated needs')), Object.entries(g.substitutions).map(([from, s]) => /*#__PURE__*/React.createElement("p", {
+    key: from,
+    className: "stash-sub-note"
   }, "Confirmed substitution: ", from, " to ", s.key, ". ", /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--quiet",
     disabled: busy,
     onClick: () => {
       const subs = {
@@ -4505,17 +4723,20 @@ function ProjectMaterials({
       });
     }
   }, "Remove substitution"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      overflowX: 'auto'
-    }
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("caption", null, "Quantities in skeins"), /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ['Thread', 'Owned', 'Estimated needed', 'Reserved', 'Available to any project', 'Shortage', 'Reservation limit', 'Substitution'].map(t => /*#__PURE__*/React.createElement("th", {
+    className: "stash-table-wrap"
+  }, /*#__PURE__*/React.createElement("table", {
+    className: "stash-table"
+  }, /*#__PURE__*/React.createElement("caption", null, "Quantities in skeins"), /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, ['Thread', 'Owned', 'Estimated needed', 'Reserved', 'Available to any project', 'Shortage', 'Reservation limit', 'Substitution'].map(t => /*#__PURE__*/React.createElement("th", {
     key: t,
     scope: "col"
   }, t)))), /*#__PURE__*/React.createElement("tbody", null, g.rows.map(r => /*#__PURE__*/React.createElement("tr", {
     key: r.key
   }, /*#__PURE__*/React.createElement("th", {
     scope: "row"
-  }, r.key), /*#__PURE__*/React.createElement("td", null, fmt(r.owned)), /*#__PURE__*/React.createElement("td", null, fmt(r.estimatedNeeded)), /*#__PURE__*/React.createElement("td", null, fmt(r.reserved)), /*#__PURE__*/React.createElement("td", null, fmt(r.available)), /*#__PURE__*/React.createElement("td", null, fmt(r.shortage)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("form", {
+  }, r.key), /*#__PURE__*/React.createElement("td", null, fmt(r.owned)), /*#__PURE__*/React.createElement("td", null, fmt(r.estimatedNeeded)), /*#__PURE__*/React.createElement("td", null, fmt(r.reserved)), /*#__PURE__*/React.createElement("td", null, fmt(r.available)), /*#__PURE__*/React.createElement("td", {
+    className: r.shortage > 0 ? 'is-short' : ''
+  }, fmt(r.shortage)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("form", {
+    className: "stash-inline-form",
     onSubmit: e => {
       e.preventDefault();
       const n = Number(new FormData(e.currentTarget).get('limit'));
@@ -4540,8 +4761,12 @@ function ProjectMaterials({
     required: true,
     defaultValue: g.request.limits[r.key] ?? r.estimatedNeeded
   }), /*#__PURE__*/React.createElement("button", {
+    className: "stash-btn",
     disabled: busy
-  }, "Set limit"))), /*#__PURE__*/React.createElement("td", null, Object.values(g.substitutions).some(s => s.key === r.key) ? /*#__PURE__*/React.createElement("span", null, "Remove the confirmed substitution to change it.") : /*#__PURE__*/React.createElement("form", {
+  }, "Set limit"))), /*#__PURE__*/React.createElement("td", null, Object.values(g.substitutions).some(s => s.key === r.key) ? /*#__PURE__*/React.createElement("span", {
+    className: "stash-muted"
+  }, "Remove the confirmed substitution to change it.") : /*#__PURE__*/React.createElement("form", {
+    className: "stash-inline-form",
     onSubmit: e => {
       e.preventDefault();
       const input = String(new FormData(e.currentTarget).get('substitute')).trim();
@@ -4571,6 +4796,7 @@ function ProjectMaterials({
     "aria-label": 'Substitute for ' + g.name + ' ' + r.key,
     placeholder: "anchor:403"
   }), /*#__PURE__*/React.createElement("button", {
+    className: "stash-btn",
     disabled: busy
   }, "Confirm substitution"))))))))))));
 }

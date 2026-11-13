@@ -173,6 +173,9 @@
     stashToBuyCollapsed:              false,
     stashLowStockNeededCollapsed:     false,
     stashLowStockNotNeededCollapsed:  false,
+    // Thread Stash attention line: the counts the user last hid it for; it
+    // shows again when they change. Device-local, like the panels above.
+    stashAttentionDismissed:          "",
     stitchStrandsUsed:        2,
     stitchWasteFactor:        0.20,             // fraction (0..1)
     skeinPriceDefault:        0.95,

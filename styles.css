@@ -2851,7 +2851,7 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .col-row .ct{font-size:10px;color:var(--text-tertiary);font-family:monospace;min-width:44px;text-align:right;}
 
 /* ═══ MANAGER NEW DESIGN ═══ */
-.mgr-tab-bar{height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:4px;flex-shrink:0;}
+.mgr-tab-bar{height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:4px;flex-shrink:0;min-width:0;padding:0 8px;}
 .mgr-tab{display:flex;align-items:center;gap:6px;padding:8px 20px;border-radius:10px;font-size:13px;font-weight:500;color:var(--text-tertiary);cursor:pointer;border:none;background:transparent;transition:all 0.12s;font-family:inherit;}
 @media (hover: hover){.mgr-tab:hover{background:var(--surface-tertiary);color:var(--text-secondary);}}
 .mgr-tab.on{background:var(--accent);color:var(--surface);box-shadow:0 2px 8px rgba(184, 92, 56,0.3);font-weight:600;}
@@ -2883,32 +2883,14 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .mgr-stats-strip{padding:8px 20px;display:flex;gap:16px;font-size:12px;color:var(--text-tertiary);flex-shrink:0;border-bottom:1px solid var(--border-subtle);}
 .mgr-stats-strip .stat{display:flex;align-items:center;gap:4px;}
 .mgr-stats-strip .stat .val{font-weight:700;color:var(--text-primary);}
-.mgr-stash-chip-summary{color:var(--text-tertiary);font-weight:500;margin-left:6px;font-variant-numeric:tabular-nums;}
-.mgr-stash-chip-wrap{position:relative;}
 .mgr-main{flex:1;display:flex;overflow:hidden;}
 .mgr-content{flex:1;overflow-y:auto;padding:16px 20px;}
 /* .mgr-rpanel base rule moved above the mobile drawer media block — see the
    comment there. Do not re-add it here; it would override the drawer again. */
-.thread-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:8px;}
-.tcard{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:var(--transition-ui-fast);
-  /* H6 (action plan 2B.2): skip layout + paint for off-screen thread cards.
-     Equivalent to virtualising the ~900-card grid without changing the
-     page-scroll behaviour. `contain-intrinsic-size` reserves a stable
-     placeholder height so scrollbar geometry stays accurate. */
-  content-visibility:auto;
-  contain-intrinsic-size:auto 56px;
-}
-@media (hover: hover){.tcard:hover{border-color:var(--border);box-shadow:var(--shadow-sm);}}
-.tcard.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(184, 92, 56,0.3);background:var(--accent-light);}
-.tcard .sw{width:32px;height:32px;border-radius:8px;border:2px solid var(--border);flex-shrink:0;}
-.tcard .info{flex:1;min-width:0;}
-.tcard .info .tid{font-weight:700;font-size:13px;}
-.tcard .info .tnm{font-size:11px;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.tcard .owned{font-size:13px;font-weight:700;color:var(--text-primary);background:var(--surface-tertiary);width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;flex-shrink:0;}
 .pat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:10px;}
 .pcard{padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);cursor:pointer;transition:var(--transition-ui-fast);
-  /* Same off-screen skip as .tcard (action plan H6 = 2B.2). Pattern cards
-     are taller so reserve a generous intrinsic height. */
+  /* Skip layout and paint for off-screen pattern cards (action plan H6 =
+     2B.2). Reserve a generous intrinsic height. */
   content-visibility:auto;
   contain-intrinsic-size:auto 120px;
 }
@@ -2916,18 +2898,6 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .pcard.on{border-color:var(--accent);box-shadow:0 0 0 2px rgba(184, 92, 56,0.3);background:var(--accent-light);}
 .pcard .ptitle{font-weight:700;font-size:14px;margin-bottom:2px;display:flex;align-items:center;gap:6px;}
 /* Thread detail in rpanel */
-.td-swatch{width:80px;height:80px;border-radius:var(--radius-xl);border:2px solid var(--border);margin:0 auto 10px;}
-.td-title{text-align:center;margin-bottom:12px;}
-.td-title .dmc{font-size:20px;font-weight:800;}
-.td-title .tnm{font-size:12px;color:var(--text-tertiary);}
-.td-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:1px solid var(--border-subtle);}
-.td-row:last-child{border-bottom:none;}
-.td-row .lbl{color:var(--text-tertiary);}
-.td-row .val{font-weight:600;}
-.qty-ctrl{display:flex;align-items:center;gap:6px;}
-.qty-ctrl button{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:var(--surface-tertiary);cursor:pointer;font-size:14px;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;font-family:inherit;}
-@media (hover: hover){.qty-ctrl button:hover{background:var(--surface);border-color:var(--accent);}}
-.qty-ctrl .num{font-size:16px;font-weight:700;min-width:24px;text-align:center;}
 .alert-card{padding:10px 12px;border-radius:var(--radius-md);margin-bottom:8px;font-size:12px;}
 .alert-card.warn{background:var(--warning-soft);border:1px solid var(--warning);color:var(--accent-ink);}
 .alert-card.danger{background:var(--danger-soft);border:1px solid var(--danger-soft);color:var(--danger);}
@@ -2950,34 +2920,6 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .rp-s:last-child{border-bottom:none;}
 .rp-h{font-size:11px;font-weight:700;color:var(--text-primary);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
 .rp-h .badge{font-size:10px;font-weight:500;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:10px;text-transform:none;letter-spacing:0;}
-
-/* Thread card badge */
-.tcard .badge-low{font-size:9px;font-weight:700;color:var(--warning);background:var(--warning-soft);padding:1px 6px;border-radius:8px;white-space:nowrap;}
-/* Thread fill gauge — four 4px pills, 2px apart, 22px overall.
-   Drawn as ONE element: the box itself is the first pill and box-shadow
-   paints the other three at 6/12/18px. A zero-spread box-shadow follows the
-   element's border-radius, so the copies are pixel-identical to the old
-   four <div>s. width:4px + margin-right:18px reserves the same 22px in the
-   flex row as the old display:flex track did.
-   This is a DOM-size fix: the old markup was 4,892 nodes across the ~1,200
-   thread cards, a third of the manager's entire DOM. */
-.tcard .gauge{
-  width:4px;height:14px;border-radius:2px;flex-shrink:0;margin-right:18px;
-  background:var(--surface-tertiary);
-  box-shadow:6px 0 0 var(--surface-tertiary),12px 0 0 var(--surface-tertiary),18px 0 0 var(--surface-tertiary);
-}
-/* level 1 = "remnant": a single warning-coloured pill. */
-.tcard .gauge[data-level="1"]{background:var(--warning);}
-.tcard .gauge[data-level="2"]{background:var(--accent);box-shadow:6px 0 0 var(--accent),12px 0 0 var(--surface-tertiary),18px 0 0 var(--surface-tertiary);}
-.tcard .gauge[data-level="3"]{background:var(--accent);box-shadow:6px 0 0 var(--accent),12px 0 0 var(--accent),18px 0 0 var(--surface-tertiary);}
-/* level 4 = "used up": the old markup filled all four. */
-.tcard .gauge[data-level="4"]{background:var(--accent);box-shadow:6px 0 0 var(--accent),12px 0 0 var(--accent),18px 0 0 var(--accent);}
-
-/* Large gauge for rpanel */
-.gauge-lg{display:flex;gap:4px;justify-content:center;margin:8px 0;}
-.gauge-lg .seg{width:28px;height:28px;border-radius:6px;border:2px solid var(--border);background:var(--surface-tertiary);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary);transition:var(--transition-ui-fast);}
-@media (hover: hover){.gauge-lg .seg:hover{border-color:var(--accent);}}
-.gauge-lg .seg.full{background:var(--accent);border-color:var(--accent);color:var(--surface);}
 
 /* Used-in list */
 .used-in{display:flex;flex-direction:column;gap:4px;}
@@ -4202,12 +4144,267 @@ kbd {
   .tb-btn, .rp-tab, .tb-fit-btn, .tb-app-tab, .tb-app-nav .tb-app-tab, .tb-page-btn { font-size: 13px; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   Thread Stash and Shopping list (redesign option 1, docs/stash-redesign).
+   An owned-first list edited in place. Replaces the 1,229-card grid, its
+   side panel and the stacked alert panels.
+   ═══════════════════════════════════════════════════════════════════ */
+.mgr-tabs{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.mgr-tabs::-webkit-scrollbar{display:none;}
+.mgr-tabs .mgr-tab{flex-shrink:0;white-space:nowrap;}
+.mgr-showcase{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;min-height:36px;padding:0 14px;font-size:12px;font-weight:600;color:var(--accent-text);background:none;border:none;border-radius:var(--radius-md);cursor:pointer;font-family:inherit;white-space:nowrap;}
+.mgr-showcase svg{width:15px;height:15px;}
+.mgr-showcase:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+
+.stash-page{flex:1;min-height:0;overflow-y:auto;padding:16px 20px 40px;display:flex;flex-direction:column;gap:12px;}
+.stash-page>*{flex-shrink:0;width:100%;max-width:1200px;margin-left:auto;margin-right:auto;}
+
+/* Toolbar: wraps instead of hiding controls off-screen. */
+.stash-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;}
+.stash-search{flex:1 1 260px;max-width:420px;display:flex;align-items:center;gap:8px;min-height:38px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-tertiary);}
+.stash-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.stash-search svg{width:16px;height:16px;flex-shrink:0;}
+.stash-search input{flex:1;min-width:0;height:36px;border:0;background:transparent;font:inherit;font-size:13px;color:var(--text-primary);outline:none;}
+.stash-seg{display:flex;flex-wrap:wrap;gap:2px;padding:3px;background:var(--surface-tertiary);border-radius:var(--radius-lg);}
+.stash-seg button{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 11px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.stash-seg button.on{background:var(--surface);color:var(--text-primary);box-shadow:var(--shadow-sm);}
+.stash-seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.stash-seg .n{font-size:11px;font-weight:700;color:var(--text-tertiary);font-variant-numeric:tabular-nums;}
+.stash-toolbar-end{margin-left:auto;display:flex;flex-wrap:wrap;gap:8px;}
+
+/* Buttons */
+.stash-btn{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text-primary);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.stash-btn svg{width:15px;height:15px;flex-shrink:0;}
+@media (hover: hover){.stash-btn:not(:disabled):hover{border-color:var(--line-2);background:var(--surface-secondary);}}
+.stash-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+.stash-btn:disabled{opacity:.5;cursor:default;}
+.stash-btn--primary{background:var(--accent);border-color:var(--accent);color:var(--text-on-accent);}
+@media (hover: hover){.stash-btn--primary:not(:disabled):hover{background:var(--accent-hover);border-color:var(--accent-hover);}}
+.stash-btn--quiet{border-color:transparent;background:transparent;color:var(--text-secondary);}
+.stash-btn--danger{color:var(--danger);}
+.stash-btn--icon{display:inline-flex;min-width:34px;justify-content:center;padding:0;}
+
+/* View and Add threads menus */
+.stash-menu{position:relative;}
+.stash-menu-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:60;min-width:250px;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);}
+.stash-menu--end .stash-menu-panel{left:auto;right:0;}
+.stash-menu-list{display:flex;flex-direction:column;}
+.stash-menu-list button{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border:0;border-radius:var(--radius-md);background:transparent;color:var(--text-primary);font:inherit;text-align:left;cursor:pointer;}
+@media (hover: hover){.stash-menu-list button:hover{background:var(--surface-tertiary);}}
+.stash-menu-list button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.stash-menu-list svg{width:18px;height:18px;margin-top:1px;flex-shrink:0;color:var(--text-secondary);}
+.stash-menu-list b{display:block;font-size:13px;}
+.stash-menu-list small{display:block;margin-top:1px;font-size:12px;color:var(--text-secondary);}
+.stash-view-panel{display:grid;gap:10px;padding:8px;}
+.stash-view-panel label{display:grid;gap:4px;font-size:12px;font-weight:600;color:var(--text-secondary);}
+.stash-view-panel select{min-height:34px;padding:4px 8px;}
+
+/* One-line attention summary (replaces the stacked alert panels). */
+.stash-attention{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--warning);border-radius:var(--radius-lg);}
+.stash-attention p{flex:1 1 280px;min-width:0;margin:0;font-size:13px;color:var(--text-secondary);}
+.stash-attention b{color:var(--text-primary);}
+.stash-attention-icon{display:flex;color:var(--warning);}
+.stash-attention-icon svg{width:18px;height:18px;}
+
+/* The list */
+.stash-list-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);overflow:hidden;}
+.stash-list{list-style:none;margin:0;padding:0;}
+.stash-list-head,.stash-row-main{display:grid;grid-template-columns:minmax(180px,1.3fr) 128px 116px minmax(140px,1.4fr) minmax(96px,auto) 34px;gap:12px;align-items:center;padding:6px 12px;}
+.stash-list-head{padding-top:8px;padding-bottom:8px;background:var(--surface-secondary);border-bottom:1px solid var(--border-subtle);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-tertiary);}
+.stash-row{border-bottom:1px solid var(--border-subtle);content-visibility:auto;contain-intrinsic-size:auto 54px;}
+.stash-row:last-child{border-bottom:0;}
+.stash-row.is-open .stash-row-main{background:var(--accent-soft);}
+.stash-ident{display:flex;align-items:center;gap:10px;min-width:0;padding:4px 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:var(--radius-sm);}
+.stash-ident:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+span.stash-ident{cursor:default;}
+.stash-swatch{width:30px;height:30px;flex-shrink:0;border-radius:var(--radius-md);box-shadow:inset 0 0 0 1px rgba(0,0,0,.14);}
+.stash-swatch--sm{width:16px;height:16px;border-radius:var(--radius-xs);}
+.stash-id{display:grid;grid-template-columns:auto 1fr;column-gap:6px;align-items:baseline;min-width:0;}
+.stash-code{font-size:14px;font-weight:700;}
+.stash-brand{justify-self:start;padding:0 4px;font-size:10px;font-weight:700;line-height:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-tertiary);border:1px solid var(--border);border-radius:var(--radius-xs);}
+.stash-brand--anchor{color:var(--accent-text);border-color:var(--accent-border);background:var(--accent-soft);}
+.stash-name{grid-column:1 / -1;min-width:0;overflow:hidden;font-size:12px;color:var(--text-tertiary);text-overflow:ellipsis;white-space:nowrap;}
+.stash-muted{font-size:12px;color:var(--text-tertiary);}
+
+/* Skein stepper: type a number or step by one. */
+.stash-stepper{display:inline-flex;align-items:center;justify-self:start;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);}
+.stash-stepper button{display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;background:transparent;color:var(--text-secondary);cursor:pointer;}
+@media (hover: hover){.stash-stepper button:not(:disabled):hover{background:var(--surface-tertiary);color:var(--text-primary);}}
+.stash-stepper button:disabled{opacity:.35;cursor:default;}
+.stash-stepper button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.stash-stepper svg{width:14px;height:14px;}
+.stash-stepper input{width:44px;height:32px;padding:0;border:0;border-left:1px solid var(--border-subtle);border-right:1px solid var(--border-subtle);background:transparent;color:var(--text-primary);font:inherit;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;text-align:center;-moz-appearance:textfield;appearance:textfield;}
+.stash-stepper input::-webkit-outer-spin-button,.stash-stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.stash-stepper input:focus{outline:2px solid var(--accent);outline-offset:-2px;}
+
+/* Opened-skein level and status */
+.stash-opened{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);white-space:nowrap;}
+.stash-opened.is-none{color:var(--text-tertiary);}
+.stash-level{flex-shrink:0;}
+.stash-level circle{fill:none;stroke:var(--text-tertiary);stroke-width:1.3;}
+.stash-level--empty circle{stroke-dasharray:2 2;}
+.stash-level-fill{fill:var(--accent);}
+.stash-uses{display:flex;flex-wrap:wrap;gap:4px;min-width:0;}
+.stash-chip{max-width:100%;overflow:hidden;padding:2px 7px;font-size:11.5px;font-weight:600;color:var(--text-secondary);text-overflow:ellipsis;white-space:nowrap;background:var(--surface-tertiary);border-radius:var(--radius-sm);}
+.stash-chip--quiet{background:transparent;border:1px dashed var(--border);}
+.stash-status{display:flex;flex-wrap:wrap;gap:4px;}
+.stash-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-size:11.5px;font-weight:700;white-space:nowrap;border-radius:var(--radius-pill);}
+.stash-pill svg{width:12px;height:12px;}
+.stash-pill--short{background:var(--danger-soft);color:var(--danger);}
+.stash-pill--low{background:var(--warning-soft);color:var(--accent-ink);}
+.stash-pill--list{background:var(--accent-soft);color:var(--accent-text);}
+.stash-chev{display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:var(--radius-md);background:transparent;color:var(--text-tertiary);cursor:pointer;}
+@media (hover: hover){.stash-chev:hover{background:var(--surface-tertiary);color:var(--text-primary);}}
+.stash-chev:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.stash-chev svg{width:16px;height:16px;}
+
+/* Rows for shades you don't own (Every shade, search results). */
+.stash-row--add .stash-row-main{grid-template-columns:minmax(180px,1.3fr) minmax(140px,1.4fr) minmax(96px,auto) auto;}
+.stash-add{color:var(--accent-text);}
+
+/* The editor under an expanded row (replaces the side panel). */
+.stash-row-edit{display:flex;flex-wrap:wrap;gap:14px 28px;padding:12px 12px 14px 52px;background:var(--surface-secondary);border-top:1px solid var(--border-subtle);}
+.stash-field{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;}
+.stash-field--grow{flex:1 1 200px;}
+.stash-field-label{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-tertiary);}
+.stash-hint{font-size:11.5px;color:var(--text-tertiary);}
+.stash-levels{display:inline-flex;flex-wrap:wrap;overflow:hidden;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);}
+.stash-levels button{min-height:32px;padding:0 11px;border:0;border-right:1px solid var(--border-subtle);background:transparent;color:var(--text-secondary);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;}
+.stash-levels button:last-child{border-right:0;}
+.stash-levels button.on{background:var(--accent);color:var(--text-on-accent);}
+.stash-levels button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.stash-needs{display:grid;gap:3px;min-width:180px;margin:0;padding:0;list-style:none;font-size:12.5px;}
+.stash-needs li{display:flex;justify-content:space-between;gap:12px;}
+.stash-needs b{white-space:nowrap;}
+.lbl-short{display:none;}
+.stash-actions{flex-direction:row;flex-wrap:wrap;gap:8px;margin-left:auto;}
+
+.stash-more{display:flex;margin:10px auto;}
+.stash-group{margin:0;padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-tertiary);background:var(--surface-secondary);border-bottom:1px solid var(--border-subtle);}
+.stash-empty{margin:0;padding:28px 16px;font-size:14px;color:var(--text-secondary);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius-xl);}
+.stash-empty-wrap{padding:12px 0;}
+
+/* Shopping list tab */
+.stash-card{display:flex;flex-direction:column;gap:10px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);}
+.stash-card-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;}
+.stash-card-head h2{display:flex;align-items:center;gap:8px;margin:0;font-size:16px;font-weight:800;}
+.stash-card-head h2 svg{width:18px;height:18px;color:var(--text-secondary);}
+.stash-card-action{margin-left:auto;}
+.stash-shop-list{margin:0;padding:0;list-style:none;}
+.stash-shop-row{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(0,1.6fr) auto 34px;gap:12px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-subtle);}
+.stash-shop-row:last-child{border-bottom:0;}
+.stash-shop-qty{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.stash-page .stash-alert{margin-bottom:0;}
+.stash-page .stash-alert:not(.warn):not(.danger):not(.quiet){background:var(--surface);border:1px solid var(--border);}
+.stash-alert-desc{margin:0 0 8px;font-size:12.5px;color:var(--text-secondary);}
+.stash-alert-list{display:flex;flex-direction:column;gap:4px;max-height:240px;margin:0;padding:0;overflow:auto;list-style:none;}
+.stash-alert-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;width:100%;padding:7px 10px;background:var(--surface);color:var(--text-primary);font:inherit;font-size:12.5px;text-align:left;border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;}
+@media (hover: hover){.stash-alert-row:hover{border-color:var(--line-2);}}
+.stash-alert-row:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.stash-alert-row .stash-name{flex:1 1 120px;}
+.stash-alert-qty{font-weight:700;color:var(--text-secondary);white-space:nowrap;}
+.stash-alert-who{flex-basis:100%;padding-left:24px;font-size:11.5px;color:var(--text-tertiary);}
+.stash-alert-foot{margin-top:10px;}
+
+/* Project materials (inside the Shopping list tab) */
+.stash-details summary{font-size:13px;font-weight:600;color:var(--accent-text);cursor:pointer;}
+.stash-details p{max-width:75ch;margin:6px 0 0;font-size:13px;color:var(--text-secondary);}
+.stash-subhead{margin:4px 0 0;font-size:13px;font-weight:700;}
+.stash-plain-list{display:grid;gap:2px;margin:0;padding-left:18px;font-size:13px;}
+.stash-material-group{display:flex;flex-direction:column;gap:8px;padding-top:10px;border-top:1px solid var(--border-subtle);}
+.stash-material-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;}
+.stash-material-head h3{flex:1 1 auto;margin:0;font-size:14px;font-weight:700;}
+.stash-sub-note{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0;font-size:12.5px;}
+.stash-table-wrap{overflow-x:auto;border:1px solid var(--border-subtle);border-radius:var(--radius-md);}
+.stash-table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;}
+.stash-table caption{padding:6px 10px;font-size:11.5px;color:var(--text-tertiary);text-align:left;caption-side:top;}
+.stash-table th,.stash-table td{padding:6px 10px;text-align:left;white-space:nowrap;border-top:1px solid var(--border-subtle);}
+.stash-table thead th{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-tertiary);background:var(--surface-secondary);}
+.stash-table td.is-short{font-weight:700;color:var(--danger);}
+.stash-inline-form{display:flex;align-items:center;gap:6px;}
+.stash-inline-form input{width:100px;min-height:30px;padding:2px 8px;background:var(--surface);color:var(--text-primary);font:inherit;border:1px solid var(--border);border-radius:var(--radius-sm);}
+.stash-inline-form .stash-btn{min-height:30px;}
+.stash-error{margin:0;font-size:13px;color:var(--danger);}
+.stash-form-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+
+/* Custom thread catalogues dialog */
+.stash-dialog-body{display:flex;flex-direction:column;gap:12px;font-size:13px;}
+.stash-dialog-head{position:relative;}
+.stash-dialog-head>:first-child{padding-right:52px;}
+.stash-dialog-head .overlay-close{top:50%;right:8px;transform:translateY(-50%);}
+.stash-dialog-body .stash-form-row .stash-muted{margin-left:4px;}
+.stash-dialog-body p{margin:0;}
+.stash-file{display:flex;flex-direction:column;gap:4px;}
+.stash-file>span,.stash-textarea>span{font-size:12px;font-weight:600;color:var(--text-secondary);}
+.stash-textarea{display:flex;flex-direction:column;gap:4px;}
+.stash-textarea textarea{width:100%;padding:8px 10px;background:var(--surface);color:var(--text-primary);font:inherit;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;border:1px solid var(--border);border-radius:var(--radius-md);resize:vertical;}
+.stash-preview{display:flex;flex-direction:column;gap:8px;padding:10px 12px;background:var(--surface-secondary);border:1px solid var(--border-subtle);border-radius:var(--radius-md);}
+.stash-preview-list,.stash-preview-errors{max-height:200px;margin:0;padding-left:18px;overflow:auto;font-size:12.5px;}
+.stash-preview-errors{color:var(--danger);}
+.stash-status-msg{color:var(--text-secondary);}
+.stash-status-msg:empty{display:none;}
+
+/* Touch: 44px targets, and 16px inputs so iOS doesn't zoom the page. */
+@media (pointer: coarse){
+  .stash-btn,.stash-seg button,.mgr-showcase{min-height:44px;}
+  .stash-stepper button{width:44px;height:44px;}
+  .stash-stepper input{height:44px;font-size:16px;}
+  .stash-chev{width:44px;height:44px;}
+  .stash-levels button{min-height:44px;padding:0 13px;}
+  .stash-search input,.stash-inline-form input{font-size:16px;}
+}
+
+/* Phones and narrow windows: rows become two lines, the editor stacks. */
+@media (max-width: 760px){
+  .stash-page{padding:12px 12px 32px;}
+  .stash-toolbar-end{margin-left:0;}
+  .stash-search{max-width:none;flex-basis:100%;}
+  .stash-list-head{display:none;}
+  .stash-row-main{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"id step chev" "open status status";row-gap:2px;column-gap:8px;padding:8px 8px 8px 12px;}
+  .stash-row-main .stash-ident{grid-area:id;}
+  .stash-row-main .stash-stepper{grid-area:step;}
+  .stash-row-main .stash-chev{grid-area:chev;}
+  .stash-row-main .stash-opened{grid-area:open;padding-left:40px;}
+  .stash-row-main .stash-status{grid-area:status;justify-content:flex-end;}
+  .stash-row-main .stash-uses{display:none;}
+  .stash-row--add .stash-row-main{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"id add" "status status";}
+  .stash-row--add .stash-add{grid-area:add;}
+  .stash-row--add .stash-status{grid-area:status;padding-left:40px;justify-content:flex-start;}
+  .stash-status:empty{display:none;}
+  .stash-row-edit{padding:12px;}
+  .stash-actions{margin-left:0;}
+  .stash-shop-row{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"id qty x" "uses uses uses";row-gap:4px;}
+  .stash-shop-row .stash-ident{grid-area:id;}
+  .stash-shop-row .stash-shop-qty{grid-area:qty;}
+  .stash-shop-row .stash-btn--icon{grid-area:x;}
+  .stash-shop-row .stash-uses{grid-area:uses;padding-left:40px;}
+  .stash-shop-row .stash-uses:empty{display:none;}
+}
+@media (max-width: 599px){
+  /* Shorter labels on phones; the full text stays for screen readers. */
+  .lbl-long{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}
+  .lbl-short{display:inline;}
+  .stash-search{flex-basis:0;flex-grow:1;min-width:0;}
+  .stash-toolbar-end{flex-wrap:nowrap;}
+  .stash-view-btn span{display:none;}
+  .stash-view-btn{padding:0 10px;}
+  .stash-seg{width:100%;order:3;}
+  .stash-seg button{flex:1 1 auto;justify-content:center;padding:0 6px;}
+  .stash-attention{padding:8px 10px;}
+  .stash-attention p{font-size:12.5px;}
+  .mgr-tab-bar{padding:0 4px;}
+  .mgr-tab{padding:8px 10px;}
+  .mgr-tab .icon{display:none;}
+  .mgr-showcase{padding:0 10px;}
+  .mgr-showcase-label{display:none;}
+}
+
 /* ------------------------- Touch press feedback (WU-11) -------------------------
    Visible feedback that a tap was registered on touch devices, where :hover never
    triggers. Scoped to (pointer: coarse) so desktop click feel is unchanged. */
 @media (pointer: coarse) {
   .tb-btn:active, .tb-fit-btn:active, .rp-tab:active,
-  .cs-cmdp-row:active, .pcard:active, .tcard:active,
+  .cs-cmdp-row:active, .pcard:active,
   .mpd-card:active, .mpd-card-menu-btn:active,
   button:not(:disabled):active {
     transform: scale(0.97);
@@ -4285,10 +4482,12 @@ html.pref-dark .panel,
 html.pref-dark .modal,
 html.pref-dark .toolbar,
 html.pref-dark .sidebar { background: var(--surface) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
-html.pref-dark input,
+/* The Stash Manager's list and tab bar style their own controls from the
+   theme tokens; this blanket rule would flatten selected states. */
+html.pref-dark input:not(.stash-page *),
 html.pref-dark select,
 html.pref-dark textarea,
-html.pref-dark button:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch):not(.ppal-size-btn) {
+html.pref-dark button:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch):not(.ppal-size-btn):not(.stash-page *):not(.mgr-tab-bar *) {
   background: var(--surface-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border) !important;
 }
 html.pref-dark a { color: var(--accent); }

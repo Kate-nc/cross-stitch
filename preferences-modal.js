@@ -666,7 +666,7 @@
             { value: "DMC", label: "DMC" }, { value: "Anchor", label: "Anchor" }, { value: "both", label: "Both" }
           ]})
         ),
-        h(Row, { last: true, label: "Warn me when a thread runs low", desc: "Show a low-stock badge when you have this many skeins or fewer. Fractions such as 0.25 or 0.5 are useful for part-skeins." },
+        h(Row, { last: true, label: "Warn me when a thread runs low", desc: "A thread is running low when you have less than this, counting an opened skein as \u00BE, \u00BD or \u00BC. A thread's own Keep at least value, set in Thread Stash, replaces this one." },
           h("input", { type: "number", inputMode: "decimal", min: 0, max: 20, step: 0.25, value: lowStock[0],
             onChange: function (e) { lowStock[1](Math.max(0, parseFloat(e.target.value) || 0)); },
             style: Object.assign({}, styles.input, { width: 70 }) }),

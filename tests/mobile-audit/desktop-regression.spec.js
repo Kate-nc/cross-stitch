@@ -174,7 +174,8 @@ test('desktop hover styling still applies', async ({ page }) => {
 
 test('desktop manager keeps its 280px side panel', async ({ page }) => {
   await setup(page);
-  await page.goto('/manager.html?from=home', { waitUntil: 'load', timeout: 120000 });
+  // The side panel is the Pattern Library's; Thread Stash edits in its list.
+  await page.goto('/manager.html?from=home&tab=patterns', { waitUntil: 'load', timeout: 120000 });
   await page.waitForTimeout(3000);
   const r = await page.evaluate(() => {
     const el = document.querySelector('.mgr-rpanel');
@@ -193,7 +194,7 @@ test('desktop manager filter bar does not overflow the page', async ({ page }) =
   await page.goto('/manager.html?from=home', { waitUntil: 'load', timeout: 120000 });
   await page.waitForTimeout(3000);
   const r = await page.evaluate(() => {
-    const bar = document.querySelector('.mgr-filter-bar');
+    const bar = document.querySelector('.stash-toolbar');
     const input = bar && bar.querySelector('input');
     return {
       icb: document.documentElement.clientWidth,

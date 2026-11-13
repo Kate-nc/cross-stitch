@@ -136,7 +136,7 @@
       },
       {
         title: "Build your stash",
-        body: "The Thread Stash tab is where you record the threads you own. Use Bulk Add to paste a list of thread numbers in one go.",
+        body: "The Thread Stash tab lists the threads you own. Type a thread number in the search box to add it, or use Add threads > Bulk add to paste a list in one go.",
         tip: "Clicking the highlighted tab will close this tour and take you straight there.",
         target: "[data-onboard=\"mgr-stash-tab\"]",
         placement: "bottom",
