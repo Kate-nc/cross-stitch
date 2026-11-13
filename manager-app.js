@@ -285,6 +285,9 @@ function ManagerApp() {
   const [listLimit, setListLimit] = useState(STASH_PAGE_SIZE);
   const [catalogueRecords, setCatalogueRecords] = useState([]);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
+  // Shopping list rows ticked as bought: { [key]: skeins to add }. Nothing
+  // is written until "Add ... to stash".
+  const [boughtTicks, setBoughtTicks] = useState({});
   useEffect(() => { ThreadCatalogues.read().then(setCatalogueRecords).catch(e => console.warn('Custom catalogues could not be read:', e)); }, []);
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
   const [threadSort, setThreadSort] = useState("number"); // 'number', 'colour', 'name', 'owned_desc', 'owned_asc'
@@ -1307,6 +1310,52 @@ function ManagerApp() {
   const projectsByKey = {};
   if (toBuy) toBuy.projects.forEach(p => p.threads.forEach(t => { (projectsByKey[t.key] || (projectsByKey[t.key] = [])).push(p.title || "Untitled"); }));
   (conflicts || []).forEach(c => { if (!projectsByKey[c.key]) projectsByKey[c.key] = c.patterns.map(p => p.title || "Untitled"); });
+  // Ticked rows still on the list (a row can leave the list while ticked,
+  // for example when a pattern is completed in another tab).
+  const tickedRows = toBuy ? toBuy.shopping.filter(r => boughtTicks[r.key] != null) : [];
+  const tickedSkeins = tickedRows.reduce((n, r) => n + boughtTicks[r.key], 0);
+  function toggleBought(r) {
+    setBoughtTicks(prev => {
+      const next = { ...prev };
+      if (next[r.key] != null) delete next[r.key];
+      else next[r.key] = Math.max(1, Math.round(r.tobuyQty || 1));
+      return next;
+    });
+  }
+  function setBoughtQty(key, qty) {
+    setBoughtTicks(prev => prev[key] == null ? prev : { ...prev, [key]: Math.max(1, Math.round(Number(qty) || 1)) });
+  }
+  // Phase 1 of docs/stash-redesign/hub-and-stock-take-plan.md: one write adds
+  // the skeins and clears the list flags; Undo takes back exactly those
+  // skeins and puts hand-added threads back on the list.
+  async function addTickedToStash() {
+    if (typeof StashBridge === "undefined" || !tickedRows.length) return;
+    const qtyMap = {};
+    const handAdded = {};
+    tickedRows.forEach(r => {
+      qtyMap[r.key] = boughtTicks[r.key];
+      const t = threads[r.key];
+      if (t && t.tobuy) handAdded[r.key] = { tobuyQty: Number(t.tobuy_qty) > 0 ? Number(t.tobuy_qty) : (r.tobuyQty || 1), tobuyAddedAt: t.tobuy_added_at || r.tobuyAddedAt || null };
+    });
+    const results = await StashBridge.markBoughtMany(qtyMap);
+    if (!results || !results.length) {
+      if (window.Toast) window.Toast.show({ message: "Could not add these threads to your stash", type: "error" });
+      return;
+    }
+    setBoughtTicks({});
+    refreshToBuy();
+    const added = results.reduce((n, r) => n + r.addedSkeins, 0);
+    if (window.Toast) {
+      window.Toast.show({
+        message: plural(added, 'skein') + " of " + plural(results.length, 'thread') + " added to your stash",
+        type: "success",
+        undoAction: () => {
+          StashBridge.unmarkBoughtMany(results.map(r => Object.assign({ key: r.key, addedSkeins: r.addedSkeins }, handAdded[r.key] || {})))
+            .then(() => refreshToBuy());
+        }
+      });
+    }
+  }
   function copyShoppingList() {
     if (!toBuy || !toBuy.shopping.length) return;
     const text = toBuy.shopping.map(r => formatThread(r, { variant: 'short' }) + " " + r.name + " \u00D7 " + (r.tobuyQty || 1)).join("\n");
@@ -1532,8 +1581,16 @@ function ManagerApp() {
             <div className="stash-card-head">
               <h2 id="stash-shop-heading">{Icons.cart()}<span>To buy</span></h2>
               {shoppingCount > 0 && <span className="stash-muted">{plural(shoppingCount, 'thread') + ", " + plural(shoppingSkeins, 'skein')}</span>}
-              <button type="button" className="stash-btn stash-card-action" disabled={!shoppingCount} onClick={copyShoppingList}>{Icons.copy()}<span>Copy list</span></button>
+              <div className="stash-card-action stash-form-row">
+                <button type="button" className="stash-btn" disabled={!shoppingCount} onClick={copyShoppingList}>{Icons.copy()}<span>Copy list</span></button>
+                {shoppingCount > 0 && (
+                  <button type="button" className="stash-btn stash-btn--primary" disabled={!tickedRows.length} onClick={addTickedToStash}>
+                    {Icons.box()}<span>{tickedRows.length ? "Add " + plural(tickedSkeins, 'skein') + " to stash" : "Add ticked to stash"}</span>
+                  </button>
+                )}
+              </div>
             </div>
+            {shoppingCount > 0 && <p className="stash-muted stash-shop-hint">Tick the threads you've bought, check the number of skeins, then add them to your stash.</p>}
             {toBuy === null
               ? <p className="stash-muted">Checking your patterns against your stash…</p>
               : shoppingCount === 0
@@ -1544,8 +1601,12 @@ function ManagerApp() {
                       const label = formatThread(r, { variant: 'short' });
                       const forTitles = projectsByKey[r.key] || NO_TITLES;
                       const byHand = !!(threads[r.key] && threads[r.key].tobuy);
+                      const ticked = boughtTicks[r.key] != null;
                       return (
-                        <li key={r.key} className="stash-shop-row">
+                        <li key={r.key} className={"stash-shop-row" + (ticked ? " is-ticked" : "")}>
+                          <label className="stash-tick" title={"Bought " + label}>
+                            <input type="checkbox" checked={ticked} onChange={() => toggleBought(r)} aria-label={"Bought " + label} />
+                          </label>
                           <button type="button" className="stash-ident" onClick={() => openThread(r.key)} title={"Show " + label + " in Thread Stash"}>
                             <span className="stash-swatch" style={{ background: "rgb(" + r.rgb.join(",") + ")" }} aria-hidden="true" />
                             <span className="stash-id">
@@ -1557,7 +1618,9 @@ function ManagerApp() {
                             {forTitles.map(t => <span key={t} className="stash-chip">{t}</span>)}
                             {byHand && forTitles.length === 0 && <span className="stash-chip stash-chip--quiet">Added by you</span>}
                           </span>
-                          <span className="stash-shop-qty">{plural(r.tobuyQty || 1, 'skein')}</span>
+                          {ticked
+                            ? <span className="stash-shop-qty"><SkeinStepper value={boughtTicks[r.key]} label={"Skeins bought of " + label} onChange={v => setBoughtQty(r.key, v)} /></span>
+                            : <span className="stash-shop-qty">{plural(r.tobuyQty || 1, 'skein')}</span>}
                           {byHand
                             ? <button type="button" className="stash-btn stash-btn--quiet stash-btn--icon" aria-label={"Remove " + label + " from your shopping list"} title="Remove from shopping list" onClick={() => setOnShoppingList(r.key, false)}>{Icons.x()}</button>
                             : <span className="stash-btn--icon" aria-hidden="true" />}

@@ -1674,6 +1674,51 @@ const StashBridge = (() => {
       }
     },
 
+    // Undo for markBoughtMany (the Stash Manager's "Add ticked to stash").
+    // entries: [{ key, addedSkeins, tobuyQty?, tobuyAddedAt? }] — usually
+    // markBoughtMany's own results. Takes back exactly the skeins it added,
+    // relative to the current count (so edits made since are kept), never
+    // below zero, and recorded in history. A thread that was on the shopping
+    // list by hand (tobuyQty > 0) goes back on it with its quantity and date.
+    // One transaction, one change event. Returns [{ key, owned }].
+    async unmarkBoughtMany(entries) {
+      if (!Array.isArray(entries) || entries.length === 0) return [];
+      try {
+        return await _withThreadsWrite('unmarkBoughtMany', function (threads, ctx) {
+          const results = [];
+          const changedKeys = [];
+          for (const e of entries) {
+            if (!e || e.key == null) continue;
+            const key = _normaliseKey(e.key);
+            const n = Math.max(0, Math.floor(Number(e.addedSkeins) || 0));
+            const entry = _ensureThreadEntry(threads, key, ctx, { now: ctx.now }).entry;
+            const oldOwned = Number(entry.owned) || 0;
+            const newOwned = Math.max(0, oldOwned - n);
+            if (newOwned !== oldOwned) {
+              entry.owned = newOwned;
+              if (ctx.isV3) {
+                entry.lastAdjustedAt = ctx.now;
+                _appendHistory(entry, newOwned - oldOwned, ctx.now);
+              }
+            }
+            const listQty = Number(e.tobuyQty);
+            if (Number.isFinite(listQty) && listQty > 0) {
+              entry.tobuy = true;
+              entry.tobuy_qty = listQty;
+              entry.tobuy_added_at = e.tobuyAddedAt || ctx.now;
+            }
+            _bumpEntryVersion(key, entry);
+            changedKeys.push(key);
+            results.push({ key: key, owned: newOwned });
+          }
+          return { value: results, changedKeys: changedKeys };
+        }, { invalidateStats: true });
+      } catch (e) {
+        console.error("StashBridge.unmarkBoughtMany failed:", e);
+        return [];
+      }
+    },
+
     // Schema v4 (Shopping List rebuild) — returns the user's current shopping
     // list as sorted rows: threads flagged by hand plus everything the active
     // patterns leave the stash short of (getToBuy().shopping), so Home and the

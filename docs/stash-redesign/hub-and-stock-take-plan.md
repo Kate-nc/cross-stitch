@@ -37,6 +37,12 @@ Each phase ships on its own and leaves the app consistent.
 
 ## Phase 1: Bought checkboxes
 
+**Status: built.** Undo uses a new `StashBridge.unmarkBoughtMany`, the exact
+inverse of `markBoughtMany`, instead of `updateThread`. It subtracts the
+added skeins in one transaction, relative to the current count, so edits
+made in between are kept. On phones a ticked row's stepper moves to its own
+line. Tests: `tests/stashBought.test.js` and `tests/e2e/stash-bought.spec.js`.
+
 **What you see.** On the Shopping list tab:
 
 - Each row gets a checkbox.

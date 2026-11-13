@@ -491,6 +491,9 @@ function ManagerApp() {
   const [listLimit, setListLimit] = useState(STASH_PAGE_SIZE);
   const [catalogueRecords, setCatalogueRecords] = useState([]);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
+  // Shopping list rows ticked as bought: { [key]: skeins to add }. Nothing
+  // is written until "Add ... to stash".
+  const [boughtTicks, setBoughtTicks] = useState({});
   useEffect(() => {
     ThreadCatalogues.read().then(setCatalogueRecords).catch(e => console.warn('Custom catalogues could not be read:', e));
   }, []);
@@ -1725,6 +1728,64 @@ function ManagerApp() {
   (conflicts || []).forEach(c => {
     if (!projectsByKey[c.key]) projectsByKey[c.key] = c.patterns.map(p => p.title || "Untitled");
   });
+  // Ticked rows still on the list (a row can leave the list while ticked,
+  // for example when a pattern is completed in another tab).
+  const tickedRows = toBuy ? toBuy.shopping.filter(r => boughtTicks[r.key] != null) : [];
+  const tickedSkeins = tickedRows.reduce((n, r) => n + boughtTicks[r.key], 0);
+  function toggleBought(r) {
+    setBoughtTicks(prev => {
+      const next = {
+        ...prev
+      };
+      if (next[r.key] != null) delete next[r.key];else next[r.key] = Math.max(1, Math.round(r.tobuyQty || 1));
+      return next;
+    });
+  }
+  function setBoughtQty(key, qty) {
+    setBoughtTicks(prev => prev[key] == null ? prev : {
+      ...prev,
+      [key]: Math.max(1, Math.round(Number(qty) || 1))
+    });
+  }
+  // Phase 1 of docs/stash-redesign/hub-and-stock-take-plan.md: one write adds
+  // the skeins and clears the list flags; Undo takes back exactly those
+  // skeins and puts hand-added threads back on the list.
+  async function addTickedToStash() {
+    if (typeof StashBridge === "undefined" || !tickedRows.length) return;
+    const qtyMap = {};
+    const handAdded = {};
+    tickedRows.forEach(r => {
+      qtyMap[r.key] = boughtTicks[r.key];
+      const t = threads[r.key];
+      if (t && t.tobuy) handAdded[r.key] = {
+        tobuyQty: Number(t.tobuy_qty) > 0 ? Number(t.tobuy_qty) : r.tobuyQty || 1,
+        tobuyAddedAt: t.tobuy_added_at || r.tobuyAddedAt || null
+      };
+    });
+    const results = await StashBridge.markBoughtMany(qtyMap);
+    if (!results || !results.length) {
+      if (window.Toast) window.Toast.show({
+        message: "Could not add these threads to your stash",
+        type: "error"
+      });
+      return;
+    }
+    setBoughtTicks({});
+    refreshToBuy();
+    const added = results.reduce((n, r) => n + r.addedSkeins, 0);
+    if (window.Toast) {
+      window.Toast.show({
+        message: plural(added, 'skein') + " of " + plural(results.length, 'thread') + " added to your stash",
+        type: "success",
+        undoAction: () => {
+          StashBridge.unmarkBoughtMany(results.map(r => Object.assign({
+            key: r.key,
+            addedSkeins: r.addedSkeins
+          }, handAdded[r.key] || {}))).then(() => refreshToBuy());
+        }
+      });
+    }
+  }
   function copyShoppingList() {
     if (!toBuy || !toBuy.shopping.length) return;
     const text = toBuy.shopping.map(r => formatThread(r, {
@@ -2100,12 +2161,21 @@ function ManagerApp() {
     id: "stash-shop-heading"
   }, Icons.cart(), /*#__PURE__*/React.createElement("span", null, "To buy")), shoppingCount > 0 && /*#__PURE__*/React.createElement("span", {
     className: "stash-muted"
-  }, plural(shoppingCount, 'thread') + ", " + plural(shoppingSkeins, 'skein')), /*#__PURE__*/React.createElement("button", {
+  }, plural(shoppingCount, 'thread') + ", " + plural(shoppingSkeins, 'skein')), /*#__PURE__*/React.createElement("div", {
+    className: "stash-card-action stash-form-row"
+  }, /*#__PURE__*/React.createElement("button", {
     type: "button",
-    className: "stash-btn stash-card-action",
+    className: "stash-btn",
     disabled: !shoppingCount,
     onClick: copyShoppingList
-  }, Icons.copy(), /*#__PURE__*/React.createElement("span", null, "Copy list"))), toBuy === null ? /*#__PURE__*/React.createElement("p", {
+  }, Icons.copy(), /*#__PURE__*/React.createElement("span", null, "Copy list")), shoppingCount > 0 && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--primary",
+    disabled: !tickedRows.length,
+    onClick: addTickedToStash
+  }, Icons.box(), /*#__PURE__*/React.createElement("span", null, tickedRows.length ? "Add " + plural(tickedSkeins, 'skein') + " to stash" : "Add ticked to stash")))), shoppingCount > 0 && /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted stash-shop-hint"
+  }, "Tick the threads you've bought, check the number of skeins, then add them to your stash."), toBuy === null ? /*#__PURE__*/React.createElement("p", {
     className: "stash-muted"
   }, "Checking your patterns against your stash\u2026") : shoppingCount === 0 ? /*#__PURE__*/React.createElement("p", {
     className: "stash-empty"
@@ -2117,10 +2187,19 @@ function ManagerApp() {
     });
     const forTitles = projectsByKey[r.key] || NO_TITLES;
     const byHand = !!(threads[r.key] && threads[r.key].tobuy);
+    const ticked = boughtTicks[r.key] != null;
     return /*#__PURE__*/React.createElement("li", {
       key: r.key,
-      className: "stash-shop-row"
-    }, /*#__PURE__*/React.createElement("button", {
+      className: "stash-shop-row" + (ticked ? " is-ticked" : "")
+    }, /*#__PURE__*/React.createElement("label", {
+      className: "stash-tick",
+      title: "Bought " + label
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: ticked,
+      onChange: () => toggleBought(r),
+      "aria-label": "Bought " + label
+    })), /*#__PURE__*/React.createElement("button", {
       type: "button",
       className: "stash-ident",
       onClick: () => openThread(r.key),
@@ -2144,7 +2223,13 @@ function ManagerApp() {
       className: "stash-chip"
     }, t)), byHand && forTitles.length === 0 && /*#__PURE__*/React.createElement("span", {
       className: "stash-chip stash-chip--quiet"
-    }, "Added by you")), /*#__PURE__*/React.createElement("span", {
+    }, "Added by you")), ticked ? /*#__PURE__*/React.createElement("span", {
+      className: "stash-shop-qty"
+    }, /*#__PURE__*/React.createElement(SkeinStepper, {
+      value: boughtTicks[r.key],
+      label: "Skeins bought of " + label,
+      onChange: v => setBoughtQty(r.key, v)
+    })) : /*#__PURE__*/React.createElement("span", {
       className: "stash-shop-qty"
     }, plural(r.tobuyQty || 1, 'skein')), byHand ? /*#__PURE__*/React.createElement("button", {
       type: "button",

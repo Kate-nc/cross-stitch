@@ -4291,7 +4291,12 @@ span.stash-ident{cursor:default;}
 .stash-card-head h2 svg{width:18px;height:18px;color:var(--text-secondary);}
 .stash-card-action{margin-left:auto;}
 .stash-shop-list{margin:0;padding:0;list-style:none;}
-.stash-shop-row{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(0,1.6fr) auto 34px;gap:12px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-subtle);}
+.stash-shop-row{display:grid;grid-template-columns:34px minmax(180px,1.2fr) minmax(0,1.6fr) auto 34px;gap:12px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-subtle);}
+.stash-shop-row.is-ticked{background:var(--success-soft);margin:0 -16px;padding-left:16px;padding-right:16px;}
+.stash-tick{display:grid;place-items:center;width:34px;height:34px;border-radius:var(--radius-md);cursor:pointer;}
+.stash-tick input{width:20px;height:20px;margin:0;accent-color:var(--success);cursor:pointer;}
+.stash-tick:focus-within{outline:2px solid var(--accent);outline-offset:-2px;}
+.stash-shop-hint{margin:-4px 0 0;}
 .stash-shop-row:last-child{border-bottom:0;}
 .stash-shop-qty{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
 .stash-page .stash-alert{margin-bottom:0;}
@@ -4352,6 +4357,8 @@ span.stash-ident{cursor:default;}
   .stash-chev{width:44px;height:44px;}
   .stash-levels button{min-height:44px;padding:0 13px;}
   .stash-search input,.stash-inline-form input{font-size:16px;}
+  .stash-tick{width:44px;height:44px;}
+  .stash-tick input{width:24px;height:24px;}
 }
 
 /* Phones and narrow windows: rows become two lines, the editor stacks. */
@@ -4373,11 +4380,16 @@ span.stash-ident{cursor:default;}
   .stash-status:empty{display:none;}
   .stash-row-edit{padding:12px;}
   .stash-actions{margin-left:0;}
-  .stash-shop-row{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"id qty x" "uses uses uses";row-gap:4px;}
+  .stash-shop-row{grid-template-columns:auto minmax(0,1fr) auto auto;grid-template-areas:"tick id qty x" ". uses uses uses";row-gap:4px;column-gap:8px;}
+  .stash-shop-row.is-ticked{margin:0 -16px;padding-left:16px;padding-right:16px;}
+  .stash-shop-row.is-ticked{grid-template-areas:"tick id id x" ". qty qty qty" ". uses uses uses";}
+  .stash-shop-row.is-ticked .stash-shop-qty{justify-self:start;padding-left:40px;}
+  .stash-shop-row .stash-tick{grid-area:tick;}
   .stash-shop-row .stash-ident{grid-area:id;}
   .stash-shop-row .stash-shop-qty{grid-area:qty;}
   .stash-shop-row .stash-btn--icon{grid-area:x;}
   .stash-shop-row .stash-uses{grid-area:uses;padding-left:40px;}
+  .stash-card-action{margin-left:0;}
   .stash-shop-row .stash-uses:empty{display:none;}
 }
 @media (max-width: 599px){
