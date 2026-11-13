@@ -196,6 +196,26 @@ Import and export
 
 ## Phase 4: Stock-take mode
 
+**Status: built.** Choices made while building:
+
+- **Typing never loads a thread.** In DMC, "35" is a thread and also the
+  start of 350 to 3599, so typing only previews the match ("DMC 35 Fuchsia
+  (n more start with 35)"). **Save, next** (or Enter) saves the current
+  count and loads the typed thread.
+- **Brand toggle and the white key.** Brand is a DMC / Anchor toggle beside
+  the entry. The pad's white key steps through Blanc, Ecru and B5200.
+- **Closing.** Done, or closing the dialog, always goes to the summary
+  when anything was counted, so Undo all is never lost.
+- **Marking uncounted threads used up.** That step is recorded in the same
+  session, so Undo all covers it too.
+- **Code.** Writes go through `setThreadCount` (opened level, then full
+  skeins) and so through `updateThread`'s history. The matcher
+  (`matchThreadCode`, `describeThreadMatch`, `summariseStockTake`) is pure.
+- **Also reachable from** the Import and export page and the command
+  palette.
+- **Tests.** `tests/stashStockTake.test.js` and
+  `tests/e2e/stash-stock-take.spec.js`.
+
 For sitting down with a floss box and counting everything in one go.
 
 **Entry points**

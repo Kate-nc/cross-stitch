@@ -4357,7 +4357,56 @@ span.stash-ident{cursor:default;}
 .stash-card-title svg{width:18px;height:18px;color:var(--text-secondary);}
 .stash-transfer{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
 .stash-transfer .stash-card p{margin:0;}
+.stash-transfer>.stash-card:last-child:nth-child(odd){grid-column:1 / -1;}
 @media (max-width: 760px){.stash-transfer{grid-template-columns:minmax(0,1fr);}}
+
+/* Stock-take (hub plan, Phase 4): a dialog on desktop, the whole screen
+   on phones; the number pad shows on touch screens. */
+.overlay-panel.stash-st{display:flex;flex-direction:column;max-height:calc(100dvh - 32px);}
+.stash-st-head{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);}
+.stash-st-head h2{margin:0;font-size:18px;font-weight:800;}
+.stash-st-head .stash-btn{margin-left:auto;}
+.stash-st-body{display:flex;flex:1;flex-direction:column;gap:14px;min-height:0;padding:16px 18px 18px;overflow-y:auto;}
+.stash-st-thread{display:grid;justify-items:center;gap:8px;text-align:center;}
+.stash-st-thread .stash-stepper{justify-self:center;}
+.stash-st-swatch{width:88px;height:88px;border-radius:20px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.14);}
+.stash-st-code{font-size:24px;font-weight:800;letter-spacing:-.01em;}
+.stash-pill--quiet{background:var(--surface-tertiary);color:var(--text-secondary);}
+.stash-stepper--lg button{width:48px;height:48px;}
+.stash-stepper--lg input{width:64px;height:48px;font-size:20px;}
+.stash-st-intro{margin:0;padding:12px 14px;font-size:14px;color:var(--text-secondary);background:var(--surface-secondary);border-radius:var(--radius-md);}
+.stash-st-entry label{display:block;margin-bottom:6px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-tertiary);}
+.stash-st-entry-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
+.stash-st-input{flex:1 1 160px;min-width:0;height:48px;padding:0 12px;background:var(--surface);color:var(--text-primary);font:inherit;font-size:22px;font-weight:800;letter-spacing:.04em;border:1px solid var(--border);border-radius:var(--radius-md);}
+.stash-st-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.stash-st-match{min-height:1.4em;margin:6px 0 0;font-size:13px;color:var(--text-secondary);}
+.stash-st-match.is-error{color:var(--danger);}
+.stash-st-keypad{display:none;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+.stash-st-keypad button{height:52px;background:var(--surface);color:var(--text-primary);font:inherit;font-size:20px;font-weight:600;border:1px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;}
+.stash-st-keypad button.fn{font-size:13px;font-weight:700;color:var(--text-secondary);background:var(--surface-tertiary);}
+.stash-st-keypad button:disabled{opacity:.45;cursor:default;}
+.stash-st-keypad button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+.stash-st-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;}
+.stash-st-next{min-height:48px;padding:0 22px;font-size:14px;}
+.stash-st-log ul{max-height:160px;margin:6px 0 0;padding-left:18px;overflow:auto;font-size:13px;}
+.stash-st-sum{margin:0;font-size:16px;font-weight:700;}
+.stash-st-usedup-link{align-self:flex-start;color:var(--danger);}
+@media (pointer: coarse){
+  .stash-st-keypad{display:grid;}
+  .stash-st-keys{display:none;}
+  .stash-st-input{font-size:22px;}
+}
+@media (max-width: 599px){
+  .overlay-panel.stash-st{height:100dvh;max-height:100dvh;border-radius:0;}
+  .stash-st-next{flex:1 1 100%;}
+}
+/* Phones: Stock-take floats over the Thread Stash list. */
+.stash-fab{display:none;}
+@media (max-width: 760px){
+  .stash-fab{position:fixed;right:max(16px, env(safe-area-inset-right, 0px));bottom:calc(16px + env(safe-area-inset-bottom, 0px));z-index:40;display:inline-flex;align-items:center;gap:8px;height:48px;padding:0 18px;background:var(--accent);color:var(--text-on-accent);font:inherit;font-weight:700;border:0;border-radius:24px;box-shadow:var(--shadow-lg);cursor:pointer;}
+  .stash-fab svg{width:18px;height:18px;}
+  .stash-page{padding-bottom:88px;}
+}
 
 /* Custom thread catalogues page */
 .stash-dialog-body{display:flex;flex-direction:column;gap:12px;font-size:13px;}
@@ -4569,10 +4618,10 @@ html.pref-dark .toolbar,
 html.pref-dark .sidebar { background: var(--surface) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
 /* The Stash Manager's list and tab bar style their own controls from the
    theme tokens; this blanket rule would flatten selected states. */
-html.pref-dark input:not(.stash-page *),
+html.pref-dark input:not(.stash-page *):not(.stash-st *),
 html.pref-dark select,
 html.pref-dark textarea,
-html.pref-dark button:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch):not(.ppal-size-btn):not(.stash-page *):not(.mgr-tab-bar *) {
+html.pref-dark button:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch):not(.ppal-size-btn):not(.stash-page *):not(.mgr-tab-bar *):not(.stash-st *):not(.stash-fab) {
   background: var(--surface-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border) !important;
 }
 html.pref-dark a { color: var(--accent); }

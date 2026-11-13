@@ -297,6 +297,7 @@ function ManagerApp() {
   // Shopping list rows ticked as bought: { [key]: skeins to add }. Nothing
   // is written until "Add ... to stash".
   const [boughtTicks, setBoughtTicks] = useState({});
+  const [stockTakeOpen, setStockTakeOpen] = useState(false);
   useEffect(() => { ThreadCatalogues.read().then(setCatalogueRecords).catch(e => console.warn('Custom catalogues could not be read:', e)); }, []);
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
   const [threadSort, setThreadSort] = useState("number"); // 'number', 'colour', 'name', 'owned_desc', 'owned_asc'
@@ -382,6 +383,11 @@ function ManagerApp() {
         id: 'mgr_bulk_add', label: 'Bulk Add Threads', section: 'action',
         keywords: ['bulk', 'add', 'thread', 'inventory', 'stash'],
         action: () => setBulkAddOpen(true)
+      },
+      {
+        id: 'mgr_stock_take', label: 'Stock-take: count your threads', section: 'action',
+        keywords: ['stock', 'take', 'count', 'stash', 'thread', 'keypad'],
+        action: () => { setTab('inventory'); setStockTakeOpen(true); }
       },
       {
         id: 'mgr_preferences', label: 'Open Preferences', section: 'settings',
@@ -1178,6 +1184,13 @@ function ManagerApp() {
   // Row callbacks are stable so React.memo can skip unchanged rows.
   const toggleRow = useCallback(key => setExpandedThread(cur => cur === key ? null : key), []);
   const updateThreadCb = useCallback((key, field, value) => updateThread(key, field, value), []);
+  // Stock-take writes a count and an opened-skein level together. Opened
+  // first: updateThread zeroes full skeins for "used-up" and clears
+  // "used-up" when full skeins go above zero.
+  const setThreadCount = useCallback((key, owned, partialStatus) => {
+    updateThread(key, "partialStatus", partialStatus || null);
+    if (partialStatus !== "used-up") updateThread(key, "owned", Math.max(0, Number(owned) || 0));
+  }, []);
   const addThreadToStash = useCallback(key => {
     updateThread(key, "owned", 1);
     setExpandedThread(key);
@@ -1556,6 +1569,13 @@ function ManagerApp() {
                   : <span className="stash-muted">Bulk add is not available on this page.</span>}
               </div>
             </section>
+            <section className="stash-card" aria-labelledby="stash-tr-count">
+              <h3 id="stash-tr-count" className="stash-card-title">{Icons.keypad()}<span>Stock-take</span></h3>
+              <p className="stash-muted">Count a whole box of threads in one sitting: type each number, set its count, and move on.</p>
+              <div className="stash-form-row">
+                <button type="button" className="stash-btn" onClick={() => setStockTakeOpen(true)}>{Icons.keypad()}<span>Start a stock-take</span></button>
+              </div>
+            </section>
             <section className="stash-card" aria-labelledby="stash-tr-cat">
               <h3 id="stash-tr-cat" className="stash-card-title">{Icons.document()}<span>Custom thread catalogues</span></h3>
               <p className="stash-muted">{plural(catalogueRecords.length, 'record') + ". Import your own CSV of thread references, or export them."}</p>
@@ -1789,6 +1809,9 @@ function ManagerApp() {
                         {Icons.listComfortable()}<span><b>Bulk add</b><small>Paste a list of numbers, or choose a starter kit</small></span>
                       </button>
                     )}
+                    <button type="button" onClick={() => { close(); setStockTakeOpen(true); }}>
+                      {Icons.keypad()}<span><b>Stock-take</b><small>Count a whole box of threads, one number after another</small></span>
+                    </button>
                     <button type="button" onClick={() => { close(); goTab("catalogues"); }}>
                       {Icons.document()}<span><b>Custom thread catalogues</b><small>{"Import or export your own thread references (" + plural(catalogueRecords.length, 'record') + ")"}</small></span>
                     </button>
@@ -1878,6 +1901,10 @@ function ManagerApp() {
             </div>
           )}
         </div>
+      )}
+
+      {tab === "inventory" && (
+        <button type="button" className="stash-fab" onClick={() => setStockTakeOpen(true)}>{Icons.keypad()}<span>Stock-take</span></button>
       )}
 
       {tab === "shopping" && (
@@ -2405,6 +2432,7 @@ function ManagerApp() {
         />
       )}
       {bulkAddOpen && window.BulkAddModal && React.createElement(window.BulkAddModal, {onClose: () => setBulkAddOpen(false)})}
+      {stockTakeOpen && <StockTake items={catalogueItems} threads={threads} onSet={setThreadCount} onClose={() => setStockTakeOpen(false)} />}
       {modal === "help" && <SharedModals.Help defaultTab="manager" onClose={() => setModal(null)} />}
       {modal === "shortcuts" && <SharedModals.Help defaultTab="shortcuts" onClose={() => setModal(null)} />}
       {welcomeOpen && window.WelcomeWizard && <window.WelcomeWizard page="manager" onClose={() => setWelcomeOpen(false)} />}
@@ -2937,6 +2965,259 @@ function UserProfileModal({ profile, onSave, onClose }) {
 ReactDOM.createRoot(document.getElementById("root")).render(<ManagerApp />);
 if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
 
+
+// ════════════════════════════════════════════════════════════════════
+// Stock-take (hub plan, Phase 4): count a whole floss box in one sitting.
+// Type a thread number, set its count, Save, next. Counts are saved as you
+// go; the summary offers Undo all, which restores the session's snapshot.
+// ════════════════════════════════════════════════════════════════════
+
+// Numbers compare without leading zeros, so "1" finds DMC 01 and "0403"
+// finds Anchor 403. Words (blanc, ecru, b5200) compare as typed.
+function normaliseThreadCode(s) {
+  const t = String(s == null ? "" : s).trim().toLowerCase();
+  return /^\d+$/.test(t) ? String(parseInt(t, 10)) : t;
+}
+// items: catalogue entries { brand, id, ... }. Returns { exact, matches }:
+// exact is the thread the code names (a literal id first, then the same
+// number without leading zeros); matches are every thread whose number
+// starts with what was typed.
+function matchThreadCode(query, brand, items) {
+  const raw = String(query == null ? "" : query).trim().toLowerCase();
+  if (!raw) return { exact: null, matches: [] };
+  const q = normaliseThreadCode(raw);
+  const pool = items.filter(d => d.brand === brand);
+  const exact = pool.find(d => String(d.id).toLowerCase() === raw) || pool.find(d => normaliseThreadCode(d.id) === q) || null;
+  const matches = pool.filter(d => {
+    const id = String(d.id).toLowerCase();
+    return id.startsWith(raw) || normaliseThreadCode(id).startsWith(q);
+  });
+  return { exact, matches };
+}
+// The line under the entry box: what Save, next would load.
+function describeThreadMatch(query, brandLabel, m) {
+  const typed = String(query == null ? "" : query).trim();
+  if (!typed) return "";
+  if (!m.matches.length && !m.exact) return "No " + brandLabel + " thread " + typed;
+  if (m.exact) {
+    const others = m.matches.filter(d => d !== m.exact).length;
+    return brandLabel + " " + m.exact.id + " " + m.exact.name + (others ? " (" + others + " more start with " + typed + ")" : "");
+  }
+  if (m.matches.length > 40) return "Keep typing: " + m.matches.length + " threads start with " + typed;
+  const nums = m.matches.filter(d => /^\d+$/.test(String(d.id))).map(d => Number(d.id)).sort((a, b) => a - b);
+  if (nums.length === m.matches.length) return nums.length === 1 ? "Matches " + nums[0] : "Matches " + nums[0] + " to " + nums[nums.length - 1];
+  return "Matches " + listJoin(m.matches.map(d => String(d.id)));
+}
+// Counted / changed / new for the summary. entries: [{ before, after }].
+function summariseStockTake(entries) {
+  const out = { counted: entries.length, unchanged: 0, changed: 0, added: 0 };
+  entries.forEach(e => {
+    const same = (Number(e.before.owned) || 0) === (Number(e.after.owned) || 0) && (e.before.partialStatus || null) === (e.after.partialStatus || null);
+    if (same) out.unchanged++;
+    else if (!isInStash(e.before) && isInStash(e.after)) out.added++;
+    else out.changed++;
+  });
+  return out;
+}
+const STOCK_TAKE_WHITES = ["blanc", "ecru", "b5200"];
+
+function StockTake({ items, threads, onSet, onClose }) {
+  const [brand, setBrand] = useState("dmc");
+  const [query, setQuery] = useState("");
+  const [current, setCurrent] = useState(null); // catalogue item
+  const [draft, setDraft] = useState({ owned: 0, partialStatus: null });
+  const [session, setSession] = useState({}); // key -> { item, before, after }
+  const [order, setOrder] = useState([]);
+  const [phase, setPhase] = useState("count"); // count | summary | usedup | undone
+  const [notice, setNotice] = useState("");
+  const inputRef = useRef(null);
+  const brandLabel = brand === "anchor" ? "Anchor" : "DMC";
+  const match = useMemo(() => matchThreadCode(query, brand, items), [query, brand, items]);
+  const matchText = describeThreadMatch(query, brandLabel, match);
+  const entries = order.map(k => session[k]);
+  const stateOf = key => { const t = threads[key] || EMPTY_THREAD; return { owned: Number(t.owned) || 0, partialStatus: t.partialStatus || null }; };
+
+  useEffect(() => { if (phase === "count" && inputRef.current) inputRef.current.focus(); }, [phase, current]);
+
+  function load(item) {
+    const prior = session[item.compositeKey];
+    setCurrent(item);
+    setDraft(prior ? { ...prior.after } : stateOf(item.compositeKey));
+  }
+  function saveCurrent() {
+    if (!current) return;
+    const key = current.compositeKey;
+    const now = stateOf(key);
+    const after = { owned: draft.partialStatus === "used-up" ? 0 : (Number(draft.owned) || 0), partialStatus: draft.partialStatus || null };
+    if (now.owned !== after.owned || now.partialStatus !== after.partialStatus) onSet(key, after.owned, after.partialStatus);
+    setSession(prev => ({ ...prev, [key]: { item: current, before: prev[key] ? prev[key].before : now, after } }));
+    if (!session[key]) setOrder(prev => prev.concat(key));
+    return { key, after };
+  }
+  function saveNext() {
+    const typed = query.trim();
+    if (typed && !match.exact) { setNotice(matchText || "No " + brandLabel + " thread " + typed); return; }
+    const saved = saveCurrent();
+    setNotice("");
+    setQuery("");
+    // Re-typing the thread just saved: the stash update hasn't arrived yet,
+    // so keep what was entered rather than re-reading it.
+    if (match.exact && saved && saved.key === match.exact.compositeKey) { setCurrent(match.exact); setDraft({ ...saved.after }); }
+    else if (match.exact) load(match.exact);
+    else setCurrent(null);
+  }
+  function finish() {
+    if (phase === "count") {
+      saveCurrent();
+      setCurrent(null);
+      if (order.length || current) { setPhase("summary"); return; }
+    }
+    onClose();
+  }
+  function undoAll() {
+    entries.forEach(e => onSet(e.item.compositeKey, e.before.owned, e.before.partialStatus));
+    setNotice(plural(entries.length, 'thread') + " back to how " + (entries.length === 1 ? "it was" : "they were") + " before this stock-take.");
+    setSession({}); setOrder([]); setPhase("undone");
+  }
+  // Threads in your stash that this stock-take didn't count.
+  const uncounted = useMemo(() => Object.keys(threads).filter(k => isInStash(threads[k]) && !session[k]), [threads, session]);
+  function markUncountedUsedUp() {
+    const add = {};
+    const keys = [];
+    uncounted.forEach(k => {
+      const item = items.find(d => d.compositeKey === k) || { compositeKey: k, id: k.split(':').slice(1).join(':'), brand: k.split(':')[0], name: "", rgb: [128, 128, 128] };
+      add[k] = { item, before: stateOf(k), after: { owned: 0, partialStatus: "used-up" } };
+      keys.push(k);
+      onSet(k, 0, "used-up");
+    });
+    setSession(prev => ({ ...prev, ...add }));
+    setOrder(prev => prev.concat(keys));
+    setPhase("summary");
+  }
+  function press(k) {
+    setNotice("");
+    if (k === "del") setQuery(q => q.slice(0, -1));
+    else if (k === "white") setQuery(q => { const i = STOCK_TAKE_WHITES.indexOf(q.toLowerCase()); return STOCK_TAKE_WHITES[(i + 1) % STOCK_TAKE_WHITES.length]; });
+    else setQuery(q => (STOCK_TAKE_WHITES.indexOf(q.toLowerCase()) >= 0 ? "" : q) + k);
+  }
+  const bump = d => setDraft(x => ({ partialStatus: d > 0 && x.partialStatus === "used-up" ? null : x.partialStatus, owned: Math.max(0, (Number(x.owned) || 0) + d) }));
+
+  const Overlay = window.Overlay;
+  if (!Overlay) return null;
+  const sum = summariseStockTake(entries);
+  const title = current ? (current.brand === "anchor" ? "Anchor " : "DMC ") + current.id : "";
+  const before = current ? (session[current.compositeKey] ? session[current.compositeKey].before : stateOf(current.compositeKey)) : null;
+
+  return (
+    <Overlay onClose={finish} variant="dialog" maxWidth={560} labelledBy="stash-st-title" className="stash-st" dismissOnScrim={false}>
+      <div className="stash-st-head">
+        <h2 id="stash-st-title">Stock-take</h2>
+        {phase === "count" && <span className="stash-muted" role="status">{plural(order.length, 'thread') + " counted"}</span>}
+        {phase === "count" && <button type="button" className="stash-btn" onClick={finish}>Done</button>}
+      </div>
+
+      {phase === "count" && (
+        <div className="stash-st-body">
+          {current ? (
+            <section className="stash-st-thread" aria-label={title}>
+              <span className="stash-st-swatch" style={{ background: "rgb(" + current.rgb.join(",") + ")" }} aria-hidden="true" />
+              <div className="stash-st-code">{title}</div>
+              <div className="stash-muted">{current.name}</div>
+              <span className="stash-pill stash-pill--quiet">{(session[current.compositeKey] ? "Counted earlier: " : "Was ") + plural(Number(formatSkeins(before.owned)), 'full skein')}{before.partialStatus ? ", " + OPENED_TEXT[before.partialStatus].toLowerCase() : ""}</span>
+              <SkeinStepper size="lg" value={draft.owned} label={"Full skeins of " + title} onChange={v => setDraft(x => ({ partialStatus: v > 0 && x.partialStatus === "used-up" ? null : x.partialStatus, owned: v }))} />
+              <div className="stash-levels" role="radiogroup" aria-label={"Opened skein of " + title}>
+                {OPENED_LEVELS.map(l => {
+                  const on = (draft.partialStatus || null) === l.value;
+                  return <button key={l.value || "none"} type="button" role="radio" aria-checked={on} className={on ? "on" : ""} title={l.title} onClick={() => setDraft(x => ({ owned: l.value === "used-up" ? 0 : x.owned, partialStatus: l.value }))}>{l.label}</button>;
+                })}
+              </div>
+            </section>
+          ) : (
+            <p className="stash-st-intro">Type a thread number, then <b>Save, next</b>. Set its count, and Save, next again for the following thread. Each count is saved as you go, and you can undo the whole stock-take at the end.</p>
+          )}
+
+          <div className="stash-st-entry">
+            <label htmlFor="stash-st-input">Next thread</label>
+            <div className="stash-st-entry-row">
+              <input id="stash-st-input" ref={inputRef} className="stash-st-input" type="text" autoComplete="off" spellCheck={false}
+                inputMode={window.matchMedia && window.matchMedia("(pointer: coarse)").matches ? "none" : "text"}
+                aria-describedby="stash-st-match" value={query}
+                onChange={e => { setNotice(""); setQuery(e.target.value.replace(/\s+/g, "")); }}
+                onKeyDown={e => {
+                  if (e.key === "Enter") { e.preventDefault(); saveNext(); }
+                  else if (current && (e.key === "+" || e.key === "=")) { e.preventDefault(); bump(1); }
+                  else if (current && e.key === "-") { e.preventDefault(); bump(-1); }
+                }} />
+              <div className="stash-seg" role="radiogroup" aria-label="Brand">
+                {[["dmc", "DMC"], ["anchor", "Anchor"]].map(([b, l]) => <button key={b} type="button" role="radio" aria-checked={brand === b} className={brand === b ? "on" : ""} onClick={() => { setBrand(b); setNotice(""); }}>{l}</button>)}
+              </div>
+            </div>
+            <p id="stash-st-match" className={"stash-st-match" + (notice ? " is-error" : "")} aria-live="polite">{notice || matchText || " "}</p>
+          </div>
+
+          <div className="stash-st-keypad" aria-label="Number pad">
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(k => <button key={k} type="button" onClick={() => press(k)}>{k}</button>)}
+            <button type="button" className="fn" disabled={brand !== "dmc"} onClick={() => press("white")} title="Blanc, then Ecru, then B5200">Blanc / Ecru</button>
+            <button type="button" onClick={() => press("0")}>0</button>
+            <button type="button" className="fn" onClick={() => press("del")} aria-label="Delete last digit">Delete</button>
+          </div>
+
+          <div className="stash-st-foot">
+            <button type="button" className="stash-btn stash-btn--primary stash-st-next" onClick={saveNext} disabled={!current && !match.exact}>Save, next</button>
+            <span className="stash-hint stash-st-keys">Enter saves and moves on. Plus and minus change the count.</span>
+          </div>
+
+          {entries.length > 0 && (
+            <details className="stash-details stash-st-log">
+              <summary>{"This stock-take (" + entries.length + ")"}</summary>
+              <ul>{entries.slice().reverse().map(e => (
+                <li key={e.item.compositeKey}>
+                  <b>{(e.item.brand === "anchor" ? "Anchor " : "DMC ") + e.item.id}</b>{" " + formatSkeins(e.before.owned) + " to " + formatSkeins(e.after.owned)}{e.after.partialStatus ? ", " + OPENED_TEXT[e.after.partialStatus].toLowerCase() : ""}
+                </li>
+              ))}</ul>
+            </details>
+          )}
+        </div>
+      )}
+
+      {phase === "summary" && (
+        <div className="stash-st-body">
+          <p className="stash-st-sum">{"Counted " + plural(sum.counted, 'thread') + ": " + sum.unchanged + " unchanged, " + sum.changed + " changed, " + sum.added + " new."}</p>
+          <p className="stash-muted">Every count is already saved. Undo all puts every thread back to how it was before this stock-take.</p>
+          <div className="stash-form-row">
+            <button type="button" className="stash-btn stash-btn--primary" onClick={onClose}>Done</button>
+            <button type="button" className="stash-btn" onClick={() => setPhase("count")}>Count more</button>
+            <button type="button" className="stash-btn stash-btn--danger" onClick={undoAll}>{Icons.undo()}<span>Undo all</span></button>
+          </div>
+          {uncounted.length > 0 && (
+            <button type="button" className="stash-btn stash-btn--quiet stash-st-usedup-link" onClick={() => setPhase("usedup")}>{"Mark the " + plural(uncounted.length, 'thread') + " I didn't count as used up"}</button>
+          )}
+        </div>
+      )}
+
+      {phase === "usedup" && (
+        <div className="stash-st-body">
+          <p className="stash-st-sum">{"Mark " + plural(uncounted.length, 'thread') + " as used up?"}</p>
+          <p className="stash-muted">{"These are in your stash but weren't counted: " + listJoin(uncounted.slice(0, 12).map(k => (k.indexOf('anchor:') === 0 ? "Anchor " : "DMC ") + k.split(':').slice(1).join(':')).concat(uncounted.length > 12 ? [String(uncounted.length - 12) + " more"] : [])) + ". Their full skeins go to 0 and their opened skeins to used up. Undo all on the next screen puts them back."}</p>
+          <div className="stash-form-row">
+            <button type="button" className="stash-btn stash-btn--danger" onClick={markUncountedUsedUp}>{"Mark " + plural(uncounted.length, 'thread') + " as used up"}</button>
+            <button type="button" className="stash-btn" onClick={() => setPhase("summary")}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {phase === "undone" && (
+        <div className="stash-st-body">
+          <p className="stash-st-sum" role="status">{notice}</p>
+          <div className="stash-form-row">
+            <button type="button" className="stash-btn stash-btn--primary" onClick={onClose}>Close</button>
+            <button type="button" className="stash-btn" onClick={() => { setNotice(""); setPhase("count"); }}>Start again</button>
+          </div>
+        </div>
+      )}
+    </Overlay>
+  );
+}
 
 // Downloads used by the Custom catalogues and Import and export pages.
 function downloadFile(name, blob) {

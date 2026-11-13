@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "463a969aea95a4d74ea7270c10dc2c282e0c1abfd099d73082aa697125aa24d4";
+var BUILD_ID = "39ddac5a92e6b860cf870827839f36d14fd40ec8fa8c4e1f0b979e3b5a958f55";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -325,13 +325,13 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "1fe95be65f594235fffc3e336cdd7e183ac5d8bb1f0806d3f130b438f1bba98b"
+    "sha256": "6ce92f6d70f125ce7ccc9a6d523c93025fdfa2d51b1c72be68a1edeed5412cc4"
   },
   "./version.js": {
     "sha256": "25d05d297b2b6514f145850f9faaaa842fdf373e43cab0acdec831ef240dd491"
   },
   "./changelog.js": {
-    "sha256": "16ab817ec5d87738c81c871b98158a3f06af5a51d3571069873fc8720ad0a250"
+    "sha256": "214673742c1964e8ca9cd6e0e30ac3c1641ede1c2ae41ceea29a0dee79439b4e"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -394,7 +394,7 @@ var BUILD_ASSETS = {
     "sha256": "249650eb01b9abd5324ea071a85e807a3b743e73b556090391efa4a978517065"
   },
   "./icons.js": {
-    "sha256": "cdff8394675ae0243c1b24860c7079826b3cfa737be932733640a21832b13eae"
+    "sha256": "dafdef5f277de8014994a26da1d3af6328614e2cbbfc38697a2bf87e4d2fe3cc"
   },
   "./import-formats.js": {
     "sha256": "1c2c7e65d1d4e81db1b550789e5d3f8f950d896e5e6b0430089555aca407eb9f"
@@ -484,7 +484,7 @@ var BUILD_ASSETS = {
     "sha256": "3127d717941394cd826ed68607a324bc84d3d3f02def4d3943544da35b95a60a"
   },
   "./compiled/manager-app.compiled.js": {
-    "sha256": "6fa67064bc0db969c98f683c643cb55350b020c3338cc32a493baa2c640574e8"
+    "sha256": "d7da4075c9ba137485b7471706a285cae0efee08cfa1ec52561ea2b38acd39b8"
   },
   "./compiled/embroidery.compiled.js": {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
@@ -583,7 +583,7 @@ var BUILD_ASSETS = {
     "sha256": "7bc3c7f3cd4670957946e2fe415421e6fda501a9e1000e4c58bb346999f244ae"
   },
   "./help-drawer.js": {
-    "sha256": "0310f1377ddd21e4ab501c4ab7e3c497ab88d675ca594d3ef52989f86fec1346"
+    "sha256": "635fe6b8167e5b7de7674c3fdd546f15c0d580e41932770dcb0f85a9219c86b0"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
