@@ -266,3 +266,25 @@ test('optional files fetched by an earlier build carry over when unchanged', asy
   // Optional files nobody used are not fetched during the update.
   expect(fetched).not.toContain('assets/fontkit.umd.min.js');
 });
+
+test('Update now switches every tab to the waiting build; only the tab that asked reloads by itself', async ({ page, context }) => {
+  await register(page);
+  await page.goto(base + '/home');
+  const second = await context.newPage(); await second.goto(base + '/manager');
+  await saveProject(page);
+  expect(await page.evaluate(() => window.APP_VERSION)).toBe('old-build');
+  await second.evaluate(() => window.__stillOpen = true);
+  deployed = build('new-build');
+  expect(await page.evaluate(() => window.AppUpdate.check().then(s => s.status))).toBe('ready');
+  // Nothing switches until the person asks.
+  expect(await version(page)).toContain('old-build');
+  await Promise.all([page.waitForEvent('load'), page.evaluate(() => window.AppUpdate.apply())]);
+  await expect.poll(() => page.evaluate(() => window.APP_VERSION)).toBe('new-build');
+  expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).waiting)).toBeNull();
+  // The other tab was not reloaded under the person; it is asked to.
+  expect(await second.evaluate(() => window.__stillOpen)).toBe(true);
+  await expect(second.getByText('stitchx was updated in another tab', { exact: false })).toBeVisible();
+  await second.reload();
+  expect(await second.evaluate(() => window.APP_VERSION)).toBe('new-build');
+  await assertProject(page);
+});

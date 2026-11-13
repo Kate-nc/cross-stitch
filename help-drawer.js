@@ -542,6 +542,7 @@
           heading: "Updates and problems offline",
           bullets: [
             ["Updates", "When you are online, new versions download quietly in the background. They take effect after you close every stitchx tab and app window and open it again. While you are offline, you keep using the version you have."],
+            ["Update now", "To switch to a new version straight away, choose Update now on the notice that says a new version is ready, or in Preferences > Advanced > App updates, which also has Check for updates. stitchx reloads on the new version. Any other stitchx tabs you have open ask to be reloaded: reload them before carrying on there."],
             ["Application asset unavailable", "This message means part of stitchx has not been saved on this device yet, for example because an update was interrupted. Connect to the internet, close every stitchx tab and app window, then open it again."],
             ["Clearing browsing data", "Clearing your browser's data for this site removes the offline copy of stitchx and your projects too. Use File > Export Backup first."]
           ]
