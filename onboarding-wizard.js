@@ -135,6 +135,12 @@
         body: "Track which DMC and Anchor threads you own, and manage a library of patterns. We'll give you a 60-second tour."
       },
       {
+        title: "Your stash at a glance",
+        body: "Overview is where the Stash Manager opens. It shows how many threads and skeins you have, what to buy next, which patterns you could start, and anything running low. Select a total to see those threads.",
+        target: "[data-onboard=\"mgr-overview-tab\"]",
+        placement: "bottom"
+      },
+      {
         title: "Build your stash",
         body: "The Thread Stash tab lists the threads you own. Type a thread number in the search box to add it, or use Add threads > Bulk add to paste a list in one go.",
         tip: "Clicking the highlighted tab will close this tour and take you straight there.",

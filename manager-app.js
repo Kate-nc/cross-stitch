@@ -18,6 +18,10 @@ const OPENED_LEVELS = [
 const OPENED_TEXT = { "mostly-full": "¾ left", "about-half": "½ left", "remnant": "Remnant", "used-up": "Used up" };
 // The thread list renders this many rows, then offers "Show more".
 const STASH_PAGE_SIZE = 200;
+// Overview list lengths; each list links to its full view.
+const OVERVIEW_BUY_ROWS = 8;
+const OVERVIEW_READY_ROWS = 5;
+const OVERVIEW_LOW_ROWS = 5;
 const EMPTY_THREAD = { owned: 0, tobuy: false, partialStatus: null, min_stock: 0 };
 const NO_USES = [];
 const NO_TITLES = [];
@@ -244,7 +248,7 @@ function StashAlertPanel({ id, title, count, countLabel, icon, tone = "", prefer
 
 function ManagerApp() {
   const [tab, setTab] = useState(() => {
-    // Deep links: ?tab=inventory|patterns from /home and the Creator's
+    // Deep links: ?tab=inventory|patterns from the Creator's thread links and
     // Open-Stash button; ?tab=shopping from the Creator's shopping list;
     // ?tab=materials (the old Project materials tab) now lives inside the
     // Shopping list tab.
@@ -252,11 +256,16 @@ function ManagerApp() {
       const p = new URLSearchParams(window.location.search).get('tab');
       if (p === 'inventory' || p === 'patterns') return p;
       if (p === 'shopping' || p === 'materials') return 'shopping';
+      if (p === 'overview') return 'overview';
     } catch (_) {}
-    return "inventory";
-  }); // 'inventory' | 'shopping' | 'patterns'
+    // The Overview is the Stash Manager's home page; links that should
+    // open the thread list pass ?tab=inventory.
+    return "overview";
+  }); // 'overview' | 'inventory' | 'shopping' | 'patterns'
   const [modal, setModal] = useState(null); // 'help', 'about', 'add_pattern'
   const [threads, setThreads] = useState({}); // { [id]: { owned: number, tobuy: boolean } }
+  // Latest patterns for stable callbacks (the Overview's Ready to start).
+  const patternsLatestRef = useRef([]);
   // Latest threads for stable callbacks (Undo needs the values before an edit).
   const latestThreadsRef = useRef(threads);
   latestThreadsRef.current = threads;
@@ -275,6 +284,7 @@ function ManagerApp() {
     return work;
   }
   const [patterns, setPatterns] = useState([]); // Array of pattern objects
+  patternsLatestRef.current = patterns;
   const [activeProject, setActiveProject] = useState(null); // From Stitch Tracker IndexedDB
   const [storedProjects, setStoredProjects] = useState([]); // Cross-stitch projects from ProjectStorage
   const [storageUsage, setStorageUsage] = useState(null); // { used, quota, persistent } bytes
@@ -1098,11 +1108,15 @@ function ManagerApp() {
 
   // Counts for the filter control and the tab badge.
   const stashCounts = useMemo(() => {
-    const c = { owned: 0, low: 0, opened: 0, usedup: 0 };
+    const c = { owned: 0, low: 0, opened: 0, usedup: 0, dmc: 0, anchor: 0, fullSkeins: 0 };
     for (const k in threads) {
       if (!Object.prototype.hasOwnProperty.call(threads, k)) continue;
       const t = threads[k];
-      if (isInStash(t)) c.owned++;
+      if (isInStash(t)) {
+        c.owned++;
+        if (k.indexOf('anchor:') === 0) c.anchor++; else c.dmc++;
+        c.fullSkeins += Number(t.owned) || 0;
+      }
       if (isThreadLow(t, lowStockThreshold)) c.low++;
       if (isOpenedSkein(t)) c.opened++;
       if (isUsedUp(t)) c.usedup++;
@@ -1176,6 +1190,32 @@ function ManagerApp() {
     }).catch(() => {
       if (window.Toast) window.Toast.show({ message: "Could not update your shopping list", type: "error" });
     });
+  }, []);
+  // Overview tiles and links: open Thread Stash on a filter, optionally with
+  // a search and the search box focused (typing on the Overview carries on
+  // in Thread Stash's own search box).
+  const [searchFocusTick, setSearchFocusTick] = useState(0);
+  const goToThreads = useCallback((filter, query, focus) => {
+    setTab("inventory");
+    setThreadFilter(filter || "owned");
+    setSearchQuery(query || "");
+    setExpandedThread(null);
+    if (focus) setSearchFocusTick(n => n + 1);
+  }, []);
+  useEffect(() => {
+    if (!searchFocusTick || tab !== "inventory") return;
+    const raf = requestAnimationFrame(() => {
+      const el = document.querySelector('.stash-toolbar .stash-search input');
+      if (el) { el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch (_) {} }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [searchFocusTick, tab]);
+  // Ready to start: open the pattern's details in the Pattern Library.
+  const openPattern = useCallback(id => {
+    const p = patternsLatestRef.current.find(x => String(x.id) === String(id));
+    setTab("patterns");
+    setSearchQuery("");
+    if (p) { setViewingPattern(p); setPanelOpen(true); }
   }, []);
   // Jump from anywhere (Shopping list rows, pattern details) to one thread.
   const openThread = useCallback(key => {
@@ -1356,6 +1396,43 @@ function ManagerApp() {
       });
     }
   }
+  // One Shopping list row, shared by the Shopping list tab and the
+  // Overview's Buy next list (the Bought ticks are shared too).
+  function renderShopRow(r) {
+    const label = formatThread(r, { variant: 'short' });
+    const forTitles = projectsByKey[r.key] || NO_TITLES;
+    const byHand = !!(threads[r.key] && threads[r.key].tobuy);
+    const ticked = boughtTicks[r.key] != null;
+    return (
+      <li key={r.key} className={"stash-shop-row" + (ticked ? " is-ticked" : "")}>
+        <label className="stash-tick" title={"Bought " + label}>
+          <input type="checkbox" checked={ticked} onChange={() => toggleBought(r)} aria-label={"Bought " + label} />
+        </label>
+        <button type="button" className="stash-ident" onClick={() => openThread(r.key)} title={"Show " + label + " in Thread Stash"}>
+          <span className="stash-swatch" style={{ background: "rgb(" + r.rgb.join(",") + ")" }} aria-hidden="true" />
+          <span className="stash-id">
+            <span className="stash-code">{label}</span>
+            <span className="stash-name">{r.name}</span>
+          </span>
+        </button>
+        <span className="stash-uses">
+          {forTitles.map(t => <span key={t} className="stash-chip">{t}</span>)}
+          {byHand && forTitles.length === 0 && <span className="stash-chip stash-chip--quiet">Added by you</span>}
+        </span>
+        {ticked
+          ? <span className="stash-shop-qty"><SkeinStepper value={boughtTicks[r.key]} label={"Skeins bought of " + label} onChange={v => setBoughtQty(r.key, v)} /></span>
+          : <span className="stash-shop-qty">{plural(r.tobuyQty || 1, 'skein')}</span>}
+        {byHand
+          ? <button type="button" className="stash-btn stash-btn--quiet stash-btn--icon" aria-label={"Remove " + label + " from your shopping list"} title="Remove from shopping list" onClick={() => setOnShoppingList(r.key, false)}>{Icons.x()}</button>
+          : <span className="stash-btn--icon" aria-hidden="true" />}
+      </li>
+    );
+  }
+  const addTickedButton = (
+    <button type="button" className="stash-btn stash-btn--primary" disabled={!tickedRows.length} onClick={addTickedToStash}>
+      {Icons.box()}<span>{tickedRows.length ? "Add " + plural(tickedSkeins, 'skein') + " to stash" : "Add ticked to stash"}</span>
+    </button>
+  );
   function copyShoppingList() {
     if (!toBuy || !toBuy.shopping.length) return;
     const text = toBuy.shopping.map(r => formatThread(r, { variant: 'short' }) + " " + r.name + " \u00D7 " + (r.tobuyQty || 1)).join("\n");
@@ -1398,8 +1475,11 @@ function ManagerApp() {
           layout to 482px on a 390px screen, cutting off the editor). */}
       <div className="mgr-tab-bar">
         <div className="mgr-tabs">
+          <button data-onboard="mgr-overview-tab" className={"mgr-tab" + (tab === "overview" ? " on" : "")} aria-pressed={tab === "overview"} onClick={() => { setTab("overview"); setSearchQuery(""); setPanelOpen(false); }}>
+            <span className="icon">{Icons.layers()}</span> Overview
+          </button>
           <button data-onboard="mgr-stash-tab" className={"mgr-tab" + (tab === "inventory" ? " on" : "")} aria-pressed={tab === "inventory"} onClick={() => { setTab("inventory"); setSearchQuery(""); setPanelOpen(false); }}>
-            <span className="icon">{Icons.thread()}</span> Thread Stash <span className="cnt" title={plural(stashCounts.owned, 'thread') + " in your stash"}>{stashCounts.owned}</span>
+            <span className="icon">{Icons.thread()}</span> <span className="lbl-long">Thread Stash</span><span className="lbl-short" aria-hidden="true">Threads</span> <span className="cnt" title={plural(stashCounts.owned, 'thread') + " in your stash"}>{stashCounts.owned}</span>
           </button>
           <button className={"mgr-tab" + (tab === "shopping" ? " on" : "")} aria-pressed={tab === "shopping"} onClick={() => { setTab("shopping"); setSearchQuery(""); setPanelOpen(false); }}>
             <span className="icon">{Icons.cart()}</span> Shopping<span className="lbl-long"> list</span> {shoppingCount > 0 && <span className="cnt" title={plural(shoppingCount, 'thread') + " to buy"}>{shoppingCount}</span>}
@@ -1418,6 +1498,144 @@ function ManagerApp() {
           {Icons.sparkles()}<span className="mgr-showcase-label">Showcase</span>
         </button>
       </div>
+
+      {/* Overview: the Stash Manager's home page (hub plan, Phase 2). */}
+      {tab === "overview" && (
+        <div className="stash-page stash-overview">
+          <div className="stash-overview-head">
+            <h2 id="stash-overview-heading">Your stash</h2>
+            <label className="stash-search">
+              {Icons.magnify()}
+              <input
+                type="search"
+                aria-label="Find a thread"
+                enterKeyHint="search"
+                placeholder="Find a thread, or type a number to add one"
+                value=""
+                onChange={e => { goToThreads("owned", e.target.value, true); }}
+              />
+            </label>
+          </div>
+
+          {stashCounts.owned === 0 && (
+            <section className="stash-card stash-start" aria-labelledby="stash-start-heading">
+              <h2 id="stash-start-heading">{Icons.thread()}<span>Start your stash</span></h2>
+              <p className="stash-muted">Record the DMC and Anchor threads you own. Your patterns are then checked against them, so you can see what to buy and which patterns you could start.</p>
+              <div className="stash-form-row">
+                <button type="button" className="stash-btn stash-btn--primary" onClick={() => goToThreads("owned", "", true)}>{Icons.magnify()}<span>Find a thread to add</span></button>
+                {typeof window.BulkAddModal !== 'undefined' && <button type="button" className="stash-btn" onClick={() => setBulkAddOpen(true)}>{Icons.listComfortable()}<span>Bulk add</span></button>}
+              </div>
+            </section>
+          )}
+
+          <div className="stash-tiles">
+            <button type="button" className="stash-tile" onClick={() => goToThreads("owned")}>
+              <span className="stash-tile-k">Threads</span>
+              <span className="stash-tile-v">{stashCounts.owned}</span>
+              <span className="stash-tile-s">{stashCounts.anchor > 0 ? stashCounts.dmc + " DMC, " + stashCounts.anchor + " Anchor" : "in your stash"}</span>
+            </button>
+            <button type="button" className="stash-tile" onClick={() => goToThreads("opened")}>
+              <span className="stash-tile-k">Full skeins</span>
+              <span className="stash-tile-v">{formatSkeins(stashCounts.fullSkeins)}</span>
+              <span className="stash-tile-s">{stashCounts.opened > 0 ? "plus " + plural(stashCounts.opened, 'opened skein') : "No opened skeins"}</span>
+            </button>
+            <button type="button" className={"stash-tile" + (shoppingCount > 0 ? " stash-tile--accent" : "")} onClick={() => { setTab("shopping"); setSearchQuery(""); }}>
+              <span className="stash-tile-k">To buy</span>
+              <span className="stash-tile-v">{shoppingSkeins}</span>
+              <span className="stash-tile-s">{shoppingCount > 0 ? (shoppingSkeins === 1 ? "skein" : "skeins") + " across " + plural(shoppingCount, 'thread') : "Nothing to buy"}</span>
+            </button>
+            <button type="button" className={"stash-tile" + (stashCounts.low > 0 ? " stash-tile--warn" : "")} onClick={() => goToThreads("low")}>
+              <span className="stash-tile-k">Running low</span>
+              <span className="stash-tile-v">{stashCounts.low}</span>
+              <span className="stash-tile-s">{stashCounts.low > 0 ? "below their minimum" : "Nothing is running low"}</span>
+            </button>
+          </div>
+
+          <div className="stash-overview-cols">
+            <section className="stash-card" aria-labelledby="stash-buynext-heading">
+              <div className="stash-card-head">
+                <h2 id="stash-buynext-heading">{Icons.cart()}<span>Buy next</span></h2>
+                {shoppingCount > 0 && <span className="stash-muted">{plural(shoppingCount, 'thread')}</span>}
+                {shoppingCount > 0 && <div className="stash-card-action">{addTickedButton}</div>}
+              </div>
+              {toBuy === null
+                ? <p className="stash-muted">Checking your patterns against your stash…</p>
+                : shoppingCount === 0
+                  ? <p className="stash-muted">Nothing to buy. Anything your patterns need that your stash doesn't cover appears here.</p>
+                  : <>
+                      <ul className="stash-shop-list">{toBuy.shopping.slice(0, OVERVIEW_BUY_ROWS).map(renderShopRow)}</ul>
+                      {shoppingCount > OVERVIEW_BUY_ROWS && (
+                        <button type="button" className="stash-btn stash-btn--quiet stash-see-all" onClick={() => { setTab("shopping"); setSearchQuery(""); }}>
+                          {"See all " + shoppingCount + " threads"}{Icons.chevronRight()}
+                        </button>
+                      )}
+                    </>}
+            </section>
+
+            <div className="stash-overview-side">
+              <section className="stash-card" aria-labelledby="stash-ready-heading">
+                <div className="stash-card-head">
+                  <h2 id="stash-ready-heading">{Icons.clipboard()}<span>Ready to start</span></h2>
+                </div>
+                {readyToStart === null
+                  ? <p className="stash-muted">Checking your patterns…</p>
+                  : readyToStart.length === 0
+                    ? <p className="stash-muted">Patterns you haven't started appear here with how many of their threads you own. Save a pattern in the Pattern Creator, or add one in the Pattern Library.</p>
+                    : (
+                      <ul className="stash-ready-list">
+                        {readyToStart.slice(0, OVERVIEW_READY_ROWS).map(r => (
+                          <li key={r.id}>
+                            <button type="button" className="stash-ready-row" onClick={() => openPattern(r.id)} title={"Open " + (r.title || "Untitled") + " in the Pattern Library"}>
+                              <span className="stash-ready-top"><b>{r.title || "Untitled"}</b><span className="stash-ready-pct">{r.pct + "%"}</span></span>
+                              <span className="stash-progress" aria-hidden="true"><span className={r.pct === 100 ? "is-full" : ""} style={{ width: r.pct + "%" }} /></span>
+                              <span className="stash-muted">{r.pct === 100 ? "All " + plural(r.totalThreads, 'thread') + " in your stash" : "Short of " + listJoin(r.missing.map(m => String(m.id)))}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+              </section>
+
+              <section className="stash-card" aria-labelledby="stash-needs-heading">
+                <div className="stash-card-head">
+                  <h2 id="stash-needs-heading">{Icons.warning()}<span>Needs attention</span></h2>
+                </div>
+                {conflictCount === 0 && !(lowStockAlerts && lowStockAlerts.length)
+                  ? <p className="stash-muted">Nothing needs attention. No thread is running low, and no two patterns are competing for the same thread.</p>
+                  : (
+                    <ul className="stash-alert-list stash-alert-list--flat">
+                      {(conflicts || []).map(c => (
+                        <li key={"c-" + c.key}>
+                          <button type="button" className="stash-alert-row" title={"Show " + formatThread(c, { variant: 'title' }) + " in Thread Stash"} onClick={() => openThread(c.key)}>
+                            <span className="stash-swatch stash-swatch--sm" style={{ background: "rgb(" + c.rgb.join(",") + ")" }} aria-hidden="true" />
+                            <b>{formatThread(c, { variant: 'short' })}</b>
+                            <span className="stash-name">{"Needed by " + listJoin(c.patterns.map(p => p.title || "Untitled"))}</span>
+                            <span className="stash-pill stash-pill--short">{"Short " + formatSkeins(c.totalNeeded - c.owned)}</span>
+                          </button>
+                        </li>
+                      ))}
+                      {(lowStockAlerts || []).slice(0, OVERVIEW_LOW_ROWS).map(a => (
+                        <li key={"l-" + a.id}>
+                          <button type="button" className="stash-alert-row" title={"Show " + formatBrandLabel(a.brand) + " " + (a.bareId || a.id) + " in Thread Stash"} onClick={() => openThread(a.id)}>
+                            <span className="stash-swatch stash-swatch--sm" style={{ background: "rgb(" + a.rgb.join(",") + ")" }} aria-hidden="true" />
+                            <b>{formatBrandLabel(a.brand) + " " + (a.bareId || a.id)}</b>
+                            <span className="stash-name">{"Have " + formatSkeins(a.owned) + ", minimum " + formatSkeins(a.min_stock)}</span>
+                            <span className="stash-pill stash-pill--low">Low</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                {lowStockAlerts && lowStockAlerts.length > OVERVIEW_LOW_ROWS && (
+                  <button type="button" className="stash-btn stash-btn--quiet stash-see-all" onClick={() => goToThreads("low")}>
+                    {"See all " + lowStockAlerts.length + " running low"}{Icons.chevronRight()}
+                  </button>
+                )}
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
 
       {tab === "inventory" && (
         <div className="stash-page">
@@ -1583,11 +1801,7 @@ function ManagerApp() {
               {shoppingCount > 0 && <span className="stash-muted">{plural(shoppingCount, 'thread') + ", " + plural(shoppingSkeins, 'skein')}</span>}
               <div className="stash-card-action stash-form-row">
                 <button type="button" className="stash-btn" disabled={!shoppingCount} onClick={copyShoppingList}>{Icons.copy()}<span>Copy list</span></button>
-                {shoppingCount > 0 && (
-                  <button type="button" className="stash-btn stash-btn--primary" disabled={!tickedRows.length} onClick={addTickedToStash}>
-                    {Icons.box()}<span>{tickedRows.length ? "Add " + plural(tickedSkeins, 'skein') + " to stash" : "Add ticked to stash"}</span>
-                  </button>
-                )}
+                {shoppingCount > 0 && addTickedButton}
               </div>
             </div>
             {shoppingCount > 0 && <p className="stash-muted stash-shop-hint">Tick the threads you've bought, check the number of skeins, then add them to your stash.</p>}
@@ -1597,36 +1811,7 @@ function ManagerApp() {
                 ? <p className="stash-empty">Nothing to buy. Patterns in your library are checked against your stash, and anything they need appears here.</p>
                 : (
                   <ul className="stash-shop-list">
-                    {toBuy.shopping.map(r => {
-                      const label = formatThread(r, { variant: 'short' });
-                      const forTitles = projectsByKey[r.key] || NO_TITLES;
-                      const byHand = !!(threads[r.key] && threads[r.key].tobuy);
-                      const ticked = boughtTicks[r.key] != null;
-                      return (
-                        <li key={r.key} className={"stash-shop-row" + (ticked ? " is-ticked" : "")}>
-                          <label className="stash-tick" title={"Bought " + label}>
-                            <input type="checkbox" checked={ticked} onChange={() => toggleBought(r)} aria-label={"Bought " + label} />
-                          </label>
-                          <button type="button" className="stash-ident" onClick={() => openThread(r.key)} title={"Show " + label + " in Thread Stash"}>
-                            <span className="stash-swatch" style={{ background: "rgb(" + r.rgb.join(",") + ")" }} aria-hidden="true" />
-                            <span className="stash-id">
-                              <span className="stash-code">{label}</span>
-                              <span className="stash-name">{r.name}</span>
-                            </span>
-                          </button>
-                          <span className="stash-uses">
-                            {forTitles.map(t => <span key={t} className="stash-chip">{t}</span>)}
-                            {byHand && forTitles.length === 0 && <span className="stash-chip stash-chip--quiet">Added by you</span>}
-                          </span>
-                          {ticked
-                            ? <span className="stash-shop-qty"><SkeinStepper value={boughtTicks[r.key]} label={"Skeins bought of " + label} onChange={v => setBoughtQty(r.key, v)} /></span>
-                            : <span className="stash-shop-qty">{plural(r.tobuyQty || 1, 'skein')}</span>}
-                          {byHand
-                            ? <button type="button" className="stash-btn stash-btn--quiet stash-btn--icon" aria-label={"Remove " + label + " from your shopping list"} title="Remove from shopping list" onClick={() => setOnShoppingList(r.key, false)}>{Icons.x()}</button>
-                            : <span className="stash-btn--icon" aria-hidden="true" />}
-                        </li>
-                      );
-                    })}
+                    {toBuy.shopping.map(renderShopRow)}
                   </ul>
                 )}
           </section>

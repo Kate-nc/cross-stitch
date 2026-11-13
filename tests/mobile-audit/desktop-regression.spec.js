@@ -191,7 +191,7 @@ test('desktop manager keeps its 280px side panel', async ({ page }) => {
 
 test('desktop manager filter bar does not overflow the page', async ({ page }) => {
   await setup(page);
-  await page.goto('/manager.html?from=home', { waitUntil: 'load', timeout: 120000 });
+  await page.goto('/manager.html?from=home&tab=inventory', { waitUntil: 'load', timeout: 120000 });
   await page.waitForTimeout(3000);
   const r = await page.evaluate(() => {
     const bar = document.querySelector('.stash-toolbar');

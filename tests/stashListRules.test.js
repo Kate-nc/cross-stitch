@@ -116,7 +116,7 @@ describe('page wiring', () => {
   });
 
   test('the tab badge counts threads in the stash, not skeins', () => {
-    expect(source).toMatch(/Thread Stash <span className="cnt"[^>]*>\{stashCounts\.owned\}<\/span>/);
+    expect(source).toMatch(/Thread Stash<\/span>.*<span className="cnt"[^>]*>\{stashCounts\.owned\}<\/span>/);
   });
 
   test('the low-stock panel and the row badge use the shared rule', () => {

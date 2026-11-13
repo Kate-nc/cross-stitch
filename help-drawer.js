@@ -327,6 +327,17 @@
       id: "manager", area: "Stash Manager",
       sections: [
         {
+          heading: "Overview",
+          body: "The Stash Manager opens on Overview, a summary of your stash. Links that are about a single thread, such as Thread stash in the Pattern Creator, open the Thread Stash tab instead.",
+          bullets: [
+            ["Totals", "Threads, Full skeins, To buy and Running low. Select one to see those threads: Threads opens your stash, Full skeins the opened skeins, To buy the Shopping list and Running low the threads below their minimum."],
+            ["Buy next", "The first threads on your shopping list, with the same Bought ticks as the Shopping list tab, so you can add what you bought from here."],
+            ["Ready to start", "Patterns you haven't started, with how many of their threads you own. Select one to open it in the Pattern Library."],
+            ["Needs attention", "Threads two patterns are competing for, and threads running low. Select one to open it in Thread Stash."],
+            ["Search", "Typing in the search box carries on in the Thread Stash tab's search."]
+          ]
+        },
+        {
           heading: "Thread stash",
           body: "The Thread Stash tab lists the DMC and Anchor threads you own, one row each, and you change them right there in the list. The number beside the tab is how many threads are in your stash.",
           bullets: [

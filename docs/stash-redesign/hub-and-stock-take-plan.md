@@ -76,6 +76,18 @@ line. Tests: `tests/stashBought.test.js` and `tests/e2e/stash-bought.spec.js`.
 
 ## Phase 2: Overview as the Stash home page
 
+**Status: built.** As planned, with these choices:
+
+- **Buy next.** It shares `renderShopRow` and the Bought ticks with the
+  Shopping list tab, and its rows always stack because the column is
+  narrow.
+- **Links.** Typing in the Overview's search carries on in Thread Stash's
+  search. The Pattern Creator's "Thread stash" and "View thread stash"
+  links now pass `?tab=inventory`. The top-bar Stash link, the command
+  palette, the phone menus and the Stats page land on the Overview.
+- **Tests.** `tests/stashOverview.test.js` and
+  `tests/e2e/stash-overview.spec.js`.
+
 **What you see.** Opening Stash (from the top bar, Home or a project)
 lands on **Overview**. The page has four parts:
 

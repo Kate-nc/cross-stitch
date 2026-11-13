@@ -49,6 +49,10 @@ const OPENED_TEXT = {
 };
 // The thread list renders this many rows, then offers "Show more".
 const STASH_PAGE_SIZE = 200;
+// Overview list lengths; each list links to its full view.
+const OVERVIEW_BUY_ROWS = 8;
+const OVERVIEW_READY_ROWS = 5;
+const OVERVIEW_LOW_ROWS = 5;
 const EMPTY_THREAD = {
   owned: 0,
   tobuy: false,
@@ -448,7 +452,7 @@ function StashAlertPanel({
 }
 function ManagerApp() {
   const [tab, setTab] = useState(() => {
-    // Deep links: ?tab=inventory|patterns from /home and the Creator's
+    // Deep links: ?tab=inventory|patterns from the Creator's thread links and
     // Open-Stash button; ?tab=shopping from the Creator's shopping list;
     // ?tab=materials (the old Project materials tab) now lives inside the
     // Shopping list tab.
@@ -456,11 +460,16 @@ function ManagerApp() {
       const p = new URLSearchParams(window.location.search).get('tab');
       if (p === 'inventory' || p === 'patterns') return p;
       if (p === 'shopping' || p === 'materials') return 'shopping';
+      if (p === 'overview') return 'overview';
     } catch (_) {}
-    return "inventory";
-  }); // 'inventory' | 'shopping' | 'patterns'
+    // The Overview is the Stash Manager's home page; links that should
+    // open the thread list pass ?tab=inventory.
+    return "overview";
+  }); // 'overview' | 'inventory' | 'shopping' | 'patterns'
   const [modal, setModal] = useState(null); // 'help', 'about', 'add_pattern'
   const [threads, setThreads] = useState({}); // { [id]: { owned: number, tobuy: boolean } }
+  // Latest patterns for stable callbacks (the Overview's Ready to start).
+  const patternsLatestRef = useRef([]);
   // Latest threads for stable callbacks (Undo needs the values before an edit).
   const latestThreadsRef = useRef(threads);
   latestThreadsRef.current = threads;
@@ -481,6 +490,7 @@ function ManagerApp() {
     return work;
   }
   const [patterns, setPatterns] = useState([]); // Array of pattern objects
+  patternsLatestRef.current = patterns;
   const [activeProject, setActiveProject] = useState(null); // From Stitch Tracker IndexedDB
   const [storedProjects, setStoredProjects] = useState([]); // Cross-stitch projects from ProjectStorage
   const [storageUsage, setStorageUsage] = useState(null); // { used, quota, persistent } bytes
@@ -1502,12 +1512,19 @@ function ManagerApp() {
       owned: 0,
       low: 0,
       opened: 0,
-      usedup: 0
+      usedup: 0,
+      dmc: 0,
+      anchor: 0,
+      fullSkeins: 0
     };
     for (const k in threads) {
       if (!Object.prototype.hasOwnProperty.call(threads, k)) continue;
       const t = threads[k];
-      if (isInStash(t)) c.owned++;
+      if (isInStash(t)) {
+        c.owned++;
+        if (k.indexOf('anchor:') === 0) c.anchor++;else c.dmc++;
+        c.fullSkeins += Number(t.owned) || 0;
+      }
       if (isThreadLow(t, lowStockThreshold)) c.low++;
       if (isOpenedSkein(t)) c.opened++;
       if (isUsedUp(t)) c.usedup++;
@@ -1596,6 +1613,41 @@ function ManagerApp() {
         type: "error"
       });
     });
+  }, []);
+  // Overview tiles and links: open Thread Stash on a filter, optionally with
+  // a search and the search box focused (typing on the Overview carries on
+  // in Thread Stash's own search box).
+  const [searchFocusTick, setSearchFocusTick] = useState(0);
+  const goToThreads = useCallback((filter, query, focus) => {
+    setTab("inventory");
+    setThreadFilter(filter || "owned");
+    setSearchQuery(query || "");
+    setExpandedThread(null);
+    if (focus) setSearchFocusTick(n => n + 1);
+  }, []);
+  useEffect(() => {
+    if (!searchFocusTick || tab !== "inventory") return;
+    const raf = requestAnimationFrame(() => {
+      const el = document.querySelector('.stash-toolbar .stash-search input');
+      if (el) {
+        el.focus();
+        const n = el.value.length;
+        try {
+          el.setSelectionRange(n, n);
+        } catch (_) {}
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [searchFocusTick, tab]);
+  // Ready to start: open the pattern's details in the Pattern Library.
+  const openPattern = useCallback(id => {
+    const p = patternsLatestRef.current.find(x => String(x.id) === String(id));
+    setTab("patterns");
+    setSearchQuery("");
+    if (p) {
+      setViewingPattern(p);
+      setPanelOpen(true);
+    }
   }, []);
   // Jump from anywhere (Shopping list rows, pattern details) to one thread.
   const openThread = useCallback(key => {
@@ -1786,6 +1838,75 @@ function ManagerApp() {
       });
     }
   }
+  // One Shopping list row, shared by the Shopping list tab and the
+  // Overview's Buy next list (the Bought ticks are shared too).
+  function renderShopRow(r) {
+    const label = formatThread(r, {
+      variant: 'short'
+    });
+    const forTitles = projectsByKey[r.key] || NO_TITLES;
+    const byHand = !!(threads[r.key] && threads[r.key].tobuy);
+    const ticked = boughtTicks[r.key] != null;
+    return /*#__PURE__*/React.createElement("li", {
+      key: r.key,
+      className: "stash-shop-row" + (ticked ? " is-ticked" : "")
+    }, /*#__PURE__*/React.createElement("label", {
+      className: "stash-tick",
+      title: "Bought " + label
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: ticked,
+      onChange: () => toggleBought(r),
+      "aria-label": "Bought " + label
+    })), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "stash-ident",
+      onClick: () => openThread(r.key),
+      title: "Show " + label + " in Thread Stash"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "stash-swatch",
+      style: {
+        background: "rgb(" + r.rgb.join(",") + ")"
+      },
+      "aria-hidden": "true"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "stash-id"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "stash-code"
+    }, label), /*#__PURE__*/React.createElement("span", {
+      className: "stash-name"
+    }, r.name))), /*#__PURE__*/React.createElement("span", {
+      className: "stash-uses"
+    }, forTitles.map(t => /*#__PURE__*/React.createElement("span", {
+      key: t,
+      className: "stash-chip"
+    }, t)), byHand && forTitles.length === 0 && /*#__PURE__*/React.createElement("span", {
+      className: "stash-chip stash-chip--quiet"
+    }, "Added by you")), ticked ? /*#__PURE__*/React.createElement("span", {
+      className: "stash-shop-qty"
+    }, /*#__PURE__*/React.createElement(SkeinStepper, {
+      value: boughtTicks[r.key],
+      label: "Skeins bought of " + label,
+      onChange: v => setBoughtQty(r.key, v)
+    })) : /*#__PURE__*/React.createElement("span", {
+      className: "stash-shop-qty"
+    }, plural(r.tobuyQty || 1, 'skein')), byHand ? /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "stash-btn stash-btn--quiet stash-btn--icon",
+      "aria-label": "Remove " + label + " from your shopping list",
+      title: "Remove from shopping list",
+      onClick: () => setOnShoppingList(r.key, false)
+    }, Icons.x()) : /*#__PURE__*/React.createElement("span", {
+      className: "stash-btn--icon",
+      "aria-hidden": "true"
+    }));
+  }
+  const addTickedButton = /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--primary",
+    disabled: !tickedRows.length,
+    onClick: addTickedToStash
+  }, Icons.box(), /*#__PURE__*/React.createElement("span", null, tickedRows.length ? "Add " + plural(tickedSkeins, 'skein') + " to stash" : "Add ticked to stash"));
   function copyShoppingList() {
     if (!toBuy || !toBuy.shopping.length) return;
     const text = toBuy.shopping.map(r => formatThread(r, {
@@ -1891,6 +2012,17 @@ function ManagerApp() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "mgr-tabs"
   }, /*#__PURE__*/React.createElement("button", {
+    "data-onboard": "mgr-overview-tab",
+    className: "mgr-tab" + (tab === "overview" ? " on" : ""),
+    "aria-pressed": tab === "overview",
+    onClick: () => {
+      setTab("overview");
+      setSearchQuery("");
+      setPanelOpen(false);
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "icon"
+  }, Icons.layers()), " Overview"), /*#__PURE__*/React.createElement("button", {
     "data-onboard": "mgr-stash-tab",
     className: "mgr-tab" + (tab === "inventory" ? " on" : ""),
     "aria-pressed": tab === "inventory",
@@ -1901,7 +2033,12 @@ function ManagerApp() {
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "icon"
-  }, Icons.thread()), " Thread Stash ", /*#__PURE__*/React.createElement("span", {
+  }, Icons.thread()), " ", /*#__PURE__*/React.createElement("span", {
+    className: "lbl-long"
+  }, "Thread Stash"), /*#__PURE__*/React.createElement("span", {
+    className: "lbl-short",
+    "aria-hidden": "true"
+  }, "Threads"), " ", /*#__PURE__*/React.createElement("span", {
     className: "cnt",
     title: plural(stashCounts.owned, 'thread') + " in your stash"
   }, stashCounts.owned)), /*#__PURE__*/React.createElement("button", {
@@ -1944,7 +2081,201 @@ function ManagerApp() {
     "aria-label": "Open Showcase view"
   }, Icons.sparkles(), /*#__PURE__*/React.createElement("span", {
     className: "mgr-showcase-label"
-  }, "Showcase"))), tab === "inventory" && /*#__PURE__*/React.createElement("div", {
+  }, "Showcase"))), tab === "overview" && /*#__PURE__*/React.createElement("div", {
+    className: "stash-page stash-overview"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-overview-head"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "stash-overview-heading"
+  }, "Your stash"), /*#__PURE__*/React.createElement("label", {
+    className: "stash-search"
+  }, Icons.magnify(), /*#__PURE__*/React.createElement("input", {
+    type: "search",
+    "aria-label": "Find a thread",
+    enterKeyHint: "search",
+    placeholder: "Find a thread, or type a number to add one",
+    value: "",
+    onChange: e => {
+      goToThreads("owned", e.target.value, true);
+    }
+  }))), stashCounts.owned === 0 && /*#__PURE__*/React.createElement("section", {
+    className: "stash-card stash-start",
+    "aria-labelledby": "stash-start-heading"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "stash-start-heading"
+  }, Icons.thread(), /*#__PURE__*/React.createElement("span", null, "Start your stash")), /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "Record the DMC and Anchor threads you own. Your patterns are then checked against them, so you can see what to buy and which patterns you could start."), /*#__PURE__*/React.createElement("div", {
+    className: "stash-form-row"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--primary",
+    onClick: () => goToThreads("owned", "", true)
+  }, Icons.magnify(), /*#__PURE__*/React.createElement("span", null, "Find a thread to add")), typeof window.BulkAddModal !== 'undefined' && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn",
+    onClick: () => setBulkAddOpen(true)
+  }, Icons.listComfortable(), /*#__PURE__*/React.createElement("span", null, "Bulk add")))), /*#__PURE__*/React.createElement("div", {
+    className: "stash-tiles"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-tile",
+    onClick: () => goToThreads("owned")
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-k"
+  }, "Threads"), /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-v"
+  }, stashCounts.owned), /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-s"
+  }, stashCounts.anchor > 0 ? stashCounts.dmc + " DMC, " + stashCounts.anchor + " Anchor" : "in your stash")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-tile",
+    onClick: () => goToThreads("opened")
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-k"
+  }, "Full skeins"), /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-v"
+  }, formatSkeins(stashCounts.fullSkeins)), /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-s"
+  }, stashCounts.opened > 0 ? "plus " + plural(stashCounts.opened, 'opened skein') : "No opened skeins")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-tile" + (shoppingCount > 0 ? " stash-tile--accent" : ""),
+    onClick: () => {
+      setTab("shopping");
+      setSearchQuery("");
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-k"
+  }, "To buy"), /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-v"
+  }, shoppingSkeins), /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-s"
+  }, shoppingCount > 0 ? (shoppingSkeins === 1 ? "skein" : "skeins") + " across " + plural(shoppingCount, 'thread') : "Nothing to buy")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-tile" + (stashCounts.low > 0 ? " stash-tile--warn" : ""),
+    onClick: () => goToThreads("low")
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-k"
+  }, "Running low"), /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-v"
+  }, stashCounts.low), /*#__PURE__*/React.createElement("span", {
+    className: "stash-tile-s"
+  }, stashCounts.low > 0 ? "below their minimum" : "Nothing is running low"))), /*#__PURE__*/React.createElement("div", {
+    className: "stash-overview-cols"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "stash-card",
+    "aria-labelledby": "stash-buynext-heading"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-card-head"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "stash-buynext-heading"
+  }, Icons.cart(), /*#__PURE__*/React.createElement("span", null, "Buy next")), shoppingCount > 0 && /*#__PURE__*/React.createElement("span", {
+    className: "stash-muted"
+  }, plural(shoppingCount, 'thread')), shoppingCount > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "stash-card-action"
+  }, addTickedButton)), toBuy === null ? /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "Checking your patterns against your stash\u2026") : shoppingCount === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "Nothing to buy. Anything your patterns need that your stash doesn't cover appears here.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("ul", {
+    className: "stash-shop-list"
+  }, toBuy.shopping.slice(0, OVERVIEW_BUY_ROWS).map(renderShopRow)), shoppingCount > OVERVIEW_BUY_ROWS && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--quiet stash-see-all",
+    onClick: () => {
+      setTab("shopping");
+      setSearchQuery("");
+    }
+  }, "See all " + shoppingCount + " threads", Icons.chevronRight()))), /*#__PURE__*/React.createElement("div", {
+    className: "stash-overview-side"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "stash-card",
+    "aria-labelledby": "stash-ready-heading"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-card-head"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "stash-ready-heading"
+  }, Icons.clipboard(), /*#__PURE__*/React.createElement("span", null, "Ready to start"))), readyToStart === null ? /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "Checking your patterns\u2026") : readyToStart.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "Patterns you haven't started appear here with how many of their threads you own. Save a pattern in the Pattern Creator, or add one in the Pattern Library.") : /*#__PURE__*/React.createElement("ul", {
+    className: "stash-ready-list"
+  }, readyToStart.slice(0, OVERVIEW_READY_ROWS).map(r => /*#__PURE__*/React.createElement("li", {
+    key: r.id
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-ready-row",
+    onClick: () => openPattern(r.id),
+    title: "Open " + (r.title || "Untitled") + " in the Pattern Library"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-ready-top"
+  }, /*#__PURE__*/React.createElement("b", null, r.title || "Untitled"), /*#__PURE__*/React.createElement("span", {
+    className: "stash-ready-pct"
+  }, r.pct + "%")), /*#__PURE__*/React.createElement("span", {
+    className: "stash-progress",
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: r.pct === 100 ? "is-full" : "",
+    style: {
+      width: r.pct + "%"
+    }
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "stash-muted"
+  }, r.pct === 100 ? "All " + plural(r.totalThreads, 'thread') + " in your stash" : "Short of " + listJoin(r.missing.map(m => String(m.id))))))))), /*#__PURE__*/React.createElement("section", {
+    className: "stash-card",
+    "aria-labelledby": "stash-needs-heading"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stash-card-head"
+  }, /*#__PURE__*/React.createElement("h2", {
+    id: "stash-needs-heading"
+  }, Icons.warning(), /*#__PURE__*/React.createElement("span", null, "Needs attention"))), conflictCount === 0 && !(lowStockAlerts && lowStockAlerts.length) ? /*#__PURE__*/React.createElement("p", {
+    className: "stash-muted"
+  }, "Nothing needs attention. No thread is running low, and no two patterns are competing for the same thread.") : /*#__PURE__*/React.createElement("ul", {
+    className: "stash-alert-list stash-alert-list--flat"
+  }, (conflicts || []).map(c => /*#__PURE__*/React.createElement("li", {
+    key: "c-" + c.key
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-alert-row",
+    title: "Show " + formatThread(c, {
+      variant: 'title'
+    }) + " in Thread Stash",
+    onClick: () => openThread(c.key)
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-swatch stash-swatch--sm",
+    style: {
+      background: "rgb(" + c.rgb.join(",") + ")"
+    },
+    "aria-hidden": "true"
+  }), /*#__PURE__*/React.createElement("b", null, formatThread(c, {
+    variant: 'short'
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "stash-name"
+  }, "Needed by " + listJoin(c.patterns.map(p => p.title || "Untitled"))), /*#__PURE__*/React.createElement("span", {
+    className: "stash-pill stash-pill--short"
+  }, "Short " + formatSkeins(c.totalNeeded - c.owned))))), (lowStockAlerts || []).slice(0, OVERVIEW_LOW_ROWS).map(a => /*#__PURE__*/React.createElement("li", {
+    key: "l-" + a.id
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-alert-row",
+    title: "Show " + formatBrandLabel(a.brand) + " " + (a.bareId || a.id) + " in Thread Stash",
+    onClick: () => openThread(a.id)
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-swatch stash-swatch--sm",
+    style: {
+      background: "rgb(" + a.rgb.join(",") + ")"
+    },
+    "aria-hidden": "true"
+  }), /*#__PURE__*/React.createElement("b", null, formatBrandLabel(a.brand) + " " + (a.bareId || a.id)), /*#__PURE__*/React.createElement("span", {
+    className: "stash-name"
+  }, "Have " + formatSkeins(a.owned) + ", minimum " + formatSkeins(a.min_stock)), /*#__PURE__*/React.createElement("span", {
+    className: "stash-pill stash-pill--low"
+  }, "Low"))))), lowStockAlerts && lowStockAlerts.length > OVERVIEW_LOW_ROWS && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-btn stash-btn--quiet stash-see-all",
+    onClick: () => goToThreads("low")
+  }, "See all " + lowStockAlerts.length + " running low", Icons.chevronRight()))))), tab === "inventory" && /*#__PURE__*/React.createElement("div", {
     className: "stash-page"
   }, /*#__PURE__*/React.createElement("div", {
     className: "stash-toolbar"
@@ -2168,12 +2499,7 @@ function ManagerApp() {
     className: "stash-btn",
     disabled: !shoppingCount,
     onClick: copyShoppingList
-  }, Icons.copy(), /*#__PURE__*/React.createElement("span", null, "Copy list")), shoppingCount > 0 && /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "stash-btn stash-btn--primary",
-    disabled: !tickedRows.length,
-    onClick: addTickedToStash
-  }, Icons.box(), /*#__PURE__*/React.createElement("span", null, tickedRows.length ? "Add " + plural(tickedSkeins, 'skein') + " to stash" : "Add ticked to stash")))), shoppingCount > 0 && /*#__PURE__*/React.createElement("p", {
+  }, Icons.copy(), /*#__PURE__*/React.createElement("span", null, "Copy list")), shoppingCount > 0 && addTickedButton)), shoppingCount > 0 && /*#__PURE__*/React.createElement("p", {
     className: "stash-muted stash-shop-hint"
   }, "Tick the threads you've bought, check the number of skeins, then add them to your stash."), toBuy === null ? /*#__PURE__*/React.createElement("p", {
     className: "stash-muted"
@@ -2181,67 +2507,7 @@ function ManagerApp() {
     className: "stash-empty"
   }, "Nothing to buy. Patterns in your library are checked against your stash, and anything they need appears here.") : /*#__PURE__*/React.createElement("ul", {
     className: "stash-shop-list"
-  }, toBuy.shopping.map(r => {
-    const label = formatThread(r, {
-      variant: 'short'
-    });
-    const forTitles = projectsByKey[r.key] || NO_TITLES;
-    const byHand = !!(threads[r.key] && threads[r.key].tobuy);
-    const ticked = boughtTicks[r.key] != null;
-    return /*#__PURE__*/React.createElement("li", {
-      key: r.key,
-      className: "stash-shop-row" + (ticked ? " is-ticked" : "")
-    }, /*#__PURE__*/React.createElement("label", {
-      className: "stash-tick",
-      title: "Bought " + label
-    }, /*#__PURE__*/React.createElement("input", {
-      type: "checkbox",
-      checked: ticked,
-      onChange: () => toggleBought(r),
-      "aria-label": "Bought " + label
-    })), /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      className: "stash-ident",
-      onClick: () => openThread(r.key),
-      title: "Show " + label + " in Thread Stash"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "stash-swatch",
-      style: {
-        background: "rgb(" + r.rgb.join(",") + ")"
-      },
-      "aria-hidden": "true"
-    }), /*#__PURE__*/React.createElement("span", {
-      className: "stash-id"
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "stash-code"
-    }, label), /*#__PURE__*/React.createElement("span", {
-      className: "stash-name"
-    }, r.name))), /*#__PURE__*/React.createElement("span", {
-      className: "stash-uses"
-    }, forTitles.map(t => /*#__PURE__*/React.createElement("span", {
-      key: t,
-      className: "stash-chip"
-    }, t)), byHand && forTitles.length === 0 && /*#__PURE__*/React.createElement("span", {
-      className: "stash-chip stash-chip--quiet"
-    }, "Added by you")), ticked ? /*#__PURE__*/React.createElement("span", {
-      className: "stash-shop-qty"
-    }, /*#__PURE__*/React.createElement(SkeinStepper, {
-      value: boughtTicks[r.key],
-      label: "Skeins bought of " + label,
-      onChange: v => setBoughtQty(r.key, v)
-    })) : /*#__PURE__*/React.createElement("span", {
-      className: "stash-shop-qty"
-    }, plural(r.tobuyQty || 1, 'skein')), byHand ? /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      className: "stash-btn stash-btn--quiet stash-btn--icon",
-      "aria-label": "Remove " + label + " from your shopping list",
-      title: "Remove from shopping list",
-      onClick: () => setOnShoppingList(r.key, false)
-    }, Icons.x()) : /*#__PURE__*/React.createElement("span", {
-      className: "stash-btn--icon",
-      "aria-hidden": "true"
-    }));
-  }))), conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
+  }, toBuy.shopping.map(renderShopRow))), conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
     id: "stash-conflicts",
     title: "Thread Conflicts",
     count: conflicts.length,
