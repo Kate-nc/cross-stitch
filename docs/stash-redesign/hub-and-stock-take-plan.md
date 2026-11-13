@@ -154,6 +154,23 @@ lands on **Overview**. The page has four parts:
 
 ## Phase 3: Side menu on wide screens
 
+**Status: built.** Details of what shipped:
+
+- **One element.** A single `<nav class="mgr-tab-bar mgr-nav">` is
+  restyled by CSS: a 228 px side menu from 1024 px, the tab bar below.
+- **Real links.** Entries are links (`?tab=…`, `aria-current="page"`), so
+  Ctrl or Cmd-click opens a new tab. The address follows the section
+  through `history.replaceState`.
+- **Narrow screens.** Custom catalogues and Import and export (`?tab=catalogues`,
+  `?tab=transfer`) appear in the menu only on wide screens. On narrow ones
+  they are in Thread Stash > Add threads.
+- **Catalogues page.** `CatalogueDialog` became `CataloguePanel`, shown on
+  its own page. The CSV download and the project materials JSON export are
+  shared helpers.
+- **Number keys.** 1 to 4 are registered through `useShortcuts`, so they
+  are ignored while typing in a field.
+- **Tests.** `tests/stashNav.test.js` and `tests/e2e/stash-nav.spec.js`.
+
 From 1024 px, the tab bar becomes a left side menu, as in the option 4
 mockup:
 

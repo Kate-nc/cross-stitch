@@ -328,7 +328,7 @@
       sections: [
         {
           heading: "Overview",
-          body: "The Stash Manager opens on Overview, a summary of your stash. Links that are about a single thread, such as Thread stash in the Pattern Creator, open the Thread Stash tab instead.",
+          body: "The Stash Manager opens on Overview, a summary of your stash. Links that are about a single thread, such as Thread stash in the Pattern Creator, open the Thread Stash tab instead. On a wide screen the Stash Manager's sections are in a menu down the left: Overview, Thread Stash, Shopping list and Pattern Library, then Custom catalogues and Import and export. On narrower screens the first four are tabs across the top, and the other two are in Thread Stash > Add threads. Press 1, 2, 3 or 4 to switch between the first four. The address in your browser follows the section, so reloading or bookmarking it comes back to the same place.",
           bullets: [
             ["Totals", "Threads, Full skeins, To buy and Running low. Select one to see those threads: Threads opens your stash, Full skeins the opened skeins, To buy the Shopping list and Running low the threads below their minimum."],
             ["Buy next", "The first threads on your shopping list, with the same Bought ticks as the Shopping list tab, so you can add what you bought from here."],
@@ -344,7 +344,7 @@
             ["Full skeins", "Use the minus and plus buttons in a thread's row, or type a number, to set how many full skeins you have. Every row shows the brand, so DMC and Anchor numbers that look the same stay apart."],
             ["Thread details", "Select a thread's number or the arrow at the end of its row to open its details under the row. There you set the opened skein (None, \u00BE, \u00BD, \u00BC or Used up; Used up sets full skeins to zero), Keep at least (the thread's own minimum), see what each pattern needs, add it to or remove it from your shopping list, or remove it from your stash."],
             ["Show", "Owned (the default) lists threads you have. Running low, Opened and Used up narrow the list. Every shade lists the whole DMC and Anchor range, 200 rows at a time. The sort and brand are under the button beside them."],
-            ["Adding threads", "Type a number or name in the search box. Matching threads you own come first, then Not in your stash, each with an Add button. Add threads > Bulk add (B) takes a pasted list of numbers (for example 310, 550, 3821) or a starter kit. Add threads > Custom thread catalogues imports or exports your own CSV reference records; they stay separate from matching palettes and projects, and substitutions are never automatic."],
+            ["Adding threads", "Type a number or name in the search box. Matching threads you own come first, then Not in your stash, each with an Add button. Add threads > Bulk add (B) takes a pasted list of numbers (for example 310, 550, 3821) or a starter kit. Add threads > Custom thread catalogues opens the page where you import or export your own CSV reference records; they stay separate from matching palettes and projects, and substitutions are never automatic."],
             ["Running low", "A thread is running low when you have less than its minimum, counting an opened skein as \u00BE, \u00BD or \u00BC of a skein. The minimum is the thread's own Keep at least value, or else the value in Preferences > Stash Manager (1 by default). Low shows beside the thread, and the Running low filter lists them all."],
             ["Needs attention", "When your patterns need threads you don't have, one line above the list says how many and for which patterns, and which threads two patterns compete for. Open shopping list goes to the Shopping list tab. Hiding the line keeps it hidden until the numbers change."]
           ]
@@ -357,6 +357,10 @@
             ["To buy and conflicts", "Below the list, each pattern that is short gets a To buy panel (for example, To buy for Meadow (12 threads)). It is a plain shopping list, not a problem. The Stash Manager's Shopping list already includes these threads; Add to shopping list pins them there with the quantities shown, so they stay on the list if the pattern changes. Thread Conflicts appears only when two or more active patterns need the same thread and your stash can't cover them between them; it names the patterns. A pattern on its own never causes a conflict, and completed patterns are left out."],
             ["Alert panels", "To buy, Thread Conflicts and Low stock: needed each have a heading button. Tap it, or focus it and press Enter or Space, to hide or show the description and list. The heading keeps the current count. Each choice is remembered on this device across visits, reloads and periods with no alerts; hiding a panel does not dismiss alerts or change your stash."]
           ]
+        },
+        {
+          heading: "Import and export",
+          body: "One page for getting threads in and lists out: Bulk add, importing or exporting a custom thread catalogue, copying the shopping list or exporting the project materials plan as JSON, and downloading a backup of everything. Find it in the menu on a wide screen, or in Thread Stash > Add threads.",
         },
         {
           heading: "Thread brands and conversions",
@@ -742,7 +746,8 @@
     { id: "th.spot", scope: "tracker", keys: ["4"], description: "Highlight: Spotlight — turn every other colour pale grey" },
 
     // Manager
-    { id: "m.bulk", scope: "manager", keys: ["B"], description: "Open Bulk Add Threads" }
+    { id: "m.bulk", scope: "manager", keys: ["B"], description: "Open Bulk Add Threads" },
+    { id: "m.sections", scope: "manager", keys: ["1", "2", "3", "4"], description: "Show Overview, Thread Stash, Shopping list or Pattern Library" }
   ];
   var SCOPE_LABEL = {
     global:  "Global",

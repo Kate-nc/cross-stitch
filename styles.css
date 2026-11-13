@@ -4152,6 +4152,25 @@ kbd {
 .mgr-tabs{display:flex;align-items:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
 .mgr-tabs::-webkit-scrollbar{display:none;}
 .mgr-tabs .mgr-tab{flex-shrink:0;white-space:nowrap;}
+a.mgr-tab{text-decoration:none;}
+.mgr-tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+/* Navigation shell (hub plan, Phase 3): the <nav> is the tab bar on
+   narrow screens and a left side menu from 1024px. */
+.mgr-shell{flex:1;min-height:0;display:flex;flex-direction:column;}
+.mgr-shell-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;}
+.mgr-nav-secondary{display:none;}
+.mgr-nav-sep{display:block;height:1px;margin:8px 6px;background:var(--border);}
+@media (min-width: 1024px){
+  .mgr-shell{flex-direction:row;}
+  .mgr-nav.mgr-tab-bar{flex-direction:column;align-items:stretch;justify-content:flex-start;gap:2px;width:228px;height:auto;padding:14px 10px;overflow-y:auto;border-bottom:0;border-right:1px solid var(--border);}
+  .mgr-nav .mgr-tabs{flex-direction:column;align-items:stretch;gap:2px;overflow:visible;}
+  .mgr-nav .mgr-tab{width:100%;justify-content:flex-start;padding:9px 12px;border-radius:var(--radius-md);}
+  .mgr-nav .mgr-tab .cnt{margin-left:auto;}
+  .mgr-nav .mgr-tab.on{background:var(--accent-soft);color:var(--accent-text);box-shadow:none;}
+  .mgr-nav .mgr-tab.on .cnt{background:var(--surface);color:var(--accent-text);}
+  .mgr-nav-secondary{display:flex;flex-direction:column;gap:2px;}
+  .mgr-nav .mgr-showcase{margin-top:auto;justify-content:flex-start;padding:9px 12px;}
+}
 .mgr-showcase{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;min-height:36px;padding:0 14px;font-size:12px;font-weight:600;color:var(--accent-text);background:none;border:none;border-radius:var(--radius-md);cursor:pointer;font-family:inherit;white-space:nowrap;}
 .mgr-showcase svg{width:15px;height:15px;}
 .mgr-showcase:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
@@ -4332,11 +4351,16 @@ span.stash-ident{cursor:default;}
 .stash-error{margin:0;font-size:13px;color:var(--danger);}
 .stash-form-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}
 
-/* Custom thread catalogues dialog */
+/* Import and export page */
+.stash-page-title{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em;}
+.stash-card-title{display:flex;align-items:center;gap:8px;margin:0;font-size:15px;font-weight:800;}
+.stash-card-title svg{width:18px;height:18px;color:var(--text-secondary);}
+.stash-transfer{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.stash-transfer .stash-card p{margin:0;}
+@media (max-width: 760px){.stash-transfer{grid-template-columns:minmax(0,1fr);}}
+
+/* Custom thread catalogues page */
 .stash-dialog-body{display:flex;flex-direction:column;gap:12px;font-size:13px;}
-.stash-dialog-head{position:relative;}
-.stash-dialog-head>:first-child{padding-right:52px;}
-.stash-dialog-head .overlay-close{top:50%;right:8px;transform:translateY(-50%);}
 .stash-dialog-body .stash-form-row .stash-muted{margin-left:4px;}
 .stash-dialog-body p{margin:0;}
 .stash-file{display:flex;flex-direction:column;gap:4px;}

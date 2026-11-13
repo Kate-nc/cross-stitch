@@ -256,12 +256,12 @@ function ManagerApp() {
       const p = new URLSearchParams(window.location.search).get('tab');
       if (p === 'inventory' || p === 'patterns') return p;
       if (p === 'shopping' || p === 'materials') return 'shopping';
-      if (p === 'overview') return 'overview';
+      if (p === 'overview' || p === 'catalogues' || p === 'transfer') return p;
     } catch (_) {}
     // The Overview is the Stash Manager's home page; links that should
     // open the thread list pass ?tab=inventory.
     return "overview";
-  }); // 'overview' | 'inventory' | 'shopping' | 'patterns'
+  }); // 'overview' | 'inventory' | 'shopping' | 'patterns' | 'catalogues' | 'transfer'
   const [modal, setModal] = useState(null); // 'help', 'about', 'add_pattern'
   const [threads, setThreads] = useState({}); // { [id]: { owned: number, tobuy: boolean } }
   // Latest patterns for stable callbacks (the Overview's Ready to start).
@@ -294,7 +294,6 @@ function ManagerApp() {
   const [threadFilter, setThreadFilter] = useState("owned");
   const [listLimit, setListLimit] = useState(STASH_PAGE_SIZE);
   const [catalogueRecords, setCatalogueRecords] = useState([]);
-  const [catalogueOpen, setCatalogueOpen] = useState(false);
   // Shopping list rows ticked as bought: { [key]: skeins to add }. Nothing
   // is written until "Add ... to stash".
   const [boughtTicks, setBoughtTicks] = useState({});
@@ -395,12 +394,30 @@ function ManagerApp() {
 
   // Global "B" shortcut ? open Bulk Add Threads from anywhere on the Manager
   // page. Registered through the central shortcuts registry.
+  // Switch section (nav links, number keys, Overview links).
+  const goTab = useCallback(id => { setTab(id); setSearchQuery(""); setPanelOpen(false); }, []);
+  // Keep ?tab= in the address, so a reload or a shared link reopens the
+  // same section. Other parameters (from=home, action=…) are left alone.
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      if (u.searchParams.get('tab') === tab) return;
+      u.searchParams.set('tab', tab);
+      window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash);
+    } catch (_) {}
+  }, [tab]);
   if(typeof window.useShortcuts==='function'){
-    window.useShortcuts(typeof window.BulkAddModal==='undefined'?[]:[
+    const managerKeys = [
+      { id: 'manager.section.overview', keys: '1', scope: 'global', description: 'Show Overview', run: () => goTab('overview') },
+      { id: 'manager.section.threads', keys: '2', scope: 'global', description: 'Show Thread Stash', run: () => goTab('inventory') },
+      { id: 'manager.section.shopping', keys: '3', scope: 'global', description: 'Show Shopping list', run: () => goTab('shopping') },
+      { id: 'manager.section.patterns', keys: '4', scope: 'global', description: 'Show Pattern Library', run: () => goTab('patterns') }
+    ];
+    if (typeof window.BulkAddModal !== 'undefined') managerKeys.push(
       { id: 'global.bulkAdd.manager', keys: 'b', scope: 'global',
         description: 'Open Bulk Add Threads',
-        run: ()=>setBulkAddOpen(true) }
-    ],[]);
+        run: ()=>setBulkAddOpen(true) });
+    window.useShortcuts(managerKeys,[]);
   }
   // "Show welcome tour again" from HelpCentre ? re-open the wizard.
   useEffect(() => {
@@ -1337,6 +1354,20 @@ function ManagerApp() {
     }
   };
 
+  // One navigation entry: a real link (so it opens in a new tab), handled
+  // in place for an ordinary click.
+  // opts: { countTitle, "data-onboard" } (the walkthrough's targets).
+  function navLink(id, icon, label, count, opts) {
+    const on = tab === id;
+    const { countTitle, ...attrs } = opts || {};
+    return (
+      <a key={id} {...attrs} href={"manager.html?from=home&tab=" + id} className={"mgr-tab" + (on ? " on" : "")} aria-current={on ? "page" : undefined}
+        onClick={e => { if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); goTab(id); }}>
+        <span className="icon">{icon}</span><span className="mgr-tab-label">{label}</span>{count != null && <span className="cnt" title={countTitle || undefined}>{count}</span>}
+      </a>
+    );
+  }
+
   // Attention line and Shopping list tab.
   const shoppingCount = toBuy ? toBuy.shopping.length : 0;
   const shoppingSkeins = toBuy ? toBuy.shopping.reduce((n, r) => n + (r.tobuyQty || 1), 0) : 0;
@@ -1470,23 +1501,24 @@ function ManagerApp() {
         </div>
       )}
 
-      {/* Sub-tab bar. The tabs scroll inside their own row, so on a phone
-          they can never widen the page (the Showcase link used to push the
-          layout to 482px on a 390px screen, cutting off the editor). */}
-      <div className="mgr-tab-bar">
+      {/* Stash Manager navigation (hub plan, Phase 3). One <nav>: a left side
+          menu from 1024px, the tab bar below that. The tabs are links, so
+          they open in a new tab and the address tracks the section. On a
+          phone the row scrolls inside itself and can never widen the page
+          (the Showcase link once pushed the layout to 482px on a 390px
+          screen, cutting off the editor). */}
+      <div className="mgr-shell">
+      <nav className="mgr-tab-bar mgr-nav" aria-label="Stash Manager">
         <div className="mgr-tabs">
-          <button data-onboard="mgr-overview-tab" className={"mgr-tab" + (tab === "overview" ? " on" : "")} aria-pressed={tab === "overview"} onClick={() => { setTab("overview"); setSearchQuery(""); setPanelOpen(false); }}>
-            <span className="icon">{Icons.layers()}</span> Overview
-          </button>
-          <button data-onboard="mgr-stash-tab" className={"mgr-tab" + (tab === "inventory" ? " on" : "")} aria-pressed={tab === "inventory"} onClick={() => { setTab("inventory"); setSearchQuery(""); setPanelOpen(false); }}>
-            <span className="icon">{Icons.thread()}</span> <span className="lbl-long">Thread Stash</span><span className="lbl-short" aria-hidden="true">Threads</span> <span className="cnt" title={plural(stashCounts.owned, 'thread') + " in your stash"}>{stashCounts.owned}</span>
-          </button>
-          <button className={"mgr-tab" + (tab === "shopping" ? " on" : "")} aria-pressed={tab === "shopping"} onClick={() => { setTab("shopping"); setSearchQuery(""); setPanelOpen(false); }}>
-            <span className="icon">{Icons.cart()}</span> Shopping<span className="lbl-long"> list</span> {shoppingCount > 0 && <span className="cnt" title={plural(shoppingCount, 'thread') + " to buy"}>{shoppingCount}</span>}
-          </button>
-          <button data-onboard="mgr-patterns-tab" className={"mgr-tab" + (tab === "patterns" ? " on" : "")} aria-pressed={tab === "patterns"} onClick={() => { setTab("patterns"); setSearchQuery(""); setPanelOpen(false); }}>
-            <span className="icon">{Icons.clipboard()}</span> <span className="lbl-long">Pattern </span>Library <span className="cnt">{patterns.length}</span>
-          </button>
+          {navLink("overview", Icons.layers(), "Overview", null, { "data-onboard": "mgr-overview-tab" })}
+          {navLink("inventory", Icons.thread(), <><span className="lbl-long">Thread Stash</span><span className="lbl-short" aria-hidden="true">Threads</span></>, stashCounts.owned, { "data-onboard": "mgr-stash-tab", countTitle: plural(stashCounts.owned, 'thread') + " in your stash" })}
+          {navLink("shopping", Icons.cart(), <>Shopping<span className="lbl-long"> list</span></>, shoppingCount > 0 ? shoppingCount : null, { countTitle: plural(shoppingCount, 'thread') + " to buy" })}
+          {navLink("patterns", Icons.clipboard(), <><span className="lbl-long">Pattern </span>Library</>, patterns.length, { "data-onboard": "mgr-patterns-tab" })}
+        </div>
+        <div className="mgr-nav-secondary">
+          <span className="mgr-nav-sep" aria-hidden="true" />
+          {navLink("catalogues", Icons.document(), "Custom catalogues", catalogueRecords.length || null)}
+          {navLink("transfer", Icons.download(), "Import and export")}
         </div>
         <button
           type="button"
@@ -1497,7 +1529,59 @@ function ManagerApp() {
         >
           {Icons.sparkles()}<span className="mgr-showcase-label">Showcase</span>
         </button>
-      </div>
+      </nav>
+      <div className="mgr-shell-main">
+
+      {tab === "catalogues" && (
+        <div className="stash-page">
+          <section className="stash-card" aria-labelledby="stash-catalogues-heading">
+            <div className="stash-card-head">
+              <h2 id="stash-catalogues-heading">{Icons.document()}<span>Custom thread catalogues</span></h2>
+            </div>
+            <CataloguePanel records={catalogueRecords} onRecords={setCatalogueRecords} />
+          </section>
+        </div>
+      )}
+
+      {tab === "transfer" && (
+        <div className="stash-page">
+          <h2 className="stash-page-title">Import and export</h2>
+          <div className="stash-transfer">
+            <section className="stash-card" aria-labelledby="stash-tr-bulk">
+              <h3 id="stash-tr-bulk" className="stash-card-title">{Icons.listComfortable()}<span>Add threads in bulk</span></h3>
+              <p className="stash-muted">Paste a list of thread numbers, such as 310, 550, 3821, or start from a starter kit.</p>
+              <div className="stash-form-row">
+                {typeof window.BulkAddModal !== 'undefined'
+                  ? <button type="button" className="stash-btn stash-btn--primary" onClick={() => setBulkAddOpen(true)}>{Icons.plus()}<span>Bulk add</span></button>
+                  : <span className="stash-muted">Bulk add is not available on this page.</span>}
+              </div>
+            </section>
+            <section className="stash-card" aria-labelledby="stash-tr-cat">
+              <h3 id="stash-tr-cat" className="stash-card-title">{Icons.document()}<span>Custom thread catalogues</span></h3>
+              <p className="stash-muted">{plural(catalogueRecords.length, 'record') + ". Import your own CSV of thread references, or export them."}</p>
+              <div className="stash-form-row">
+                <button type="button" className="stash-btn" onClick={() => goTab("catalogues")}>{Icons.upload()}<span>Import a catalogue</span></button>
+                <button type="button" className="stash-btn" disabled={!catalogueRecords.length} onClick={() => downloadCatalogueCSV(catalogueRecords)}>{Icons.download()}<span>Export custom CSV</span></button>
+              </div>
+            </section>
+            <section className="stash-card" aria-labelledby="stash-tr-shop">
+              <h3 id="stash-tr-shop" className="stash-card-title">{Icons.cart()}<span>Shopping list</span></h3>
+              <p className="stash-muted">{shoppingCount > 0 ? plural(shoppingCount, 'thread') + " to buy. Copy the list to paste into a message or a shop's order form, or export the project materials plan as JSON." : "Nothing to buy. You can still export the project materials plan as JSON."}</p>
+              <div className="stash-form-row">
+                <button type="button" className="stash-btn" disabled={!shoppingCount} onClick={copyShoppingList}>{Icons.copy()}<span>Copy list</span></button>
+                <button type="button" className="stash-btn" onClick={() => downloadProjectShoppingList().catch(e => { if (window.Toast) window.Toast.show({ message: e.message, type: "error" }); })}>{Icons.download()}<span>Export shopping list JSON</span></button>
+              </div>
+            </section>
+            <section className="stash-card" aria-labelledby="stash-tr-backup">
+              <h3 id="stash-tr-backup" className="stash-card-title">{Icons.save()}<span>Back up everything</span></h3>
+              <p className="stash-muted">One file with every project, your stash and your preferences. To restore it, use File &gt; Restore from Backup.</p>
+              <div className="stash-form-row">
+                <button type="button" className="stash-btn" onClick={handleBackupDownload}>{Icons.download()}<span>Download backup</span></button>
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
 
       {/* Overview: the Stash Manager's home page (hub plan, Phase 2). */}
       {tab === "overview" && (
@@ -1705,8 +1789,11 @@ function ManagerApp() {
                         {Icons.listComfortable()}<span><b>Bulk add</b><small>Paste a list of numbers, or choose a starter kit</small></span>
                       </button>
                     )}
-                    <button type="button" onClick={() => { close(); setCatalogueOpen(true); }}>
+                    <button type="button" onClick={() => { close(); goTab("catalogues"); }}>
                       {Icons.document()}<span><b>Custom thread catalogues</b><small>{"Import or export your own thread references (" + plural(catalogueRecords.length, 'record') + ")"}</small></span>
+                    </button>
+                    <button type="button" onClick={() => { close(); goTab("transfer"); }}>
+                      {Icons.download()}<span><b>Import and export</b><small>Bulk add, catalogue CSV, shopping list and backup</small></span>
                     </button>
                   </div>
                 )}
@@ -2299,6 +2386,8 @@ function ManagerApp() {
           </div>
         </div></>
         )}
+      </div>
+      </div>
       {editingPattern && (
         <PatternModal
           pattern={editingPattern}
@@ -2316,7 +2405,6 @@ function ManagerApp() {
         />
       )}
       {bulkAddOpen && window.BulkAddModal && React.createElement(window.BulkAddModal, {onClose: () => setBulkAddOpen(false)})}
-      {catalogueOpen && <CatalogueDialog records={catalogueRecords} onRecords={setCatalogueRecords} onClose={() => setCatalogueOpen(false)} />}
       {modal === "help" && <SharedModals.Help defaultTab="manager" onClose={() => setModal(null)} />}
       {modal === "shortcuts" && <SharedModals.Help defaultTab="shortcuts" onClose={() => setModal(null)} />}
       {welcomeOpen && window.WelcomeWizard && <window.WelcomeWizard page="manager" onClose={() => setWelcomeOpen(false)} />}
@@ -2850,9 +2938,26 @@ ReactDOM.createRoot(document.getElementById("root")).render(<ManagerApp />);
 if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
 
 
+// Downloads used by the Custom catalogues and Import and export pages.
+function downloadFile(name, blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function downloadCatalogueCSV(records) {
+  downloadFile('custom-thread-catalogues.csv', new Blob([ThreadCatalogues.exportCSV(records)], { type: 'text/csv;charset=utf-8' }));
+}
+// The project materials plan (reservations and combined shortage) as JSON.
+async function downloadProjectShoppingList() {
+  const current = await StashBridge.projectMaterials();
+  downloadFile('stitchx-project-shopping-list.json', new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' }));
+  return current;
+}
+
 // Custom thread catalogues: user-owned reference records, kept apart from the
-// manufacturer matching palettes. Opened from Thread Stash > Add threads.
-function CatalogueDialog({ records, onRecords, onClose }) {
+// manufacturer matching palettes. Its own page (nav > Custom catalogues, or
+// Thread Stash > Add threads).
+function CataloguePanel({ records, onRecords }) {
   const [text, setText] = useState('');
   const [preview, setPreview] = useState(null);
   const [message, setMessage] = useState('');
@@ -2863,12 +2968,8 @@ function CatalogueDialog({ records, onRecords, onClose }) {
     catch (e) { setMessage(e.message); }
     finally { setBusy(false); }
   }
-  function exportCatalogue() {
-    const url = URL.createObjectURL(new Blob([ThreadCatalogues.exportCSV(records)], { type: 'text/csv;charset=utf-8' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'custom-thread-catalogues.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-  const Overlay = window.Overlay;
-  const body = (
+  function exportCatalogue() { downloadCatalogueCSV(records); }
+  return (
     <div className="stash-dialog-body">
       <p className="stash-muted">Your own reference catalogues stay separate from the DMC and Anchor matching palettes and from project colours. Colours are optional screen approximations. Substitutions are suggestions and are never applied automatically. Built-in DMC and Anchor data cannot be overwritten.</p>
       <details className="stash-details">
@@ -2910,16 +3011,6 @@ function CatalogueDialog({ records, onRecords, onClose }) {
         : <p className="stash-muted">No custom records yet.</p>}
     </div>
   );
-  if (!Overlay) return null;
-  return (
-    <Overlay onClose={onClose} variant="dialog" maxWidth={640} labelledBy="stash-catalogue-title">
-      <div className="stash-dialog-head">
-        <Overlay.Title id="stash-catalogue-title">Custom thread catalogues</Overlay.Title>
-        <Overlay.CloseButton onClose={onClose} />
-      </div>
-      <Overlay.Body>{body}</Overlay.Body>
-    </Overlay>
-  );
 }
 
 // Project material reservations. Lives at the foot of the Shopping list tab
@@ -2945,11 +3036,8 @@ function ProjectMaterials({catalogues}) {
     finally{setBusy(false);}
   }
   async function exportList() {
-    try {
-      const current=await StashBridge.projectMaterials();setPlan(current);
-      const blob=new Blob([JSON.stringify(current,null,2)],{type:'application/json'});
-      const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='stitchx-project-shopping-list.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-    }catch(e){setError(e.message);}
+    try {setPlan(await downloadProjectShoppingList());}
+    catch(e){setError(e.message);}
   }
   const fmt=n=>n.toLocaleString('en-GB',{maximumFractionDigits:2});
   return <section className="stash-card stash-materials" aria-labelledby="stash-materials-heading">

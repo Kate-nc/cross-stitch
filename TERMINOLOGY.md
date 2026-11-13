@@ -182,7 +182,7 @@ opts in once per device.
 | Surface | Canonical name |
 |---|---|
 | The landing page (`home.html`) | **Home** |
-| The thread and library page (`manager.html`) | **Stash Manager** (tabs: **Overview**, **Thread Stash**, **Shopping list**, **Pattern Library**) |
+| The thread and library page (`manager.html`) | **Stash Manager** (sections: **Overview**, **Thread Stash**, **Shopping list**, **Pattern Library**, **Custom catalogues**, **Import and export**) |
 | The pattern-creation page | **Pattern Creator** |
 | The progress-tracking page | **Stitch Tracker** |
 | The full-app backup file (`.csb`, older `.json`) | **Backup** |

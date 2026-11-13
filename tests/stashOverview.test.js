@@ -20,7 +20,7 @@ describe('routing', () => {
   test('existing deep links keep their meaning', () => {
     expect(init).toMatch(/if \(p === 'inventory' \|\| p === 'patterns'\) return p;/);
     expect(init).toMatch(/if \(p === 'shopping' \|\| p === 'materials'\) return 'shopping';/);
-    expect(init).toMatch(/if \(p === 'overview'\) return 'overview';/);
+    expect(init).toMatch(/if \(p === 'overview' \|\| p === 'catalogues' \|\| p === 'transfer'\) return p;/);
   });
 
   test("the Pattern Creator's thread-stash links still open the thread list", () => {

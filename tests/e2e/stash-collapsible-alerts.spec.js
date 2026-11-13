@@ -64,9 +64,9 @@ test('independent persistence, keyboard access, live counts and returning alerts
   await page.evaluate(() => StashBridge.updateThreadOwned('dmc:310', 1));
   for (let i = 0; i < ids.length; i++) await expect(toggle(page, i)).toHaveAttribute('aria-expanded', 'false');
   // Visit the library and return, then leave the page and return.
-  await page.getByRole('button', { name: /Pattern Library/i }).click();
+  await page.getByRole('link', { name: /Pattern Library/i }).click();
   await expect(toggle(page, 0)).toHaveCount(0);
-  await page.getByRole('button', { name: /Shopping list/i }).click();
+  await page.getByRole('link', { name: /Shopping list/i }).click();
   for (let i = 0; i < ids.length; i++) await expect(toggle(page, i)).toHaveAttribute('aria-expanded', 'false');
   await page.goto('/home.html'); await page.goto(SHOP);
   for (let i = 0; i < ids.length; i++) await expect(toggle(page, i)).toHaveAttribute('aria-expanded', 'false');

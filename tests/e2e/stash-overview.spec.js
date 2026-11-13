@@ -36,7 +36,7 @@ test.beforeEach(async ({ page, context }) => {
 const tile = (page, name) => page.locator('.stash-tile').filter({ has: page.locator('.stash-tile-k', { hasText: new RegExp('^' + name + '$') }) });
 
 test('opens on the Overview with totals from the stash', async ({ page }) => {
-  await expect(page.getByRole('button', { name: /^Overview/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('link', { name: /^Overview/ })).toHaveAttribute('aria-current', 'page');
   await expect(tile(page, 'Threads')).toContainText('3');
   await expect(tile(page, 'Threads')).toContainText('2 DMC, 1 Anchor');
   await expect(tile(page, 'Full skeins')).toContainText('4');
@@ -49,13 +49,13 @@ test('opens on the Overview with totals from the stash', async ({ page }) => {
 
 test('tiles open the matching view', async ({ page }) => {
   for (const [name, filter] of [['Running low', /Running low/], ['Full skeins', /Opened/], ['Threads', /Owned/]]) {
-    await page.getByRole('button', { name: /^Overview/ }).click();
+    await page.getByRole('link', { name: /^Overview/ }).click();
     await tile(page, name).click();
     await expect(page.getByRole('radio', { name: filter })).toHaveAttribute('aria-checked', 'true');
   }
-  await page.getByRole('button', { name: /^Overview/ }).click();
+  await page.getByRole('link', { name: /^Overview/ }).click();
   await tile(page, 'To buy').click();
-  await expect(page.getByRole('button', { name: /Shopping list/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('link', { name: /Shopping list/ })).toHaveAttribute('aria-current', 'page');
 });
 
 test('Buy next adds ticked threads to the stash', async ({ page }) => {
@@ -76,6 +76,6 @@ test('typing in the Overview search carries on in Thread Stash', async ({ page }
 
 test('Ready to start opens the pattern in the Pattern Library', async ({ page }) => {
   await page.locator('.stash-ready-row', { hasText: 'Delft Tile' }).click();
-  await expect(page.getByRole('button', { name: /Pattern Library/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('link', { name: /Pattern Library/ })).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.mgr-rpanel')).toContainText('Delft Tile');
 });
