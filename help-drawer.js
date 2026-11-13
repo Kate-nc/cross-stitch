@@ -327,17 +327,42 @@
       id: "manager", area: "Stash Manager",
       sections: [
         {
-          heading: "Thread stash",
-          body: "The Thread Stash tab tracks which DMC and Anchor threads you own, how many skeins, and what is running low. Custom thread catalogues imports user-owned CSV reference records after validation and duplicate preview. Export preserves codes, names, optional approximate RGB, status, substitutions and user-supplied provenance. Custom records stay separate from matching palettes and projects; substitutions are never automatic. Bulk Add requires all unrecognised or opposite-brand tokens to be corrected or removed, and saves the batch atomically.",
+          heading: "Overview",
+          body: "The Stash Manager opens on Overview, a summary of your stash. Links that are about a single thread, such as Thread stash in the Pattern Creator, open the Thread Stash tab instead. On a wide screen the Stash Manager's sections are in a menu down the left: Overview, Thread Stash, Shopping list and Pattern Library, then Custom catalogues and Import and export. On narrower screens the first four are tabs across the top, and the other two are in Thread Stash > Add threads. Press 1, 2, 3 or 4 to switch between the first four. The address in your browser follows the section, so reloading or bookmarking it comes back to the same place.",
           bullets: [
-            ["Skeins owned", "Select a thread to set how many skeins you have. Composite keys (for example anchor:403) keep DMC and Anchor numbers that look the same apart."],
-            ["Part-used skeins", "Mark a thread as Mostly full, About half, Remnant or Used up. Used up sets the skein count to zero."],
-            ["To buy and conflicts", "A pattern that needs threads your stash doesn't cover gets a To buy panel (for example, To buy for Meadow (12 threads)) listing what is short. It is a plain shopping list, not a problem. The Stash Manager's Shopping list already includes these threads; Add to shopping list pins them there with the quantities shown, so they stay on the list if the pattern changes. Thread Conflicts appears only when two or more active patterns need the same thread and your stash can't cover them between them; it names the patterns. A pattern on its own never causes a conflict, and completed patterns are left out."],
-            ["Alert panels", "To buy, Thread Conflicts, Low Stock — Needed and Low stash — not currently needed each have a heading button. Tap it, or focus it and press Enter or Space, to hide or show the description and list. The heading keeps the current count. Each choice is remembered on this device across visits, reloads and periods with no alerts; hiding a panel does not dismiss alerts or change your stash."],
-            ["Low stock", "A thread is low when you have fewer skeins than its minimum (1 by default; change it per thread or in Preferences > Stash Manager)."],
-            ["Filters", "Show All, Owned, Low Stock, Remnants or Used Up threads, for DMC, Anchor or both, and search by number or name."],
-            ["Bulk Add (B)", "Paste a list of thread numbers (for example 310, 550, 3821) to add them all at once."]
+            ["Totals", "Threads, Full skeins, To buy and Running low. Select one to see those threads: Threads opens your stash, Full skeins the opened skeins, To buy the Shopping list and Running low the threads below their minimum."],
+            ["Buy next", "The first threads on your shopping list, with the same Bought ticks as the Shopping list tab, so you can add what you bought from here."],
+            ["Ready to start", "Patterns you haven't started, with how many of their threads you own. Select one to open it in the Pattern Library."],
+            ["Needs attention", "Threads two patterns are competing for, and threads running low. Select one to open it in Thread Stash."],
+            ["Search", "Typing in the search box carries on in the Thread Stash tab's search."]
           ]
+        },
+        {
+          heading: "Thread stash",
+          body: "The Thread Stash tab lists the DMC and Anchor threads you own, one row each, and you change them right there in the list. The number beside the tab is how many threads are in your stash.",
+          bullets: [
+            ["Full skeins", "Use the minus and plus buttons in a thread's row, or type a number, to set how many full skeins you have. Every row shows the brand, so DMC and Anchor numbers that look the same stay apart."],
+            ["Thread details", "Select a thread's number or the arrow at the end of its row to open its details under the row. There you set the opened skein (None, \u00BE, \u00BD, \u00BC or Used up; Used up sets full skeins to zero), Keep at least (the thread's own minimum), see what each pattern needs, add it to or remove it from your shopping list, or remove it from your stash."],
+            ["Show", "Owned (the default) lists threads you have. Running low, Opened and Used up narrow the list. Every shade lists the whole DMC and Anchor range, 200 rows at a time. The sort and brand are under the button beside them."],
+            ["Adding threads", "Type a number or name in the search box. Matching threads you own come first, then Not in your stash, each with an Add button. Add threads > Bulk add (B) takes a pasted list of numbers (for example 310, 550, 3821) or a starter kit. Add threads > Custom thread catalogues opens the page where you import or export your own CSV reference records; they stay separate from matching palettes and projects, and substitutions are never automatic."],
+            ["Stock-take", "For counting a whole box of threads in one sitting. Open it from Add threads > Stock-take, the Stock-take button over the list on a phone, or Import and export. Type a thread number (choose DMC or Anchor first; Blanc / Ecru on the number pad steps through Blanc, Ecru and B5200), then Save, next to bring it up. It shows what you had, so set the full skeins and the opened skein, type the next number and Save, next again. On a keyboard, Enter is Save, next and the plus and minus keys change the count. Each count is saved as you go. Done shows how many threads you counted, changed and added, with Undo all, which puts every one back as it was. From there you can also mark the threads in your stash that you didn't count as used up; it asks first and says how many."],
+            ["Running low", "A thread is running low when you have less than its minimum, counting an opened skein as \u00BE, \u00BD or \u00BC of a skein. The minimum is the thread's own Keep at least value, or else the value in Preferences > Stash Manager (1 by default). Low shows beside the thread, and the Running low filter lists them all."],
+            ["Needs attention", "When your patterns need threads you don't have, one line above the list says how many and for which patterns, and which threads two patterns compete for. Open shopping list goes to the Shopping list tab. Hiding the line keeps it hidden until the numbers change."]
+          ]
+        },
+        {
+          heading: "Shopping list",
+          body: "The Shopping list tab lists every thread your active patterns need and your stash doesn't cover, plus any you added yourself, with how many skeins to buy. Each thread names the patterns it is for. Copy list puts the list on your clipboard. Select a thread to see it in Thread Stash.",
+          bullets: [
+            ["Bought", "Tick the threads you have bought. A ticked thread shows the number of skeins, which you can change with the minus and plus buttons if the shop had a different amount. The add button (for example, Add 4 skeins to stash) adds them all to your stash in one go and takes them off the list; anything a pattern still needs stays on it. Undo, in the message that appears, takes the same skeins back off and puts threads you had added to the list yourself back on it. Your ticks are kept on this device until you add them, so they are still there if you leave the page, close the app or lose signal in the shop; a tick for a thread that leaves the list (for example, bought on another device) is dropped."],
+            ["On a phone", "The list is grouped by pattern, with threads you added yourself last, and Copy and Done stay at the bottom of the screen while you scroll. Done adds every ticked thread to your stash."],
+            ["To buy and conflicts", "Below the list, each pattern that is short gets a To buy panel (for example, To buy for Meadow (12 threads)). It is a plain shopping list, not a problem. The Stash Manager's Shopping list already includes these threads; Add to shopping list pins them there with the quantities shown, so they stay on the list if the pattern changes. Thread Conflicts appears only when two or more active patterns need the same thread and your stash can't cover them between them; it names the patterns. A pattern on its own never causes a conflict, and completed patterns are left out."],
+            ["Alert panels", "To buy, Thread Conflicts and Low stock: needed each have a heading button. Tap it, or focus it and press Enter or Space, to hide or show the description and list. The heading keeps the current count. Each choice is remembered on this device across visits, reloads and periods with no alerts; hiding a panel does not dismiss alerts or change your stash."]
+          ]
+        },
+        {
+          heading: "Import and export",
+          body: "One page for getting threads in and lists out: Bulk add, importing or exporting a custom thread catalogue, copying the shopping list or exporting the project materials plan as JSON, and downloading a backup of everything. Find it in the menu on a wide screen, or in Thread Stash > Add threads.",
         },
         {
           heading: "Thread brands and conversions",
@@ -349,15 +374,15 @@
         },
         {
           heading: "Project material reservations",
-          body: "Stash Manager > Project materials separates owned, reserved, available and estimated-needed skeins. Reserve estimated needs or set a fractional skein limit. Reserving never consumes stock. Claims use stable project-ID order, adjust with unfinished chart estimates and release for completed, archived, abandoned (UFO) or deleted projects. Available excludes all claims. Shopping lists share remaining free stock once; use the combined list to avoid duplicate purchases. Only the combined shortage is rounded up to whole skeins. Refresh after edits or purchases. Confirm substitutions explicitly using brand:number; the original chart identity stays unchanged and subsequent consumption uses the confirmed replacement. Remove a substitution before changing its replacement. Planning converts material length when a replacement brand has a different skein length. Estimates for unfinished stitches use the same planning model as Creator Materials, with project fabric count, supplied strand ratios and brand-specific skein lengths. Default crosses use two strands with 20% allowance. Creator describes the whole design; reservations describe remaining work. Recorded consumption uses its original saved assumptions and is never revalued by a new planning estimate. Fabric and beads are excluded. Export shopping list JSON for a portable snapshot; full backups preserve reservation intent with stock and consumption history. Project-only exports do not reserve stock on another device.",
+          body: "Project materials, at the bottom of the Stash Manager's Shopping list tab, separates owned, reserved, available and estimated-needed skeins. Reserve estimated needs or set a fractional skein limit. Reserving never consumes stock. Claims use stable project-ID order, adjust with unfinished chart estimates and release for completed, archived, abandoned (UFO) or deleted projects. Available excludes all claims. Shopping lists share remaining free stock once; use the combined list to avoid duplicate purchases. Only the combined shortage is rounded up to whole skeins. Refresh after edits or purchases. Confirm substitutions explicitly using brand:number; the original chart identity stays unchanged and subsequent consumption uses the confirmed replacement. Remove a substitution before changing its replacement. Planning converts material length when a replacement brand has a different skein length. Estimates for unfinished stitches use the same planning model as Creator Materials, with project fabric count, supplied strand ratios and brand-specific skein lengths. Default crosses use two strands with 20% allowance. Creator describes the whole design; reservations describe remaining work. Recorded consumption uses its original saved assumptions and is never revalued by a new planning estimate. Fabric and beads are excluded. Export shopping list JSON for a portable snapshot; full backups preserve reservation intent with stock and consumption history. Project-only exports do not reserve stock on another device.",
         },
         {
           heading: "Pattern Library",
-          body: "The Pattern Library tab lists every project you save in the Creator or Tracker automatically, plus any pattern you add by hand here.",
+          body: "The Pattern Library lists every project you save in the Creator or Tracker automatically, plus any pattern you add by hand here.",
           bullets: [
             ["Coverage", "Each pattern shows how many of its threads you already own."],
             ["Stash Manager only", "Patterns added here without a linked project are flagged so you don't expect Tracker progress."],
-            ["Showcase", "The Showcase link opens the Stats page's Showcase tab, a summary of your stitching so far."]
+            ["Showcase", "Showcase, at the end of the Stash Manager's tabs (or the bottom of the menu on a wide screen), opens the Stats page's Showcase tab, a summary of your stitching so far."]
           ]
         }
       ]
@@ -723,7 +748,8 @@
     { id: "th.spot", scope: "tracker", keys: ["4"], description: "Highlight: Spotlight — turn every other colour pale grey" },
 
     // Manager
-    { id: "m.bulk", scope: "manager", keys: ["B"], description: "Open Bulk Add Threads" }
+    { id: "m.bulk", scope: "manager", keys: ["B"], description: "Open Bulk Add Threads" },
+    { id: "m.sections", scope: "manager", keys: ["1", "2", "3", "4"], description: "Show Overview, Thread Stash, Shopping list or Pattern Library" }
   ];
   var SCOPE_LABEL = {
     global:  "Global",
@@ -750,7 +776,7 @@
     {
       id: "stash",
       heading: "Manage your stash",
-      body: "The Stash Manager keeps a tally of every DMC and Anchor skein you own, alongside a pattern library that fills itself from your saved projects.",
+      body: "The Stash Manager opens on an Overview of your threads: what you own, what to buy next, which patterns you could start and what is running low. Thread Stash lists your threads to change in place, the Shopping list ticks off what you buy, Stock-take counts a whole box in one go, and the Pattern Library fills itself from your saved projects.",
       action: { label: "Replay the Stash walkthrough", kind: "wizard", page: "manager" }
     },
     {

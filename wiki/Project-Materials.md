@@ -1,6 +1,6 @@
 # Project materials and shopping lists
 
-Open Stash Manager > Project materials. Save your charts first; unlinked library entries cannot make stock claims.
+Open the Stash Manager's **Shopping list**; Project materials is at the bottom (the old `?tab=materials` link opens it). Save your charts first; unlinked library entries cannot make stock claims.
 
 Owned is usable stock, including opened-skein allowances (mostly full 0.75, about half 0.5, remnant 0.25). Reserved is held for unfinished work. Available is owned minus all effective reservations, never negative. Estimated needed uses unfinished chart units and the same planning model as Creator Materials: saved fabric count/over-two, two working strands for crosses and 20% allowance by default. Imported blend strand counts and known brand skein lengths are honoured. A standard 8 m six-strand skein covers about 1,575 full crosses on 14-count with two strands under this estimate. Fractional stitches, outlines, knots and specialty stitches contribute approximate thread lengths; fabric and beads are excluded. Actual consumption history keeps its original saved geometry and assumptions, so recalibrating planning never changes recorded debits or usable stock.
 

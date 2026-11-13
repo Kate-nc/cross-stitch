@@ -4,7 +4,7 @@ test('project reservations, shared shortages, limit edits, substitution confirma
  await installLocalCdn(context);await page.addInitScript(()=>localStorage.setItem('cs_welcome_manager_done','1'));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/manager.html?from=home&tab=materials');
- await expect(page.getByRole('heading',{name:'Project materials and shopping lists'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Project materials'})).toBeVisible();
  await page.evaluate(async()=>{
   for(const [id,name] of [['proj_a','First chart'],['proj_b','Second chart']])await ProjectStorage.save({id,version:11,name,page:'tracker',settings:{sW:100,sH:10,fabricCt:14,wastePrefs:{tailAllowanceIn:0,generalWasteMultiplier:1}},pattern:Array.from({length:1000},()=>({id:'310'})),done:null});
   await StashBridge.updateThreadOwned('dmc:310',.5);

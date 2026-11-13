@@ -64,10 +64,12 @@ You can also go straight to a tool:
 
 ### Stash Manager
 
-- DMC and Anchor threads with skein counts, part-used status and low-stock alerts
-- **To buy and conflicts:** a pattern whose threads your stash doesn't cover gets a To buy panel with an Add to shopping list action. Thread Conflicts appears only when two or more active patterns need the same thread and the stash can't cover them together. Home's Shopping list shows the same threads.
-- **Alert panels:** To buy, Thread Conflicts, Low Stock — Needed and Low stash — not currently needed collapse independently. Tap a heading, or focus it and press Enter or Space. The current count stays visible while the description and list are hidden. Each choice is remembered on this device across reloads and visits, even if alerts disappear and return. Collapsing does not dismiss alerts or change inventory.
-- Bulk add from a list or a starter kit
+- **Overview** (where it opens): how many threads and skeins you have, what to buy next, which patterns you could start, and what is running low. On a wide screen the sections are in a menu down the left; on narrower screens they are tabs. Keys 1 to 4 switch sections.
+- **Thread Stash:** the threads you own, one row each, edited in place: full skeins, the opened skein (¾, ½, ¼ or used up), a minimum to keep, and shopping-list actions. Filters for Owned, Running low, Opened, Used up and Every shade. Typing a number in the search offers threads you don't own with an Add button.
+- **Running low:** a thread is low when you have less than its minimum, counting an opened skein as part of a skein; the minimum is the thread's own, or the Preferences value (1 by default).
+- **Shopping list:** every thread your patterns need and your stash doesn't cover, plus any you added, with the patterns it is for. Tick what you bought and add it all to your stash in one go (with Undo); ticks stay on the device until you do. On a phone it is grouped by pattern, with Copy and Done pinned to the bottom. To buy, Thread Conflicts and Low stock panels follow, then Project materials (reservations).
+- **Stock-take:** count a whole box of threads, typing each number (a number pad on phones and tablets), with Undo all at the end.
+- **Custom catalogues** and **Import and export** (Bulk add, catalogue CSV, shopping list copy and JSON, full backup) have their own pages.
 - A Pattern Library that fills itself from your projects, showing which threads you already own
 
 ### Stats

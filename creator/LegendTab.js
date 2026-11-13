@@ -301,7 +301,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)', cursor:"pointer",
           border:"0.5px solid var(--border)", background:"var(--surface)", color:"var(--text-secondary)", fontWeight:500
         }}, "Share"),
-        h("a", {href:"manager.html", target:"_blank", style:{
+        h("a", {href:"manager.html?tab=inventory", target:"_blank", style:{
           fontSize:'var(--text-xs)', padding:"4px 10px", borderRadius:'var(--radius-sm)',
           border:"0.5px solid var(--border)", background:"var(--surface)", color:"var(--text-secondary)",
           fontWeight:500, textDecoration:"none", display:"inline-flex", alignItems:"center", gap:4

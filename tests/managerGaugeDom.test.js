@@ -1,15 +1,10 @@
 /**
  * Manager DOM size — reports/mobile-experience-audit.md item 10 / C2.
  *
- * The thread grid renders ~1,200 cards. Each carried a 4-segment fill gauge
- * built from five DOM nodes (a track plus four <div class="seg">), which was
- * 4,892 nodes on its own — a third of the manager's entire 14,341-node DOM,
- * and the page with the worst blocking time in the app.
- *
- * The gauge is now a single element whose box-shadow copies paint the other
- * three pills. Pixel equivalence is proved in
- * tests/mobile-audit/desktop-gauge-equivalence.spec.js (0 differing pixels at
- * DPR 1); these are the structural guards that keep it that way.
+ * The thread grid used to render ~1,200 cards, each with a fill gauge; the
+ * gauges alone were a third of the manager's 14,341-node DOM. The Thread
+ * Stash is now an owned-first list (docs/stash-redesign/option-1-plan.md);
+ * these are the structural guards that keep it small.
  */
 const fs = require('fs');
 const path = require('path');
@@ -20,45 +15,30 @@ const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8').replace(/\/\*
 const createHtml = fs.readFileSync(path.join(ROOT, 'create.html'), 'utf8');
 const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
-describe('thread card gauge is a single element', () => {
-  test('the card renders one gauge node carrying the level as data', () => {
-    expect(manager).toMatch(/<div className="gauge" data-level=\{gaugeLevel\} \/>/);
+describe('the Thread Stash keeps its DOM small', () => {
+  // The old grid drew all ~1,229 catalogue shades on every visit (a third of
+  // the manager's DOM was their gauges alone). The rebuilt list opens on the
+  // threads you own and pages the full catalogue.
+  test('the list opens on owned threads, not the whole catalogue', () => {
+    expect(manager).toMatch(/const \[threadFilter, setThreadFilter\] = useState\("owned"\)/);
   });
 
-  test('the four-segment loop is gone from the card', () => {
-    // The old markup was `{[0,1,2,3].map(s => <div className={"seg"...} />)}`
-    // inside `.gauge`. The detail-panel gauge (.gauge-lg) still uses .seg and
-    // is deliberately untouched — it renders once, not 1,200 times.
-    const grid = manager.slice(manager.indexOf('thread-grid'), manager.indexOf('gauge-lg'));
-    expect(grid).not.toMatch(/\[0,1,2,3\]\.map/);
-    expect(grid).not.toMatch(/className=\{"seg"/);
+  test('rows are rendered a page at a time', () => {
+    expect(manager).toMatch(/const STASH_PAGE_SIZE = 200;/);
+    expect(manager).toMatch(/filteredThreads\.slice\(0, listLimit\)\.map/);
+    expect(manager).toMatch(/setListLimit\(n => n \+ STASH_PAGE_SIZE\)/);
   });
 
-  test('all four pills are painted from the one element', () => {
-    const rule = css.match(/\.tcard \.gauge\{[^}]*\}/);
-    expect(rule).not.toBeNull();
-    // Box shadows at 6/12/18px reproduce segments 2-4; zero spread means they
-    // inherit the element's border-radius, so the pill shape is preserved.
-    expect(rule[0]).toMatch(/box-shadow:6px 0 0 [^,]+,12px 0 0 [^,]+,18px 0 0 [^;]+;/);
-    expect(rule[0]).toMatch(/border-radius:2px/);
-    // width 4 + margin-right 18 reserves the same 22px the flex track did.
-    expect(rule[0]).toMatch(/width:4px/);
-    expect(rule[0]).toMatch(/margin-right:18px/);
+  test('rows are memoised and skip off-screen layout', () => {
+    expect(manager).toMatch(/const StashRow = React\.memo\(/);
+    expect(css).toMatch(/\.stash-row\{[^}]*content-visibility:auto;[^}]*\}/);
   });
 
-  test('every fill level from the old class logic has a rule', () => {
-    // 0 = empty (base rule), 1 = one warning pill, 2-4 = n accent pills.
-    expect(css).toMatch(/\.tcard \.gauge\[data-level="1"\]\{background:var\(--warning\);\}/);
-    for (const lvl of [2, 3, 4]) {
-      expect(css).toMatch(new RegExp(`\\.tcard \\.gauge\\[data-level="${lvl}"\\]\\{background:var\\(--accent\\);box-shadow:`));
-    }
-  });
-
-  test('the old per-segment rules are gone', () => {
-    expect(css).not.toMatch(/\.tcard \.gauge \.seg\{/);
-    expect(css).not.toMatch(/\.tcard \.gauge \.seg\.full\{/);
-    // ...but the detail-panel gauge keeps its own.
-    expect(css).toMatch(/\.gauge-lg \.seg\{/);
+  test('the old grid, card gauge and side-panel controls are gone', () => {
+    expect(manager).not.toMatch(/className="thread-grid"/);
+    expect(manager).not.toMatch(/className="gauge"/);
+    expect(css).not.toMatch(/\.tcard\b/);
+    expect(css).not.toMatch(/\.gauge-lg\b/);
   });
 });
 

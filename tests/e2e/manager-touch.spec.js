@@ -8,11 +8,15 @@ test.describe('Manager Touch Automation', function() {
       try { ['tracker', 'creator', 'manager', 'home'].forEach(function(k) { localStorage.setItem('cs_welcome_' + k + '_done', '1'); }); } catch (e) {}
     });
     await page.goto('/manager.html?from=home');   // how Home opens it; without this the page sends you to Home when no project is active
-    // The Stash heading is a menu of the page's sections.
-    await page.getByRole('button', { name: /^Stash/ }).first().tap();
-    await expect(page.getByRole('button', { name: /Thread Stash/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Thread Stash/i })).toBeVisible();
+    // The Manager opens on Overview; its tiles and tabs respond to touch.
+    await page.getByRole('button', { name: /^Threads/ }).tap();
+    await expect(page.getByRole('radio', { name: /Owned/ })).toHaveAttribute('aria-checked', 'true');
+    // Thread Stash filters respond to touch.
+    await page.getByRole('radio', { name: /Every shade/ }).tap();
+    await expect(page.getByRole('radio', { name: /Every shade/ })).toHaveAttribute('aria-checked', 'true');
 
-    await page.getByRole('button', { name: /Pattern Library/i }).tap();
+    await page.getByRole('link', { name: /Pattern Library/i }).tap();
     await page.getByRole('button', { name: /\+ Add Pattern/i }).tap();
     await page.getByPlaceholder('Pattern Name').fill('Touch Automation Pattern');
     await page.getByPlaceholder('Creator/Shop').fill('Automation');

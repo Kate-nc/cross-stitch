@@ -793,6 +793,12 @@ window.Icons = (function() {
     listComfortable: function() {
       return svg16(rc(4, 4, 16, 7, 1.5), rc(4, 13, 16, 7, 1.5));
     },
+    // Number pad (3 by 3 keys) — the Stash Manager's Stock-take.
+    keypad: function() {
+      return svg16(rc(3.5, 3.5, 4, 4, 1), rc(10, 3.5, 4, 4, 1), rc(16.5, 3.5, 4, 4, 1),
+        rc(3.5, 10, 4, 4, 1), rc(10, 10, 4, 4, 1), rc(16.5, 10, 4, 4, 1),
+        rc(3.5, 16.5, 4, 4, 1), rc(10, 16.5, 4, 4, 1), rc(16.5, 16.5, 4, 4, 1));
+    },
     listCompact: function() {
       return svg16(l(4, 6, 20, 6), l(4, 10, 20, 10), l(4, 14, 20, 14), l(4, 18, 20, 18));
     },

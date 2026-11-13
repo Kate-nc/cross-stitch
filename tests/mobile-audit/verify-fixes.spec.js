@@ -176,7 +176,8 @@ test('B1: no page-level horizontal overflow on any entry page', async ({ page })
 
 test('B2: manager drawer is full-width and docked to the viewport bottom', async ({ page }) => {
   await suppressOnboarding(page);
-  await page.goto('/manager.html?from=home', { waitUntil: 'load', timeout: 120000 });
+  // The drawer is the Pattern Library's; Thread Stash edits in its list.
+  await page.goto('/manager.html?from=home&tab=patterns', { waitUntil: 'load', timeout: 120000 });
   await page.waitForTimeout(3500);
   const r = await page.evaluate(() => {
     const el = document.querySelector('.mgr-rpanel');
