@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "e0b7fac77aadb8b941bb6513fb1505ec1ed88b3c7196daaf17cf38dbb2b92945";
+var BUILD_ID = "e369ffe5ac06ffcbabccc99cb930a1b07dae56254515db673622f51e1de50f06";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -463,7 +463,7 @@ var BUILD_ASSETS = {
     "sha256": "441c79d9d84927493db4c68c1f82782092b0c66342df1f89dc715ccef2ec144a"
   },
   "./sw-register.js": {
-    "sha256": "900c3c00ab705de8f7fa1a5bce34b2add7d46049782ae17d1d06bd7a3b66724d"
+    "sha256": "e1cbf30ba8ff1b6a89366bb214aed67945d4bd908b4845ca8fc0331d4f1d0e46"
   },
   "./creator/bundle.js": {
     "sha256": "101ae7b70eff31c746d88bb79d388c96a5c58fbb920b6c8debc9bd2c6cbe86d7"
@@ -829,7 +829,9 @@ self.addEventListener('activate', function (event) {
 // person chose Update now (sw-register.js AppUpdate.apply), which reloads
 // that tab and asks the other open tabs to reload. Never sent automatically.
 self.addEventListener('message', function (event) {
-  if (event.data && event.data.type === 'stitchx:activate-update') event.waitUntil(self.skipWaiting());
+  if (!event.data || event.data.type !== 'stitchx:activate-update') return;
+  var activating = self.skipWaiting();
+  if (event.waitUntil) event.waitUntil(activating);
 });
 self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;

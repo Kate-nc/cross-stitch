@@ -44,7 +44,7 @@ function harness(fail = () => false, scope = origin) {
     return task;
   };
   const message = data => { let task; listeners.message({ data, waitUntil: value => task = value }); return task; };
-  return { caches, stores, deleted, dispatch, fetch, message, skipped, context };
+  return { caches, stores, deleted, dispatch, fetch, message, skipped, listeners, context };
 }
 async function seed(h, name, complete = false) {
   const cache = await h.caches.open(name);
@@ -108,6 +108,9 @@ test('worker never takes over by itself; only an explicit Update now request act
   expect(h.skipped).toHaveLength(0);
   await h.message({ type: 'stitchx:activate-update' });
   expect(h.skipped).toHaveLength(1);
+  // A browser whose message event cannot be extended still activates.
+  h.listeners.message({ data: { type: 'stitchx:activate-update' } });
+  expect(h.skipped).toHaveLength(2);
 });
 
 test("a subpath deployment cannot clean another registration's caches", async () => {

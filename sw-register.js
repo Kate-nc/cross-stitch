@@ -17,6 +17,10 @@
   'use strict';
   var ACTIVATE_MESSAGE = 'stitchx:activate-update';
   var ANNOUNCED_KEY = 'stitchx_update_announced';
+  // Set by apply() and kept across its reload, so this tab still knows the
+  // switch was its own if the fallback reload beats the activation.
+  var APPLYING_KEY = 'stitchx_update_applying';
+  var APPLYING_MS = 2 * 60 * 1000;
   var supported = 'serviceWorker' in navigator;
   var registration = null;
   var applying = false;
@@ -46,6 +50,18 @@
     window.location.reload();
   }
 
+  function session(key, value) {
+    try {
+      if (value === undefined) return sessionStorage.getItem(key);
+      if (value === null) sessionStorage.removeItem(key); else sessionStorage.setItem(key, value);
+    } catch (_) {}
+    return null;
+  }
+  function appliedHere() {
+    var at = Number(session(APPLYING_KEY));
+    return at > 0 && Date.now() - at < APPLYING_MS;
+  }
+
   function toast(opts) {
     try { if (window.Toast && typeof window.Toast.show === 'function') window.Toast.show(opts); } catch (_) {}
   }
@@ -56,10 +72,8 @@
     var waiting = registration && registration.waiting;
     if (!waiting || waiting === announced || applying || !navigator.serviceWorker.controller) return;
     announced = waiting;
-    try {
-      if (!fresh && sessionStorage.getItem(ANNOUNCED_KEY)) return;
-      sessionStorage.setItem(ANNOUNCED_KEY, '1');
-    } catch (_) {}
+    if (!fresh && session(ANNOUNCED_KEY)) return;
+    session(ANNOUNCED_KEY, '1');
     toast({
       message: 'A new version of stitchx is ready.',
       type: 'info',
@@ -129,12 +143,14 @@
       var waiting = reg && reg.waiting;
       if (!waiting) { refresh(); return false; }
       applying = true;
+      session(APPLYING_KEY, String(Date.now()));
       set('applying');
       waiting.addEventListener('statechange', function () {
-        if (waiting.state === 'activated' || waiting.state === 'redundant') reload();
+        if (waiting.state === 'activated' || waiting.state === 'redundant') { session(APPLYING_KEY, null); reload(); }
       });
       // A page the old build never controlled gets no controllerchange; the
-      // statechange above covers it. This is the last resort.
+      // statechange above covers it. This is the last resort, and keeps the
+      // marker so the reloaded page still treats the switch as its own.
       setTimeout(reload, 15000);
       waiting.postMessage({ type: ACTIVATE_MESSAGE });
       return true;
@@ -161,7 +177,7 @@
   // Another tab chose Update now: this tab's files are the old build but its
   // requests are now answered by the new one, so it should reload soon.
   navigator.serviceWorker.addEventListener('controllerchange', function () {
-    if (applying) { reload(); return; }
+    if (applying || appliedHere()) { session(APPLYING_KEY, null); reload(); return; }
     toast({
       message: 'stitchx was updated in another tab. Reload this tab to carry on with the new version.',
       type: 'warning',
@@ -176,6 +192,8 @@
         console.log('SW registered, scope:', reg.scope);
         registration = reg;
         resolveRegistered(reg);
+        // Forget a stale marker from an update this tab gave up on.
+        if (!appliedHere()) session(APPLYING_KEY, null);
         reg.addEventListener('updatefound', function () { watchInstalling(reg); });
         watchInstalling(reg);
         refresh();
