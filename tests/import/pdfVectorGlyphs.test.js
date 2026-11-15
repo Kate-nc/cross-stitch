@@ -230,3 +230,95 @@ describe('anchorGridToRuler with labels on each page\'s own first and last cell'
     expect(g).toEqual(expect.objectContaining({ originX: 110, originY: 150, columns: 36, rows: 35 }));
   });
 });
+
+/* ── found in review ──────────────────────────────────────────────────────── */
+
+describe('what is not a drawn symbol', () => {
+  const P = 10, grid = { originX: 100, originY: 100, cellWidth: P, cellHeight: P, columns: 6, rows: 4 };
+  const rectPts = (x, y, w, h) => [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }, { x, y }];
+  const read = (paths) => imp.extractSymbols([{ pageIndex: 1, width: 595, height: 842, textItems: [], vectorPaths: paths, images: [] }],
+    { pages: [{ pageIndex: 1, grid, globalOffsetCol: 0, globalOffsetRow: 0 }] }, { entries: [] })
+    .then(cells => cells.filter(c => !c.isEmpty).map(c => c.col + ',' + c.row));
+
+  it('leaves out cell outlines, corner ticks and backstitch, which reach the cell edge', async () => {
+    const paths = [];
+    // Every cell ruled by its own stroked rectangle, as some generators draw their grid.
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) paths.push({ type: 'rect', stroked: true, strokeColor: [120, 120, 120], penWidth: 0.3, points: rectPts(100 + c * P, 100 + r * P, P, P) });
+    paths.push({ type: 'path', stroked: true, strokeColor: [0, 0, 0], penWidth: 1, points: [{ x: 120, y: 100 }, { x: 125, y: 105 }, { x: 130, y: 100 }] });
+    // One real symbol, in the middle of cell (3, 2).
+    paths.push({ type: 'path', fillColor: [0, 0, 0], paint: 1, points: [{ x: 133, y: 127 }, { x: 137, y: 127 }, { x: 137, y: 123 }, { x: 133, y: 127 }] });
+    expect(await read(paths)).toEqual(['3,2']);
+  });
+});
+
+describe('detectGrid with rules drawn as thin filled rectangles', () => {
+  it('keeps them: only a band a good part of a cell thick is furniture', () => {
+    const X0 = 100, Y0 = 100, P = 8, C = 40, R = 30, paths = [];
+    const line = (x0, y0, x1, y1) => ({ type: 'line', stroked: true, strokeColor: [150, 150, 150], points: [{ x: x0, y: y0 }, { x: x1, y: y1 }] });
+    const hair = (x, y, w, h) => ({ type: 'rect', fillColor: [0, 0, 0], points: [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }, { x, y }] });
+    // Minor lines stroked; every tenth line and the frame a 1pt filled rectangle.
+    for (let c = 0; c <= C; c++) paths.push(c % 10 ? line(X0 + c * P, Y0, X0 + c * P, Y0 + R * P) : hair(X0 + c * P - 0.5, Y0, 1, R * P));
+    for (let r = 0; r <= R; r++) paths.push(r % 10 ? line(X0, Y0 + r * P, X0 + C * P, Y0 + r * P) : hair(X0, Y0 + r * P - 0.5, C * P, 1));
+    const g = imp.detectGrid({ width: 595, height: 842, vectorPaths: paths });
+    expect([g.columns, g.rows]).toEqual([C, R]);
+  });
+});
+
+describe('ruled squares in a key that also has colour swatches', () => {
+  const line = (x0, y0, x1, y1) => ({ type: 'line', stroked: true, strokeColor: [0, 0, 0], points: [{ x: x0, y: y0 }, { x: x1, y: y1 }] });
+  const ruled = (x, y, s) => [line(x, y, x + s, y), line(x + s, y, x + s, y + s), line(x, y + s, x + s, y + s), line(x, y, x, y + s)];
+  const rect = (x, y, w, h, fill) => ({ type: 'rect', fillColor: fill, points: [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }, { x, y }] });
+  const text = (str, x, y) => ({ str, x, y, width: str.length * 5, height: 9 });
+
+  it('keeps the colour when a ruled symbol box sits between the swatch and the code', () => {
+    const page = { textItems: [text('321', 120, 110), text('X', 103, 110)], vectorPaths: [rect(80, 100, 10, 10, [200, 30, 40]), ...ruled(100, 100, 10)], images: [] };
+    expect(R.readKeyEntries(page, null)).toEqual([expect.objectContaining({ threadCode: '321', symbol: 'X', swatchRgb: [200, 30, 40] })]);
+  });
+
+  it('finds every box of a key ruled as a table, whose boxes share their rules', () => {
+    // Three boxes stacked, each one's bottom rule the next one's top.
+    const paths = [line(80, 100, 91, 100), line(80, 111, 91, 111), line(80, 122, 91, 122), line(80, 133, 91, 133)];
+    for (const y of [100, 111, 122]) paths.push(line(80, y, 80, y + 11), line(91, y, 91, y + 11));
+    // A drawn bar in each.
+    for (const y of [100, 111, 122]) paths.push(rect(83, y + 4, 5, 3, [0, 0, 0]));
+    const page = { textItems: [text('310', 100, 108), text('321', 100, 119), text('336', 100, 130)], vectorPaths: paths, images: [] };
+    const out = R.readKeyEntries(page, null);
+    expect(out.map(e => [e.threadCode, e.kind, !!e.glyphInk])).toEqual([['310', 'cross', true], ['321', 'cross', true], ['336', 'cross', true]]);
+  });
+});
+
+describe('the ink colour of a drawn symbol', () => {
+  beforeAll(() => { Object.assign(global, require(path.join(ROOT, 'dmc-data.js'))); });
+  const cell = { col: 0, row: 0, symbol: '', fontName: '', isEmpty: false, glyph: 'vec:unknown', fillColor: [0, 0, 0], fillColors: [[0, 0, 0]] };
+
+  it('still matches by colour when the key draws no symbols to match against', () => {
+    const [c] = imp.linkSymbolsToThreads([Object.assign({}, cell)], { entries: [{ kind: 'cross', threadCode: '310', symbol: 'A' }] });
+    expect([c.thread.id, c.matchedBy]).toEqual(['310', 'nearest']);
+  });
+
+  it('is a numbered placeholder, not the nearest colour, when the key draws its symbols', () => {
+    const local = new (loadImporterClass())();
+    const bits = V.bitmap(place(E, 0, 0, 5), 0, 0, 5);
+    local._glyphs = new Map([['vec:e', bits]]);
+    const [c] = local.linkSymbolsToThreads([Object.assign({}, cell)], { entries: [{ kind: 'cross', threadCode: '939', glyph: 'vec:e' }, { kind: 'cross', threadCode: '310', symbol: 'A' }] });
+    expect([c.thread.name, c.matchedBy, c.symbol]).toEqual(['Drawn symbol 1 (not in key)', 'unresolved', 'drawn 1']);
+  });
+});
+
+describe('the em of a chart\'s drawn symbols', () => {
+  it('is measured over every page, so a page of only dots is read at the same scale', () => {
+    const P = 10;
+    const page = (cells, size) => {
+      const paths = [];
+      cells.forEach(([c, r]) => {
+        const cx = 100 + c * P + P / 2, cy = 100 + r * P + P / 2, h = size * P / 2;
+        paths.push({ type: 'path', fillColor: [0, 0, 0], paint: paths.length, points: [{ x: cx - h, y: cy + h }, { x: cx + h, y: cy + h }, { x: cx + h, y: cy - h }, { x: cx - h, y: cy + h }] });
+      });
+      return { width: 595, height: 842, vectorPaths: paths, textItems: [], _grid: { originX: 100, originY: 100, cellWidth: P, cellHeight: P, columns: 10, rows: 10 } };
+    };
+    const full = page(Array.from({ length: 30 }, (_, i) => [i % 10, Math.floor(i / 10)]), 0.5);
+    const dots = page([[1, 1], [3, 3], [5, 5]], 0.15);
+    expect(imp.chartGlyphShare([full, dots])).toBeCloseTo(0.5, 2);
+    expect(imp.chartGlyphShare([dots])).toBeCloseTo(0.15, 2);
+  });
+});

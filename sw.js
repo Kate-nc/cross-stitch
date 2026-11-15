@@ -145,7 +145,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "94c28878645a8d70b4986604a43fc431655c9ebf81507e052f6d711a02b0a82c";
+var BUILD_ID = "b6bf86bb67eeeb9d0d69e470cdf4ae2484643a9656078f9fcd8ebadc64435ae0";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -567,13 +567,13 @@ var BUILD_ASSETS = {
     "sha256": "3c2fe4f670d6419a414d175c12b40922da6435570db6245d8f9ac19a1770d23e"
   },
   "./pdf-chart-geometry.js": {
-    "sha256": "4276174e2d24ab8dc4bd0b2c92df45e5b61794b52a1d1253bb8f017d9f43fc6f"
+    "sha256": "846af3acc5db6116bf11ea8a3b9c2355b7b46551e78693899d8b94169400c347"
   },
   "./pdf-picture-pixels.js": {
     "sha256": "369913827119725fb7c68688b9af6f64b7a62e4742c38d92e7aa91e65bd38afa"
   },
   "./pdf-key-reader.js": {
-    "sha256": "2f5f4bb3d282901251fa0141358ffb734304542d60907e1dd96c7fab7a7a4c15"
+    "sha256": "c0ba475d2699cef569cab937ac5a5d0ba4197bfa8f0d336fbd092eccba531381"
   },
   "./pdf-vector-glyphs.js": {
     "sha256": "9e5c0d125a57ebf7b77a3fae60dd52f8023f1a6c305462f959f4a5d6b14b2226"
@@ -582,7 +582,7 @@ var BUILD_ASSETS = {
     "sha256": "524d936a439d9395a7d93a77e6addc9c2224e3a46076f7aeb702985b740c4713"
   },
   "./pdf-importer.js": {
-    "sha256": "45fd84dfdcaf58f9ed7cb9b9246f1fa1c639fb2c376ccab83fa66ee13bfb7017"
+    "sha256": "a642a2fcf3fb5cc6c4f4187b09572df52cd7c4981e005b8ed118caacacd77d16"
   },
   "./backup-restore.js": {
     "sha256": "7bc3c7f3cd4670957946e2fe415421e6fda501a9e1000e4c58bb346999f244ae"

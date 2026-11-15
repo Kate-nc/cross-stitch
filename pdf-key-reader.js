@@ -151,15 +151,22 @@
       // the previous code on this line and this one. Publishers space these
       // differently — KG-Chart leaves ~6pt, DMC ~45pt — and the reach is safe to
       // widen because nothing past the previous code can be chosen.
+      // A ruled square with no fill is only the swatch when no filled one is
+      // there: a key laid out as colour, ruled symbol box, code would
+      // otherwise lose its colour to the nearer box.
       let swatch = null;
-      for (const s of swatches) {
-        if (s.x1 > c.x + 1 || s.x0 <= prevX) continue;
-        if (c.x - s.x1 > 80) continue;
-        if (!sameLine(s.cy, c.cy)) continue;
-        if (!swatch || s.x1 > swatch.x1 + 0.5 ||
-            (Math.abs(s.x1 - swatch.x1) <= 0.5 && s.w * s.h > swatch.w * swatch.h)) {
-          swatch = s;
+      for (const outlines of [false, true]) {
+        for (const s of swatches) {
+          if (!!s.outline !== outlines) continue;
+          if (s.x1 > c.x + 1 || s.x0 <= prevX) continue;
+          if (c.x - s.x1 > 80) continue;
+          if (!sameLine(s.cy, c.cy)) continue;
+          if (!swatch || s.x1 > swatch.x1 + 0.5 ||
+              (Math.abs(s.x1 - swatch.x1) <= 0.5 && s.w * s.h > swatch.w * swatch.h)) {
+            swatch = s;
+          }
         }
+        if (swatch) break;
       }
 
       // Symbol: a glyph drawn inside the swatch, else the nearest one to the left.
@@ -289,20 +296,19 @@
     if (!hs.length || !vs.length) return out;
     hs.sort((a, b) => a.b.cy - b.b.cy);
     const near = (a, b) => Math.abs(a - b) <= 0.6;
-    const used = new Set();
+    // A rule may serve two boxes: a key ruled as a table shares each box's
+    // bottom with the next one's top.
     for (let i = 0; i < hs.length; i++) {
       const top = hs[i];
-      if (used.has(top)) continue;
       for (let j = i + 1; j < hs.length; j++) {
         const bot = hs[j];
         const d = bot.b.cy - top.b.cy;
         if (d > top.b.w * 1.15) break;
-        if (used.has(bot) || d < top.b.w * 0.85) continue;
+        if (d < top.b.w * 0.85) continue;
         if (!near(top.b.x0, bot.b.x0) || !near(top.b.x1, bot.b.x1)) continue;
-        const side = (x) => vs.find(v => !used.has(v) && near(v.b.cx, x) && near(v.b.y0, top.b.cy) && near(v.b.y1, bot.b.cy));
+        const side = (x) => vs.find(v => near(v.b.cx, x) && near(v.b.y0, top.b.cy) && near(v.b.y1, bot.b.cy));
         const left = side(top.b.x0), right = side(top.b.x1);
         if (!left || !right) continue;
-        for (const r of [top, bot, left, right]) used.add(r);
         const x0 = top.b.x0, x1 = top.b.x1, y0 = top.b.cy, y1 = bot.b.cy;
         out.push({ x0, y0, x1, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0,
                    rules: [top.p, bot.p, left.p, right.p] });

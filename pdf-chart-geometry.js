@@ -95,7 +95,8 @@
     // more than that and the measurement is trusted over the ruler.
     const MAX_TRIM = 8;
     const ends = (labels, first, count) => {
-      const vals = labels.map(l => l.value).sort((a, b) => a - b);
+      // Each value once: a ruler printed on both sides of the grid names it twice.
+      const vals = Array.from(new Set(labels.map(l => l.value))).sort((a, b) => a - b);
       const stride = strideOf(vals);
       let lead = 0, tail = count;
       if (!(stride > 1) || vals.length < 3) return { lead, tail };

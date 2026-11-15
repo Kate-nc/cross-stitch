@@ -1628,9 +1628,12 @@ class PatternKeeperImporter {
 
   /**
    * The symbols a chart page draws as shapes, cell by cell: Map(cellKey ->
-   * shapes) of everything inked wholly within one cell. Ruled lines and
-   * backstitch are strokes of two points and are left out; so is anything
-   * the size of the cell (its colour) or wider than it.
+   * shapes) of everything inked wholly within one cell, clear of its edges.
+   * A symbol sits inside its cell; what reaches the edge is the cell's own
+   * outline (some generators rule each cell separately), a tick at a corner,
+   * backstitch running to a corner or an edge, or the cell's colour, and was
+   * read as a symbol in every cell. Strokes of two points, which are ruled
+   * lines and backstitch, are left out entirely.
    */
   chartGlyphCells(pageData, grid) {
     const cells = new Map();
@@ -1644,18 +1647,21 @@ class PatternKeeperImporter {
       if (fill && pts.length < 3) continue;
       const col = fill ? pa.fillColor : pa.strokeColor;
       if (!col || (col[0] >= 248 && col[1] >= 248 && col[2] >= 248)) continue;
+      // A stroke inks half its pen either side of the line.
+      const pen = fill ? 0 : (pa.penWidth || 0) / 2;
       let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
       for (const q of pts) {
         if (q.x < x0) x0 = q.x; if (q.x > x1) x1 = q.x;
         if (q.y < y0) y0 = q.y; if (q.y > y1) y1 = q.y;
       }
-      if (x1 - x0 > cw * 1.05 || y1 - y0 > ch * 1.05) continue;
-      if (fill && (x1 - x0) * (y1 - y0) >= cw * ch * 0.85) continue;
+      x0 -= pen; y0 -= pen; x1 += pen; y1 += pen;
+      if (x1 - x0 > cw || y1 - y0 > ch) continue;
       const c = Math.floor(((x0 + x1) / 2 - grid.originX) / cw);
       const r = Math.floor(((y0 + y1) / 2 - grid.originY) / ch);
       if (c < 0 || r < 0 || c >= grid.columns || r >= grid.rows) continue;
       const cx0 = grid.originX + c * cw, cy0 = grid.originY + r * ch;
-      if (x0 < cx0 - cw * 0.15 || x1 > cx0 + cw * 1.15 || y0 < cy0 - ch * 0.15 || y1 > cy0 + ch * 1.15) continue;
+      const mx = cw * 0.04, my = ch * 0.04;
+      if (x0 < cx0 + mx || x1 > cx0 + cw - mx || y0 < cy0 + my || y1 > cy0 + ch - my) continue;
       const key = r * grid.columns + c;
       if (!cells.has(key)) cells.set(key, { shapes: [], x0, y0, x1, y1 });
       const g = cells.get(key);
@@ -1664,6 +1670,26 @@ class PatternKeeperImporter {
       if (y0 < g.y0) g.y0 = y0; if (y1 > g.y1) g.y1 = y1;
     }
     return cells;
+  }
+
+  /**
+   * The em of the symbols a design's chart pages draw as shapes, as a share of
+   * the cell (pdf-vector-glyphs.js emOf), measured over all its pages at once
+   * and kept for the rest of the import.
+   */
+  chartGlyphShare(chartPages) {
+    if (!this._glyphShare) this._glyphShare = new WeakMap();
+    if (this._glyphShare.has(chartPages)) return this._glyphShare.get(chartPages);
+    const groups = [];
+    for (const page of chartPages || []) {
+      const grid = this.gridOf(page);
+      if (!grid || !(grid.cellWidth > 0) || !(grid.cellHeight > 0)) continue;
+      const side = (grid.cellWidth + grid.cellHeight) / 2;
+      for (const g of this.chartGlyphCells(page, grid).values()) groups.push({ w: g.x1 - g.x0, h: g.y1 - g.y0, box: side });
+    }
+    const share = PdfVectorGlyphs.emOf(groups);
+    this._glyphShare.set(chartPages, share);
+    return share;
   }
 
   async readSymbolPictures(page, images) {
@@ -2237,7 +2263,9 @@ class PatternKeeperImporter {
      // line of grey stitches, and where pages overlap it overwrote the real
      // stitches of the neighbouring page. chartContentBox skips gen-3's ruler
      // bands by the same test. Only possible when ruled lines give the pitch:
-     // a chart drawn in fills alone has nothing else to measure by.
+     // a chart drawn in fills alone has nothing else to measure by. A band is
+     // thick; a rule drawn as a thin filled rectangle (many generators draw
+     // their bold lines and frame that way) is grid, and stays.
      const linePitch = (lines) => {
         const xs = lines.slice().sort((a, b) => a - b);
         const diffs = [];
@@ -2249,7 +2277,8 @@ class PatternKeeperImporter {
      const pitchX = linePitch(vLines), pitchY = linePitch(hLines);
      for (const { p, w, h } of fillRects) {
         if (pitchX > 0 && pitchY > 0 &&
-            ((h <= pitchY * 1.5 && w >= pitchX * 20) || (w <= pitchX * 1.5 && h >= pitchY * 20))) continue;
+            ((h <= pitchY * 1.5 && h >= pitchY * 0.5 && w >= pitchX * 20) ||
+             (w <= pitchX * 1.5 && w >= pitchX * 0.5 && h >= pitchY * 20))) continue;
         hLines.push(p.points[0].y, p.points[2].y);
         vLines.push(p.points[0].x, p.points[2].x);
      }
@@ -2734,15 +2763,17 @@ class PatternKeeperImporter {
         // bitmap's pixels, and every cell drawing the same symbol shares one
         // bitmap, drawn once: 125,000 drawn symbols on a 20-page chart come
         // down to a few hundred bitmaps.
-        // Gathered on first need: a colour chart never asks.
+        // Gathered on first need: a colour chart never asks. The em is
+        // measured over every chart page of the design, as a share of each
+        // page's cell: a page with only a few drawn symbols, all of them dots,
+        // would otherwise take a dot for the em.
         let glyphCells = null, glyphEm = 0;
         const glyphMemo = new Map();
         const glyphAt = (cellKey, cx, cy) => {
           if (!glyphCells) {
             glyphCells = this.chartGlyphCells(pageData, grid);
             const cellSide = (grid.cellWidth + grid.cellHeight) / 2;
-            glyphEm = glyphCells.size ? PdfVectorGlyphs.emOf(Array.from(glyphCells.values()).map(g =>
-              ({ w: g.x1 - g.x0, h: g.y1 - g.y0, box: cellSide }))) * cellSide : 0;
+            glyphEm = glyphCells.size ? this.chartGlyphShare(chartPages) * cellSide : 0;
           }
           const g = glyphCells.get(cellKey);
           if (!g || !(glyphEm > 0)) return null;
@@ -3261,7 +3292,7 @@ class PatternKeeperImporter {
      const drawnLabel = (id) => {
         if (!drawnLabels.has(id)) {
            const bits = glyphs.get(id);
-           let g = bits && V ? drawnGroups.find(d => V.similarity(d.bits, bits) >= 0.9) : null;
+           let g = bits && V ? drawnGroups.find(d => V.similarity(d.bits, bits) >= 0.95) : null;
            if (!g) { g = { bits, label: 'drawn ' + (drawnGroups.length + 1) }; drawnGroups.push(g); }
            drawnLabels.set(id, g.label);
         }
@@ -3405,8 +3436,14 @@ class PatternKeeperImporter {
            const near = pictureEntry(cell.symbol);
            if (near) { entry = near; report.symbol++; how = 'symbol'; }
         }
-        // A symbol drawn as shapes: the key symbol of the same shape.
-        if (!entry && cell.glyph) {
+        // A symbol drawn as shapes: the key symbol of the same shape. Ink in
+        // a colour is the thread's own, so an exact swatch match comes first.
+        const inkColoured = !!(cell.fillColor && Math.max(...cell.fillColor) - Math.min(...cell.fillColor) >= 16);
+        if (!entry && cell.glyph && !inkColoured) {
+           const drawn = glyphEntry(cell.glyph);
+           if (drawn) { entry = drawn; report.symbol++; how = 'symbol'; }
+        }
+        if (!entry && cell.glyph && inkColoured && !swatchEntryOf(cell)) {
            const drawn = glyphEntry(cell.glyph);
            if (drawn) { entry = drawn; report.symbol++; how = 'symbol'; }
         }
@@ -3420,10 +3457,11 @@ class PatternKeeperImporter {
         if (entry) thread = threadFor(entry);
 
         // 3/4. Colour for blank coloured cells. Not for the black or grey ink
-        //     of a symbol drawn in shapes, which says nothing of the thread:
-        //     DMC 310 is merely the nearest colour to black.
-        const inkOnly = cell.glyph && cell.fillColor &&
-           Math.max(...cell.fillColor) - Math.min(...cell.fillColor) < 16;
+        //     of a symbol drawn in shapes when the key draws its symbols too
+        //     (a black-and-white chart), where it says nothing of the thread:
+        //     DMC 310 is merely the nearest colour to black. A key without
+        //     drawn symbols leaves the ink colour as the only clue, as before.
+        const inkOnly = cell.glyph && !inkColoured && cell.fillColor && keyGlyphs.length > 0;
         if (!thread && !inkOnly && cell.fillColor && typeof rgbToLab !== 'undefined' && typeof dE !== 'undefined' && hasDmc) {
            const lab = rgbToLab(cell.fillColor[0], cell.fillColor[1], cell.fillColor[2]);
            if (entries.length) {
