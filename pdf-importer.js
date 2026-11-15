@@ -217,6 +217,7 @@ class PatternKeeperImporter {
     // from bare paper.
     this.progress('Reading the colour key');
     const legend = this.parseLegend(legendPages, chartPages);
+    this.prepareKeyGlyphs(legend);
     await yieldToBrowser();
 
     // Each page read at page-local coordinates: the same sampling grid as the
@@ -258,6 +259,13 @@ class PatternKeeperImporter {
     // review, so it shows the picture itself.
     let glyphSamples = null;
     for (const c of linked) {
+      // A symbol drawn as shapes and missing from the key: its bitmap.
+      if (c.glyph && c.thread && c.thread.placeholder && this._glyphs && this._glyphs.has(c.glyph)) {
+        if (glyphSamples && glyphSamples[c.thread.id]) continue;
+        if (!glyphSamples) glyphSamples = {};
+        glyphSamples[c.thread.id] = PdfVectorGlyphs.toRgba(this._glyphs.get(c.glyph));
+        continue;
+      }
       if (!c.picture || !c.thread || !c.thread.placeholder) continue;
       if (glyphSamples && glyphSamples[c.thread.id]) continue;
       const pic = this._pictures && this._pictures.get(c.picture);
@@ -321,6 +329,15 @@ class PatternKeeperImporter {
     const byKey = new Map();
     const bsLines = [];
     let totalCols = 0, totalRows = 0;
+    // Where pages overlap, the better-founded reading of a cell wins: one read
+    // from the key beats a guess by colour, which beats a symbol the key does
+    // not list, which beats nothing. Between equals the later page wins, as
+    // before. A page edge's furniture (a ruler band read as a row of stitches)
+    // otherwise overwrote the neighbouring page's real stitches.
+    const rank = (c) => c.isEmpty ? 0
+      : c.matchedBy === 'unresolved' ? 1
+      : (c.matchedBy === 'nearest' || c.matchedBy === 'catalogue' ||
+         (c.matchedBy === 'partial' && c.partialBy === 'nearest')) ? 2 : 3;
 
     for (const pg of session.pages) {
       const pos = at[pg.pageIndex];
@@ -331,7 +348,7 @@ class PatternKeeperImporter {
         const col = c.col + pos.col, row = c.row + pos.row;
         const k = col + ',' + row;
         const prev = byKey.get(k);
-        if (!prev || !c.isEmpty) byKey.set(k, Object.assign({}, c, { col, row }));
+        if (!prev || (!c.isEmpty && rank(c) >= rank(prev))) byKey.set(k, Object.assign({}, c, { col, row }));
       }
       for (const l of pg.bs) {
         bsLines.push(Object.assign({}, l, { x1: l.x1 + pos.col, y1: l.y1 + pos.row, x2: l.x2 + pos.col, y2: l.y2 + pos.row }));
@@ -516,13 +533,48 @@ class PatternKeeperImporter {
     // compares between strokes).
     const penWidth = () => currentLineWidth * Math.sqrt(Math.abs(currentTransform[0] * currentTransform[3] - currentTransform[1] * currentTransform[2]));
 
-    const addPoint = (x, y) => {
+    const toPage = (x, y) => {
       // Apply current transform before viewport conversion
       const tx = x * currentTransform[0] + y * currentTransform[2] + currentTransform[4];
       const ty = x * currentTransform[1] + y * currentTransform[3] + currentTransform[5];
       const pt = viewport.convertToViewportPoint(tx, ty);
-      currentPath.push({x: pt[0], y: pt[1]});
+      return {x: pt[0], y: pt[1]};
     };
+    // Curves are left out of `points`, which every reader of a path relies on.
+    // A path with curves also carries `outline`: its points with each curve
+    // traced through, so a symbol drawn with curves (a ring, a dot) keeps its
+    // shape for matching against the key (pdf-vector-glyphs.js). `lastRaw` is
+    // the current point before the transform, which a curve starts from.
+    let currentOutline = null;
+    let lastRaw = null;
+    const addPoint = (x, y) => {
+      const pt = toPage(x, y);
+      currentPath.push(pt);
+      if (currentOutline) currentOutline.push(pt);
+      lastRaw = {x, y};
+    };
+    // Each curve is traced at thirds: enough to tell a ring from a square at
+    // the size symbols are drawn.
+    const addCurve = (x1, y1, x2, y2, x3, y3) => {
+      if (!lastRaw) { addPoint(x3, y3); return; }
+      if (!currentOutline) currentOutline = currentPath.slice();
+      const x0 = lastRaw.x, y0 = lastRaw.y;
+      currentOutline.push(toPage((8 * x0 + 12 * x1 + 6 * x2 + x3) / 27, (8 * y0 + 12 * y1 + 6 * y2 + y3) / 27));
+      currentOutline.push(toPage((x0 + 6 * x1 + 12 * x2 + 8 * x3) / 27, (y0 + 6 * y1 + 12 * y2 + 8 * y3) / 27));
+      currentOutline.push(toPage(x3, y3));
+      lastRaw = {x: x3, y: y3};
+    };
+    // The path built so far, as an entry awaiting its paint; and a fresh start.
+    const takePath = (type) => {
+      const entry = { type: type || (currentPath.length === 2 ? 'line' : 'path'), points: currentPath, lineWidth: 1, pendingFill: true };
+      if (currentOutline) entry.outline = currentOutline;
+      currentPath = [];
+      currentOutline = null;
+      return entry;
+    };
+    // Each paint operator numbers the paths it paints, so the subpaths of one
+    // shape (an O and its hole) can be told from separate shapes.
+    let paintSeq = 0;
 
     for (let i = 0; i < fnArray.length; i++) {
       const fn = fnArray[i];
@@ -544,8 +596,10 @@ class PatternKeeperImporter {
               gsStack.push({ transform: currentTransform.slice(), rgb: currentRGB,
                          strokeRgb: currentStrokeRGB, lineWidth: currentLineWidth });
           currentPath = [];
+          currentOutline = null;
       } else if (fn === pdfjsLib.OPS.restore) {
           currentPath = [];
+          currentOutline = null;
           const prev = gsStack.pop();
           // An unbalanced Q (more restores than saves) is malformed but does
           // occur; leaving the matrix alone is safer than resetting it.
@@ -584,18 +638,16 @@ class PatternKeeperImporter {
         for (let j = 0; j < ops.length; j++) {
            const op = ops[j];
            if (op === pdfjsLib.OPS.moveTo || op === 1 || op === 13) { // moveTo
-              if (currentPath.length > 0) {
-                 paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
-              }
+              if (currentPath.length > 0) paths.push(takePath());
               currentPath = [];
+              currentOutline = null;
               addPoint(pointArgs[argIdx++], pointArgs[argIdx++]);
            } else if (op === pdfjsLib.OPS.lineTo || op === 2 || op === 14) { // lineTo
               addPoint(pointArgs[argIdx++], pointArgs[argIdx++]);
            } else if (op === pdfjsLib.OPS.rectangle || op === 7 || op === 19) { // rectangle
-              if (currentPath.length > 0) {
-                 paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
-              }
+              if (currentPath.length > 0) paths.push(takePath());
               currentPath = [];
+              currentOutline = null;
               const rx = pointArgs[argIdx++];
               const ry = pointArgs[argIdx++];
               const rw = pointArgs[argIdx++];
@@ -605,54 +657,52 @@ class PatternKeeperImporter {
               addPoint(rx + rw, ry + rh);
               addPoint(rx, ry + rh);
               addPoint(rx, ry);
-              paths.push({
-                type: 'rect',
-                points: currentPath,
-                lineWidth: 1,
-                pendingFill: true
-              });
-              currentPath = [];
+              paths.push(takePath('rect'));
            } else if (op === pdfjsLib.OPS.closePath || op === 6 || op === 18) { // closePath
               if (currentPath.length > 0 && currentPath[0].x !== currentPath[currentPath.length-1].x && currentPath[0].y !== currentPath[currentPath.length-1].y) {
                  currentPath.push({x: currentPath[0].x, y: currentPath[0].y});
               }
+              if (currentOutline && currentOutline.length > 0) currentOutline.push(currentOutline[0]);
            } else if (op === pdfjsLib.OPS.curveTo || op === 3 || op === 15) {
+              const i0 = argIdx;
               argIdx += 6;
-           } else if (op === pdfjsLib.OPS.curveTo2 || op === pdfjsLib.OPS.curveTo3 || op === 4 || op === 5 || op === 16 || op === 17) {
+              addCurve(pointArgs[i0], pointArgs[i0 + 1], pointArgs[i0 + 2], pointArgs[i0 + 3], pointArgs[i0 + 4], pointArgs[i0 + 5]);
+           } else if (op === pdfjsLib.OPS.curveTo2 || op === 4 || op === 16) {
+              // "v": the first control point is the current point.
+              const i0 = argIdx;
               argIdx += 4;
+              if (lastRaw) addCurve(lastRaw.x, lastRaw.y, pointArgs[i0], pointArgs[i0 + 1], pointArgs[i0 + 2], pointArgs[i0 + 3]);
+           } else if (op === pdfjsLib.OPS.curveTo3 || op === 5 || op === 17) {
+              // "y": the second control point is the end point.
+              const i0 = argIdx;
+              argIdx += 4;
+              addCurve(pointArgs[i0], pointArgs[i0 + 1], pointArgs[i0 + 2], pointArgs[i0 + 3], pointArgs[i0 + 2], pointArgs[i0 + 3]);
            }
         }
       } else if (fn === pdfjsLib.OPS.moveTo) {
-        if (currentPath.length > 0) {
-           paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
-        }
+        if (currentPath.length > 0) paths.push(takePath());
         currentPath = [];
+        currentOutline = null;
         addPoint(args[0], args[1]);
       } else if (fn === pdfjsLib.OPS.lineTo) {
         addPoint(args[0], args[1]);
       } else if (fn === pdfjsLib.OPS.rectangle) {
-        if (currentPath.length > 0) {
-           paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
-        }
+        if (currentPath.length > 0) paths.push(takePath());
         currentPath = [];
+        currentOutline = null;
         addPoint(args[0], args[1]);
         addPoint(args[0] + args[2], args[1]);
         addPoint(args[0] + args[2], args[1] + args[3]);
         addPoint(args[0], args[1] + args[3]);
         addPoint(args[0], args[1]);
-        paths.push({
-          type: 'rect',
-          points: currentPath,
-          lineWidth: 1,
-          pendingFill: true
-        });
-        currentPath = [];
+        paths.push(takePath('rect'));
       } else if (fn === pdfjsLib.OPS.endPath) {
         // "n": end the path WITHOUT painting it — how a clipping path is
         // closed off ("re W n"). Left pending, the shape was painted by the
         // next fill to come along: DMC's page-sized clip rectangles turned into
         // page-sized fills in their brand blue, which then covered every cell.
         if (currentPath.length > 0) currentPath = [];
+        currentOutline = null;
         for (let k = paths.length - 1; k >= 0; k--) {
           if (!paths[k].pendingFill) break;
           paths.splice(k, 1);
@@ -660,10 +710,8 @@ class PatternKeeperImporter {
       } else if (fn === pdfjsLib.OPS.fillStroke || fn === pdfjsLib.OPS.eoFillStroke ||
                  fn === pdfjsLib.OPS.closeFillStroke || fn === pdfjsLib.OPS.closeEOFillStroke) {
         // "B", "B*", "b", "b*": fill and stroke in one operator.
-        if (currentPath.length > 0) {
-          paths.push({ type: currentPath.length === 2 ? 'line' : 'path', points: currentPath, lineWidth: 1, pendingFill: true });
-          currentPath = [];
-        }
+        if (currentPath.length > 0) paths.push(takePath());
+        const paint = paintSeq++;
         for (let k = paths.length - 1; k >= 0; k--) {
           if (!paths[k].pendingFill) break;
           paths[k].fillColor = currentRGB ? Array.from(currentRGB) : null;
@@ -671,24 +719,19 @@ class PatternKeeperImporter {
           paths[k].lineWidth = currentLineWidth;
           paths[k].penWidth = penWidth();
           paths[k].stroked = true;
+          paths[k].paint = paint;
           delete paths[k].pendingFill;
         }
       } else if (fn === pdfjsLib.OPS.stroke || fn === pdfjsLib.OPS.fill || fn === pdfjsLib.OPS.eoFill || fn === 20 || fn === 22 || fn === 23) {
-        if (currentPath.length > 0) {
-          paths.push({
-            type: currentPath.length === 2 ? 'line' : 'path',
-            points: currentPath,
-            lineWidth: 1,
-            pendingFill: true
-          });
-          currentPath = [];
-        }
+        if (currentPath.length > 0) paths.push(takePath());
+        const paint = paintSeq++;
         // Retroactively apply the fill color to all pending paths
         if (fn === pdfjsLib.OPS.fill || fn === pdfjsLib.OPS.eoFill || fn === 22 || fn === 23) {
             for (let k = paths.length - 1; k >= 0; k--) {
                 if (paths[k].pendingFill) {
                     // Only apply if it's an actual color array, otherwise leave as null
                     paths[k].fillColor = currentRGB ? Array.from(currentRGB) : null;
+                    paths[k].paint = paint;
                     delete paths[k].pendingFill;
                 } else {
                     break;
@@ -703,6 +746,7 @@ class PatternKeeperImporter {
                     paths[k].lineWidth = currentLineWidth;
                     paths[k].penWidth = penWidth();
                     paths[k].stroked = true;
+                    paths[k].paint = paint;
                     delete paths[k].pendingFill;
                 } else {
                     break;
@@ -1550,6 +1594,105 @@ class PatternKeeperImporter {
    * Its shape (pictureShape) is kept too, for a black-and-white chart whose
    * pictures are drawn without the key's colours.
    */
+  /**
+   * Key symbols drawn as shapes (pdf-key-reader.js leaves them on an entry as
+   * glyphInk): each becomes a bitmap of its em square (pdf-vector-glyphs.js),
+   * kept in this._glyphs under the id the entry now carries as `glyph`. The
+   * em is measured over the whole key, as most symbols fill it one way.
+   */
+  prepareKeyGlyphs(legend) {
+    const entries = ((legend && legend.entries) || []).filter(e => e.glyphInk);
+    if (!entries.length) return;
+    const V = PdfVectorGlyphs;
+    const boxSide = (b) => ((b.x1 - b.x0) + (b.y1 - b.y0)) / 2;
+    const extent = (shapes) => {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const sh of shapes) for (const q of sh.pts) {
+        if (q.x < x0) x0 = q.x; if (q.x > x1) x1 = q.x;
+        if (q.y < y0) y0 = q.y; if (q.y > y1) y1 = q.y;
+      }
+      return { w: x1 - x0, h: y1 - y0 };
+    };
+    const share = V.emOf(entries.map(e => Object.assign(extent(e.glyphInk.shapes), { box: boxSide(e.glyphInk.box) })));
+    if (!this._glyphs) this._glyphs = new Map();
+    for (const e of entries) {
+      const b = e.glyphInk.box;
+      if (share > 0) {
+        const bits = V.bitmap(e.glyphInk.shapes, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, share * boxSide(b));
+        const id = V.keyOf(bits);
+        this._glyphs.set(id, bits);
+        e.glyph = id;
+      }
+      delete e.glyphInk;
+    }
+  }
+
+  /**
+   * The symbols a chart page draws as shapes, cell by cell: Map(cellKey ->
+   * shapes) of everything inked wholly within one cell, clear of its edges.
+   * A symbol sits inside its cell; what reaches the edge is the cell's own
+   * outline (some generators rule each cell separately), a tick at a corner,
+   * backstitch running to a corner or an edge, or the cell's colour, and was
+   * read as a symbol in every cell. Strokes of two points, which are ruled
+   * lines and backstitch, are left out entirely.
+   */
+  chartGlyphCells(pageData, grid) {
+    const cells = new Map();
+    const cw = grid.cellWidth, ch = grid.cellHeight;
+    for (const pa of pageData.vectorPaths || []) {
+      const pts = pa.outline || pa.points;
+      if (!pts || pts.length < 2) continue;
+      if (!pa.outline && pts.length === 2) continue;
+      const fill = !!pa.fillColor;
+      if (!fill && !pa.stroked) continue;
+      if (fill && pts.length < 3) continue;
+      const col = fill ? pa.fillColor : pa.strokeColor;
+      if (!col || (col[0] >= 248 && col[1] >= 248 && col[2] >= 248)) continue;
+      // A stroke inks half its pen either side of the line.
+      const pen = fill ? 0 : (pa.penWidth || 0) / 2;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const q of pts) {
+        if (q.x < x0) x0 = q.x; if (q.x > x1) x1 = q.x;
+        if (q.y < y0) y0 = q.y; if (q.y > y1) y1 = q.y;
+      }
+      x0 -= pen; y0 -= pen; x1 += pen; y1 += pen;
+      if (x1 - x0 > cw || y1 - y0 > ch) continue;
+      const c = Math.floor(((x0 + x1) / 2 - grid.originX) / cw);
+      const r = Math.floor(((y0 + y1) / 2 - grid.originY) / ch);
+      if (c < 0 || r < 0 || c >= grid.columns || r >= grid.rows) continue;
+      const cx0 = grid.originX + c * cw, cy0 = grid.originY + r * ch;
+      const mx = cw * 0.04, my = ch * 0.04;
+      if (x0 < cx0 + mx || x1 > cx0 + cw - mx || y0 < cy0 + my || y1 > cy0 + ch - my) continue;
+      const key = r * grid.columns + c;
+      if (!cells.has(key)) cells.set(key, { shapes: [], x0, y0, x1, y1 });
+      const g = cells.get(key);
+      g.shapes.push({ pts, fill, pen: pa.penWidth || 0, paint: pa.paint });
+      if (x0 < g.x0) g.x0 = x0; if (x1 > g.x1) g.x1 = x1;
+      if (y0 < g.y0) g.y0 = y0; if (y1 > g.y1) g.y1 = y1;
+    }
+    return cells;
+  }
+
+  /**
+   * The em of the symbols a design's chart pages draw as shapes, as a share of
+   * the cell (pdf-vector-glyphs.js emOf), measured over all its pages at once
+   * and kept for the rest of the import.
+   */
+  chartGlyphShare(chartPages) {
+    if (!this._glyphShare) this._glyphShare = new WeakMap();
+    if (this._glyphShare.has(chartPages)) return this._glyphShare.get(chartPages);
+    const groups = [];
+    for (const page of chartPages || []) {
+      const grid = this.gridOf(page);
+      if (!grid || !(grid.cellWidth > 0) || !(grid.cellHeight > 0)) continue;
+      const side = (grid.cellWidth + grid.cellHeight) / 2;
+      for (const g of this.chartGlyphCells(page, grid).values()) groups.push({ w: g.x1 - g.x0, h: g.y1 - g.y0, box: side });
+    }
+    const share = PdfVectorGlyphs.emOf(groups);
+    this._glyphShare.set(chartPages, share);
+    return share;
+  }
+
   async readSymbolPictures(page, images) {
     const small = (images || []).filter(im => im.name && im.pxW > 0 && im.pxW <= 256 && im.pxH > 0 && im.pxH <= 256 &&
       im.x1 - im.x0 <= 30 && im.y1 - im.y0 <= 30);
@@ -2066,6 +2209,9 @@ class PatternKeeperImporter {
      const ph = page.height || 792;
      const edgeMargin = 5;
      const fullSpanFrac = 0.8;
+     // Filled rectangles, held back until the ruled lines have given the
+     // pitch, so ruler bands can be told from grid evidence (below).
+     const fillRects = [];
 
      page.vectorPaths.forEach(p => {
         if (p.type === 'line' && p.points.length === 2) {
@@ -2102,11 +2248,41 @@ class PatternKeeperImporter {
            if (rx0 <= 1 || ry0 <= 1 || rx1 >= pw - 1 || ry1 >= ph - 1) return;
            // Only count large rectangles as grid layout elements (ignore 2x2px cell fills)
            if (w > 20 || h > 20) {
+               if (p.fillColor && !p.stroked) { fillRects.push({ p, w, h }); return; }
                hLines.push(p.points[0].y, p.points[2].y);
                vLines.push(p.points[0].x, p.points[2].x);
            }
         }
      });
+
+     // A filled band one cell thick running twenty or more cells along the
+     // grid is ruler furniture, not grid. KG-Chart shades each page edge that
+     // continues onto another page with such a band, the row or column numbers
+     // printed on it, just outside the grid; its edges sit one pitch from the
+     // grid's own, so they read as one more ruled line, and every page came out
+     // a column and a row too big on each shaded side. The band then read as a
+     // line of grey stitches, and where pages overlap it overwrote the real
+     // stitches of the neighbouring page. chartContentBox skips gen-3's ruler
+     // bands by the same test. Only possible when ruled lines give the pitch:
+     // a chart drawn in fills alone has nothing else to measure by. A band is
+     // thick; a rule drawn as a thin filled rectangle (many generators draw
+     // their bold lines and frame that way) is grid, and stays.
+     const linePitch = (lines) => {
+        const xs = lines.slice().sort((a, b) => a - b);
+        const diffs = [];
+        for (let i = 1; i < xs.length; i++) { const d = xs[i] - xs[i - 1]; if (d > 1) diffs.push(d); }
+        if (diffs.length < 4) return 0;
+        diffs.sort((a, b) => a - b);
+        return diffs[Math.floor(diffs.length / 2)];
+     };
+     const pitchX = linePitch(vLines), pitchY = linePitch(hLines);
+     for (const { p, w, h } of fillRects) {
+        if (pitchX > 0 && pitchY > 0 &&
+            ((h <= pitchY * 1.5 && h >= pitchY * 0.5 && w >= pitchX * 20) ||
+             (w <= pitchX * 1.5 && w >= pitchX * 0.5 && h >= pitchY * 20))) continue;
+        hLines.push(p.points[0].y, p.points[2].y);
+        vLines.push(p.points[0].x, p.points[2].x);
+     }
 
      // Since we normalized to viewport coordinates (top-down), smaller Y is higher up.
      // Sort hLines ascending so row 0 is the top-most line.
@@ -2209,8 +2385,55 @@ class PatternKeeperImporter {
      let endX    = vBounds.hi;
      let endY    = hBounds.hi;
 
-     const cols = vClustered.length > 1 ? Math.max(1, Math.round((endX - originX) / cellWidth)) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
-     const rows = hClustered.length > 1 ? Math.max(1, Math.round((endY - originY) / cellHeight)) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
+     let cols = vClustered.length > 1 ? Math.max(1, Math.round((endX - originX) / cellWidth)) : Math.max(10, Math.floor((page.width - 100) / cellWidth));
+     let rows = hClustered.length > 1 ? Math.max(1, Math.round((endY - originY) / cellHeight)) : Math.max(10, Math.floor((page.height - 100) / cellHeight));
+
+     // The pitch is the median gap, but rules are placed on a device grid and
+     // the gaps alternate around the true pitch: KG-Chart's run 7.92, 8.04,
+     // 7.92, ... for a pitch of 7.937. Taken as 7.92, the sampled cells drift a
+     // point across a 65-cell page, which puts a ◢ symbol on the quarter-cell
+     // lattice near the far edge and read it as a quarter stitch; taken as
+     // 8.04, a block of 96 rows counts as 95. The block's span over its cell
+     // count is the pitch the cells really have, so the count and the pitch are
+     // chosen together: the count nearest span / median, or one either side,
+     // whichever pitch the ruled lines fit best — unless the block's outer
+     // line is a frame drawn off the lattice (DMC's PAT1968_2 sits a third of a
+     // cell out), when the median gap fits best and stands. Each pitch is
+     // fitted at its own best phase, so a stray line taken as the block's
+     // first (PAT2171_2 has one a third of a cell off the lattice) cannot
+     // favour the wrong pitch.
+     const latticeError = (lines, lo, hi, pitch) => {
+        const inBlock = lines.filter(x => x >= lo - 0.5 && x <= hi + 0.5);
+        if (!inBlock.length) return Infinity;
+        let sx = 0, sy = 0;
+        for (const x of inBlock) { const a = 2 * Math.PI * x / pitch; sx += Math.cos(a); sy += Math.sin(a); }
+        const phase = Math.atan2(sy, sx) / (2 * Math.PI) * pitch;
+        let sum = 0;
+        for (const x of inBlock) {
+           const k = Math.round((x - phase) / pitch);
+           sum += Math.abs(x - (phase + k * pitch));
+        }
+        return sum / inBlock.length;
+     };
+     const fitCount = (lines, lo, hi, median, count) => {
+        let best = { count, pitch: median, err: latticeError(lines, lo, hi, median) };
+        for (const n of [count - 1, count, count + 1]) {
+           if (n < 5) continue;
+           const pitch = (hi - lo) / n;
+           if (Math.abs(pitch / median - 1) >= 0.03) continue;
+           const err = latticeError(lines, lo, hi, pitch);
+           if (err < best.err) best = { count: n, pitch, err };
+        }
+        return best;
+     };
+     if (vClustered.length > 1 && cols >= 5) {
+        const f = fitCount(vClustered, originX, endX, cellWidth, cols);
+        cols = f.count; cellWidth = f.pitch;
+     }
+     if (hClustered.length > 1 && rows >= 5) {
+        const f = fitCount(hClustered, originY, endY, cellHeight, rows);
+        rows = f.count; cellHeight = f.pitch;
+     }
 
      return { originX, originY, cellWidth, cellHeight, columns: cols, rows: rows, boldLineInterval: 10 };
   }
@@ -2534,6 +2757,46 @@ class PatternKeeperImporter {
           };
         };
 
+        // Symbols drawn as shapes. Read only where nothing else says what the
+        // cell is (no text symbol, no colour filling it): a black-and-white
+        // chart. The em is the page's own. A symbol's place in its cell drifts
+        // by a fraction of a pixel from cell to cell, so it is snapped to the
+        // bitmap's pixels, and every cell drawing the same symbol shares one
+        // bitmap, drawn once: 125,000 drawn symbols on a 20-page chart come
+        // down to a few hundred bitmaps.
+        // Gathered on first need: a colour chart never asks. The em is
+        // measured over every chart page of the design, as a share of each
+        // page's cell: a page with only a few drawn symbols, all of them dots,
+        // would otherwise take a dot for the em.
+        let glyphCells = null, glyphEm = 0;
+        const glyphMemo = new Map();
+        const glyphAt = (cellKey, cx, cy) => {
+          if (!glyphCells) {
+            glyphCells = this.chartGlyphCells(pageData, grid);
+            const cellSide = (grid.cellWidth + grid.cellHeight) / 2;
+            glyphEm = glyphCells.size ? this.chartGlyphShare(chartPages) * cellSide : 0;
+          }
+          const g = glyphCells.get(cellKey);
+          if (!g || !(glyphEm > 0)) return null;
+          const px = PdfVectorGlyphs.pixelSize(glyphEm);
+          const sx = Math.round((g.x0 - cx) / px), sy = Math.round((g.y0 - cy) / px);
+          const q = (v) => Math.round(v * 50);
+          // Paint ids only matter within the cell: numbered from its first.
+          const paint0 = g.shapes[0].paint;
+          const memoKey = sx + ',' + sy + '/' + g.shapes.map(sh => (sh.fill ? 'f' : 's' + q(sh.pen / glyphEm)) +
+            (sh.paint === undefined ? '' : sh.paint - paint0) + ':' +
+            sh.pts.map(p => q((p.x - g.x0) / glyphEm) + ',' + q((p.y - g.y0) / glyphEm)).join(' ')).join('|');
+          let id = glyphMemo.get(memoKey);
+          if (!id) {
+            const bits = PdfVectorGlyphs.bitmap(g.shapes, g.x0 - sx * px, g.y0 - sy * px, glyphEm);
+            id = PdfVectorGlyphs.keyOf(bits);
+            if (!this._glyphs) this._glyphs = new Map();
+            this._glyphs.set(id, bits);
+            glyphMemo.set(memoKey, id);
+          }
+          return id;
+        };
+
         for (let r = 0; r < grid.rows; r++) {
            for (let c = 0; c < grid.columns; c++) {
               const cx = grid.originX + c * grid.cellWidth + grid.cellWidth / 2;
@@ -2617,6 +2880,13 @@ class PatternKeeperImporter {
                  else if (paint.mark && !isPaper(paint.mark)) fillColor = paint.mark;
               }
 
+              // A symbol drawn in shapes on bare paper (linkSymbolsToThreads
+              // matches it against the key's drawn symbols).
+              let glyph = null;
+              if (!item && !partial && !(paint && paint.dominant && !isPaper(paint.dominant))) {
+                 glyph = glyphAt(cellKey, cx, cy);
+              }
+
               if (item) {
                  const sym = {
                    col: pInfo.globalOffsetCol + c,
@@ -2637,16 +2907,17 @@ class PatternKeeperImporter {
                    isEmpty: false,
                    partial: partial
                  });
-              } else if (fillColor) {
-                 symbols.push({
+              } else if (fillColor || glyph) {
+                 const sym = {
                    col: pInfo.globalOffsetCol + c,
                    row: pInfo.globalOffsetRow + r,
                    symbol: "",
                    fontName: "",
                    isEmpty: false,
-                   fillColor: fillColor,
-                   fillColors: fillColors
-                 });
+                 };
+                 if (fillColor) { sym.fillColor = fillColor; sym.fillColors = fillColors; }
+                 if (glyph) sym.glyph = glyph;
+                 symbols.push(sym);
               } else {
                  symbols.push({
                    col: pInfo.globalOffsetCol + c,
@@ -2977,7 +3248,8 @@ class PatternKeeperImporter {
            placeholders.set(sym, {
               id: 'U' + (i + 1), rgb, lab: toLab(rgb), placeholder: 'not-in-key',
               name: (sym === '(colour)' ? 'Unmatched colour'
-                     : /^picture \d+$/.test(sym) ? 'Picture symbol ' + sym.slice(8) : 'Symbol ' + sym) + ' (not in key)',
+                     : /^picture \d+$/.test(sym) ? 'Picture symbol ' + sym.slice(8)
+                     : /^drawn \d+$/.test(sym) ? 'Drawn symbol ' + sym.slice(6) : 'Symbol ' + sym) + ' (not in key)',
            });
         }
         return placeholders.get(sym);
@@ -2999,6 +3271,34 @@ class PatternKeeperImporter {
         if (!bySymbol.has(e.symbol)) bySymbol.set(e.symbol, []);
         bySymbol.get(e.symbol).push(e);
      }
+     // Key symbols drawn as shapes (prepareKeyGlyphs), and which one each
+     // chart bitmap is, worked out once per distinct bitmap. A drawn symbol
+     // missing from the key is numbered, one placeholder per symbol; bitmaps
+     // of one symbol differ by a stray pixel where it falls between pixels,
+     // so a bitmap joins the first numbered one it all but equals.
+     const V = typeof PdfVectorGlyphs !== 'undefined' ? PdfVectorGlyphs : null;
+     const glyphs = this._glyphs || new Map();
+     const keyGlyphs = V ? entries.filter(e => e.glyph && glyphs.has(e.glyph))
+        .map(e => ({ bits: glyphs.get(e.glyph), id: String(e.threadCode).toLowerCase(), e })) : [];
+     const glyphEntries = new Map();
+     const glyphEntry = (id) => {
+        if (!glyphEntries.has(id)) {
+           const m = keyGlyphs.length && glyphs.has(id) ? V.bestMatch(glyphs.get(id), keyGlyphs) : null;
+           glyphEntries.set(id, m ? keyGlyphs[m.index].e : null);
+        }
+        return glyphEntries.get(id);
+     };
+     const drawnLabels = new Map();
+     const drawnGroups = [];
+     const drawnLabel = (id) => {
+        if (!drawnLabels.has(id)) {
+           const bits = glyphs.get(id);
+           let g = bits && V ? drawnGroups.find(d => V.similarity(d.bits, bits) >= 0.95) : null;
+           if (!g) { g = { bits, label: 'drawn ' + (drawnGroups.length + 1) }; drawnGroups.push(g); }
+           drawnLabels.set(id, g.label);
+        }
+        return drawnLabels.get(id);
+     };
      const isPicture = (s) => typeof s === 'string' && s.startsWith('pic:');
      const keyPictures = Array.from(bySymbol.keys()).filter(s => isPicture(s) && bySymbol.get(s).length === 1);
      const chartPictures = Array.from(new Set(symbols.filter(c => isPicture(c.symbol) && !bySymbol.has(c.symbol)).map(c => c.symbol)));
@@ -3137,6 +3437,17 @@ class PatternKeeperImporter {
            const near = pictureEntry(cell.symbol);
            if (near) { entry = near; report.symbol++; how = 'symbol'; }
         }
+        // A symbol drawn as shapes: the key symbol of the same shape. Ink in
+        // a colour is the thread's own, so an exact swatch match comes first.
+        const inkColoured = !!(cell.fillColor && Math.max(...cell.fillColor) - Math.min(...cell.fillColor) >= 16);
+        if (!entry && cell.glyph && !inkColoured) {
+           const drawn = glyphEntry(cell.glyph);
+           if (drawn) { entry = drawn; report.symbol++; how = 'symbol'; }
+        }
+        if (!entry && cell.glyph && inkColoured && !swatchEntryOf(cell)) {
+           const drawn = glyphEntry(cell.glyph);
+           if (drawn) { entry = drawn; report.symbol++; how = 'symbol'; }
+        }
 
         // 2. Exact swatch colour.
         if (!entry) {
@@ -3146,8 +3457,13 @@ class PatternKeeperImporter {
 
         if (entry) thread = threadFor(entry);
 
-        // 3/4. Colour for blank coloured cells.
-        if (!thread && cell.fillColor && typeof rgbToLab !== 'undefined' && typeof dE !== 'undefined' && hasDmc) {
+        // 3/4. Colour for blank coloured cells. Not for the black or grey ink
+        //     of a symbol drawn in shapes when the key draws its symbols too
+        //     (a black-and-white chart), where it says nothing of the thread:
+        //     DMC 310 is merely the nearest colour to black. A key without
+        //     drawn symbols leaves the ink colour as the only clue, as before.
+        const inkOnly = cell.glyph && !inkColoured && cell.fillColor && keyGlyphs.length > 0;
+        if (!thread && !inkOnly && cell.fillColor && typeof rgbToLab !== 'undefined' && typeof dE !== 'undefined' && hasDmc) {
            const lab = rgbToLab(cell.fillColor[0], cell.fillColor[1], cell.fillColor[2]);
            if (entries.length) {
               const near = nearestEntry(lab);
@@ -3174,7 +3490,8 @@ class PatternKeeperImporter {
         //    stitcher can assign it in the review; one shared black "Unknown"
         //    merged them past telling apart.
         if (!thread) {
-           const s = isPicture(cell.symbol) ? pictureLabel(cell.symbol) : (cell.symbol || '(colour)');
+           const s = isPicture(cell.symbol) ? pictureLabel(cell.symbol)
+              : (!cell.symbol && cell.glyph) ? drawnLabel(cell.glyph) : (cell.symbol || '(colour)');
            thread = placeholderFor(s);
            report.unresolved++;
            report.unresolvedSymbols[s] = (report.unresolvedSymbols[s] || 0) + 1;
@@ -3186,6 +3503,11 @@ class PatternKeeperImporter {
         if (isPicture(cell.symbol)) {
            linked.push({ ...cell, symbol: how === 'unresolved' ? pictureLabel(cell.symbol) : '',
                          picture: cell.symbol, thread, matchedBy: how });
+           return;
+        }
+        // An unmatched drawn symbol is known by its number, as a picture is.
+        if (how === 'unresolved' && !cell.symbol && cell.glyph) {
+           linked.push({ ...cell, symbol: drawnLabel(cell.glyph), thread, matchedBy: how });
            return;
         }
         linked.push({ ...cell, thread, matchedBy: how });

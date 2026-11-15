@@ -84,9 +84,60 @@
     let cols = grid.columns, rowsN = grid.rows;
     if (lastCol - firstCol + 1 > cols && lastCol - firstCol + 1 - cols <= 2) cols = lastCol - firstCol + 1;
     if (lastRow - firstRow + 1 > rowsN && lastRow - firstRow + 1 - rowsN <= 2) rowsN = lastRow - firstRow + 1;
-    const columns = Math.max(1, Math.min(cols, limitCols - colStart));
-    const rows = Math.max(1, Math.min(rowsN, limitRows - rowStart));
-    return { colStart, rowStart, columns, rows };
+
+    // And it can disprove one. KG-Chart labels each page's own first and last
+    // cell ("66 70 80 ... 130", "97 100 ... 192") besides every tenth, and a
+    // measured grid running past such a label has taken in the ruler's band
+    // (and on a page below the first, the title above it), not stitches. Only
+    // a label that breaks the stride is taken for an end: "130" may be the
+    // last cell or only the last tenth, and trimming on it would lose a column
+    // whenever a page runs on a cell or two. A few cells at most are trimmed;
+    // more than that and the measurement is trusted over the ruler.
+    const MAX_TRIM = 8;
+    const ends = (labels, first, count) => {
+      // Each value once: a ruler printed on both sides of the grid names it twice.
+      const vals = Array.from(new Set(labels.map(l => l.value))).sort((a, b) => a - b);
+      const stride = strideOf(vals);
+      let lead = 0, tail = count;
+      if (!(stride > 1) || vals.length < 3) return { lead, tail };
+      const lo = vals[0], hi = vals[vals.length - 1];
+      if (lo > 1 && offStride(lo, vals[1] - lo, stride) && lo - first >= 1 && lo - first <= MAX_TRIM) lead = lo - first;
+      const last = first + count - 1;
+      if (offStride(hi, hi - vals[vals.length - 2], stride) && last - hi >= 1 && last - hi <= MAX_TRIM) tail = hi - first + 1;
+      return tail - lead >= 1 ? { lead, tail } : { lead: 0, tail: count };
+    };
+    const cTrim = ends(ruler.colLabels, firstCol, cols);
+    const rTrim = ends(ruler.rowLabels, firstRow, rowsN);
+    const startC = colStart + cTrim.lead, startR = rowStart + rTrim.lead;
+    const columns = Math.max(1, Math.min(cTrim.tail - cTrim.lead, limitCols - startC));
+    const rows = Math.max(1, Math.min(rTrim.tail - rTrim.lead, limitRows - startR));
+    const span = { colStart: startC, rowStart: startR, columns, rows };
+    // Cells cut from the front of the measured grid: samplingGrid moves the
+    // grid's origin past them.
+    if (cTrim.lead) span.skipCols = cTrim.lead;
+    if (rTrim.lead) span.skipRows = rTrim.lead;
+    return span;
+  }
+
+  /**
+   * A label value that breaks the ruler's stride: not a multiple of it, and not
+   * a stride from its neighbour either, so a ruler labelled 5, 15, 25 does not
+   * pass for one labelling its ends.
+   */
+  function offStride(value, gap, stride) {
+    return value % stride !== 0 && gap !== stride;
+  }
+
+  /** The commonest gap between successive label values: the labelling stride (10 on most charts). */
+  function strideOf(sortedValues) {
+    const tally = new Map();
+    for (let i = 1; i < sortedValues.length; i++) {
+      const d = sortedValues[i] - sortedValues[i - 1];
+      if (d > 0) tally.set(d, (tally.get(d) || 0) + 1);
+    }
+    let best = 0, bestN = 0;
+    for (const [d, n] of tally) if (n > bestN || (n === bestN && d > best)) { bestN = n; best = d; }
+    return bestN >= 2 ? best : 0;
   }
 
   /**
@@ -253,7 +304,12 @@
    */
   function samplingGrid(pInfo) {
     if (pInfo.ruler && pInfo.anchoredToGrid && pInfo.rulerSpan) {
-      return Object.assign({}, pInfo.grid, { columns: pInfo.rulerSpan.columns, rows: pInfo.rulerSpan.rows });
+      const s = pInfo.rulerSpan, g = pInfo.grid;
+      return Object.assign({}, g, {
+        originX: g.originX + (s.skipCols || 0) * g.cellWidth,
+        originY: g.originY + (s.skipRows || 0) * g.cellHeight,
+        columns: s.columns, rows: s.rows,
+      });
     }
     if (pInfo.ruler) return gridFromRuler(pInfo.ruler, pInfo.rulerSpan, pInfo.grid);
     return pInfo.grid;

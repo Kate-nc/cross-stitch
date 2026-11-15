@@ -87,6 +87,29 @@ describe('buildFromLayout', () => {
     expect(p.pattern.filter(m => m.id !== '__skip__')).toHaveLength(10);
   });
 
+  it('keeps the better-founded reading where pages overlap, whichever page comes last', () => {
+    // KG-Chart shades each page edge that runs onto another page; read as
+    // cells, the shading came out as a column of unmatched or nearest-colour
+    // stitches, and being on the later page it overwrote the real ones.
+    const s = session();
+    const grey = thread('U1', [220, 220, 220]);
+    s.pages[0].cells.forEach(c => { c.matchedBy = 'swatch'; });
+    s.pages[1].cells.forEach(c => { c.matchedBy = c.col === 0 ? 'unresolved' : 'symbol'; if (c.col === 0) c.thread = grey; });
+    let p = s.build({ pages: { 1: { col: 0, row: 0 }, 2: { col: 2, row: 0 } }, manual: true });
+    expect(p.pattern.map(m => m.id)).toEqual(['A', 'A', 'A', 'B', 'B', 'A', 'A', 'A', 'B', 'B']);
+    s.pages[1].cells.forEach(c => { if (c.col === 0) c.matchedBy = 'nearest'; });
+    p = s.build({ pages: { 1: { col: 0, row: 0 }, 2: { col: 2, row: 0 } }, manual: true });
+    expect(p.pattern[2].id).toBe('A');
+    // Between equals the later page still wins.
+    s.pages[1].cells.forEach(c => { c.matchedBy = 'swatch'; });
+    p = s.build({ pages: { 1: { col: 0, row: 0 }, 2: { col: 2, row: 0 } }, manual: true });
+    expect(p.pattern[2].id).toBe('U1');
+    // A fractional stitch whose colour was only the nearest is a guess too.
+    s.pages[1].cells.forEach(c => { if (c.col === 0) { c.matchedBy = 'partial'; c.partialBy = 'nearest'; } });
+    p = s.build({ pages: { 1: { col: 0, row: 0 }, 2: { col: 2, row: 0 } }, manual: true });
+    expect(p.pattern[2].id).toBe('A');
+  });
+
   it('shifts backstitch with its page', () => {
     const s = session();
     s.pages[1].bs = [{ x1: 0, y1: 0, x2: 1, y2: 1, rgb: [1, 2, 3] }];
