@@ -11257,7 +11257,9 @@ return(
 </div>}
 {/* The strip is hidden in focus mode, so a hidden layer is signposted by a pill above the bar (the bar itself has no room on a phone). */}
 {focusMode&&window.TrackerHiddenLayersChip&&React.createElement(window.TrackerHiddenLayersChip,{layerVis,counts:layerCounts,onShow:showHiddenLayers,className:"tracker-layers-chip--float"})}
-{focusMode&&<div
+{/* Hidden while the work-area picker is open: the bar floats above dialogs and on a phone sat over the picker's
+    footer, so "Work on this area" could not be tapped. */}
+{focusMode&&!areaPickerOpen&&<div
   ref={focusBarRef}
   className={"cs-focus-bar"+(focusBarFaded?" cs-focus-bar--faded":"")}
   onPointerMove={resetFocusFade}
