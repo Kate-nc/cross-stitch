@@ -76,10 +76,20 @@
       return { x0, y0, x1, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };
     };
 
+    // Swatch boxes drawn as an outline with nothing filled in: a black-and-white
+    // key (KG-Chart) rules a square for each entry and draws the symbol in it,
+    // in shapes rather than text for about half its symbols. The box's top
+    // rule is short and horizontal, and was read as a backstitch sample: 48 of
+    // the 103 entries came out as backstitch, with no symbol to match.
+    const outlineBoxes = findOutlineBoxes(page.vectorPaths || [], boxOf, inside);
+    const boxRules = new Set();
+    for (const ob of outlineBoxes) for (const r of ob.rules) boxRules.add(r);
+
     const swatches = [];
     const samples = [];
     for (const p of page.vectorPaths || []) {
       if (!p.points || p.points.length < 2) continue;
+      if (boxRules.has(p)) continue;
       const b = boxOf(p.points);
       if (inside(b.cx, b.cy)) continue;
       if (p.fillColor && p.points.length >= 3) {
@@ -103,6 +113,21 @@
         if (b.h > 3 || b.w < 8 || b.w > 70) continue;
         samples.push(Object.assign(b, { rgb: Array.from(p.strokeColor).map(v => Math.round(v)) }));
       }
+    }
+
+    // A filled shape well inside an outline box is the symbol drawn there, not
+    // a swatch: its colour is the ink's. An outline box with no swatch filling
+    // it is itself the swatch, with no colour of its own.
+    const within = (a, o) => a.x0 >= o.x0 - 0.3 && a.x1 <= o.x1 + 0.3 && a.y0 >= o.y0 - 0.3 && a.y1 <= o.y1 + 0.3;
+    for (const ob of outlineBoxes) {
+      // A box framing a backstitch sample stays a backstitch entry.
+      if (samples.some(s => within(s, ob) && s.w >= ob.w * 0.6)) continue;
+      const filled = swatches.some(s => within(s, ob) && s.w * s.h >= ob.w * ob.h * 0.5);
+      for (let i = swatches.length - 1; i >= 0; i--) {
+        const s = swatches[i];
+        if (within(s, ob) && s.w * s.h < ob.w * ob.h * 0.5) swatches.splice(i, 1);
+      }
+      if (!filled) swatches.push(Object.assign({}, ob, { rgb: null, wide: false, outline: true }));
     }
 
     // Symbols drawn as pictures (readSymbolPictures), placed as glyphs are.
@@ -219,7 +244,7 @@
         if (before) strands = parseInt(before.s.match(STRANDS_RE)[1], 10);
       }
 
-      entries.push({
+      const entry = {
         kind: a.sample ? 'backstitch' : 'cross',
         symbol: a.symbol ? a.symbol.s : null,
         symbolFontName: a.symbol ? (a.symbol.picture ? '' : (a.symbol.font || 'Unknown')) : null,
@@ -227,11 +252,87 @@
         colorName: name,
         stitchCount: count,
         strands: strands,
-        swatchRgb: a.swatch ? a.swatch.rgb : null,
+        swatchRgb: a.swatch && a.swatch.rgb ? a.swatch.rgb.slice() : null,
         lineRgb: a.sample ? a.sample.rgb : null,
-      });
+      };
+      // A symbol drawn as shapes in the swatch, for pdf-vector-glyphs.js to
+      // match against the chart's. Only where no text symbol was found there.
+      if (a.swatch && !(a.symbol && a.symbol.x + a.symbol.w / 2 >= a.swatch.x0 - 1 && a.symbol.x + a.symbol.w / 2 <= a.swatch.x1 + 1)) {
+        const ink = swatchInk(page.vectorPaths || [], a.swatch, boxRules, boxOf);
+        if (ink.length) entry.glyphInk = { box: { x0: a.swatch.x0, y0: a.swatch.y0, x1: a.swatch.x1, y1: a.swatch.y1 }, shapes: ink };
+      }
+      entries.push(entry);
     }
     return entries;
+  }
+
+  /**
+   * Squares ruled as four separate strokes (or one stroked rectangle) with no
+   * fill: { x0, y0, x1, y1, cx, cy, w, h, rules: [paths] }. Sides of 6 to 30
+   * points, square to within 15%.
+   */
+  function findOutlineBoxes(paths, boxOf, inside) {
+    const out = [];
+    const hs = [], vs = [];
+    for (const p of paths) {
+      if (!p || !p.stroked || p.fillColor || !p.points || p.points.length < 2) continue;
+      const b = boxOf(p.points);
+      if (inside(b.cx, b.cy)) continue;
+      if (p.type === 'rect') {
+        if (b.w >= 6 && b.w <= 30 && Math.abs(b.h / b.w - 1) <= 0.15) out.push(Object.assign(b, { rules: [p] }));
+        continue;
+      }
+      if (p.points.length !== 2) continue;
+      if (b.h < 0.3 && b.w >= 6 && b.w <= 30) hs.push({ p, b });
+      else if (b.w < 0.3 && b.h >= 6 && b.h <= 30) vs.push({ p, b });
+    }
+    if (!hs.length || !vs.length) return out;
+    hs.sort((a, b) => a.b.cy - b.b.cy);
+    const near = (a, b) => Math.abs(a - b) <= 0.6;
+    const used = new Set();
+    for (let i = 0; i < hs.length; i++) {
+      const top = hs[i];
+      if (used.has(top)) continue;
+      for (let j = i + 1; j < hs.length; j++) {
+        const bot = hs[j];
+        const d = bot.b.cy - top.b.cy;
+        if (d > top.b.w * 1.15) break;
+        if (used.has(bot) || d < top.b.w * 0.85) continue;
+        if (!near(top.b.x0, bot.b.x0) || !near(top.b.x1, bot.b.x1)) continue;
+        const side = (x) => vs.find(v => !used.has(v) && near(v.b.cx, x) && near(v.b.y0, top.b.cy) && near(v.b.y1, bot.b.cy));
+        const left = side(top.b.x0), right = side(top.b.x1);
+        if (!left || !right) continue;
+        for (const r of [top, bot, left, right]) used.add(r);
+        const x0 = top.b.x0, x1 = top.b.x1, y0 = top.b.cy, y1 = bot.b.cy;
+        out.push({ x0, y0, x1, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0,
+                   rules: [top.p, bot.p, left.p, right.p] });
+        break;
+      }
+    }
+    return out;
+  }
+
+  /**
+   * The shapes drawn inside a swatch: everything wholly within it except the
+   * swatch's own fill and ruling, as { pts, fill, pen, paint } with fresh point
+   * arrays. A path with curves gives its traced outline.
+   */
+  function swatchInk(paths, sw, boxRules, boxOf) {
+    const ink = [];
+    for (const p of paths) {
+      if (!p || boxRules.has(p)) continue;
+      const pts = p.outline || p.points;
+      if (!pts || pts.length < 2) continue;
+      const b = boxOf(pts);
+      if (b.x0 < sw.x0 - 0.3 || b.x1 > sw.x1 + 0.3 || b.y0 < sw.y0 - 0.3 || b.y1 > sw.y1 + 0.3) continue;
+      // The swatch's own fill, or another the size of the box.
+      if (b.w * b.h >= sw.w * sw.h * 0.8) continue;
+      const fill = !!p.fillColor;
+      if (fill && sw.rgb && p.fillColor.every((v, i) => Math.round(v) === sw.rgb[i])) continue;
+      if (!fill && !p.stroked) continue;
+      ink.push({ pts: pts.map(q => ({ x: q.x, y: q.y })), fill, pen: p.penWidth || 0, paint: p.paint });
+    }
+    return ink;
   }
 
   var api = { readKeyEntries: readKeyEntries };
