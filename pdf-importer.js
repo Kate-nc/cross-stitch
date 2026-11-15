@@ -336,7 +336,8 @@ class PatternKeeperImporter {
     // otherwise overwrote the neighbouring page's real stitches.
     const rank = (c) => c.isEmpty ? 0
       : c.matchedBy === 'unresolved' ? 1
-      : (c.matchedBy === 'nearest' || c.matchedBy === 'catalogue') ? 2 : 3;
+      : (c.matchedBy === 'nearest' || c.matchedBy === 'catalogue' ||
+         (c.matchedBy === 'partial' && c.partialBy === 'nearest')) ? 2 : 3;
 
     for (const pg of session.pages) {
       const pos = at[pg.pageIndex];

@@ -120,8 +120,12 @@
     // it is itself the swatch, with no colour of its own.
     const within = (a, o) => a.x0 >= o.x0 - 0.3 && a.x1 <= o.x1 + 0.3 && a.y0 >= o.y0 - 0.3 && a.y1 <= o.y1 + 0.3;
     for (const ob of outlineBoxes) {
-      // A box framing a backstitch sample stays a backstitch entry.
-      if (samples.some(s => within(s, ob) && s.w >= ob.w * 0.6)) continue;
+      // A box framing a backstitch sample stays a backstitch entry: one line,
+      // alone in the box. Several shapes are a symbol, however much each bar
+      // of it (an E's) looks like a sample on its own, and are not samples.
+      const inBox = samples.filter(s => within(s, ob));
+      if (inBox.some(s => s.w >= ob.w * 0.6) && swatchInk(page.vectorPaths || [], ob, boxRules, boxOf).length <= 1) continue;
+      for (const s of inBox) samples.splice(samples.indexOf(s), 1);
       const filled = swatches.some(s => within(s, ob) && s.w * s.h >= ob.w * ob.h * 0.5);
       for (let i = swatches.length - 1; i >= 0; i--) {
         const s = swatches[i];
@@ -168,6 +172,11 @@
         }
         if (swatch) break;
       }
+      // A ruled box between a filled swatch and the code holds the symbol:
+      // its shapes are looked for there as well as in the swatch.
+      const symbolBoxes = swatch && !swatch.outline
+        ? swatches.filter(s => s.outline && s.x0 >= swatch.x1 - 1 && s.x1 <= c.x + 1 && sameLine(s.cy, c.cy))
+        : [];
 
       // Symbol: a glyph drawn inside the swatch, else the nearest one to the left.
       const glyphs = texts.filter(t => (t.s.length === 1 || /^U\+[0-9A-F]{4}$/.test(t.s)) &&
@@ -194,7 +203,7 @@
 
       const code = c.s.replace(/^DMC\s*/i, '');
       anchored.push({
-        c, code, swatch, symbol, sample,
+        c, code, swatch, symbol, sample, symbolBoxes,
         prefixX: Math.min(c.x, swatch ? swatch.x0 : Infinity, symbol ? symbol.x : Infinity,
                           sample ? sample.x0 : Infinity),
       });
@@ -262,11 +271,16 @@
         swatchRgb: a.swatch && a.swatch.rgb ? a.swatch.rgb.slice() : null,
         lineRgb: a.sample ? a.sample.rgb : null,
       };
-      // A symbol drawn as shapes in the swatch, for pdf-vector-glyphs.js to
-      // match against the chart's. Only where no text symbol was found there.
-      if (a.swatch && !(a.symbol && a.symbol.x + a.symbol.w / 2 >= a.swatch.x0 - 1 && a.symbol.x + a.symbol.w / 2 <= a.swatch.x1 + 1)) {
-        const ink = swatchInk(page.vectorPaths || [], a.swatch, boxRules, boxOf);
-        if (ink.length) entry.glyphInk = { box: { x0: a.swatch.x0, y0: a.swatch.y0, x1: a.swatch.x1, y1: a.swatch.y1 }, shapes: ink };
+      // A symbol drawn as shapes in the swatch, or in a ruled box beside it,
+      // for pdf-vector-glyphs.js to match against the chart's. Not where a
+      // text symbol is: that is the symbol.
+      for (const box of a.swatch ? [a.swatch].concat(a.symbolBoxes) : []) {
+        if (a.symbol && a.symbol.x + a.symbol.w / 2 >= box.x0 - 1 && a.symbol.x + a.symbol.w / 2 <= box.x1 + 1) break;
+        const ink = swatchInk(page.vectorPaths || [], box, boxRules, boxOf);
+        if (ink.length) {
+          entry.glyphInk = { box: { x0: box.x0, y0: box.y0, x1: box.x1, y1: box.y1 }, shapes: ink };
+          break;
+        }
       }
       entries.push(entry);
     }

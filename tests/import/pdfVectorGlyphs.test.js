@@ -322,3 +322,30 @@ describe('the em of a chart\'s drawn symbols', () => {
     expect(imp.chartGlyphShare([dots])).toBeCloseTo(0.15, 2);
   });
 });
+
+/* ── found in code review ─────────────────────────────────────────────────── */
+
+describe('ruled key boxes, from code review', () => {
+  const line = (x0, y0, x1, y1) => ({ type: 'line', stroked: true, strokeColor: [0, 0, 0], points: [{ x: x0, y: y0 }, { x: x1, y: y1 }] });
+  const ruled = (x, y, s) => [line(x, y, x + s, y), line(x + s, y, x + s, y + s), line(x, y + s, x + s, y + s), line(x, y, x, y + s)];
+  const rect = (x, y, w, h, fill) => ({ type: 'rect', fillColor: fill, points: [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }, { x, y }] });
+  const text = (str, x, y) => ({ str, x, y, width: str.length * 5, height: 9 });
+
+  it('reads an E of bars wide enough to pass for backstitch samples as a drawn symbol', () => {
+    // Bars 8.4 x 1 in an 11.3 square: each alone looks like a backstitch sample.
+    const page = { textItems: [text('939', 100, 110)], images: [], vectorPaths: [...ruled(82, 100, 11.3),
+      rect(83.4, 101.4, 8.4, 1, [0, 0, 0]), rect(83.4, 105.1, 8.4, 1, [0, 0, 0]), rect(83.4, 108.8, 8.4, 1, [0, 0, 0]), rect(83.4, 101.4, 1, 8.4, [0, 0, 0])] };
+    const [e] = R.readKeyEntries(page, null);
+    expect(e.kind).toBe('cross');
+    expect(e.glyphInk.shapes).toHaveLength(4);
+  });
+
+  it('takes the drawn symbol from a ruled box beside the colour swatch', () => {
+    const page = { textItems: [text('321', 120, 110)], images: [], vectorPaths: [rect(80, 100, 10, 10, [200, 30, 40]), ...ruled(100, 100, 10),
+      { type: 'path', fillColor: [0, 0, 0], paint: 3, points: [{ x: 108, y: 102 }, { x: 108, y: 108 }, { x: 102, y: 108 }, { x: 108, y: 102 }] }] };
+    const [e] = R.readKeyEntries(page, null);
+    expect(e.swatchRgb).toEqual([200, 30, 40]);
+    expect(e.glyphInk.box).toEqual({ x0: 100, y0: 100, x1: 110, y1: 110 });
+    expect(e.glyphInk.shapes).toHaveLength(1);
+  });
+});

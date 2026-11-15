@@ -104,6 +104,10 @@ describe('buildFromLayout', () => {
     s.pages[1].cells.forEach(c => { c.matchedBy = 'swatch'; });
     p = s.build({ pages: { 1: { col: 0, row: 0 }, 2: { col: 2, row: 0 } }, manual: true });
     expect(p.pattern[2].id).toBe('U1');
+    // A fractional stitch whose colour was only the nearest is a guess too.
+    s.pages[1].cells.forEach(c => { if (c.col === 0) { c.matchedBy = 'partial'; c.partialBy = 'nearest'; } });
+    p = s.build({ pages: { 1: { col: 0, row: 0 }, 2: { col: 2, row: 0 } }, manual: true });
+    expect(p.pattern[2].id).toBe('A');
   });
 
   it('shifts backstitch with its page', () => {
