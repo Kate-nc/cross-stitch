@@ -445,7 +445,8 @@ function formatRelative(date) {
 function handleInlineRestore(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
-  if (file.size > 64 * 1024 * 1024) { window.Toast.show({ message: 'Backup exceeds the 64 MiB file limit.', type: 'error' }); e.target.value = ''; return; }
+  var maxBytes = window.BACKUP_MAX_BYTES || 256 * 1024 * 1024;
+  if (file.size > maxBytes) { window.Toast.show({ message: 'This backup file is over the ' + Math.round(maxBytes / 1048576) + ' MB limit and cannot be restored.', type: 'error' }); e.target.value = ''; return; }
   var reader = new FileReader();
   reader.onload = function () {
     // backup-restore.js is loaded on demand (lazy-modules.js). parseBackupText

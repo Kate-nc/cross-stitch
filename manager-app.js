@@ -1040,7 +1040,8 @@ function ManagerApp() {
   const handleRestoreFile = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    if (file.size > 64 * 1024 * 1024) { setBackupStatus({ type: "error", message: "Backup exceeds the 64 MiB file limit." }); e.target.value = ""; return; }
+    const maxBytes = window.BACKUP_MAX_BYTES || 256 * 1024 * 1024;
+    if (file.size > maxBytes) { setBackupStatus({ type: "error", message: "This backup file is over the " + Math.round(maxBytes / 1048576) + " MB limit and cannot be restored." }); e.target.value = ""; return; }
     const reader = new FileReader();
     reader.onload = async () => {
       let BackupRestore;

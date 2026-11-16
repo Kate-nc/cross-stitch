@@ -80,7 +80,56 @@ const BackupRestore = (() => {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return new Blob([bytes], { type: type || "image/jpeg" });
   }
-  const MAX_BYTES = 64 * 1024 * 1024;
+  // The largest backup, unpacked, that a backup may be or a restore will read
+  // (constants.js; the fallback is for test harnesses that do not load it).
+  // Restoring holds several copies of the unpacked backup at once, so this is
+  // a memory bound. Backup files are compressed: a file far smaller than this
+  // can unpack past it, so every check below is on the unpacked size.
+  const MAX_BYTES = (typeof window !== "undefined" && typeof window.BACKUP_MAX_BYTES === "number") ? window.BACKUP_MAX_BYTES : 256 * 1024 * 1024;
+  // A backup over this share of the limit is still made, with a warning that
+  // names what is taking the space, before it ever reaches the limit.
+  const WARN_SHARE = 0.5;
+  function mb(bytes) {
+    const n = bytes / (1024 * 1024);
+    return (n >= 10 ? Math.round(n) : Math.round(n * 10) / 10) + " MB";
+  }
+  const LIMIT_TEXT = mb(MAX_BYTES);
+  const sizeReports = typeof WeakMap === "function" ? new WeakMap() : null;
+  // What a backup's unpacked size is made of: each project (with its legacy
+  // auto_save copy, if any) and its photos and tracing picture, and the stash.
+  // Sizes are JSON characters, which for this ASCII-heavy data is close to bytes.
+  function describeSize(backup, total) {
+    const items = new Map();
+    const item = (id, name) => {
+      if (!items.has(id)) items.set(id, { id, name, bytes: 0, attachmentBytes: 0 });
+      const it = items.get(id);
+      if (name && !it.name) it.name = name;
+      return it;
+    };
+    const cs = (backup.databases && backup.databases.CrossStitchDB) || {};
+    (cs.projects || []).forEach(e => {
+      const v = e && e.value;
+      if (!v || typeof v.id !== "string") return;
+      item(v.id, typeof v.name === "string" && v.name.trim() ? v.name.trim() : "").bytes += JSON.stringify(v).length;
+    });
+    (backup.attachments || []).forEach(a => {
+      if (!a || typeof a.projectId !== "string") return;
+      const n = JSON.stringify(a).length, it = item(a.projectId, "");
+      it.bytes += n; it.attachmentBytes += n;
+    });
+    const sm = backup.databases && backup.databases.stitch_manager_db;
+    if (sm) item("stash", "Thread stash and pattern library").bytes += JSON.stringify(sm).length;
+    const list = Array.from(items.values()).map(it => Object.assign(it, { name: it.name || "Untitled project" }))
+      .sort((x, y) => y.bytes - x.bytes);
+    return { total: total != null ? total : new Blob([JSON.stringify(backup)]).size, limit: MAX_BYTES, items: list };
+  }
+  // "Largest: "Rose garden" 40 MB (12 MB of it photos), ..." for the three biggest items.
+  function largestText(report) {
+    const top = report.items.filter(it => it.bytes >= 1024 * 1024).slice(0, 3);
+    if (!top.length) return "";
+    return "Largest: " + top.map(it => "\"" + it.name + "\" " + mb(it.bytes) +
+      (it.attachmentBytes >= 1024 * 1024 ? " (" + mb(it.attachmentBytes) + " of it photos)" : "")).join(", ") + ".";
+  }
   const CS_STORES = ["projects", "project_meta", "stats_summaries", "sync_snapshots"];
   const ALLOWED = { CrossStitchDB: CS_STORES, stitch_manager_db: ["manager_state"] };
   function sameData(a, b) {
@@ -190,7 +239,7 @@ const BackupRestore = (() => {
       if (r.blob) {
         if (!(r.blob instanceof Blob)) throw new Error("Unreadable attachment: " + entry.key);
         blobBytes += r.blob.size;
-        if (blobBytes > MAX_BYTES * 0.75) throw new Error("Attachments exceed the safe 64 MiB archive limit. Reduce attachments and retry.");
+        if (blobBytes > MAX_BYTES * 0.75) throw new Error("Progress photos and tracing pictures come to more than a backup can hold (" + LIMIT_TEXT + "). Delete some progress photos you no longer need and try again.");
         record.data = await blobToBase64(r.blob);
         record.bytes = r.blob.size;
         record.type = r.blob.type || r.type || "application/octet-stream";
@@ -308,7 +357,7 @@ const BackupRestore = (() => {
   // error toasts fire as before.
   function parseBackupText(text) {
     if (typeof text !== 'string') throw new Error('Backup file is empty.');
-    if (text.length > MAX_BYTES) throw new Error('Backup exceeds the 64 MiB file limit. Use a smaller backup.');
+    if (text.length > MAX_BYTES) throw new Error('This backup file is over the ' + LIMIT_TEXT + ' limit and cannot be restored.');
     if (text.startsWith(_BACKUP_MAGIC)) {
       if (typeof pako === 'undefined' || !pako || !pako.inflate) {
         throw new Error('This backup is compressed but pako is not loaded.');
@@ -326,7 +375,7 @@ const BackupRestore = (() => {
         let size = 0;
         stream.onData = chunk => {
           size += chunk.length;
-          if (size > MAX_BYTES) throw new Error('Backup exceeds the 64 MiB expanded limit.');
+          if (size > MAX_BYTES) throw new Error('This backup unpacks to more than ' + LIMIT_TEXT + ', the most that can be restored safely.');
           chunks.push(chunk);
         };
         stream.push(bytes, true);
@@ -342,12 +391,14 @@ const BackupRestore = (() => {
 
   return {
     maxFileBytes: MAX_BYTES,
+    warnBytes: MAX_BYTES * WARN_SHARE,
+    describeSize,
     serializeBackupFile,
     parseBackupText,
     // Reads a File/Blob, parses (supports both .json and .csb), validates and restores.
     async restoreBackup(file) {
       if (!file) throw new Error("No backup file selected.");
-      if (file.size > MAX_BYTES) throw new Error("Backup exceeds the 64 MiB file limit. Use a smaller backup.");
+      if (file.size > MAX_BYTES) throw new Error("This backup file is over the " + LIMIT_TEXT + " limit and cannot be restored.");
       const text = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
@@ -445,10 +496,23 @@ const BackupRestore = (() => {
       }));
       backup.completeness = { scope: "projects-stash-portable-settings", attachments: backup.attachments.map(a => a.id),
         excluded: ["temporary image handoffs", "unconverted drafts", "device and Sync configuration", "import telemetry"] };
+      // A backup is only made if it can be restored: restore reads at most
+      // MAX_BYTES unpacked. Checked before the (slow) seal and validation; the
+      // margin is for the integrity field added below.
+      // The per-project breakdown costs another pass over every project, so it
+      // is only made when it will be shown (over the warning share).
+      const total = new Blob([JSON.stringify(backup)]).size;
+      const report = total > MAX_BYTES * WARN_SHARE ? describeSize(backup, total) : null;
+      if (total + 256 > MAX_BYTES) {
+        const err = new Error(["This backup would be " + mb(total) + ", over the " + LIMIT_TEXT + " that can be restored safely.",
+          largestText(report), "Delete progress photos or projects you no longer need, then try again."].filter(Boolean).join(" "));
+        err.sizeReport = report;
+        throw err;
+      }
       backup.integrity = { algorithm: "crc32-utf16", value: seal(backup) };
       const check = this.validate(backup);
       if (!check.valid) throw new Error("Backup is incomplete: " + check.error);
-      if (new Blob([JSON.stringify(backup)]).size > MAX_BYTES) throw new Error("Backup is too large for safe recovery (64 MiB expanded limit). Reduce attachments and retry.");
+      if (sizeReports && report) sizeReports.set(backup, report);
       return backup;
     },
 
@@ -470,6 +534,18 @@ const BackupRestore = (() => {
         document.body.removeChild(a);
         // Remember when, for the File menu line and the backup reminder (helpers.js).
         try { localStorage.setItem("cs_last_backup_at", String(Date.now())); } catch (_) {}
+        // Getting close to the restore limit: say so now, with what is taking
+        // the space, while there is still room to act.
+        const report = sizeReports && sizeReports.get(backup);
+        if (report) {
+          try {
+            if (window.Toast && window.Toast.show) window.Toast.show({
+              type: "warning", duration: 15000,
+              message: ["Your backup is large: " + mb(report.total) + " of the " + LIMIT_TEXT + " that can be restored.", largestText(report),
+                "Deleting progress photos or projects you no longer need keeps future backups restorable."].filter(Boolean).join(" ")
+            });
+          } catch (_) {}
+        }
         return backup;
       } catch (err) {
         // QuotaExceededError, RangeError (string-too-long), or OOM during
@@ -672,7 +748,7 @@ const BackupRestore = (() => {
     async _restoreWithoutGuard(backup) {
       // Freeze a private, JSON-only copy before the first asynchronous boundary.
       const text = JSON.stringify(backup);
-      if (new Blob([text]).size > MAX_BYTES) throw new Error("Backup exceeds the 64 MiB expanded limit.");
+      if (new Blob([text]).size > MAX_BYTES) throw new Error("This backup unpacks to more than " + LIMIT_TEXT + ", the most that can be restored safely.");
       backup = JSON.parse(text);
       const check = this.validate(backup);
       if (!check.valid) throw new Error(check.error);
