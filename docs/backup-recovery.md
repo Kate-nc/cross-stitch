@@ -19,7 +19,7 @@ Temporary handoffs, unconverted drafts, orphaned blobs, importer telemetry, devi
 
 ## Validation and publication
 
-The file is capped at 64 MiB before FileReader runs. Streaming inflate is capped at 64 MiB of output; decompression never allocates an unbounded output buffer. JSON has bounded nesting and rejects prototype-mutating keys, unsupported databases/stores, malformed/duplicate records, ID mismatches, chart/progress dimension mismatches, invalid base64 and attachment sizes/owners. No archive paths are extracted to a filesystem or fetched as URLs.
+The file is capped at 256 MiB (`BACKUP_MAX_BYTES`, constants.js) before FileReader runs. Streaming inflate is capped at the same 256 MiB of output; decompression never allocates an unbounded output buffer. JSON has bounded nesting and rejects prototype-mutating keys, unsupported databases/stores, malformed/duplicate records, ID mismatches, chart/progress dimension mismatches, invalid base64 and attachment sizes/owners. No archive paths are extracted to a filesystem or fetched as URLs.
 
 `recovery-storage.js` loads before all storage consumers on each app entry page. It pins logical IndexedDB names and an explicit list of localStorage keys to a recovery generation. This routing includes every existing raw opener, schema upgrade and database deletion. It preserves logical localStorage enumeration for preference resets/migrations, while sessionStorage remains separate.
 

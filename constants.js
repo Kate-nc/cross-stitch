@@ -28,3 +28,10 @@ const LOCAL_STORAGE_KEYS={
   shortcutsHint:"shortcuts_hint_dismissed"
 };
 if(typeof window!=='undefined')window.LOCAL_STORAGE_KEYS=LOCAL_STORAGE_KEYS;
+
+// Largest backup (unpacked JSON) that can be made or restored. Backup files are
+// compressed, so a small file can unpack to many times its size: a 300x300
+// chart well under way is ~10 MB unpacked and ~0.2 MB on disk. The pages read
+// this before loading backup-restore.js to turn away an oversized file early.
+const BACKUP_MAX_BYTES=256*1024*1024;
+if(typeof window!=='undefined')window.BACKUP_MAX_BYTES=BACKUP_MAX_BYTES;
