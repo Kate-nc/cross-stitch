@@ -46,8 +46,9 @@ describe('sync-merge-helpers.js stands alone', () => {
     vm.runInContext(src, ctx);
     expect(Object.keys(ctx.SyncMergeHelpers).sort()).toEqual([
       'earlierIso', 'laterIso', 'mergeDeletedIds', 'mergeDoneArrays', 'mergeIndexedPairs', 'mergeParkingMarkers',
-      'mergeSessions', 'mergeStitchLogs', 'mergeWorkArea', 'recomputeMergedTotals', 'sumSessionSeconds'
-    ]);
+      'mergeSessions', 'mergeStitchLogs', 'mergeWorkArea', 'recomputeMergedTotals', 'repairOriginalFile',
+      'sumSessionSeconds', 'keepLocalOriginalFile', 'withoutOriginalFile'
+    ].sort());
   });
 
   test('every helper returns synchronously and runs without storage, timers or a clone', () => {
@@ -63,7 +64,10 @@ describe('sync-merge-helpers.js stands alone', () => {
       () => H.earlierIso('2026-01-01', '2026-01-02'),
       () => H.laterIso('2026-01-01', '2026-01-02'),
       () => H.mergeWorkArea(null, null),
-      () => H.mergeParkingMarkers([], [], null)
+      () => H.mergeParkingMarkers([], [], null),
+      () => H.withoutOriginalFile({ meta: { attachments: { originalFile: { bytes: new Uint8Array(1) } } } }),
+      () => H.repairOriginalFile({ meta: { attachments: { originalFile: { bytes: { 0: 1 } } } } }),
+      () => H.keepLocalOriginalFile({}, { meta: { attachments: { originalFile: { bytes: new Uint8Array(1) } } } })
     ];
     for (const call of calls) {
       const out = call();

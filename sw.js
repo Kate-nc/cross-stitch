@@ -145,7 +145,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "a0b5eb932b0a7894122f14175302d58518d61647d307a21d33455dee30c6f505";
+var BUILD_ID = "ae914714eb96aeb7e9097544c22de27245b0dce61b1439776044187df15c8d68";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -333,7 +333,7 @@ var BUILD_ASSETS = {
     "sha256": "829b9acb6c2acf6162c91335750985a15927c3ee8527bd830e5c80ffa84b3188"
   },
   "./changelog.js": {
-    "sha256": "a6f4d8a07f72a12eea913532fcf2f77a4e714c3a7ccb7ec3fab6bc96f88e9180"
+    "sha256": "537a8a6f4d5050a9cc25eca863380837448745fc5df66d15e35f93550bccce1e"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -495,7 +495,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "b77835af142f4137707da09ffe6baf74ce53b9a994e175e5854f64a6e111f2ab"
+    "sha256": "1948d90728a61ef849222175bec2bae1e88a5eabac7bcc2847d318959f69344c"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -588,13 +588,13 @@ var BUILD_ASSETS = {
     "sha256": "f5b82c0a7e6c32ac6cd717f5b3e8b3270b26fd84d91253a0d73821a2a6d7a200"
   },
   "./help-drawer.js": {
-    "sha256": "26ac5391e1f9ef938008c0c3253ff04e83296f80bc9e85e496553369a39dc6e1"
+    "sha256": "4545ec11af0a52c7269eb72694b46f568551ae0fffd7813d9f623c041a267ca7"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
   },
   "./sync-merge-helpers.js": {
-    "sha256": "049bac322f42bb1b277d5681d180ac586b49d244223ac5b71a7cebb99ffbfd2c"
+    "sha256": "8bee4ca300ff14337072e8b29fa7816433fa69674da0f5095f9207cf776f96af"
   },
   "./sync-attachment-codec.js": {
     "sha256": "6cc68268a2f12f0bfc7022c64bdf0e69650d24804797b94c0293987733999bb2"
@@ -606,7 +606,7 @@ var BUILD_ASSETS = {
     "sha256": "ae43f61950de6a8c098910f1cefa9559269d22cf5c6c0615d388bc541bebc566"
   },
   "./sync-engine.js": {
-    "sha256": "e44be42735ca7bdcc3d7cc81b23986c0c827de4044104e4be22fbed67f05e6b7"
+    "sha256": "09aa9e071ca53311b21220427406d1e5da44813f5c9d7437540a232d418bef5a"
   },
   "./webdav-sync.js": {
     "sha256": "494faddb4b89cdb01e4dc0abf5e91f5fce42323e77b8c135bdbf3129f7746ac2"

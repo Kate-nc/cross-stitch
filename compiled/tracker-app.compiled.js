@@ -937,7 +937,9 @@ var rawParkMarkers=project.parkMarkers||[];var liveParkMarkers=rawParkMarkers.fi
 // stray tap brings them back); drop them silently here so they do not
 // pile up in the saved project.
 var loadedDone=project.done&&project.done.length===restored.length?project.done:null;if(loadedDone)liveParkMarkers=liveParkMarkers.filter(function(m){return!loadedDone[m.y*nextW+m.x];});// Dropped markers stay dropped only once saved (and the notice above would repeat on every open).
-if(liveParkMarkers.length!==rawParkMarkers.length)_needs.push('park markers');setParkMarkers(liveParkMarkers);L('parkMarkers',liveParkMarkers);setBreadcrumbs(L('breadcrumbs',project.breadcrumbs||[]));// Preserve v3 stats fields through auto-save round-trips
+if(liveParkMarkers.length!==rawParkMarkers.length)_needs.push('park markers');setParkMarkers(liveParkMarkers);L('parkMarkers',liveParkMarkers);setBreadcrumbs(L('breadcrumbs',project.breadcrumbs||[]));// An imported chart's original file that arrived through an older sync file is an index-keyed object millions of
+// keys long, copied on every save. Store it as bytes again (sync-merge-helpers.js).
+if(window.SyncMergeHelpers&&window.SyncMergeHelpers.repairOriginalFile(project))_needs.push('original import file');// Preserve v3 stats fields through auto-save round-trips
 v3FieldsRef.current={chartRevision:project.chartRevision,chartAccountingUnits:project.chartAccountingUnits,meta:project.meta,finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};if(project.stitchingStyle)setStitchingStyle(project.stitchingStyle);// T-2: prefer the per-project value; fall back to last-used (localStorage)
 // or the user pref shape; final default 10/TL. Doing it here (not in
 // useState) keeps the first render from showing the previous project's

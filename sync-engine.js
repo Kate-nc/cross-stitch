@@ -778,6 +778,10 @@ const SyncEngine = (() => {
       if (data === p) data = Object.assign({}, p);
       data.done = Array.prototype.slice.call(data.done);
     }
+    // The file the chart was imported from stays on this device: as JSON its
+    // bytes are an object keyed by index, ~13x their size (see
+    // SyncMergeHelpers.withoutOriginalFile).
+    data = SyncMergeHelpers.withoutOriginalFile(data);
     var entry = {
       id: p.id,
       updatedAt: p.updatedAt,
@@ -2537,6 +2541,9 @@ const SyncEngine = (() => {
     // reset all progress on load. Idempotent; plain arrays pass through.
     for (var ri = 0; ri < syncObj.projects.length; ri++) {
       _repairObjectDone(syncObj.projects[ri] && syncObj.projects[ri].data);
+      // Files from older builds carry the imported chart's original file as an
+      // index-keyed object; store it as bytes again.
+      SyncMergeHelpers.repairOriginalFile(syncObj.projects[ri] && syncObj.projects[ri].data);
     }
 
     // Load all local projects into a map
@@ -2848,7 +2855,7 @@ const SyncEngine = (() => {
       var cEntry = plan.conflicts[k];
       var resolution = conflictResolutions[cEntry.id] || "keep-local";
       if (resolution === "keep-remote") {
-        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true, resurrect: true, syncExpected:_projectSignature(cEntry.local), syncOrigin: SYNC_ORIGIN_IMPORT });
+        await ProjectStorage.save(SyncMergeHelpers.keepLocalOriginalFile(cEntry.remote.data, cEntry.local), { preserveUpdatedAt: true, resurrect: true, syncExpected:_projectSignature(cEntry.local), syncOrigin: SYNC_ORIGIN_IMPORT });
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
         var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)
