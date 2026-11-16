@@ -379,3 +379,103 @@ test('a full record written by a build that does not know overlays retires the o
   expect(rows === null || rows.project.name === 'Older build').toBe(true);
 });
 
+
+// An imported chart's original file lives in meta.attachments.originalFile (several MB for a PDF). Like the chart, a
+// Tracker save compares it with the full record instead of copying it into the overlay row on every save.
+const fileMeta = () => {
+  const bytes = new Uint8Array(50000);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 7) & 255;
+  return { attachments: { originalFile: { name: 'chart.pdf', type: 'application/pdf', encoding: 'pako-deflate', bytes } } };
+};
+
+test('the imported original file is not copied into the overlay row, and reads back', async () => {
+  const loaded = await opened({ meta: fileMeta() });
+  const n = spyProjects();
+  try {
+    const done = loaded.done.slice(); done[1] = 1;
+    await ProjectStorage.save(snapshot(loaded, { done }), OVERLAY);
+    expect(n.puts).toBe(0);
+  } finally { n.restore(); }
+  const ov = await raw('pendingImports', 'overlay:proj_o');
+  expect(ov.fields.meta).toBeUndefined();
+  const p = await ProjectStorage.get('proj_o');
+  expect(p.done[1]).toBe(1);
+  expect(p.meta.attachments.originalFile.bytes).toEqual(fileMeta().attachments.originalFile.bytes);
+});
+
+test('a copy of the same file (read back from storage) still counts as unchanged', async () => {
+  const loaded = await opened({ meta: fileMeta() });
+  const n = spyProjects();
+  try {
+    await ProjectStorage.save(snapshot(loaded, { meta: fileMeta(), name: 'Copy' }), OVERLAY);
+    expect(n.puts).toBe(0);
+  } finally { n.restore(); }
+  expect((await ProjectStorage.get('proj_o')).name).toBe('Copy');
+});
+
+test('changed meta is still saved, in the full record', async () => {
+  const loaded = await opened({ meta: fileMeta() });
+  const changed = fileMeta(); changed.attachments.originalFile.bytes[10] ^= 1; changed.note = 'x';
+  await ProjectStorage.save(snapshot(loaded, { meta: changed }), OVERLAY);
+  const stored = await raw('projects', 'proj_o');
+  expect(stored.meta.note).toBe('x');
+  expect(stored.meta.attachments.originalFile.bytes[10]).toBe(changed.attachments.originalFile.bytes[10]);
+  const p = await ProjectStorage.get('proj_o');
+  expect(p.meta.note).toBe('x');
+});
+
+test('an overlay row from before meta was compared does not override the record', async () => {
+  const loaded = await opened({ meta: fileMeta() });
+  const done = loaded.done.slice(); done[0] = 1;
+  await ProjectStorage.save(snapshot(loaded, { done }), OVERLAY);
+  // Older builds wrote meta into the overlay fields.
+  const db = await getDB();
+  const ov = await raw('pendingImports', 'overlay:proj_o');
+  ov.fields.meta = { stale: true };
+  await new Promise((res, rej) => { const tx = db.transaction('pendingImports', 'readwrite'); tx.objectStore('pendingImports').put(ov); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+  const p = await ProjectStorage.get('proj_o');
+  expect(p.meta.stale).toBeUndefined();
+  expect(p.meta.attachments.originalFile.name).toBe('chart.pdf');
+  expect(p.done[0]).toBe(1);
+});
+
+test('an original file repaired after opening is written back to the record', async () => {
+  // A record holding the index-keyed object an older sync file brought in.
+  const damaged = JSON.parse(JSON.stringify(fileMeta()));
+  const loaded = await opened({ meta: damaged });
+  const repaired = SyncMergeHelpers.repairOriginalFile(loaded);
+  expect(repaired).not.toBe(loaded);
+  const done = loaded.done.slice(); done[3] = 1;
+  await ProjectStorage.save(snapshot(repaired, { done }), OVERLAY);
+  const stored = await raw('projects', 'proj_o');
+  expect(Object.prototype.toString.call(stored.meta.attachments.originalFile.bytes)).toBe('[object Uint8Array]');
+  expect(stored.meta.attachments.originalFile.bytes.length).toBe(50000);
+  expect((await ProjectStorage.get('proj_o')).done[3]).toBe(1);
+});
+
+test('mending the shared meta in place would hide the repair from the save (why repair returns a copy)', async () => {
+  const loaded = await opened({ meta: JSON.parse(JSON.stringify(fileMeta())) });
+  const f = loaded.meta.attachments.originalFile;
+  f.bytes = SyncMergeHelpers.repairOriginalFile(loaded).meta.attachments.originalFile.bytes;
+  expect(f.bytes).toBeInstanceOf(Uint8Array);   // mended in memory...
+  await ProjectStorage.save(snapshot(loaded, { name: 'In place' }), OVERLAY);
+  const stored = await raw('projects', 'proj_o');
+  // ...but the save compared it with the very same object and left the record as it was.
+  expect(Object.prototype.toString.call(stored.meta.attachments.originalFile.bytes)).not.toBe('[object Uint8Array]');
+});
+
+test('a Tracker snapshot whose meta is undefined still matches a record without meta', async () => {
+  // The Tracker's save object always carries the key (meta: v3FieldsRef.current.meta), undefined for most projects.
+  const loaded = await opened();
+  expect('meta' in loaded).toBe(false);
+  const n = spyProjects();
+  try {
+    const done = loaded.done.slice(); done[4] = 1;
+    await ProjectStorage.save(snapshot(loaded, { done, meta: undefined }), OVERLAY);
+    await ProjectStorage.save(snapshot(loaded, { done, meta: undefined, name: 'Again' }), OVERLAY);
+    expect(n.puts).toBe(0);
+  } finally { n.restore(); }
+  const p = await ProjectStorage.get('proj_o');
+  expect(p.done[4]).toBe(1);
+  expect(p.name).toBe('Again');
+});

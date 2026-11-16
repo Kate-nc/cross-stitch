@@ -219,11 +219,72 @@
     return Array.from(parked.keys()).sort().map(function (key) { return clone(parked.get(key)); });
   }
 
+  /* The file a chart was imported from: project.meta.attachments.originalFile, {name, type, encoding, bytes}, with
+     `bytes` a Uint8Array (import-engine/pipeline/materialise.js). A PDF chart keeps several megabytes there.
+
+     JSON has no binary type, and JSON.stringify writes a Uint8Array as an object keyed by index. A 6.8 MB PDF became
+     a 92 MB {"0":120,"1":156,...} in every sync export: about ten seconds and close to a gigabyte of memory on each
+     automatic export while stitching, until the tab ran out of memory. A device that imported such a file stored
+     that object, 6.8 million keys long, and copied it on every save.
+
+     Sync no longer carries the file: like the source photo it never changes, and the device that imported the chart
+     keeps it (see keepLocalOriginalFile). */
+  function originalFileOf(project) {
+    var a = project && project.meta && project.meta.attachments;
+    return a && typeof a === 'object' && a.originalFile ? a.originalFile : null;
+  }
+  // `project` without the original file, sharing everything else. The project itself when it has none.
+  function withoutOriginalFile(project) {
+    if (!originalFileOf(project)) return project;
+    var attachments = Object.assign({}, project.meta.attachments);
+    delete attachments.originalFile;
+    var meta = Object.assign({}, project.meta);
+    if (Object.keys(attachments).length) meta.attachments = attachments; else delete meta.attachments;
+    var out = Object.assign({}, project);
+    if (Object.keys(meta).length) out.meta = meta; else delete out.meta;
+    return out;
+  }
+  // Bytes that went through JSON (an object keyed by index, or a plain array from a backup) as a Uint8Array again.
+  // Returns `project` itself when there is nothing to repair, else a copy with new meta, attachments and file
+  // objects: the stored record's meta may be shared with the project read back, and ProjectStorage compares the two
+  // to decide whether a save rewrites it, so mending it in place would hide the change. Content that is not a run of
+  // 0-255 integers cannot be the file and is dropped rather than kept as a large object. Binary values (a Uint8Array,
+  // any other typed array, an ArrayBuffer or a Blob) are left alone.
+  function repairOriginalFile(project) {
+    var f = originalFileOf(project);
+    if (!f) return project;
+    var b = f.bytes;
+    if (!b || typeof b !== 'object' || ArrayBuffer.isView(b)) return project;
+    // By tag, not prototype: a record read back in another realm (a worker, a test) has another Object.prototype.
+    if (!Array.isArray(b) && Object.prototype.toString.call(b) !== '[object Object]') return project;   // ArrayBuffer, Blob, ...
+    var n = Array.isArray(b) ? b.length : Object.keys(b).length, out = new Uint8Array(n);
+    for (var i = 0; i < n; i++) {
+      var v = b[i];
+      if (typeof v !== 'number' || !(v >= 0 && v <= 255) || v !== Math.floor(v)) { out = null; break; }
+      out[i] = v;
+    }
+    var attachments = Object.assign({}, project.meta.attachments);
+    if (out) attachments.originalFile = Object.assign({}, f, { bytes: out });
+    else delete attachments.originalFile;
+    var meta = Object.assign({}, project.meta);
+    if (Object.keys(attachments).length) meta.attachments = attachments; else delete meta.attachments;
+    return Object.assign({}, project, { meta: meta });
+  }
+  // `incoming` replacing `local`: keep the local original file when the incoming copy has none (sync omits it).
+  function keepLocalOriginalFile(incoming, local) {
+    var f = originalFileOf(local);
+    if (!incoming || !f || originalFileOf(incoming)) return incoming;
+    var meta = Object.assign({}, incoming.meta);
+    meta.attachments = Object.assign({}, meta.attachments, { originalFile: f });
+    return Object.assign({}, incoming, { meta: meta });
+  }
+
   var api = {
     mergeDoneArrays: mergeDoneArrays, mergeSessions: mergeSessions, recomputeMergedTotals: recomputeMergedTotals,
     mergeDeletedIds: mergeDeletedIds, sumSessionSeconds: _sumSessionSeconds, mergeIndexedPairs: mergeIndexedPairs,
     mergeStitchLogs: mergeStitchLogs, earlierIso: _earlierIso, laterIso: _laterIso, mergeWorkArea: mergeWorkArea,
-    mergeParkingMarkers: mergeParkingMarkers
+    mergeParkingMarkers: mergeParkingMarkers, withoutOriginalFile: withoutOriginalFile,
+    repairOriginalFile: repairOriginalFile, keepLocalOriginalFile: keepLocalOriginalFile
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.SyncMergeHelpers = api;

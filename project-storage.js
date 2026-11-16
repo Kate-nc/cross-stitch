@@ -61,7 +61,9 @@ const ProjectStorage = (() => {
   // marks: after a downgrade they show the last full save's other fields.
   const OVERLAY_PREFIX = "overlay:";
   // Large fields a Tracker save does not change: compared, not rewritten.
-  const CHART_KEYS = ["pattern", "p", "imgData"];
+  // `meta` holds an imported chart's original file (meta.attachments.originalFile,
+  // several MB for a PDF), which every save used to copy into the overlay row.
+  const CHART_KEYS = ["pattern", "p", "imgData", "meta"];
   const MARK_FIELDS = ["done"].concat(["halfDone", "knotsDone", "beadsDone", "bsDone", "partialDone", "specialtyDone"]);
   const OVERLAY_SKIP = new Set(CHART_KEYS.concat(MARK_FIELDS, ["trackingSync", "valueSync", "activeSessionCheckpoint", "sessionCheckpoints", "lastWriteAt", "lastWriteTabId"]));
   function overlayCurrent(project, ov) {
@@ -104,7 +106,12 @@ const ProjectStorage = (() => {
       for (let i = 0; i < a.length; i++) if (!sameValue(a[i], b[i])) return false;
       return true;
     }
-    if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) return false;
+    if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) {
+      // Bytes (an imported file) compare by content: a copy read back from storage is equal.
+      if (!ArrayBuffer.isView(a) || !ArrayBuffer.isView(b) || Object.prototype.toString.call(a) !== Object.prototype.toString.call(b) || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+      return true;
+    }
     const ka = Object.keys(a), kb = Object.keys(b);
     if (ka.length !== kb.length) return false;
     for (let i = 0; i < ka.length; i++) { const k = ka[i]; if (!Object.prototype.hasOwnProperty.call(b, k) || !sameValue(a[k], b[k])) return false; }
@@ -112,7 +119,9 @@ const ProjectStorage = (() => {
   }
   function sameChart(chart, project) {
     for (const k of CHART_KEYS) {
-      const has = k in project, had = k in chart;
+      // A field set to undefined is a field the record does not have: the Tracker's
+      // snapshot always carries `meta`, undefined unless the chart was imported.
+      const has = project[k] !== undefined, had = chart[k] !== undefined;
       if (has !== had) return false;
       if (has && !sameValue(chart[k], project[k])) return false;
     }

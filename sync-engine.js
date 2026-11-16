@@ -778,6 +778,10 @@ const SyncEngine = (() => {
       if (data === p) data = Object.assign({}, p);
       data.done = Array.prototype.slice.call(data.done);
     }
+    // The file the chart was imported from stays on this device: as JSON its
+    // bytes are an object keyed by index, ~13x their size (see
+    // SyncMergeHelpers.withoutOriginalFile).
+    data = SyncMergeHelpers.withoutOriginalFile(data);
     var entry = {
       id: p.id,
       updatedAt: p.updatedAt,
@@ -2537,6 +2541,11 @@ const SyncEngine = (() => {
     // reset all progress on load. Idempotent; plain arrays pass through.
     for (var ri = 0; ri < syncObj.projects.length; ri++) {
       _repairObjectDone(syncObj.projects[ri] && syncObj.projects[ri].data);
+      // Sync does not carry the imported chart's original file. Files from older
+      // builds do, as an object keyed by index ~13x its size; drop it before
+      // anything compares or hashes the project. The device that imported the
+      // chart keeps its own copy (keepLocalOriginalFile).
+      if (syncObj.projects[ri] && syncObj.projects[ri].data) syncObj.projects[ri].data = SyncMergeHelpers.withoutOriginalFile(syncObj.projects[ri].data);
     }
 
     // Load all local projects into a map
@@ -2848,7 +2857,7 @@ const SyncEngine = (() => {
       var cEntry = plan.conflicts[k];
       var resolution = conflictResolutions[cEntry.id] || "keep-local";
       if (resolution === "keep-remote") {
-        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true, resurrect: true, syncExpected:_projectSignature(cEntry.local), syncOrigin: SYNC_ORIGIN_IMPORT });
+        await ProjectStorage.save(SyncMergeHelpers.keepLocalOriginalFile(cEntry.remote.data, cEntry.local), { preserveUpdatedAt: true, resurrect: true, syncExpected:_projectSignature(cEntry.local), syncOrigin: SYNC_ORIGIN_IMPORT });
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
         var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)
@@ -3726,9 +3735,17 @@ const SyncEngine = (() => {
           // Bounds check on serialised size; very large plans are
           // dropped from persistence (the in-memory cache still works
           // for the current session).
-          var serialised;
-          try { serialised = JSON.stringify(plan); } catch (e) { serialised = null; }
-          if (!serialised || serialised.length > PENDING_PLAN_MAX_BYTES) {
+          // Bytes (a local project's imported original file) count at their
+          // stored size: as JSON a Uint8Array is an object keyed by index,
+          // ~13x larger, and building that string could run the tab out of memory.
+          var serialised, binaryBytes = 0;
+          try {
+            serialised = JSON.stringify(plan, function (k, v) {
+              if (v && ArrayBuffer.isView(v)) { binaryBytes += v.byteLength; return 0; }
+              return v;
+            });
+          } catch (e) { serialised = null; }
+          if (!serialised || serialised.length + binaryBytes > PENDING_PLAN_MAX_BYTES) {
             store.delete(PENDING_PLAN_KEY);
           } else {
             store.put({ at: new Date().toISOString(), plan: plan }, PENDING_PLAN_KEY);
