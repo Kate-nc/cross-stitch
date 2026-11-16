@@ -379,3 +379,62 @@ test('a full record written by a build that does not know overlays retires the o
   expect(rows === null || rows.project.name === 'Older build').toBe(true);
 });
 
+
+// An imported chart's original file lives in meta.attachments.originalFile (several MB for a PDF). Like the chart, a
+// Tracker save compares it with the full record instead of copying it into the overlay row on every save.
+const fileMeta = () => {
+  const bytes = new Uint8Array(50000);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 7) & 255;
+  return { attachments: { originalFile: { name: 'chart.pdf', type: 'application/pdf', encoding: 'pako-deflate', bytes } } };
+};
+
+test('the imported original file is not copied into the overlay row, and reads back', async () => {
+  const loaded = await opened({ meta: fileMeta() });
+  const n = spyProjects();
+  try {
+    const done = loaded.done.slice(); done[1] = 1;
+    await ProjectStorage.save(snapshot(loaded, { done }), OVERLAY);
+    expect(n.puts).toBe(0);
+  } finally { n.restore(); }
+  const ov = await raw('pendingImports', 'overlay:proj_o');
+  expect(ov.fields.meta).toBeUndefined();
+  const p = await ProjectStorage.get('proj_o');
+  expect(p.done[1]).toBe(1);
+  expect(p.meta.attachments.originalFile.bytes).toEqual(fileMeta().attachments.originalFile.bytes);
+});
+
+test('a copy of the same file (read back from storage) still counts as unchanged', async () => {
+  const loaded = await opened({ meta: fileMeta() });
+  const n = spyProjects();
+  try {
+    await ProjectStorage.save(snapshot(loaded, { meta: fileMeta(), name: 'Copy' }), OVERLAY);
+    expect(n.puts).toBe(0);
+  } finally { n.restore(); }
+  expect((await ProjectStorage.get('proj_o')).name).toBe('Copy');
+});
+
+test('changed meta is still saved, in the full record', async () => {
+  const loaded = await opened({ meta: fileMeta() });
+  const changed = fileMeta(); changed.attachments.originalFile.bytes[10] ^= 1; changed.note = 'x';
+  await ProjectStorage.save(snapshot(loaded, { meta: changed }), OVERLAY);
+  const stored = await raw('projects', 'proj_o');
+  expect(stored.meta.note).toBe('x');
+  expect(stored.meta.attachments.originalFile.bytes[10]).toBe(changed.attachments.originalFile.bytes[10]);
+  const p = await ProjectStorage.get('proj_o');
+  expect(p.meta.note).toBe('x');
+});
+
+test('an overlay row from before meta was compared does not override the record', async () => {
+  const loaded = await opened({ meta: fileMeta() });
+  const done = loaded.done.slice(); done[0] = 1;
+  await ProjectStorage.save(snapshot(loaded, { done }), OVERLAY);
+  // Older builds wrote meta into the overlay fields.
+  const db = await getDB();
+  const ov = await raw('pendingImports', 'overlay:proj_o');
+  ov.fields.meta = { stale: true };
+  await new Promise((res, rej) => { const tx = db.transaction('pendingImports', 'readwrite'); tx.objectStore('pendingImports').put(ov); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+  const p = await ProjectStorage.get('proj_o');
+  expect(p.meta.stale).toBeUndefined();
+  expect(p.meta.attachments.originalFile.name).toBe('chart.pdf');
+  expect(p.done[0]).toBe(1);
+});
