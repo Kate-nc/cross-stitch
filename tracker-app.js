@@ -4598,7 +4598,7 @@ function processLoadedProject(project){
   setBreadcrumbs(L('breadcrumbs',project.breadcrumbs||[]));
   // An imported chart's original file that arrived through an older sync file is an index-keyed object millions of
   // keys long, copied on every save. Store it as bytes again (sync-merge-helpers.js).
-  if(window.SyncMergeHelpers&&window.SyncMergeHelpers.repairOriginalFile(project))_needs.push('original import file');
+  if(window.SyncMergeHelpers){const _rf=window.SyncMergeHelpers.repairOriginalFile(project);if(_rf!==project){project=_rf;_needs.push('original import file');}}
   // Preserve v3 stats fields through auto-save round-trips
   v3FieldsRef.current={chartRevision:project.chartRevision,chartAccountingUnits:project.chartAccountingUnits,meta:project.meta,finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};
   if(project.stitchingStyle)setStitchingStyle(project.stitchingStyle);

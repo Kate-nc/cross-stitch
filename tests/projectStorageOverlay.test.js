@@ -438,3 +438,44 @@ test('an overlay row from before meta was compared does not override the record'
   expect(p.meta.attachments.originalFile.name).toBe('chart.pdf');
   expect(p.done[0]).toBe(1);
 });
+
+test('an original file repaired after opening is written back to the record', async () => {
+  // A record holding the index-keyed object an older sync file brought in.
+  const damaged = JSON.parse(JSON.stringify(fileMeta()));
+  const loaded = await opened({ meta: damaged });
+  const repaired = SyncMergeHelpers.repairOriginalFile(loaded);
+  expect(repaired).not.toBe(loaded);
+  const done = loaded.done.slice(); done[3] = 1;
+  await ProjectStorage.save(snapshot(repaired, { done }), OVERLAY);
+  const stored = await raw('projects', 'proj_o');
+  expect(Object.prototype.toString.call(stored.meta.attachments.originalFile.bytes)).toBe('[object Uint8Array]');
+  expect(stored.meta.attachments.originalFile.bytes.length).toBe(50000);
+  expect((await ProjectStorage.get('proj_o')).done[3]).toBe(1);
+});
+
+test('mending the shared meta in place would hide the repair from the save (why repair returns a copy)', async () => {
+  const loaded = await opened({ meta: JSON.parse(JSON.stringify(fileMeta())) });
+  const f = loaded.meta.attachments.originalFile;
+  f.bytes = SyncMergeHelpers.repairOriginalFile(loaded).meta.attachments.originalFile.bytes;
+  expect(f.bytes).toBeInstanceOf(Uint8Array);   // mended in memory...
+  await ProjectStorage.save(snapshot(loaded, { name: 'In place' }), OVERLAY);
+  const stored = await raw('projects', 'proj_o');
+  // ...but the save compared it with the very same object and left the record as it was.
+  expect(Object.prototype.toString.call(stored.meta.attachments.originalFile.bytes)).not.toBe('[object Uint8Array]');
+});
+
+test('a Tracker snapshot whose meta is undefined still matches a record without meta', async () => {
+  // The Tracker's save object always carries the key (meta: v3FieldsRef.current.meta), undefined for most projects.
+  const loaded = await opened();
+  expect('meta' in loaded).toBe(false);
+  const n = spyProjects();
+  try {
+    const done = loaded.done.slice(); done[4] = 1;
+    await ProjectStorage.save(snapshot(loaded, { done, meta: undefined }), OVERLAY);
+    await ProjectStorage.save(snapshot(loaded, { done, meta: undefined, name: 'Again' }), OVERLAY);
+    expect(n.puts).toBe(0);
+  } finally { n.restore(); }
+  const p = await ProjectStorage.get('proj_o');
+  expect(p.done[4]).toBe(1);
+  expect(p.name).toBe('Again');
+});

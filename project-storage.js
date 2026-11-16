@@ -119,7 +119,9 @@ const ProjectStorage = (() => {
   }
   function sameChart(chart, project) {
     for (const k of CHART_KEYS) {
-      const has = k in project, had = k in chart;
+      // A field set to undefined is a field the record does not have: the Tracker's
+      // snapshot always carries `meta`, undefined unless the chart was imported.
+      const has = project[k] !== undefined, had = chart[k] !== undefined;
       if (has !== had) return false;
       if (has && !sameValue(chart[k], project[k])) return false;
     }

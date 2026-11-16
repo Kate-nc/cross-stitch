@@ -66,7 +66,7 @@ describe('sync-merge-helpers.js stands alone', () => {
       () => H.mergeWorkArea(null, null),
       () => H.mergeParkingMarkers([], [], null),
       () => H.withoutOriginalFile({ meta: { attachments: { originalFile: { bytes: new Uint8Array(1) } } } }),
-      () => H.repairOriginalFile({ meta: { attachments: { originalFile: { bytes: { 0: 1 } } } } }),
+      () => H.repairOriginalFile({ meta: { attachments: { originalFile: { bytes: { 0: 1 } } } } }).meta,
       () => H.keepLocalOriginalFile({}, { meta: { attachments: { originalFile: { bytes: new Uint8Array(1) } } } })
     ];
     for (const call of calls) {

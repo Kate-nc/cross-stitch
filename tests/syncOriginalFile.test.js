@@ -102,38 +102,73 @@ describe('withoutOriginalFile', () => {
 });
 
 describe('repairOriginalFile', () => {
-  test('turns the index-keyed object older sync files carried back into bytes', () => {
+  const fileOf = p => p.meta.attachments.originalFile;
+
+  test('turns the index-keyed object older sync files carried back into bytes, in a copy', () => {
     const file = originalFile();
-    const p = JSON.parse(JSON.stringify({ meta: { attachments: { originalFile: file } } }));
-    expect(p.meta.attachments.originalFile.bytes).not.toBeInstanceOf(Uint8Array);
-    expect(H.repairOriginalFile(p)).toBe(true);
-    expect(p.meta.attachments.originalFile.bytes).toBeInstanceOf(Uint8Array);
-    expect(Array.from(p.meta.attachments.originalFile.bytes)).toEqual(Array.from(file.bytes));
-    expect(p.meta.attachments.originalFile.name).toBe('chart.pdf');
+    const p = JSON.parse(JSON.stringify({ id: 'a', meta: { source: 'pdf', attachments: { originalFile: file } } }));
+    const damaged = fileOf(p).bytes;
+    const out = H.repairOriginalFile(p);
+    expect(out).not.toBe(p);
+    expect(fileOf(out).bytes).toBeInstanceOf(Uint8Array);
+    expect(Array.from(fileOf(out).bytes)).toEqual(Array.from(file.bytes));
+    expect(fileOf(out).name).toBe('chart.pdf');
+    expect(out.meta.source).toBe('pdf');
+    expect(out.id).toBe('a');
+    // The input is untouched: storage may share its meta with the record it compares saves against.
+    expect(fileOf(p).bytes).toBe(damaged);
+    expect(out.meta).not.toBe(p.meta);
   });
 
   test('turns a plain array (a backup) into bytes', () => {
     const p = { meta: { attachments: { originalFile: { name: 'a', bytes: [1, 2, 255] } } } };
-    expect(H.repairOriginalFile(p)).toBe(true);
-    expect(p.meta.attachments.originalFile.bytes).toEqual(new Uint8Array([1, 2, 255]));
+    expect(fileOf(H.repairOriginalFile(p)).bytes).toEqual(new Uint8Array([1, 2, 255]));
   });
 
-  test('leaves bytes alone and reports no change', () => {
+  test('returns the project itself when there is nothing to repair', () => {
     const p = { meta: { attachments: { originalFile: originalFile() } } };
-    const bytes = p.meta.attachments.originalFile.bytes;
-    expect(H.repairOriginalFile(p)).toBe(false);
-    expect(p.meta.attachments.originalFile.bytes).toBe(bytes);
-    expect(H.repairOriginalFile({})).toBe(false);
-    expect(H.repairOriginalFile(null)).toBe(false);
+    expect(H.repairOriginalFile(p)).toBe(p);
+    const q = {};
+    expect(H.repairOriginalFile(q)).toBe(q);
+    expect(H.repairOriginalFile(null)).toBe(null);
+  });
+
+  test('leaves other binary alone instead of emptying it', () => {
+    const buffer = new Uint8Array([1, 2, 3]).buffer;
+    const a = { meta: { attachments: { originalFile: { bytes: buffer } } } };
+    expect(H.repairOriginalFile(a)).toBe(a);
+    expect(fileOf(a).bytes).toBe(buffer);
+    const b = { meta: { attachments: { originalFile: { bytes: new Uint16Array([1]) } } } };
+    expect(H.repairOriginalFile(b)).toBe(b);
+    if (typeof Blob === 'function') {
+      const c = { meta: { attachments: { originalFile: { bytes: new Blob(['x']) } } } };
+      expect(H.repairOriginalFile(c)).toBe(c);
+    }
+    const d = { meta: { attachments: { originalFile: { name: 'no bytes' } } } };
+    expect(H.repairOriginalFile(d)).toBe(d);
   });
 
   test('drops content that cannot be the file', () => {
     const p = { meta: { attachments: { originalFile: { bytes: { 0: 1, 1: 'x' } } } } };
-    expect(H.repairOriginalFile(p)).toBe(true);
-    expect(p.meta).toEqual({});
-    const q = { meta: { attachments: { originalFile: { bytes: 'abc' } }, other: 1 } };
-    expect(H.repairOriginalFile(q)).toBe(true);
-    expect(q.meta).toEqual({ other: 1 });
+    const out = H.repairOriginalFile(p);
+    expect(out.meta).toEqual({});
+    expect(fileOf(p).bytes).toEqual({ 0: 1, 1: 'x' });
+    const q = { meta: { attachments: { originalFile: { bytes: [1, 300] }, other: 1 } } };
+    expect(H.repairOriginalFile(q).meta).toEqual({ attachments: { other: 1 } });
+  });
+});
+
+describe('importing a sync file from an older build', () => {
+  test('drops the index-keyed original file before the project is compared or saved', async () => {
+    const syncObj = await SE.exportSync();
+    const entry = syncObj.projects[0];
+    // What an older build wrote: the file's bytes as an object keyed by index.
+    entry.data = Object.assign({}, entry.data, { meta: JSON.parse(JSON.stringify(PROJECTS[0].meta)) });
+    expect(Object.keys(entry.data.meta.attachments.originalFile.bytes).length).toBe(FILE_BYTES);
+    await SE.prepareImport(syncObj);
+    expect(syncObj.projects[0].data.meta).toEqual({ source: 'pdf' });
+    // The local project keeps its own file.
+    expect(PROJECTS[0].meta.attachments.originalFile.bytes).toBeInstanceOf(Uint8Array);
   });
 });
 

@@ -244,31 +244,31 @@
     if (Object.keys(meta).length) out.meta = meta; else delete out.meta;
     return out;
   }
-  // Turn bytes that went through JSON (an object keyed by index, or a plain array from a backup) back into a
-  // Uint8Array, in place. Bytes that are not a run of 0-255 integers cannot be the file, so they are dropped rather
-  // than kept as a large object. Returns true when it changed the project.
+  // Bytes that went through JSON (an object keyed by index, or a plain array from a backup) as a Uint8Array again.
+  // Returns `project` itself when there is nothing to repair, else a copy with new meta, attachments and file
+  // objects: the stored record's meta may be shared with the project read back, and ProjectStorage compares the two
+  // to decide whether a save rewrites it, so mending it in place would hide the change. Content that is not a run of
+  // 0-255 integers cannot be the file and is dropped rather than kept as a large object. Binary values (a Uint8Array,
+  // any other typed array, an ArrayBuffer or a Blob) are left alone.
   function repairOriginalFile(project) {
     var f = originalFileOf(project);
-    if (!f) return false;
+    if (!f) return project;
     var b = f.bytes;
-    if (b instanceof Uint8Array) return false;
-    var out = null;
-    if (b && typeof b === 'object' && !ArrayBuffer.isView(b)) {
-      var n = Array.isArray(b) ? b.length : Object.keys(b).length;
-      out = new Uint8Array(n);
-      for (var i = 0; i < n; i++) {
-        var v = b[i];
-        if (typeof v !== 'number' || !(v >= 0 && v <= 255) || v !== Math.floor(v)) { out = null; break; }
-        out[i] = v;
-      }
-    } else if (ArrayBuffer.isView(b)) {
-      out = new Uint8Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+    if (!b || typeof b !== 'object' || ArrayBuffer.isView(b)) return project;
+    // By tag, not prototype: a record read back in another realm (a worker, a test) has another Object.prototype.
+    if (!Array.isArray(b) && Object.prototype.toString.call(b) !== '[object Object]') return project;   // ArrayBuffer, Blob, ...
+    var n = Array.isArray(b) ? b.length : Object.keys(b).length, out = new Uint8Array(n);
+    for (var i = 0; i < n; i++) {
+      var v = b[i];
+      if (typeof v !== 'number' || !(v >= 0 && v <= 255) || v !== Math.floor(v)) { out = null; break; }
+      out[i] = v;
     }
-    if (out) { f.bytes = out; return true; }
-    var attachments = project.meta.attachments;
-    delete attachments.originalFile;
-    if (!Object.keys(attachments).length) delete project.meta.attachments;
-    return true;
+    var attachments = Object.assign({}, project.meta.attachments);
+    if (out) attachments.originalFile = Object.assign({}, f, { bytes: out });
+    else delete attachments.originalFile;
+    var meta = Object.assign({}, project.meta);
+    if (Object.keys(attachments).length) meta.attachments = attachments; else delete meta.attachments;
+    return Object.assign({}, project, { meta: meta });
   }
   // `incoming` replacing `local`: keep the local original file when the incoming copy has none (sync omits it).
   function keepLocalOriginalFile(incoming, local) {

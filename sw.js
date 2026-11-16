@@ -145,7 +145,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "9401ffce190714279e68e0fcbfa6cb91267daee205322296f4226fc39851bdf8";
+var BUILD_ID = "b0422f70a4fe00e3f5e729ef540af880e02f3a54fd1d40f548880749cf0aa845";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -438,7 +438,7 @@ var BUILD_ASSETS = {
     "sha256": "ee290e9f8fda8595302704b1ba85acbecef07d0e1282b038aea79c34e6bd822d"
   },
   "./project-storage.js": {
-    "sha256": "518d73f9ace2d8d58795ff003a599477705e6fb47612bce51ba20f73c87f259c"
+    "sha256": "d77c57ae15a27674bf6544459470458f411164b0b9315a2916c848742aa33a54"
   },
   "./blob-store.js": {
     "sha256": "869beee9fe5502c2ad614ef9e8b3d6d452abb7ff1fbc6bcf7667dba99f083113"
@@ -495,7 +495,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "1948d90728a61ef849222175bec2bae1e88a5eabac7bcc2847d318959f69344c"
+    "sha256": "a2d2d15e4313b0cd2c8de0be8c966240fee3712eadb7b4b7cd9097e85a42efe6"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -594,7 +594,7 @@ var BUILD_ASSETS = {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
   },
   "./sync-merge-helpers.js": {
-    "sha256": "8bee4ca300ff14337072e8b29fa7816433fa69674da0f5095f9207cf776f96af"
+    "sha256": "0674948cc29d0da36ede634d46388c40994e5ef6e4f97acae69c52ef0f1fe799"
   },
   "./sync-attachment-codec.js": {
     "sha256": "6cc68268a2f12f0bfc7022c64bdf0e69650d24804797b94c0293987733999bb2"
@@ -606,7 +606,7 @@ var BUILD_ASSETS = {
     "sha256": "ae43f61950de6a8c098910f1cefa9559269d22cf5c6c0615d388bc541bebc566"
   },
   "./sync-engine.js": {
-    "sha256": "09aa9e071ca53311b21220427406d1e5da44813f5c9d7437540a232d418bef5a"
+    "sha256": "c591fc15a8ad50fdb08d3c85c7dbca6e072a1af3033c3494b75061298ced0e26"
   },
   "./webdav-sync.js": {
     "sha256": "494faddb4b89cdb01e4dc0abf5e91f5fce42323e77b8c135bdbf3129f7746ac2"
