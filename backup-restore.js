@@ -499,17 +499,20 @@ const BackupRestore = (() => {
       // A backup is only made if it can be restored: restore reads at most
       // MAX_BYTES unpacked. Checked before the (slow) seal and validation; the
       // margin is for the integrity field added below.
-      const report = describeSize(backup);
-      if (report.total + 256 > MAX_BYTES) {
-        const err = new Error("This backup would be " + mb(report.total) + ", over the " + LIMIT_TEXT + " that can be restored safely. " +
-          largestText(report) + " Delete progress photos or projects you no longer need, then try again.");
+      // The per-project breakdown costs another pass over every project, so it
+      // is only made when it will be shown (over the warning share).
+      const total = new Blob([JSON.stringify(backup)]).size;
+      const report = total > MAX_BYTES * WARN_SHARE ? describeSize(backup, total) : null;
+      if (total + 256 > MAX_BYTES) {
+        const err = new Error(["This backup would be " + mb(total) + ", over the " + LIMIT_TEXT + " that can be restored safely.",
+          largestText(report), "Delete progress photos or projects you no longer need, then try again."].filter(Boolean).join(" "));
         err.sizeReport = report;
         throw err;
       }
       backup.integrity = { algorithm: "crc32-utf16", value: seal(backup) };
       const check = this.validate(backup);
       if (!check.valid) throw new Error("Backup is incomplete: " + check.error);
-      if (sizeReports) sizeReports.set(backup, report);
+      if (sizeReports && report) sizeReports.set(backup, report);
       return backup;
     },
 
@@ -534,12 +537,12 @@ const BackupRestore = (() => {
         // Getting close to the restore limit: say so now, with what is taking
         // the space, while there is still room to act.
         const report = sizeReports && sizeReports.get(backup);
-        if (report && report.total > MAX_BYTES * WARN_SHARE) {
+        if (report) {
           try {
             if (window.Toast && window.Toast.show) window.Toast.show({
               type: "warning", duration: 15000,
-              message: "Your backup is large: " + mb(report.total) + " of the " + LIMIT_TEXT + " that can be restored. " + largestText(report) +
-                " Deleting progress photos or projects you no longer need keeps future backups restorable."
+              message: ["Your backup is large: " + mb(report.total) + " of the " + LIMIT_TEXT + " that can be restored.", largestText(report),
+                "Deleting progress photos or projects you no longer need keeps future backups restorable."].filter(Boolean).join(" ")
             });
           } catch (_) {}
         }
