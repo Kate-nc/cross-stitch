@@ -47,6 +47,9 @@ test.describe('Picture-type presets on desktop', function() {
     await openConvertWithLogo(page);
     await expect(page.locator('.cv-sec--picture-type')).toContainText('Picture type');
     await expect(pictureType(page, 'Graphic or logo')).toHaveAttribute('aria-checked', 'true');
+    // The plain background is only offered; leave it out, as most logos would.
+    await page.locator('.creator-toast-container').filter({ hasText: 'This picture has a plain background' })
+      .getByRole('button', { name: 'Leave it unstitched' }).click();
     await convertStep(page, 'threads');
     await expect(page.getByRole('slider', { name: 'Threads (max)' })).toBeVisible();
 

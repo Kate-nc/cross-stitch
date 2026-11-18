@@ -186,7 +186,7 @@ describe('every picture-to-stitches path uses gridPixels', () => {
   // hands Brightness, Contrast and Saturation to the pipeline instead of
   // gridPixels (reports/photo-conversion-audit-2026-11.md).
   test.each([
-    ['creator/generate.js', /var raw = gridPixels\(img, sW, sH, \{ preSharpenOpts/, /bri: bri, con: con, sat: sat,\n    maxC: maxC/],
+    ['creator/generate.js', /var raw = gridPixels\(img, sW, sH, \{ preSharpenOpts/, /bri: bri, con: con, sat: sat, paletteRaw: paletteRaw,\n    maxC: maxC/],
     ['creator/useCreatorState.js', /imageData = gridPixels\(img, sW, sH, \{ preSharpenOpts/, /settings: \{\n          bri: bri, con: con, sat: sat,/],
     ['creator/useCreatorState.js', /_gcxImgData = gridPixels\(img, gw, gh, \{ preSharpenOpts/, /runCleanupPipeline\(rawPx, gw, gh, \{\n          bri: bri, con: con, sat: sat,/],
     ['creator/usePreview.js', /gridPixels\(img, pw, ph, \{ preSharpenOpts/, /var o = \{\n          bri: bri, con: con, sat: sat,/],

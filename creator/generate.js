@@ -175,7 +175,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // Colours to keep (Convert): their threads are always in the palette and
   // never folded away. Mirrored in generate-worker.js.
   var keep = opts.keepIds && opts.keepIds.length ? new Set(opts.keepIds.map(String)) : null;
-  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
+  // Threads come from the picture before Sharpen details (paletteSourcePixels).
+  var p = quantizeConstrained(paletteSourcePixels(raw, width, height, opts), width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
   // An all-transparent image is a valid empty pattern, not a quantiser error.
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
@@ -227,7 +228,6 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
       // Coverage is already decided. Colour cleanup must not create new holes.
       preserveCoverage: true,
       keep: keep,
-      bgLab: (!dith || dithAlgo === 'off') && opts.skipBg ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null,
       // Undithered, an edge shade is also judged by the pixels it was drawn from.
       // (Dithered stitches all lie between their neighbours' colours, so not then.)
       source: (!dith || dithAlgo === "off") ? raw : null,
@@ -276,9 +276,17 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var limited = enforceMaxColours(mapped, p, raw, maxC, keep);
   limited = limitGeneratedBlends(mapped, raw, width, height, p, opts.maxBlends) || limited;
 
+  // The background is left out last. Everything before, the thread limit
+  // included, ran on the whole picture, so the threads, shading and cleanup
+  // are the same with the background in or out; only stitches at the
+  // background's edge change (blankUncovered, colour-utils.js). Mirrored in
+  // generate-worker.js.
+  var blanked = blankUncovered(mapped, coverageMask, raw, width, opts.skipBg && opts.bgCol ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null);
+  if (blanked && tidiedCells) for (var _ti = 0; _ti < mapped.length; _ti++) if (mapped[_ti].id === '__skip__') tidiedCells[_ti] = 0;
+
   // The finished chart's confetti. Measured again only when a stage after
-  // Reduce confetti changed stitches.
-  var confettiFinal = (disambigData && disambigData.swaps > 0) || limited
+  // Reduce confetti changed stitches (leaving the background out included).
+  var confettiFinal = (disambigData && disambigData.swaps > 0) || limited || blanked
     ? analyzeConfetti(mapped, width, height)
     : (confettiClean || confettiRaw);
 
@@ -373,9 +381,11 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
   var raw = gridPixels(img, sW, sH, { preSharpenOpts: opts.preSharpenOpts }).data;
+  // With Sharpen details, the threads are chosen from the picture before it.
+  var paletteRaw = opts.preSharpenOpts ? gridPixels(img, sW, sH, {}).data : null;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
-    bri: bri, con: con, sat: sat,
+    bri: bri, con: con, sat: sat, paletteRaw: paletteRaw,
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,

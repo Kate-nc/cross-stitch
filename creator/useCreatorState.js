@@ -179,7 +179,9 @@ var CONVERSION_STATE_KEYS = [
 // count and size from the picture itself (picturePresetValues).
 // `style` is the Detail and tidiness step the type starts on (STITCH_STYLES).
 var PICTURE_PRESETS = {
-  graphic: { label: 'Graphic or logo', maxC: 8, allowBlends: false, style: 'balanced', skipBorderBackground: true },
+  // No preset leaves the background out: the plain-background check offers
+  // it (useProjectIO.offerBackground), for every type of picture.
+  graphic: { label: 'Graphic or logo', maxC: 8, allowBlends: false, style: 'balanced' },
   // 24 threads: at 20 the palette spent its threads on big areas and drew
   // faces in a grey beige (reports/photo-conversion-accuracy-review.md).
   photo:   { label: 'Photo', maxC: 24, allowBlends: true, style: 'balanced' },
@@ -273,14 +275,13 @@ function stitchStyleOf(basis, cur) {
 
 // The values a preset sets for a picture. info is analysePicture's result
 // (null before a picture is loaded). Keys are useCreatorState setters' names
-// without "set": maxC, allowBlends, maxBlends, skipBg, bgCol, sW, sH, plus the starting
+// without "set": maxC, allowBlends, maxBlends, sW, sH, plus the starting
 // Detail and tidiness step's dithMode, cleanup, orphans and protectDetails.
 function picturePresetValues(id, info) {
   var p = PICTURE_PRESETS[id];
   if (!p) return null;
   var v = Object.assign({ allowBlends: p.allowBlends }, stitchStyleValues(id, p.style));
   if (p.maxC) v.maxC = p.maxC;
-  if (p.skipBorderBackground && info && info.border) { v.skipBg = true; v.bgCol = info.border.rgb.slice(0, 3); }
   if (p.maxCFromSource) {
     var n = info && info.distinct ? info.distinct : p.maxCFromSource;
     v.maxC = Math.max(2, Math.min(p.maxCFromSource, n));
@@ -612,8 +613,8 @@ window.useCreatorState = function useCreatorState() {
     setDithMode(v);
   };
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
-  // True while skipBg was switched on by the automatic plain-background check
-  // (useProjectIO.handleFile) rather than by the user.
+  // True while skipBg was switched on from the plain-background offer
+  // (useProjectIO.offerBackground), so the next picture starts with it off.
   var bgAutoSkippedRef = useRef(false);
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
@@ -904,7 +905,6 @@ window.useCreatorState = function useCreatorState() {
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
     if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails, foldEdgeShades: v.foldEdgeShades }); });
     if (v.orphans != null) setOrphans(v.orphans);
-    if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
     setPresetApplied({ id: id, values: v });
   }, []);
@@ -912,17 +912,9 @@ window.useCreatorState = function useCreatorState() {
   // picture type, so its keys are not compared here.
   var pictureType = (function () {
     if (!presetApplied) return 'custom';
-    var v = presetApplied.values, cur = {
-      maxC: maxC, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
-      bgCol: bgCol
-    };
+    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: sW, sH: sH };
     for (var k in v) {
       if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
-      // The background colour is an [r, g, b] array: compare by value.
-      if (k === 'bgCol') {
-        if (!cur.bgCol || String(cur.bgCol.slice(0, 3)) !== String(v.bgCol)) return 'custom';
-        continue;
-      }
       if (cur[k] !== v[k]) return 'custom';
     }
     return presetApplied.id;
@@ -2238,6 +2230,8 @@ window.useCreatorState = function useCreatorState() {
         // Brightness, Contrast and Saturation are applied in the worker,
         // after the background mask (runCleanupPipeline).
         imageData = gridPixels(img, sW, sH, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
+        // With Sharpen details, the threads are chosen from the picture before it.
+        var paletteImage = preSharpen ? gridPixels(img, sW, sH, {}) : null;
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -2286,6 +2280,7 @@ window.useCreatorState = function useCreatorState() {
           disambig: disambig, disambigLevel: disambigLevel,
           allowedPalette: allowedPalette, seed: _seed,
           keepIds: keepColours.map(function (k) { return k.id; }),
+          paletteRaw: paletteImage ? paletteImage.data : null,
         },
       }, [imageData.data.buffer]);
     };
@@ -2387,6 +2382,7 @@ window.useCreatorState = function useCreatorState() {
         var _gcxImgData;
         try {
           _gcxImgData = gridPixels(img, gw, gh, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
+          var _gcxPalette = preSharpen ? gridPixels(img, gw, gh, {}).data : null;
         } catch (_) {
           // SecurityError: skip this gallery slot silently — generation will
           // still use the main canvas which already showed an error toast.
@@ -2400,6 +2396,7 @@ window.useCreatorState = function useCreatorState() {
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
           keepIds: keepColours.map(function (k) { return k.id; }),
+          paletteRaw: _gcxPalette,
           allowedPalette: slotSubset, seed: slotSeed,
         });
         var slotUrl = null, usedCt = 0;

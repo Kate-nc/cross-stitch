@@ -966,7 +966,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // Colours to keep (Convert): their threads are always in the palette and
   // never folded away. Mirrored in generate-worker.js.
   var keep = opts.keepIds && opts.keepIds.length ? new Set(opts.keepIds.map(String)) : null;
-  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
+  // Threads come from the picture before Sharpen details (paletteSourcePixels).
+  var p = quantizeConstrained(paletteSourcePixels(raw, width, height, opts), width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
   // An all-transparent image is a valid empty pattern, not a quantiser error.
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
@@ -1018,7 +1019,6 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
       // Coverage is already decided. Colour cleanup must not create new holes.
       preserveCoverage: true,
       keep: keep,
-      bgLab: (!dith || dithAlgo === 'off') && opts.skipBg ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null,
       // Undithered, an edge shade is also judged by the pixels it was drawn from.
       // (Dithered stitches all lie between their neighbours' colours, so not then.)
       source: (!dith || dithAlgo === "off") ? raw : null,
@@ -1067,9 +1067,17 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var limited = enforceMaxColours(mapped, p, raw, maxC, keep);
   limited = limitGeneratedBlends(mapped, raw, width, height, p, opts.maxBlends) || limited;
 
+  // The background is left out last. Everything before, the thread limit
+  // included, ran on the whole picture, so the threads, shading and cleanup
+  // are the same with the background in or out; only stitches at the
+  // background's edge change (blankUncovered, colour-utils.js). Mirrored in
+  // generate-worker.js.
+  var blanked = blankUncovered(mapped, coverageMask, raw, width, opts.skipBg && opts.bgCol ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null);
+  if (blanked && tidiedCells) for (var _ti = 0; _ti < mapped.length; _ti++) if (mapped[_ti].id === '__skip__') tidiedCells[_ti] = 0;
+
   // The finished chart's confetti. Measured again only when a stage after
-  // Reduce confetti changed stitches.
-  var confettiFinal = (disambigData && disambigData.swaps > 0) || limited
+  // Reduce confetti changed stitches (leaving the background out included).
+  var confettiFinal = (disambigData && disambigData.swaps > 0) || limited || blanked
     ? analyzeConfetti(mapped, width, height)
     : (confettiClean || confettiRaw);
 
@@ -1164,9 +1172,11 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
   var raw = gridPixels(img, sW, sH, { preSharpenOpts: opts.preSharpenOpts }).data;
+  // With Sharpen details, the threads are chosen from the picture before it.
+  var paletteRaw = opts.preSharpenOpts ? gridPixels(img, sW, sH, {}).data : null;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
-    bri: bri, con: con, sat: sat,
+    bri: bri, con: con, sat: sat, paletteRaw: paletteRaw,
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,
@@ -6733,7 +6743,9 @@ var CONVERSION_STATE_KEYS = [
 // count and size from the picture itself (picturePresetValues).
 // `style` is the Detail and tidiness step the type starts on (STITCH_STYLES).
 var PICTURE_PRESETS = {
-  graphic: { label: 'Graphic or logo', maxC: 8, allowBlends: false, style: 'balanced', skipBorderBackground: true },
+  // No preset leaves the background out: the plain-background check offers
+  // it (useProjectIO.offerBackground), for every type of picture.
+  graphic: { label: 'Graphic or logo', maxC: 8, allowBlends: false, style: 'balanced' },
   // 24 threads: at 20 the palette spent its threads on big areas and drew
   // faces in a grey beige (reports/photo-conversion-accuracy-review.md).
   photo:   { label: 'Photo', maxC: 24, allowBlends: true, style: 'balanced' },
@@ -6827,14 +6839,13 @@ function stitchStyleOf(basis, cur) {
 
 // The values a preset sets for a picture. info is analysePicture's result
 // (null before a picture is loaded). Keys are useCreatorState setters' names
-// without "set": maxC, allowBlends, maxBlends, skipBg, bgCol, sW, sH, plus the starting
+// without "set": maxC, allowBlends, maxBlends, sW, sH, plus the starting
 // Detail and tidiness step's dithMode, cleanup, orphans and protectDetails.
 function picturePresetValues(id, info) {
   var p = PICTURE_PRESETS[id];
   if (!p) return null;
   var v = Object.assign({ allowBlends: p.allowBlends }, stitchStyleValues(id, p.style));
   if (p.maxC) v.maxC = p.maxC;
-  if (p.skipBorderBackground && info && info.border) { v.skipBg = true; v.bgCol = info.border.rgb.slice(0, 3); }
   if (p.maxCFromSource) {
     var n = info && info.distinct ? info.distinct : p.maxCFromSource;
     v.maxC = Math.max(2, Math.min(p.maxCFromSource, n));
@@ -7166,8 +7177,8 @@ window.useCreatorState = function useCreatorState() {
     setDithMode(v);
   };
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
-  // True while skipBg was switched on by the automatic plain-background check
-  // (useProjectIO.handleFile) rather than by the user.
+  // True while skipBg was switched on from the plain-background offer
+  // (useProjectIO.offerBackground), so the next picture starts with it off.
   var bgAutoSkippedRef = useRef(false);
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
@@ -7458,7 +7469,6 @@ window.useCreatorState = function useCreatorState() {
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
     if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails, foldEdgeShades: v.foldEdgeShades }); });
     if (v.orphans != null) setOrphans(v.orphans);
-    if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
     setPresetApplied({ id: id, values: v });
   }, []);
@@ -7466,17 +7476,9 @@ window.useCreatorState = function useCreatorState() {
   // picture type, so its keys are not compared here.
   var pictureType = (function () {
     if (!presetApplied) return 'custom';
-    var v = presetApplied.values, cur = {
-      maxC: maxC, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
-      bgCol: bgCol
-    };
+    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: sW, sH: sH };
     for (var k in v) {
       if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
-      // The background colour is an [r, g, b] array: compare by value.
-      if (k === 'bgCol') {
-        if (!cur.bgCol || String(cur.bgCol.slice(0, 3)) !== String(v.bgCol)) return 'custom';
-        continue;
-      }
       if (cur[k] !== v[k]) return 'custom';
     }
     return presetApplied.id;
@@ -8792,6 +8794,8 @@ window.useCreatorState = function useCreatorState() {
         // Brightness, Contrast and Saturation are applied in the worker,
         // after the background mask (runCleanupPipeline).
         imageData = gridPixels(img, sW, sH, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
+        // With Sharpen details, the threads are chosen from the picture before it.
+        var paletteImage = preSharpen ? gridPixels(img, sW, sH, {}) : null;
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -8840,6 +8844,7 @@ window.useCreatorState = function useCreatorState() {
           disambig: disambig, disambigLevel: disambigLevel,
           allowedPalette: allowedPalette, seed: _seed,
           keepIds: keepColours.map(function (k) { return k.id; }),
+          paletteRaw: paletteImage ? paletteImage.data : null,
         },
       }, [imageData.data.buffer]);
     };
@@ -8941,6 +8946,7 @@ window.useCreatorState = function useCreatorState() {
         var _gcxImgData;
         try {
           _gcxImgData = gridPixels(img, gw, gh, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
+          var _gcxPalette = preSharpen ? gridPixels(img, gw, gh, {}).data : null;
         } catch (_) {
           // SecurityError: skip this gallery slot silently — generation will
           // still use the main canvas which already showed an error toast.
@@ -8954,6 +8960,7 @@ window.useCreatorState = function useCreatorState() {
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
           keepIds: keepColours.map(function (k) { return k.id; }),
+          paletteRaw: _gcxPalette,
           allowedPalette: slotSubset, seed: slotSeed,
         });
         var slotUrl = null, usedCt = 0;
@@ -13528,7 +13535,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
   var sourceRestoreRef = React.useRef(0);
-  // The photo background offer on screen ({ toastId }), or null. A new picture
+  // The plain-background offer on screen ({ toastId }), or null. A new picture
   // or project withdraws it, so its button can never apply one picture's
   // background colour to another (cancelBackgroundOffer).
   var bgOfferRef = React.useRef(null);
@@ -14144,21 +14151,18 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var fromFile = window.projectNameFromFile ? window.projectNameFromFile(f.name) : (f.name || "");
       state.setAutoProjectName(fromFile || "Untitled design");
     }
-    // Look at the picture once: plain backgrounds are left unstitched
-    // automatically (if the outer 2% is one colour, skip it, with Undo), and
-    // the picture type is guessed and its preset applied (audit IMG-01).
-    // A photo's plain background is only offered: everything joined to the
-    // border within the match goes with it, and in a photo that can be part
-    // of the subject, such as a pale shirt against a pale wall
-    // (reports/photo-conversion-audit-2026-11.md). The guess decides this even
-    // when Preferences turn off applying its preset.
+    // Look at the picture once: a plain background is offered, never left out
+    // on its own, and the picture type is guessed and its preset applied
+    // (audit IMG-01). Everything joined to the border within the match goes
+    // with the background, and that can be part of the subject (a pale shirt
+    // against a pale wall), so the stitcher chooses, with the preview showing
+    // what would be left out (reports/photo-conversion-audit-2026-11.md).
     function examinePicture(imgEl) {
       var info = null;
       try { info = creatorExaminePicture(imgEl); }
       catch (err) { console.warn("useProjectIO: picture check failed", err); }
       cancelBackgroundOffer();
-      var looksLikePhoto = !!(info && info.w && typeof window.guessPictureType === "function" && window.guessPictureType(info) === "photo");
-      autoSkipBackground(info ? info.border : null, looksLikePhoto);
+      offerBackground(info ? info.border : null);
       if (info && info.w && state.setPictureInfo) {
         state.setPictureInfo(info);
         // Preferences > Pattern Creator > Guess the picture type. Off: the
@@ -14170,42 +14174,26 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         }
       }
     }
-    function autoSkipBackground(found, offerOnly) {
+    function offerBackground(found) {
       if (!state.setSkipBg) return;
       var autoRef = state.bgAutoSkippedRef;
-      if (!found || offerOnly) {
-        // A skip we switched on for the previous picture shouldn't carry over.
-        if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
-        if (found && state.addToast) {
-          var offer = {};
-          offer.toastId = state.addToast("This photo has a plain background. Leave it unstitched? The preview will show what's left out.", {
-            type: "info", duration: 12000,
-            action: { label: "Leave it unstitched", onClick: function () {
-              // Only for the picture it was offered for.
-              if (bgOfferRef.current !== offer) return;
-              bgOfferRef.current = null;
-              state.setBgCol(found.rgb);
-              state.setSkipBg(true);
-              if (autoRef) autoRef.current = true;
-              if (state.setShowBackground) state.setShowBackground(true);
-            } }
-          });
-          bgOfferRef.current = offer;
-        }
-        return;
-      }
-      state.setBgCol(found.rgb);
-      state.setSkipBg(true);
-      if (autoRef) autoRef.current = true;
-      if (state.addToast) {
-        state.addToast("Background left unstitched.", {
-          type: "info", duration: 8000,
-          action: { label: "Undo", onClick: function () {
-            state.setSkipBg(false);
-            if (autoRef) autoRef.current = false;
-          } }
-        });
-      }
+      // A background left out from the previous picture's offer doesn't carry over.
+      if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
+      if (!found || !state.addToast) return;
+      var offer = {};
+      offer.toastId = state.addToast("This picture has a plain background. Leave it unstitched? The preview will show what's left out.", {
+        type: "info", duration: 12000,
+        action: { label: "Leave it unstitched", onClick: function () {
+          // Only for the picture it was offered for.
+          if (bgOfferRef.current !== offer) return;
+          bgOfferRef.current = null;
+          state.setBgCol(found.rgb);
+          state.setSkipBg(true);
+          if (autoRef) autoRef.current = true;
+          if (state.setShowBackground) state.setShowBackground(true);
+        } }
+      });
+      bgOfferRef.current = offer;
     }
     var rd = new FileReader();
     rd.onload = function(ev) {
@@ -15074,6 +15062,10 @@ window.usePreview = function usePreview(state) {
         rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
       }
 
+      // With Sharpen details, the threads are chosen from the picture before
+      // it (paletteSourcePixels); gridPixels caches it.
+      var paletteRaw = !exactResult && preSharpen ? gridPixels(img, pw, ph, {}).data : null;
+
       // Pipeline options come straight from the canonical settings bundle. The
       // ONLY caller-side overrides are the geometric step we already did above
       // (image filters), so we strip those keys and forward everything else.
@@ -15085,7 +15077,7 @@ window.usePreview = function usePreview(state) {
           allowBlends: settings.allowBlends, maxBlends: settings.maxBlends, allowedPalette: settings.allowedPalette,
           skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
           stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
-          keepIds: settings.keepIds || null,
+          keepIds: settings.keepIds || null, paletteRaw: paletteRaw,
           minSt: settings.minSt, seed: settings.seed,
           smooth: smooth, smoothType: smoothType,
           disambig: settings.disambig, disambigLevel: settings.disambigLevel,
@@ -15718,13 +15710,16 @@ window.usePreview = function usePreview(state) {
       return new Promise(function (resolve, reject) {
         var dims = job.dims;
         var px = picturePixels(props.img, dims.pw, dims.ph, s);
+        var settings = pipelineSettings(s, job.values, props.paletteFor);
+        // With Sharpen details, the threads are chosen from the picture before it.
+        if (s.preSharpen) settings.paletteRaw = gridPixels(props.img, dims.pw, dims.ph, {}).data;
         var w = getWorker();
         if (!w) {
           // No workers: run on the page, after the current frame.
           setTimeout(function () {
             try {
               var raw = px.data;
-              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values, props.paletteFor));
+              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, settings);
               if (!r) { reject(new Error("no result")); return; }
               resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiFinal || r.confettiClean || r.confettiRaw || {}).pct });
             } catch (err) { reject(err); }
@@ -15749,7 +15744,7 @@ window.usePreview = function usePreview(state) {
           reject(new Error((ev && ev.message) || "worker failed"));
         };
         w.postMessage({ type: "generate", reqId: reqId, pixels: px.data.buffer, width: dims.pw, height: dims.ph,
-          settings: pipelineSettings(s, job.values, props.paletteFor) }, [px.data.buffer]);
+          settings: settings }, [px.data.buffer]);
       });
     }
 

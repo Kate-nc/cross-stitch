@@ -55,8 +55,7 @@ test.describe('Convert steps and preview on desktop', function() {
       }
       return { navy, other, cssW: c.getBoundingClientRect().width, boxW: c.parentNode.parentNode.clientWidth };
     });
-    // The logo's background is left unstitched, so much of it is fabric; the
-    // rest is stitches.
+    // Navy fabric shows between the stitches; the rest is stitches.
     expect(px.navy).toBeGreaterThan(0);
     expect(px.other).toBeGreaterThan((px.navy + px.other) * 0.1);
     expect(Math.abs(px.cssW - px.boxW)).toBeLessThan(4);

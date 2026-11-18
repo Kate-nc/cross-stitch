@@ -117,7 +117,8 @@ self.onmessage = function(e) {
     // Physical blends work with or without spatial shading, as in the fallback.
     // Colours to keep (mirrors runCleanupPipeline).
     var keep = settings.keepIds && settings.keepIds.length ? new Set(settings.keepIds.map(String)) : null;
-    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!allowBlends, reserved: settings.keepIds || null});
+    // Threads come from the picture before Sharpen details (mirrors runCleanupPipeline).
+    var p = quantizeConstrained(paletteSourcePixels(raw, width, height, settings), width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!allowBlends, reserved: settings.keepIds || null});
     if (!p.length && coverageMask.some(function(v) { return v !== 0; })) {
       self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;
@@ -165,7 +166,6 @@ self.onmessage = function(e) {
         // Coverage is already decided. Colour cleanup must not create new holes.
         preserveCoverage: true,
         keep: keep,
-        bgLab: (!dith || dithAlgo === 'off') && settings.skipBg ? rgbToLab(settings.bgCol[0], settings.bgCol[1], settings.bgCol[2]) : null,
         // Undithered, an edge shade is also judged by the pixels it was drawn from.
         // (Dithered stitches all lie between their neighbours' colours, so not then.)
         source: (!dith || dithAlgo === 'off') ? raw : null,
@@ -252,10 +252,15 @@ self.onmessage = function(e) {
 
     limited = limitGeneratedBlends(mapped, raw, width, height, p, settings.maxBlends) || limited;
 
+    // The background is left out last, so everything before (the thread limit
+    // included) ran on the whole picture (mirrors runCleanupPipeline).
+    var blanked = blankUncovered(mapped, coverageMask, raw, width, settings.skipBg && settings.bgCol ? rgbToLab(settings.bgCol[0], settings.bgCol[1], settings.bgCol[2]) : null);
+    if (blanked && tidiedCells) for (var _ti = 0; _ti < mapped.length; _ti++) if (mapped[_ti].id === '__skip__') tidiedCells[_ti] = 0;
+
     // The finished chart's confetti (runCleanupPipeline's confettiFinal):
     // look-alike separation and the thread limit can change stitches after
     // Reduce confetti was measured.
-    var confettiFinal = (disambigData && disambigData.swaps > 0) || limited
+    var confettiFinal = (disambigData && disambigData.swaps > 0) || limited || blanked
       ? analyzeConfetti(mapped, width, height)
       : (confettiClean || confettiRaw);
 

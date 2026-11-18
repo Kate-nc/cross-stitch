@@ -154,7 +154,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
   var sourceRestoreRef = React.useRef(0);
-  // The photo background offer on screen ({ toastId }), or null. A new picture
+  // The plain-background offer on screen ({ toastId }), or null. A new picture
   // or project withdraws it, so its button can never apply one picture's
   // background colour to another (cancelBackgroundOffer).
   var bgOfferRef = React.useRef(null);
@@ -770,21 +770,18 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var fromFile = window.projectNameFromFile ? window.projectNameFromFile(f.name) : (f.name || "");
       state.setAutoProjectName(fromFile || "Untitled design");
     }
-    // Look at the picture once: plain backgrounds are left unstitched
-    // automatically (if the outer 2% is one colour, skip it, with Undo), and
-    // the picture type is guessed and its preset applied (audit IMG-01).
-    // A photo's plain background is only offered: everything joined to the
-    // border within the match goes with it, and in a photo that can be part
-    // of the subject, such as a pale shirt against a pale wall
-    // (reports/photo-conversion-audit-2026-11.md). The guess decides this even
-    // when Preferences turn off applying its preset.
+    // Look at the picture once: a plain background is offered, never left out
+    // on its own, and the picture type is guessed and its preset applied
+    // (audit IMG-01). Everything joined to the border within the match goes
+    // with the background, and that can be part of the subject (a pale shirt
+    // against a pale wall), so the stitcher chooses, with the preview showing
+    // what would be left out (reports/photo-conversion-audit-2026-11.md).
     function examinePicture(imgEl) {
       var info = null;
       try { info = creatorExaminePicture(imgEl); }
       catch (err) { console.warn("useProjectIO: picture check failed", err); }
       cancelBackgroundOffer();
-      var looksLikePhoto = !!(info && info.w && typeof window.guessPictureType === "function" && window.guessPictureType(info) === "photo");
-      autoSkipBackground(info ? info.border : null, looksLikePhoto);
+      offerBackground(info ? info.border : null);
       if (info && info.w && state.setPictureInfo) {
         state.setPictureInfo(info);
         // Preferences > Pattern Creator > Guess the picture type. Off: the
@@ -796,42 +793,26 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         }
       }
     }
-    function autoSkipBackground(found, offerOnly) {
+    function offerBackground(found) {
       if (!state.setSkipBg) return;
       var autoRef = state.bgAutoSkippedRef;
-      if (!found || offerOnly) {
-        // A skip we switched on for the previous picture shouldn't carry over.
-        if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
-        if (found && state.addToast) {
-          var offer = {};
-          offer.toastId = state.addToast("This photo has a plain background. Leave it unstitched? The preview will show what's left out.", {
-            type: "info", duration: 12000,
-            action: { label: "Leave it unstitched", onClick: function () {
-              // Only for the picture it was offered for.
-              if (bgOfferRef.current !== offer) return;
-              bgOfferRef.current = null;
-              state.setBgCol(found.rgb);
-              state.setSkipBg(true);
-              if (autoRef) autoRef.current = true;
-              if (state.setShowBackground) state.setShowBackground(true);
-            } }
-          });
-          bgOfferRef.current = offer;
-        }
-        return;
-      }
-      state.setBgCol(found.rgb);
-      state.setSkipBg(true);
-      if (autoRef) autoRef.current = true;
-      if (state.addToast) {
-        state.addToast("Background left unstitched.", {
-          type: "info", duration: 8000,
-          action: { label: "Undo", onClick: function () {
-            state.setSkipBg(false);
-            if (autoRef) autoRef.current = false;
-          } }
-        });
-      }
+      // A background left out from the previous picture's offer doesn't carry over.
+      if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
+      if (!found || !state.addToast) return;
+      var offer = {};
+      offer.toastId = state.addToast("This picture has a plain background. Leave it unstitched? The preview will show what's left out.", {
+        type: "info", duration: 12000,
+        action: { label: "Leave it unstitched", onClick: function () {
+          // Only for the picture it was offered for.
+          if (bgOfferRef.current !== offer) return;
+          bgOfferRef.current = null;
+          state.setBgCol(found.rgb);
+          state.setSkipBg(true);
+          if (autoRef) autoRef.current = true;
+          if (state.setShowBackground) state.setShowBackground(true);
+        } }
+      });
+      bgOfferRef.current = offer;
     }
     var rd = new FileReader();
     rd.onload = function(ev) {

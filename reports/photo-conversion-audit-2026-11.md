@@ -40,6 +40,28 @@ Earlier work: [photo-conversion-accuracy-review.md](photo-conversion-accuracy-re
 - the *At stitch size* comparison and finished sizes in Compare options (recommendation 7);
 - the browser tests running in CI;
 - *Colours to keep* (recommendation 10): pick a colour on the preview and its nearest thread is always in the palette, never folded away, and kept through the thread limit. On the test portrait, keeping one skin thread (DMC 841) lowered the face's colour error from 5.56 to 5.05 (mean of four seeds), with the whole picture 4.72 to 4.66.
+- **Steadier conversions** (after a stitcher found that Sharpen details, and leaving the
+  background out or putting it back, changed the colours of unrelated parts of the pattern):
+  - *Background:* the whole picture is converted first (threads, matching, cleanup and the
+    thread limit) and the background left out last (`blankUncovered`). Before, the threads
+    were chosen again from the subject alone, from a random start, and toggling the
+    background changed the thread of about 45% of the subject's stitches, the same as a new
+    random start. Now only stitches beside the background change: 1 to 3.5% of the stitched
+    area on three photos and 4% on the logo, all within two stitches of the background. A stitch
+    at the edge that is a blur of the background and the subject takes the subject's thread,
+    and a pale edge drawn in the background's own thread takes the neighbouring subject
+    thread. The background is never left out by default: a plain border, for a logo too, is
+    only offered. (At `HEAD` before this, the logo's small white lettering came out white
+    with the background in and grey, DMC 168, with it out; it is now white either way.)
+  - *Palette start:* without a Variation seed, k-means starts from the picture's own main
+    colours (greedy over OKLab bins), so the same settings always give the same pattern;
+    centres move freely before snapping to threads. Colour error on the ten photos is
+    unchanged (4.71 to 4.75). This replaces recommendation 9's best-of-several starts.
+  - *Sharpen details:* the threads are chosen from the picture before sharpening
+    (`settings.paletteRaw`, `paletteSourcePixels`). On a 200-pixel picture Sharpen changed
+    the thread of 28.5% of the stitches; it now changes 8.0%, along the edges it sharpens.
+  - Global changes such as Brightness +3 still change many stitches (52% before, 47% now;
+    13 to 19% even with the palette held fixed), because they really do change the colours.
 
 ## Summary
 
@@ -428,6 +450,9 @@ One k-means++ start with seed 1337. Over six seeds, colour error is 5.21 to 5.34
 
 **Fix:** keep the best of three to five starts by mapping error. Time it on a 500 × 500 chart
 first.
+
+**Done instead:** a fixed start from the picture's main colours (see Status). It removes the
+random reshuffle that made unrelated settings change colours, at the same accuracy.
 
 #### 11. The detail map treats almost every photo as detailed (A)
 

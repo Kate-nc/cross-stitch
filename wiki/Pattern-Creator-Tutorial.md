@@ -52,7 +52,7 @@ The first setting picks good starting values for the picture:
 
 | Type | Starting values |
 |------|-----------------|
-| **Graphic or logo** | Up to 8 threads, no blends; a plain border background is left unstitched; **Detail and tidiness** at Balanced |
+| **Graphic or logo** | Up to 8 threads, no blends; **Detail and tidiness** at Balanced |
 | **Photo** | Up to 24 threads, blends; keeps the in-between shades along edges that shading makes; **Detail and tidiness** at Balanced |
 | **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across); **Detail and tidiness** at More detail, so every pixel is kept. **Exact pixel-art import** appears here |
 
@@ -65,7 +65,7 @@ The rest of the **Picture** step:
 - **Brightness / Contrast / Saturation** — tune the image before conversion. **Reset adjustments** puts them back.
 - **Soften grainy photos** — blurs the picture at stitch size before the threads are chosen: fewer speckled stitches, softer edges. Shrinking a photo to stitches already smooths away grain, so most photos look best with it Off. The method is under **Advanced**.
 - **Sharpen details** — keeps fine lines crisp.
-- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Leave background unstitched** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Leave background unstitched**, press **Pick from picture**, click the background colour, then adjust **How close a match**. Only matching regions connected to the outside edge are removed; enclosed matching details remain. The match uses the picture's own colours, so **Brightness**, **Contrast** and **Saturation** don't change it. A graphic with a plain border has this switched on for you; a photo only gets the offer (**Leave it unstitched**), because a pale subject touching a pale background goes with it. The step says how many stitches the preview leaves unstitched, and **Show them on the preview** marks them.
+- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Leave background unstitched** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Leave background unstitched**, press **Pick from picture**, click the background colour, then adjust **How close a match**. Only matching regions connected to the outside edge are removed; enclosed matching details remain. The match uses the picture's own colours, so **Brightness**, **Contrast** and **Saturation** don't change it. The background is stitched unless you choose otherwise: a picture with a plain border gets an offer (**Leave it unstitched**), not a change, because a pale subject touching a pale background goes with it. The pattern is worked out from the whole picture first and the background left out afterwards, so leaving it out or putting it back changes only the stitches at its edge. The step says how many stitches the preview leaves unstitched, and **Show them on the preview** marks them.
 - **Crop** — crop the image to the part you want.
 
 ### Size

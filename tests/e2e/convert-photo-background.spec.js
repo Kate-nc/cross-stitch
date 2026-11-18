@@ -41,7 +41,7 @@ test.describe('A photo with a plain background', function() {
     await expect(page.getByRole('radiogroup', { name: 'What kind of picture is this?' }).getByRole('radio', { name: 'Photo' }))
       .toHaveAttribute('aria-checked', 'true');
     // Offered, not applied.
-    const offer = page.locator('.creator-toast-container').filter({ hasText: 'This photo has a plain background' });
+    const offer = page.locator('.creator-toast-container').filter({ hasText: 'This picture has a plain background' });
     await expect(offer).toBeVisible();
     await convertStep(page, 'picture');
     const leave = page.getByRole('checkbox', { name: 'Leave background unstitched' });

@@ -128,13 +128,16 @@
       return new Promise(function (resolve, reject) {
         var dims = job.dims;
         var px = picturePixels(props.img, dims.pw, dims.ph, s);
+        var settings = pipelineSettings(s, job.values, props.paletteFor);
+        // With Sharpen details, the threads are chosen from the picture before it.
+        if (s.preSharpen) settings.paletteRaw = gridPixels(props.img, dims.pw, dims.ph, {}).data;
         var w = getWorker();
         if (!w) {
           // No workers: run on the page, after the current frame.
           setTimeout(function () {
             try {
               var raw = px.data;
-              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values, props.paletteFor));
+              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, settings);
               if (!r) { reject(new Error("no result")); return; }
               resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiFinal || r.confettiClean || r.confettiRaw || {}).pct });
             } catch (err) { reject(err); }
@@ -159,7 +162,7 @@
           reject(new Error((ev && ev.message) || "worker failed"));
         };
         w.postMessage({ type: "generate", reqId: reqId, pixels: px.data.buffer, width: dims.pw, height: dims.ph,
-          settings: pipelineSettings(s, job.values, props.paletteFor) }, [px.data.buffer]);
+          settings: settings }, [px.data.buffer]);
       });
     }
 

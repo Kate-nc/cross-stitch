@@ -293,11 +293,129 @@ function prepareConversionPixels(data, w, h, opts) {
       if (i + w < n) visit(i + w);
     }
   }
+  // See-through pixels take no part in the conversion. A plain background
+  // left unstitched does: its pixels stay, so the palette and shading are the
+  // ones the whole picture gets, and leaving it out (blankUncovered, after
+  // matching) changes only the background. Taking its pixels out first
+  // re-chose every thread: about 45% of the subject's stitches changed
+  // (reports/photo-conversion-audit-2026-11.md).
   for (var i = 0; i < n; i++) {
-    data[i * 4 + 3] = mask[i] ? 255 : 0;
-    if (!mask[i]) data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = 0;
+    var seeThrough = data[i * 4 + 3] < 128;
+    data[i * 4 + 3] = seeThrough ? 0 : 255;
+    if (seeThrough) data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = 0;
   }
   return mask;
+}
+
+// The pixels the palette is chosen from. With Sharpen details, the picture
+// before sharpening (opts.paletteRaw, gridPixels without it), prepared the
+// way the pipeline prepares the stitches' pixels: sharpening is about edges,
+// so it must not decide which threads the pattern uses. Choosing threads from
+// the sharpened picture changed 28.5% of the stitches on ten test photos, most
+// in flat areas; from the picture before sharpening, 8.0%, at the edges
+// (reports/photo-conversion-audit-2026-11.md). Otherwise `raw` itself.
+function paletteSourcePixels(raw, w, h, opts) {
+  var src = opts && opts.paletteRaw;
+  // An ArrayBuffer (as posted to the worker), tested without instanceof so
+  // one from another realm counts too.
+  if (src && !ArrayBuffer.isView(src) && typeof src.byteLength === "number") src = new Uint8ClampedArray(src);
+  if (!src || src.length !== raw.length) return raw;
+  var d = new Uint8ClampedArray(src);
+  prepareConversionPixels(d, w, h, opts);
+  applyImageAdjustments(d, opts.bri, opts.con, opts.sat);
+  if (opts.preSmooth) applyBilateralFilter(d, w, h);
+  if (opts.smooth > 0) {
+    if (opts.smoothType === "gaussian") applyGaussianBlur(d, w, h, opts.smooth);
+    else if (opts.smoothType === "bilateral") applyBilateralFilter(d, w, h);
+    else applyMedianFilter(d, w, h, opts.smooth);
+  }
+  return d;
+}
+
+// Leave out the stitches the coverage mask (prepareConversionPixels) leaves
+// unstitched: the background, once the threads are matched and cleanup has
+// run on the whole picture. Mutates mapped; true when it left anything out.
+// With `raw`, `w` and `bgLab` (the background colour), a stitch left beside
+// the background whose own colour is a blur of the background and a
+// neighbouring stitch's thread (within EDGE_BACKGROUND_MIX_DE of the line
+// between them) takes that neighbour's thread. The threads are chosen with the
+// background included, and one went on that blur: without this it stayed as a
+// one-stitch fringe round the subject (a logo gained 33 confetti stitches).
+// Only stitches on the background's edge change, so leaving the background out
+// still changes nothing else.
+var EDGE_BACKGROUND_MIX_DE = 10, BACKGROUND_THREAD_DE = 5;
+function blankUncovered(mapped, mask, raw, w, bgLab) {
+  var n = mapped.length, i, blankedAny = false;
+  for (i = 0; i < n; i++) {
+    if (!mask[i] && mapped[i] && mapped[i].id !== '__skip__') { mapped[i] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] }; blankedAny = true; }
+  }
+  if (!raw || !w || !bgLab) return blankedAny;
+  var src = mapped.slice();
+  var stitched = function (j) { return mask[j] && src[j] && src[j].id !== '__skip__'; };
+  var background = function (j) { return !mask[j] && raw[j * 4 + 3] >= 128; };
+  for (i = 0; i < n; i++) {
+    if (!stitched(i)) continue;
+    var x = i % w, nb = [];
+    if (x > 0) nb.push(i - 1);
+    if (x < w - 1) nb.push(i + 1);
+    if (i >= w) nb.push(i - w);
+    if (i + w < n) nb.push(i + w);
+    if (!nb.some(background)) continue;
+    var p = rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), best = null, bd = EDGE_BACKGROUND_MIX_DE;
+    for (var k = 0; k < nb.length; k++) {
+      var j = nb[k];
+      if (!stitched(j) || src[j].id === src[i].id || !src[j].lab) continue;
+      var d = _segDist76(p, src[j].lab, bgLab);
+      if (d < bd) { bd = d; best = src[j]; }
+    }
+    // Only when the stitch's own thread doesn't already sit on that line
+    // closer to the subject (a deliberate in-between outline keeps its thread).
+    if (best && !(src[i].lab && _segDist76(src[i].lab, best.lab, bgLab) < EDGE_BACKGROUND_MIX_DE &&
+        dE2000(src[i].lab, best.lab) < dE2000(src[i].lab, bgLab) * 0.5)) mapped[i] = best;
+  }
+  // A stitch in the background's own thread (within BACKGROUND_THREAD_DE of
+  // the background colour), joined to the background through stitches in that
+  // thread, is a pale edge the background tolerance just missed: next to bare
+  // fabric it reads as more background. It takes the neighbouring subject
+  // thread nearest its own colour, working inwards from the edge. White
+  // lettering inside a navy logo is not joined to the background, so it keeps
+  // its thread.
+  var near = {}, any = false;
+  for (i = 0; i < n; i++) {
+    var e = mapped[i];
+    if (!mask[i] || !e || e.id === '__skip__' || e.type === 'blend' || !e.lab || near[e.id] !== undefined) continue;
+    near[e.id] = dE2000(e.lab, bgLab) <= BACKGROUND_THREAD_DE;
+    if (near[e.id]) any = true;
+  }
+  if (!any) return blankedAny;
+  var inBg = function (j) { return mask[j] && mapped[j].id !== '__skip__' && near[mapped[j].id] === true; };
+  var reached = new Uint8Array(n), queue = [];
+  var around = function (j) {
+    var x = j % w, out = [];
+    if (x > 0) out.push(j - 1);
+    if (x < w - 1) out.push(j + 1);
+    if (j >= w) out.push(j - w);
+    if (j + w < n) out.push(j + w);
+    return out;
+  };
+  for (i = 0; i < n; i++) if (inBg(i) && around(i).some(background)) { reached[i] = 1; queue.push(i); }
+  for (var q = 0; q < queue.length; q++) around(queue[q]).forEach(function (j) { if (!reached[j] && inBg(j)) { reached[j] = 1; queue.push(j); } });
+  for (var changed = true; changed; ) {
+    changed = false;
+    for (q = 0; q < queue.length; q++) {
+      i = queue[q];
+      if (!reached[i]) continue;
+      var px = rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), pick = null, pd = Infinity;
+      around(i).forEach(function (j) {
+        var t = mapped[j];
+        if (!mask[j] || reached[j] || !t || t.id === '__skip__' || !t.lab || near[t.id] === true) return;
+        var d = dE2000(px, t.lab);
+        if (d < pd) { pd = d; pick = t; }
+      });
+      if (pick) { mapped[i] = pick; reached[i] = 0; changed = true; }
+    }
+  }
+  return blankedAny;
 }
 
 // Brightness, Contrast and Saturation (each -100 to +100, 0 = no change), the
@@ -395,6 +513,26 @@ function quantize(data,w,h,n,allowedPalette,options){
   }
   return pl;
 }
+// 0: snap to threads on every k-means step (as before); 1: free k-means from
+// the picture-based start, then snap once; 2: as 1, then the snapping steps.
+var PALETTE_CONTINUOUS_START = 2;
+// The picture's colours in small OKLab groups, for a palette start that
+// follows the picture: { n, count, ok } (pixels in each group and their mean
+// OKLab). Groups are 0.04 in L and 0.02 in a and b, about ΔE 2 to 4, so a small
+// change to a few pixels moves a group's count a little rather than
+// re-ordering the start.
+function _startBins(pxOk){
+  let at=new Map(),count=[],sl=[],sa=[],sb=[];
+  for(let i=0;i<pxOk.length;i++){
+    let o=pxOk[i],key=(Math.round(o[0]/0.04)*4096)+(Math.round(o[1]/0.02)+64)*64+(Math.round(o[2]/0.02)+64);
+    let k=at.get(key);
+    if(k==null){k=count.length;at.set(key,k);count.push(0);sl.push(0);sa.push(0);sb.push(0);}
+    count[k]++;sl[k]+=o[0];sa[k]+=o[1];sb[k]+=o[2];
+  }
+  let ok=new Array(count.length);
+  for(let k=0;k<count.length;k++)ok[k]=[sl[k]/count[k],sa[k]/count[k],sb[k]/count[k]];
+  return {n:count.length,count:count,ok:ok};
+}
 // Pool indices of the kept threads (ids), in order, at most maxN, each once.
 function _reservedEntries(pool,ids,maxN){
   if(!ids||!ids.length)return [];
@@ -440,7 +578,46 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
     let ti=reserved[ri];
     cs.push(pool[ti]);csOk.push(poolOk[ti]);usedInit.add(pool[ti].id);
   }
-  if(!R){
+  // Where k-means starts. With no seed (every conversion but Variation's), it
+  // starts from the picture itself: colour groups (_startBins) chosen greedily
+  // by pixels × distance from the threads already chosen, k-means++'s weighting
+  // with its best candidate rather than a random draw. A random start picked
+  // pixels by their place in the pixel list, so any change to the picture
+  // (leaving out its background, Sharpen details, a little more brightness)
+  // sent it down a different path: about half the stitches changed thread,
+  // anywhere in the picture (reports/photo-conversion-audit-2026-11.md).
+  // Variation passes a seed, and keeps the random start for its variety.
+  let bins=options&&options.seed!=null?null:_startBins(pxOk);
+  if(bins){
+    let bd=new Float64Array(bins.n).fill(1e9);
+    let take=function(ok){
+      let b=null,bdist=1e9,bti=-1;
+      for(let ti=0;ti<pool.length;ti++){
+        if(usedInit.has(pool[ti].id))continue;
+        let d=dE2ok(ok,poolOk[ti]);
+        if(detFamilyBonus<1&&pool[ti].fam>0&&!familiesInCsDet.has(pool[ti].fam))d*=detFamilyBonus;
+        if(d<bdist){bdist=d;b=pool[ti];bti=ti;}
+      }
+      if(!b)return false;
+      cs.push(b);csOk.push(poolOk[bti]);usedInit.add(b.id);if(b.fam>0)familiesInCsDet.add(b.fam);
+      return true;
+    };
+    var detFamilyBonus=(options&&options.familyBonus!=null)?options.familyBonus:0.85;
+    var familiesInCsDet=new Set(cs.filter(function(e){return e.fam>0;}).map(function(e){return e.fam;}));
+    for(let c=0;c<csOk.length;c++)for(let k=0;k<bins.n;k++){let d=dE2ok(bins.ok[k],csOk[c]);if(d<bd[k])bd[k]=d;}
+    if(!cs.length){
+      let top=0;for(let k=1;k<bins.n;k++)if(bins.count[k]>bins.count[top])top=k;
+      take(bins.ok[top]);
+    }
+    while(cs.length<Math.min(maxN,pool.length)){
+      let last=csOk[csOk.length-1];
+      for(let k=0;k<bins.n;k++){let d=dE2ok(bins.ok[k],last);if(d<bd[k])bd[k]=d;}
+      let best=-1,bs=0;
+      for(let k=0;k<bins.n;k++){let s=bins.count[k]*bd[k];if(s>bs){bs=s;best=k;}}
+      if(best<0||!take(bins.ok[best]))break;
+    }
+  }
+  if(!R&&!bins){
     let fp=px[Math.floor(random()*len)];
     let b=null,bd=1e9,bti=-1;
     for(let ti=0;ti<pool.length;ti++){let d=dE2(fp,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];bti=ti;}}
@@ -453,10 +630,11 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   let familiesInCs=new Set(cs.filter(function(e){return e.fam>0;}).map(function(e){return e.fam;}));
   let ds=new Float32Array(len);
   for(let i=0;i<len;i++)ds[i]=1e9;
+  if(bins)ds=null;   // started from the picture above: no random draws
   // The loop below measures from the newest centre only: count the other
   // kept threads first.
-  for(let ri=0;ri<R-1;ri++){let o=csOk[ri];for(let i=0;i<len;i++){let d=dE2ok(pxOk[i],o);if(d<ds[i])ds[i]=d;}}
-  while(cs.length<Math.min(maxN,pool.length)){
+  for(let ri=0;ds&&ri<R-1;ri++){let o=csOk[ri];for(let i=0;i<len;i++){let d=dE2ok(pxOk[i],o);if(d<ds[i])ds[i]=d;}}
+  while(ds&&cs.length<Math.min(maxN,pool.length)){
     // Use OKLab for k-means++ distance weighting: better hue uniformity than
     // CIE LAB, so the probabilistic sampling reflects perceptual spread more accurately.
     let lastOk=csOk[csOk.length-1];
@@ -517,7 +695,41 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
     if(!mv)break;
   }
   }
-  lloyd();
+  // Started from the picture: refine the centres as free colours first
+  // (k-means on the colour groups, kept threads fixed), then snap each to its
+  // nearest unused thread, largest cluster first. Snapping to threads on every
+  // step made the refinement jump: a small change to the picture swapped
+  // threads the change had nothing to do with.
+  if(bins&&PALETTE_CONTINUOUS_START){
+    let K=csOk.length,cen=csOk.map(function(o){return o.slice();}),wt=new Float64Array(K);
+    let asg=new Int32Array(bins.n);
+    for(let it=0;it<30;it++){
+      let sl=new Float64Array(K),sa=new Float64Array(K),sb=new Float64Array(K);wt.fill(0);
+      for(let k=0;k<bins.n;k++){
+        let o=bins.ok[k],md=1e9,mi=0;
+        for(let c=0;c<K;c++){let d=dE2ok(o,cen[c]);if(d<md){md=d;mi=c;}}
+        asg[k]=mi;let n=bins.count[k];wt[mi]+=n;sl[mi]+=o[0]*n;sa[mi]+=o[1]*n;sb[mi]+=o[2]*n;
+      }
+      let moved=0;
+      for(let c=R;c<K;c++){if(!wt[c])continue;let nc=[sl[c]/wt[c],sa[c]/wt[c],sb[c]/wt[c]];moved=Math.max(moved,dE2ok(nc,cen[c]));cen[c]=nc;}
+      if(moved<1e-8)break;
+    }
+    let order=[];for(let c=R;c<K;c++)order.push(c);
+    order.sort(function(x,y){return wt[y]-wt[x]||x-y;});
+    let used=new Set(cs.slice(0,R).map(function(e){return e.id;})),out=cs.slice(0,R),outOk=csOk.slice(0,R);
+    order.forEach(function(c){
+      // A centre no colour chose keeps its thread, as in lloyd(): a flat
+      // colour only a blend of two threads draws needs both.
+      if(!wt[c]){if(!used.has(cs[c].id)){used.add(cs[c].id);out.push(cs[c]);outOk.push(csOk[c]);}return;}
+      let b=null,bd=1e9,bti=-1;
+      for(let ti=0;ti<pool.length;ti++){if(used.has(pool[ti].id))continue;let d=dE2ok(cen[c],poolOk[ti]);if(d<bd){bd=d;b=pool[ti];bti=ti;}}
+      if(b){used.add(b.id);out.push(b);outOk.push(poolOk[bti]);}
+    });
+    cs=out;csOk=outOk;
+    if(PALETTE_CONTINUOUS_START===2)lloyd();
+  } else {
+    lloyd();
+  }
   // Palette refinement (see prunePalette and addDistinctColours below):
   // drop near-duplicate threads, refit the survivors to the clusters they now
   // serve, then give small but clearly different colours a slot.
@@ -3537,4 +3749,4 @@ _colourUtilsGlobal.RARE_COLOUR_CONTRAST_GUARD_DE = RARE_COLOUR_CONTRAST_GUARD_DE
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, applyImageAdjustments, prepareConversionPixels, blendThreadRgb, legacyBlendRgb, makeThreadBlend, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, applyImageAdjustments, prepareConversionPixels, blankUncovered, paletteSourcePixels, blendThreadRgb, legacyBlendRgb, makeThreadBlend, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }
