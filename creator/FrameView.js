@@ -221,7 +221,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
       h("div", { className: "fr-panel__body" },
         window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
       h("footer", { className: "fr-footer" },
-        h("button", { type: "button", className: "cv-generate", "data-onboard": "frame-continue", onClick: next },
+        h("button", { type: "button", className: "fr-continue", "data-onboard": "frame-continue", onClick: next },
           h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null),
         h("p", { className: "cs-toolsec__hint fr-footer__note" }, "Reframe, beside your picture, brings you back here."))));
 };

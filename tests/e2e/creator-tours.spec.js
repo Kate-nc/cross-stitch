@@ -4,7 +4,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, startBlankGrid, skipTourIfShown, LOGO } = require('./creator-helpers');
+const { device, startBlankGrid, skipTourIfShown, LOGO, continueFromFrame } = require('./creator-helpers');
 
 // Everything quiet except the Creator's own tours.
 async function onlyCreatorTours(page) {
@@ -70,6 +70,9 @@ test.describe('Creator tours on a desktop', function() {
     await skipTourIfShown(page);
     await page.locator('input.home-create-file-input').setInputFiles(LOGO);
     await page.waitForURL(/create\.html/);
+    // The tour waits until Frame the picture is done.
+    await expect(tourCard(page)).toHaveCount(0);
+    await continueFromFrame(page);
 
     const card = tourCard(page);
     await expect(card).toBeVisible({ timeout: 15000 });

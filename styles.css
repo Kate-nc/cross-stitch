@@ -8428,8 +8428,8 @@ body.creator-compact .cs-page-content{padding-bottom:calc(var(--creator-rail-h) 
 body.creator-compact .rpanel.rpanel--edit{bottom:calc(var(--creator-rail-h) + env(safe-area-inset-bottom,0px));}
 body.creator-compact .rpanel.rpanel--edit:not(.rpanel--open){display:none;}
 body.creator-compact .rpanel.rpanel--edit.rpanel--open{max-height:calc(100dvh - 48px - var(--creator-rail-h) - 16px);}
-.cc-generate{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border:none;border-radius:var(--radius-md);background:var(--accent);color:var(--surface);font:inherit;font-size:var(--text-sm);font-weight:600;cursor:pointer;flex-shrink:0;}
-.cc-generate svg{width:16px;height:16px;}
+.cc-generate,.cc-continue{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border:none;border-radius:var(--radius-md);background:var(--accent);color:var(--surface);font:inherit;font-size:var(--text-sm);font-weight:600;cursor:pointer;flex-shrink:0;}
+.cc-generate svg,.cc-continue svg{width:16px;height:16px;}
 .cc-generate:disabled{opacity:0.6;cursor:default;}
 /* The chart fills the space between the top bar and the rail, leaving two
    lines for the status text under it. */
@@ -8996,6 +8996,15 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .ready-bar__actions svg, .ready-bar__close svg { width: 16px; height: 16px; }
 .ready-bar__close { position: absolute; top: var(--s-2); right: var(--s-2); background: none; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); display: inline-flex; border-radius: var(--radius-sm); }
 @media (hover: hover) { .ready-bar__close:hover { background: var(--surface); color: var(--text-primary); } }
+/* On a phone the bar floats above the bottom toolbar, where the Creator's
+   notices appear, so the chart keeps its whole height: compact, with the
+   links left to the More menu. */
+body.creator-compact .ready-bar { position: fixed; left: 8px; right: 8px; bottom: calc(var(--creator-rail-h) + env(safe-area-inset-bottom, 0px) + var(--creator-status-h)); z-index: 600; margin: 0; padding: var(--s-2) var(--s-3); gap: var(--s-2); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); }
+body.creator-compact .ready-bar__icon, body.creator-compact .ready-bar__links { display: none; }
+body.creator-compact .ready-bar__text { flex-basis: 100%; }
+body.creator-compact .ready-bar__summary { font-size: var(--text-xs); }
+body.creator-compact .ready-bar__actions { margin-right: 0; }
+body.creator-compact .ready-bar__actions .btn { white-space: nowrap; }
 /* Palette notes in Edit (creator/Sidebar.js): small print, not body text. */
 .convert-first-use { margin: 0 0 var(--s-2); font-size: var(--text-xs); line-height: 1.4; color: var(--text-secondary); }
 @media (max-width: 700px) {
@@ -9112,7 +9121,7 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .cv-input--area { resize: vertical; min-height: 54px; }
 .cv-input--seed { width: 84px; }
 .cv-link { background: none; border: none; padding: 0; font: inherit; font-size: var(--text-xs); color: var(--accent); cursor: pointer; }
-.cv-link:focus-visible, .cv-next__btn:focus-visible, .cv-generate:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cv-link:focus-visible, .cv-next__btn:focus-visible, .cv-generate:focus-visible, .fr-continue:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cv-disclosure { display: inline-flex; align-items: center; gap: 4px; margin-top: var(--s-2); color: var(--text-secondary); }
 .cv-disclosure__chev { display: inline-flex; width: 12px; height: 12px; transition: transform var(--motion, 0.15s); }
 .cv-disclosure[aria-expanded="true"] .cv-disclosure__chev { transform: rotate(90deg); }
@@ -9148,11 +9157,11 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .cv-footer__summary { margin: 0; font-size: var(--text-xs); line-height: 1.4; color: var(--text-secondary); }
 .cv-footer__state { margin: 0; font-size: var(--text-xs); line-height: 1.4; color: var(--text-tertiary); }
 .cv-footer__empty { text-align: center; }
-.cv-generate { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; font: inherit; font-size: var(--text-md); font-weight: 600; color: var(--surface); background: var(--accent); border: none; border-radius: var(--radius-md); cursor: pointer; }
+.cv-generate, .fr-continue { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; font: inherit; font-size: var(--text-md); font-weight: 600; color: var(--surface); background: var(--accent); border: none; border-radius: var(--radius-md); cursor: pointer; }
 .cv-generate--quiet { color: var(--text-primary); background: var(--surface-tertiary); }
 .cv-generate:disabled { cursor: wait; color: var(--surface); background: var(--text-tertiary); }
-@media (hover: hover) { .cv-generate:not(:disabled):not(.cv-generate--quiet):hover { background: var(--accent-hover); } }
-.cv-generate svg { width: 16px; height: 16px; }
+@media (hover: hover) { .cv-generate:not(:disabled):not(.cv-generate--quiet):hover, .fr-continue:hover { background: var(--accent-hover); } }
+.cv-generate svg, .fr-continue svg { width: 16px; height: 16px; }
 /* "Fix the picture" in Frame the picture: brightness and the rest, folded away. */
 .cv-fix { border-top: 1px solid var(--border); }
 .cv-fix > summary { padding: 12px; cursor: pointer; font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
@@ -9181,7 +9190,6 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .fr-panel__body { flex: 1; min-height: 0; overflow-y: auto; }
 .fr-footer { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 12px; border-top: 1px solid var(--border); background: var(--surface); }
 .fr-footer__note { margin: 0; text-align: center; }
-.cc-continue svg { width: 16px; height: 16px; }
 @media (max-width: 899px) {
   .fr-layout { flex-direction: column; padding: 8px 8px 0; gap: var(--s-2); }
   .fr-shapes { flex-basis: 100%; }

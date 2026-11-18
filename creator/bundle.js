@@ -17229,7 +17229,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       // Frame the picture: Continue to the settings, the same as the button
       // under Frame's settings (creator/FrameView.js listens for it).
       appMode === "create" && props.hasImage && props.framing ? h("button", {
-        type: "button", className: "cc-generate cc-continue", onClick: props.onContinue,
+        type: "button", className: "cc-continue", onClick: props.onContinue,
         "aria-label": "Continue", title: "Continue to size, threads and detail"
       }, h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null) :
       // Convert: Generate stays one tap away (it is also in the settings drawer).
@@ -19464,7 +19464,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
       h("div", { className: "fr-panel__body" },
         window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
       h("footer", { className: "fr-footer" },
-        h("button", { type: "button", className: "cv-generate", "data-onboard": "frame-continue", onClick: next },
+        h("button", { type: "button", className: "fr-continue", "data-onboard": "frame-continue", onClick: next },
           h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null),
         h("p", { className: "cs-toolsec__hint fr-footer__note" }, "Reframe, beside your picture, brings you back here."))));
 };

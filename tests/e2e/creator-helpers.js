@@ -157,6 +157,7 @@ const undoButton = (page) => page.getByRole('button', { name: 'Undo', exact: tru
 async function convertStep(page, id) {
   // What the picture is, its background and fixes are in Frame the picture.
   if (id === 'picture') { if (!(await page.locator('[data-frame-view]').count())) await reframe(page); return; }
+  if (await page.locator('[data-frame-view]').count()) await continueFromFrame(page);
   const header = page.locator('.rpanel-drawer-header');
   if (await header.isVisible().catch(function() { return false; })) {
     if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click();

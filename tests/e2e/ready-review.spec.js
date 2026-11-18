@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('canvas');
 const { installLocalCdn } = require('./local-cdn');
-const { quietOnboarding, clickGenerate, waitForEdit } = require('./creator-helpers');
+const { quietOnboarding, clickGenerate, waitForEdit, continueFromFrame } = require('./creator-helpers');
 test.use({ video: 'off', launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {} });
 test.beforeEach(async ({context, page}) => { await installLocalCdn(context); await quietOnboarding(page); });
 
@@ -102,6 +102,7 @@ test('portrait conversion retains original, current chart and actual stitch prev
   const portrait=new Function('createCanvas',src.slice(start,end)+';return makePortrait(128,160);')(createCanvas);
   await page.locator('input.home-create-file-input').setInputFiles({name:'portrait.png',mimeType:'image/png',buffer:portrait.toBuffer('image/png')});
   await page.waitForURL(/create\.html/);
+  await continueFromFrame(page);
   await clickGenerate(page);await waitForEdit(page);
   await page.getByRole('tab',{name:'Materials',exact:true}).click();
   await page.getByRole('tab',{name:'Ready to stitch',exact:true}).click();

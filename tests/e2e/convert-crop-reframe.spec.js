@@ -100,7 +100,7 @@ test.describe('Frame the picture on a phone', function() {
   test('Continue is in the top bar in place of Generate', async function({ page }) {
     await openConvertWithLogo(page, { frame: true });
     await expect(page.locator('.cc-continue')).toBeVisible();
-    await expect(page.locator('.cc-generate:not(.cc-continue)')).toHaveCount(0);
+    await expect(page.locator('.cc-generate')).toHaveCount(0);
     await page.locator('.cc-continue').click();
     await expect(page.locator('[data-frame-view]')).toHaveCount(0);
     await expect(page.locator('.cc-generate')).toHaveAccessibleName('Generate pattern');

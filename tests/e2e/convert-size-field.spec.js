@@ -3,7 +3,7 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, openConvertWithLogo: openLogo, quietOnboarding, skipTourIfShown, convertStep } = require('./creator-helpers');
+const { device, openConvertWithLogo: openLogo, quietOnboarding, skipTourIfShown, convertStep, continueFromFrame } = require('./creator-helpers');
 
 // The size field is in Convert's Size step.
 async function openConvertWithLogo(page) { await openLogo(page); await convertStep(page, 'size'); }
@@ -19,7 +19,7 @@ async function openWith(page, file) {
   await skipTourIfShown(page);
   await page.locator('input.home-create-file-input').setInputFiles(file);
   await page.waitForURL(/create\.html/);
-  await page.waitForSelector('.rpanel', { state: 'attached' });
+  await continueFromFrame(page);
   await skipTourIfShown(page);
   await convertStep(page, 'size');
 }

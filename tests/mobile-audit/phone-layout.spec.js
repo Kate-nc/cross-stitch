@@ -35,6 +35,8 @@ async function openCreatorEdit(page) {
   await page.goto('/home.html?tab=create');
   await page.locator('input.home-create-file-input').setInputFiles(LOGO);
   await page.waitForURL(/create\.html/);
+  // A new picture opens on Frame the picture first.
+  await page.locator('[data-onboard="frame-continue"]:visible, .cc-continue:visible').first().click();
   await page.waitForSelector('.rpanel', { state: 'attached' });
   await page.locator('.cc-generate:visible, .cv-generate:visible').first().click();
   await page.waitForSelector('.rpanel--edit', { state: 'attached', timeout: 30000 });
