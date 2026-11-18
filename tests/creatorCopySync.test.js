@@ -35,6 +35,7 @@ const CONTROLS = {
   // Convert's step tabs (creator/ConvertPanel.js), and Reframe beside the
   // picture, which goes back to Frame the picture.
   "Reframe":         [["creator/FrameView.js", "Reframe"]],
+  "Continue":        [["creator/FrameView.js", "Continue"]],
   "Size":            [["creator/ConvertPanel.js", "Size"]],
   "Threads":         [["creator/ConvertPanel.js", "Threads"]],
   "Detail":          [["creator/ConvertPanel.js", "Detail"]],

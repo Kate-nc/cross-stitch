@@ -488,3 +488,61 @@ missing small-print style.
 All three phases of section 6 are now done, so there are now one way to
 convert a picture and one order to do it in.
 
+
+## 9. Review and audit passes (PR 425)
+
+**First-use review.** These were found by walking the flow as a new user, with
+tours on, on desktop and phone. All are fixed:
+
+- Small pictures were almost invisible in Frame (a 9×7 sprite showed at
+  9×7 px). They are now shown at least 360 px across, with sharp pixels.
+- **Dark mode (bug already on `main`).** The chosen option in every row of
+  choices, the chosen Convert step, and the Generate and Continue buttons all
+  showed in the same grey. The cause: the blanket
+  `html.pref-dark button:not(…)` rule outweighed the overrides once Stock-take
+  added two more exclusions. The exclusions are now wrapped in `:where()`, so
+  the rule's weight no longer grows.
+- **Notices.** Closing the ready bar brought back three notices at once. The
+  shortcuts hint and the review note now wait while a one-off tip is showing.
+- **Tips.** The Tools tab tip named tabs that no longer exist, and showed on
+  phones, where those tabs are hidden. On phones, tours said "Press ?".
+- **Empty stash.** Use only stash threads gave a confusing result: a preview
+  that "uses every thread", Generate stopping with a 3-second message, and a
+  stray "0" in the panel. Now the box can't be ticked and a note links to the
+  Stash Manager.
+
+**Code audit.** All of these are fixed:
+
+- In Frame, Undo after Change picture brought back the previous picture. A
+  picture Frame did not put in place now starts a new Undo list.
+- Use only stash threads was locked, and showed the empty-stash note, while
+  the stash was still loading. The Creator now waits until the stash has been
+  read.
+- On a phone, the floating ready bar covered the settings drawer. It now sits
+  under the drawer.
+- Reframing a picture that already has a chart didn't say the chart is kept.
+  Frame now says so.
+- The Tracker hand-off gave no message when the open project's save was held
+  or merged. It now explains why the picture didn't open, and it uses the
+  shared `noWriteReason` check.
+- Frame's Escape and Enter keys could act inside a dialog opened over it.
+  Keys typed in dialogs are now left to the dialog.
+- The "from the Tracker" flag survived Change picture. It is now cleared.
+
+**Help and tutorials.**
+
+- A two-step Frame tour now runs the first time someone adds a picture, and
+  hands on to the converting tour after Continue. Making the pattern no
+  longer starts a third ("Your chart") tour. Replaying from Help plays the
+  tour for the current screen. On phones the tour points at the top bar's
+  Continue.
+- The help drawer, the wiki (Pattern Creator tutorial, Getting started,
+  Stitch Tracker guide, Home), `TERMINOLOGY.md` and stale code comments now
+  describe Frame the picture, the Size, Threads and Detail steps, Your
+  pattern is ready, and opening pictures from the Tracker.
+
+**Still open (follow-up):**
+
+- a progress indicator through Frame and the settings
+- a crop box that can be moved and resized
+- a background highlight on the picture

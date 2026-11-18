@@ -6707,9 +6707,9 @@ var CONVERSION_STATE_KEYS = [
 ];
 
 // ── Picture-type presets (audit IMG-01) ────────────────────────────────────
-// "What kind of picture is this?" at the top of Convert. Choosing one only
-// sets values; every control stays editable, and once a value differs from
-// what the preset set the control shows Custom. Pixel art takes its thread
+// "What kind of picture is this?" in Frame the picture. Choosing one only
+// sets values; every control stays editable, and changing one keeps the type
+// (presetUntouched records whether they are unchanged). Pixel art takes its thread
 // count and size from the picture itself (picturePresetValues).
 // `style` is the Detail and tidiness step the type starts on (STITCH_STYLES).
 var PICTURE_PRESETS = {
@@ -7482,7 +7482,7 @@ window.useCreatorState = function useCreatorState() {
   var _cropRect= useState(null);     var cropRect   = _cropRect[0], setCropRect = _cropRect[1];
   var cropStartRef = useRef(null);
   var cropRef      = useRef(null);
-  // The crop dialog's shape: null (free) or width / height. The drag in
+  // Frame the picture's crop shape: null (free) or width / height. The drag in
   // useCanvasInteraction keeps the rectangle to it.
   var cropRatioRef = useRef(null);
   // useProjectIO's picture check (type, background, pixel-art size), so a
@@ -17242,7 +17242,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       // Frame the picture: Continue to the settings, the same as the button
       // under Frame's settings (creator/FrameView.js listens for it).
       appMode === "create" && props.hasImage && props.framing ? h("button", {
-        type: "button", className: "cc-continue", onClick: props.onContinue,
+        type: "button", className: "cc-continue", onClick: props.onContinue, "data-onboard": "frame-continue",
         "aria-label": "Continue", title: "Continue to size, threads and detail"
       }, h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null) :
       // Convert: Generate stays one tap away (it is also in the settings drawer).
@@ -19325,6 +19325,9 @@ window.CreatorReframeButton = function CreatorReframeButton() {
 window.CreatorFrameView = function CreatorFrameView(props) {
   var gen = window.useGeneration();
   var pd = window.usePatternData ? window.usePatternData() : null;
+  // On phones the tour points at the top bar's Continue (CompactBar), the one
+  // on screen; this one is at the foot of the page.
+  var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
   var h = React.createElement;
   var Icons = window.Icons || {};
 
@@ -19510,7 +19513,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
       h("div", { className: "fr-panel__body" },
         window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
       h("footer", { className: "fr-footer" },
-        h("button", { type: "button", className: "fr-continue", "data-onboard": "frame-continue", onClick: next },
+        h("button", Object.assign(compact ? {} : { "data-onboard": "frame-continue" }, { type: "button", className: "fr-continue", onClick: next }),
           h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null),
         h("p", { className: "cs-toolsec__hint fr-footer__note" }, "Reframe, beside your picture, brings you back here."))));
 };
@@ -21430,13 +21433,15 @@ window.CreatorSidebar = function CreatorSidebar() {
    while a picture is being converted).
 
    Laid out like the Edit panel: a strip of tabs in the order the choices are
-   made (Picture, Size, Threads, Detail), flat sections with the Edit panel's
+   made (Size, Threads, Detail), flat sections with the Edit panel's
    headings and hints (.cs-toolsec), a Next button at the foot of each step,
    and Generate pinned at the bottom under a one-line summary of what it will
    make. Every setting is shown once. Within a step, a setting comes before
    the ones it limits (the stash before the thread count). The pattern's name
    comes from the picture's file name and shows in the header; designer and
    notes are in Edit's Project tab (reports/create-from-image-workflow).
+   What the picture is, its background and fixes (CreatorPictureSections,
+   below) are shown in Frame the picture (creator/FrameView.js) instead.
 
    Sidebar.js renders this in Convert (appMode "create" with a picture); a
    design drawn from scratch has the Canvas panel instead. Reads the Creator

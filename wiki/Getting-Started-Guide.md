@@ -26,11 +26,11 @@ Home is your project hub. It has four tabs.
 
 To delete projects, use the **Pattern Library** in the Stash Manager.
 
-### Create new
+### What are you starting with?
 
-- **Stitch an existing chart** — review a PDF, `.oxs`, supported Pattern Maker `.xsd`, PCStitch 7 `.pat` or saved `.json` project, then start stitching or edit first.
-- **Convert a picture** — choose thread colours from a photograph or artwork. A photograph of a printed chart is not read as chart symbols; use the original PDF or supported chart file instead.
-- **Draw a pattern** — choose size and fabric, then draw on a blank grid.
+- **A pattern I already have** — review a PDF, `.oxs`, supported Pattern Maker `.xsd`, PCStitch 7 `.pat` or saved `.json` project, then start stitching or edit first.
+- **A photo or picture** — choose thread colours from a photograph or artwork. A photograph of a printed chart is not read as chart symbols; use the original PDF or supported chart file instead.
+- **A blank canvas** — choose size and fabric, then draw on a blank grid.
 
 These paths also appear immediately on an empty Home. **Try a sample project** offers a small flower chart: select a thread, mark stitches and undo. Practice stays in page memory, never changes real projects, sessions, progress or inventory, and starts fresh on reload. Home tabs support browser Back.
 
@@ -46,11 +46,12 @@ Lifetime stitches (the stitches marked across all your charts), recent activity 
 
 ## Creating Your First Pattern
 
-1. Go to **Home > Create new** and choose **Convert a picture**.
-2. Pick an image. Simple graphics and photos with clear subjects work best.
-3. The Pattern Creator opens with the image. Work through the steps across the top of the panel on the right: **Picture** (what kind of picture it is, its background and any fixes), **Size** (stitches and fabric), **Threads** (how many; 10–20 is a good start) and **Detail** (how much shading and small detail to keep). **Next** at the foot of each step opens the next one. The preview shows your pattern as stitches on the fabric and updates as you go, with a line saying what each change did.
-4. Generate the pattern.
-5. The **Tools** and **View** tabs unlock so you can edit stitches by hand.
+1. On **Home**, under **What are you starting with?**, choose **A photo or picture**.
+2. Pick a picture. Simple graphics and photos with clear subjects work best.
+3. The Pattern Creator opens on **Frame the picture**. Crop to the part you want to stitch (drag, or choose a shape such as **Square**), turn it if it is on its side, and check the picture type and background the Creator chose. Then choose **Continue**.
+4. Work through the steps across the top of the panel on the right: **Size** (stitches and fabric), **Threads** (how many; 10–20 is a good start) and **Detail** (how much shading and small detail to keep). Each starts from a good guess, so change only what you want; **Next** at the foot of each step opens the next one. The preview shows your pattern as stitches on the fabric and updates as you go, with a line saying what each change did.
+5. Choose **Generate Pattern**. **Your pattern is ready** then says what was made and offers **Print PDF**, **Open in Tracker** and **Threads to buy**.
+6. The **Tools** and **View** tabs unlock so you can edit stitches by hand.
 
 Your project saves itself as you work — there is no Save button to remember.
 
@@ -133,7 +134,7 @@ Yes. **Home > Create new > Stitch an existing chart** (or **File > Open…**) re
 - Pattern Maker `.xsd` binary charts from 4.8.4.12 only. Review counted omissions and compare with the original; [support and verification limits](../docs/xsd-import.md). XML Schema documents are unsupported.
 - Unencrypted PCStitch 7 `.pat` charts; review the import limitations against the original. Other versions and unrelated PAT formats are unsupported.
 - `.json` stitchx project files
-- for images, choose **Convert a picture** instead
+- for images, choose **A photo or picture** instead
 - PDF charts — including charts printed over several pages, scanned charts and booklets with several designs. A review screen lets you check pages and threads before saving.
 
 ### Can I print my pattern?

@@ -172,9 +172,9 @@ var CONVERSION_STATE_KEYS = [
 ];
 
 // ── Picture-type presets (audit IMG-01) ────────────────────────────────────
-// "What kind of picture is this?" at the top of Convert. Choosing one only
-// sets values; every control stays editable, and once a value differs from
-// what the preset set the control shows Custom. Pixel art takes its thread
+// "What kind of picture is this?" in Frame the picture. Choosing one only
+// sets values; every control stays editable, and changing one keeps the type
+// (presetUntouched records whether they are unchanged). Pixel art takes its thread
 // count and size from the picture itself (picturePresetValues).
 // `style` is the Detail and tidiness step the type starts on (STITCH_STYLES).
 var PICTURE_PRESETS = {
@@ -947,7 +947,7 @@ window.useCreatorState = function useCreatorState() {
   var _cropRect= useState(null);     var cropRect   = _cropRect[0], setCropRect = _cropRect[1];
   var cropStartRef = useRef(null);
   var cropRef      = useRef(null);
-  // The crop dialog's shape: null (free) or width / height. The drag in
+  // Frame the picture's crop shape: null (free) or width / height. The drag in
   // useCanvasInteraction keeps the rectangle to it.
   var cropRatioRef = useRef(null);
   // useProjectIO's picture check (type, background, pixel-art size), so a

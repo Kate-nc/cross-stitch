@@ -2,13 +2,15 @@
    while a picture is being converted).
 
    Laid out like the Edit panel: a strip of tabs in the order the choices are
-   made (Picture, Size, Threads, Detail), flat sections with the Edit panel's
+   made (Size, Threads, Detail), flat sections with the Edit panel's
    headings and hints (.cs-toolsec), a Next button at the foot of each step,
    and Generate pinned at the bottom under a one-line summary of what it will
    make. Every setting is shown once. Within a step, a setting comes before
    the ones it limits (the stash before the thread count). The pattern's name
    comes from the picture's file name and shows in the header; designer and
    notes are in Edit's Project tab (reports/create-from-image-workflow).
+   What the picture is, its background and fixes (CreatorPictureSections,
+   below) are shown in Frame the picture (creator/FrameView.js) instead.
 
    Sidebar.js renders this in Convert (appMode "create" with a picture); a
    design drawn from scratch has the Canvas panel instead. Reads the Creator

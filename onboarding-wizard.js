@@ -76,6 +76,24 @@
   }
 
   var CREATOR_TOURS = {
+    // Frame the picture, the first screen for a picture just added
+    // (creator/FrameView.js). The convert tour follows once you Continue.
+    frame: function (d) {
+      return [
+        {
+          title: "Frame your picture",
+          body: "First, the picture itself. Drag on it to crop it to the part you want to stitch, or choose a shape such as Square. Turn left and Turn right fix a photo that is on its side, and Undo takes back the last crop or turn. Then check the picture type and background the Creator chose; you can change either."
+        },
+        {
+          title: "Then Continue",
+          body: "When the picture looks right, " + d.tap + " Continue. Size, Threads and Detail come next, with a live preview, then Generate. Reframe, beside your picture, brings you back here.",
+          target: "[data-onboard=\"frame-continue\"]",
+          // The compact bar's Continue is at the top; the panel's at the foot.
+          placement: d.compact ? "bottom" : "top",
+          dismissOnTargetClick: true
+        }
+      ];
+    },
     convert: function (d) {
       return [
         {
@@ -176,11 +194,12 @@
 
   // The Creator's tours, by way in. "creator" is the picture tour, kept for
   // callers and replays that name the page only.
+  STEPS["creator-frame"] = CREATOR_TOURS.frame;
   STEPS["creator-convert"] = CREATOR_TOURS.convert;
   STEPS["creator-scratch"] = CREATOR_TOURS.scratch;
   STEPS["creator-import"] = CREATOR_TOURS.import;
   STEPS.creator = CREATOR_TOURS.convert;
-  var CREATOR_VARIANTS = ["creator-convert", "creator-scratch", "creator-import"];
+  var CREATOR_VARIANTS = ["creator-frame", "creator-convert", "creator-scratch", "creator-import"];
 
   // A page's steps: an array, or a function of the device for the Creator.
   function stepsFor(page) {

@@ -1019,12 +1019,19 @@ function CreatorApp({
   // its picture: a saved project's picture is restored after the pattern
   // (useProjectIO's Image.onload), and its tour is about the chart, not
   // about generating.
-  // The picture tour waits until Frame the picture is done: it is about the
-  // preview and the steps (Frame explains itself).
-  const tourWayIn = state.isScratchMode ? 'scratch' : state.pat ? 'import' : state.img && state.img.src && state.convertStage !== 'frame' ? 'convert' : null;
+  // A picture has two tours: Frame the picture first, then, after Continue,
+  // the one about the preview and the steps.
+  const tourWayIn = state.isScratchMode ? 'scratch' : state.pat ? 'import' : state.img && state.img.src ? state.convertStage === 'frame' ? 'frame' : 'convert' : null;
   const [tourPage, setTourPage] = React.useState(null);
+  // The way in the tour was chosen for. One tour per visit, except that a
+  // picture's Frame tour hands on to the converting tour after Continue
+  // (a pattern made from it afterwards is not an import: no third tour).
+  const tourDecidedRef = React.useRef(null);
   React.useEffect(() => {
-    if (tourPage !== null || !state.bootSettled || state.newDesignOpen || !tourWayIn) return;
+    if (tourPage || !state.bootSettled || state.newDesignOpen || !tourWayIn) return;
+    const prev = tourDecidedRef.current;
+    if (prev !== null && !(prev === 'frame' && tourWayIn === 'convert')) return;
+    tourDecidedRef.current = tourWayIn;
     const page = 'creator-' + tourWayIn;
     setTourPage(window.WelcomeWizard && window.WelcomeWizard.shouldShow(page) ? page : '');
   }, [tourPage, state.bootSettled, state.newDesignOpen, tourWayIn]);
