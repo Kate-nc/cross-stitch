@@ -68,12 +68,24 @@ window.CreatorReframeButton = function CreatorReframeButton() {
 
 window.CreatorFrameView = function CreatorFrameView(props) {
   var gen = window.useGeneration();
+  var pd = window.usePatternData ? window.usePatternData() : null;
   var h = React.createElement;
   var Icons = window.Icons || {};
 
   var _shape = React.useState("free"); var shape = _shape[0], setShape = _shape[1];
   // Pictures before each crop or turn, newest last, for Undo.
   var _hist = React.useState([]); var history = _hist[0], setHistory = _hist[1];
+  // The picture Frame itself last put in place (a crop, turn or Undo). Any
+  // other new picture (Change picture) starts a fresh Undo list, so Undo
+  // never brings back a different picture.
+  var ownImgRef = React.useRef(gen.img);
+  React.useEffect(function () {
+    if (gen.img === ownImgRef.current) return;
+    ownImgRef.current = gen.img;
+    setHistory([]); setShape("free");
+    if (gen.cropRatioRef) gen.cropRatioRef.current = null;
+  }, [gen.img]); // eslint-disable-line react-hooks/exhaustive-deps
+  function mine(img) { ownImgRef.current = img; }
 
   // Dragging crops, except while the background colour is being picked:
   // then a click on the picture picks it (srcClick).
@@ -109,7 +121,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   function applyRect() {
     if (!cropReady) return false;
     remember();
-    var ok = gen.applyCrop();
+    var ok = gen.applyCrop({ onDone: mine });
     setShape("free");
     if (gen.cropRatioRef) gen.cropRatioRef.current = null;
     return ok;
@@ -118,7 +130,8 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     remember();
     var keep = shape;
     gen.setCropRect(null);
-    gen.applyCrop({ source: window.rotatePictureCanvas(gen.img, by), whole: true, onDone: function () {
+    gen.applyCrop({ source: window.rotatePictureCanvas(gen.img, by), whole: true, onDone: function (img) {
+      mine(img);
       // A shape chosen before turning starts again on the turned picture.
       if (keep !== "free") window.requestAnimationFrame(function () { startShape(keep); });
     } });
@@ -129,6 +142,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     setHistory(history.slice(0, -1));
     setShape("free");
     if (gen.cropRatioRef) gen.cropRatioRef.current = null;
+    mine(prev);
     gen.replacePicture(prev);
   }
   function clearRect() {
@@ -151,6 +165,9 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     function onKey(e) {
       var t = e.target, tag = t && t.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+      // Keys in a dialog over Frame (Help, Preferences, a rename) are the
+      // dialog's: Escape closes it rather than clearing the crop.
+      if (t && t.closest && t.closest('[role="dialog"], [role="alertdialog"], [aria-modal="true"]')) return;
       var k = keysRef.current;
       // Enter on a button presses that button.
       if (e.key === "Enter" && k.rect && tag !== "BUTTON") { e.preventDefault(); k.applyRect(); }
@@ -171,6 +188,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   }, []);
 
   if (!gen.img || !gen.img.src) return null;
+  var hasChart = !!(pd && pd.pat);
   var w = gen.origW || gen.img.naturalWidth || gen.img.width, hh = gen.origH || gen.img.naturalHeight || gen.img.height;
   var small = Math.max(w, hh) < window.FRAME_SMALL_PICTURE_PX;
 
@@ -230,7 +248,9 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     h("aside", { className: "fr-panel", "aria-labelledby": "fr-title" },
       h("div", { className: "fr-panel__head" },
         h("h2", { id: "fr-title", className: "fr-panel__title" }, "Frame your picture"),
-        h("p", { className: "cs-toolsec__hint" }, "Crop to the part you want to stitch and check what the Creator took it for. Next come the size, threads and detail.")),
+        h("p", { className: "cs-toolsec__hint" }, "Crop to the part you want to stitch and check what the Creator took it for. Next come the size, threads and detail."),
+        hasChart && h("p", { className: "cs-toolsec__hint fr-panel__chart-note", "data-frame-chart-note": "" },
+          "Your chart stays as it is until you Regenerate, so its edits and stitching are safe while you try a new crop.")),
       h("div", { className: "fr-panel__body" },
         window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
       h("footer", { className: "fr-footer" },

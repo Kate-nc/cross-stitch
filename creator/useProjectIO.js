@@ -739,9 +739,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // (if the outer 2% is one colour, skip it, with Undo), and the picture type
   // is guessed and its preset applied (audit IMG-01). On upload every value
   // is set. After a crop (opts.reframed) the cropped picture is looked at
-  // again, without undoing choices the user made: the type's starting values
-  // are applied only while nothing has been changed since (not Custom), and a
-  // background the user chose is left as it is.
+  // again, without undoing choices the user made: the type is guessed again
+  // only while it is the Creator's own guess and nothing it set has changed,
+  // and a background the user chose is left as it is.
   function examinePicture(imgEl, opts) {
     var reframed = !!(opts && opts.reframed);
     if (reframed) reframeDraft(imgEl);

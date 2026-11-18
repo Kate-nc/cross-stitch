@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "92165869891d5cfb9416ee932c15799d31a42f127345efb2472e97c9ee2c14c8";
+var BUILD_ID = "944e9f9fe248880aaf3e70b33eda48f7c7cab35a933e8ed50ef24e00b103f258";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -325,13 +325,13 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "88b9bdbd525ee31f908605db4a9ce70a61810e03eb7ae78c90dadd5ec8c5ad94"
+    "sha256": "f1f2b6e15c1299b1168fe50dbf5f011d58125ac895407cf5e448df63c9365a14"
   },
   "./version.js": {
     "sha256": "b6089cfc2aaf5a0825e14b5314665c36decfae6c009c27205c2dd8afcda260db"
   },
   "./changelog.js": {
-    "sha256": "e5ab619333a680f107aa79dd5cf3b63a159a300a448e2f87127fcc0646f7ffe4"
+    "sha256": "fa5eded227d146e96f6a5ef45707b9b675113b1bc2787c858f5eb4a0243bba20"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -466,7 +466,7 @@ var BUILD_ASSETS = {
     "sha256": "e1cbf30ba8ff1b6a89366bb214aed67945d4bd908b4845ca8fc0331d4f1d0e46"
   },
   "./creator/bundle.js": {
-    "sha256": "ee2834b33738fc48b038cd9853376ea1076c5f91e908c3475cc4f2ab2f572b65"
+    "sha256": "df51266fdcb9ea8e96cafd58ca9238edce85d2ef3e7276bba7dcb36f52e6c3ed"
   },
   "./creator/extras-bundle.js": {
     "sha256": "276be6af8c8795f5f7498da976d4db6a257022cea4f01fc3a4b863a389ef5d92"
@@ -487,10 +487,10 @@ var BUILD_ASSETS = {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
   },
   "./compiled/creator-main.compiled.js": {
-    "sha256": "00ec6b5b440cdc4c6b393d71561358ab103e820be1efa082793dd5da731f5d64"
+    "sha256": "dd098708b85b23830295a095d29c90cf97bb63b58e93283171c1674e282eadc6"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "59711492dd2419381f1a25fc1eb946116ba5b4daa91c71379b494be968060647"
+    "sha256": "70c9fb039f8269f393c630cd10fe0ecd11daecf061d50fcef9c038b7a241f9e7"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"

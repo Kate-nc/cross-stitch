@@ -9003,8 +9003,9 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 @media (hover: hover) { .ready-bar__close:hover { background: var(--surface); color: var(--text-primary); } }
 /* On a phone the bar floats above the bottom toolbar, where the Creator's
    notices appear, so the chart keeps its whole height: compact, with the
-   links left to the More menu. */
-body.creator-compact .ready-bar { position: fixed; left: 8px; right: 8px; bottom: calc(var(--creator-rail-h) + env(safe-area-inset-bottom, 0px) + var(--creator-status-h)); z-index: 600; margin: 0; padding: var(--s-2) var(--s-3); gap: var(--s-2); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); }
+   links left to the More menu. It sits under the settings drawer (z 500),
+   so opening the drawer is never half-covered by it. */
+body.creator-compact .ready-bar { position: fixed; left: 8px; right: 8px; bottom: calc(var(--creator-rail-h) + env(safe-area-inset-bottom, 0px) + var(--creator-status-h)); z-index: 450; margin: 0; padding: var(--s-2) var(--s-3); gap: var(--s-2); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); }
 body.creator-compact .ready-bar__icon, body.creator-compact .ready-bar__links { display: none; }
 body.creator-compact .ready-bar__text { flex-basis: 100%; }
 body.creator-compact .ready-bar__summary { font-size: var(--text-xs); }

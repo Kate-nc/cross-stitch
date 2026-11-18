@@ -7604,6 +7604,9 @@ window.useCreatorState = function useCreatorState() {
   // Thread organiser
   var _thOwned  = useState({});      var threadOwned = _thOwned[0], setThreadOwned = _thOwned[1];
   var _glStash  = useState({});      var globalStash = _glStash[0], setGlobalStash = _glStash[1];
+  // False until the stash has been read (creator-main.js), so an empty {}
+  // before then is not taken for an empty stash.
+  var _glStashLoaded = useState(false); var globalStashLoaded = _glStashLoaded[0], setGlobalStashLoaded = _glStashLoaded[1];
   var _kitResult= useState(null);    var kittingResult = _kitResult[0], setKittingResult = _kitResult[1];
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
@@ -9282,7 +9285,7 @@ window.useCreatorState = function useCreatorState() {
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
     sessions, setSessions, partialStitches, setPartialStitches,
     partialStitchTool: effPartialStitchTool, setPartialStitchTool: choosePartialStitchTool, partialStitchToolRef: effPartialToolRef.current, threadOwned, setThreadOwned,
-    globalStash, setGlobalStash, kittingResult, setKittingResult,
+    globalStash, setGlobalStash, globalStashLoaded, setGlobalStashLoaded, kittingResult, setKittingResult,
     altOpen, setAltOpen,
     resizeCanvasOpen, setResizeCanvasOpen,
     adaptModalOpen, setAdaptModalOpen,
@@ -9350,10 +9353,12 @@ window.useCreatorState = function useCreatorState() {
     // How many threads of the convert brand the stash holds, whether or not
     // Use only stash threads is on, so Convert can say up front when the
     // stash is empty (creator/ConvertPanel.js).
+    // null until the stash has been read.
     ownedThreadCount: useMemo(function() {
+      if (!globalStashLoaded) return null;
       if (!globalStash) return 0;
       return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
-    }, [globalStash, convertBrand]),
+    }, [globalStash, globalStashLoaded, convertBrand]),
 
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {
@@ -14069,9 +14074,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // (if the outer 2% is one colour, skip it, with Undo), and the picture type
   // is guessed and its preset applied (audit IMG-01). On upload every value
   // is set. After a crop (opts.reframed) the cropped picture is looked at
-  // again, without undoing choices the user made: the type's starting values
-  // are applied only while nothing has been changed since (not Custom), and a
-  // background the user chose is left as it is.
+  // again, without undoing choices the user made: the type is guessed again
+  // only while it is the Creator's own guess and nothing it set has changed,
+  // and a background the user chose is left as it is.
   function examinePicture(imgEl, opts) {
     var reframed = !!(opts && opts.reframed);
     if (reframed) reframeDraft(imgEl);
@@ -19319,12 +19324,24 @@ window.CreatorReframeButton = function CreatorReframeButton() {
 
 window.CreatorFrameView = function CreatorFrameView(props) {
   var gen = window.useGeneration();
+  var pd = window.usePatternData ? window.usePatternData() : null;
   var h = React.createElement;
   var Icons = window.Icons || {};
 
   var _shape = React.useState("free"); var shape = _shape[0], setShape = _shape[1];
   // Pictures before each crop or turn, newest last, for Undo.
   var _hist = React.useState([]); var history = _hist[0], setHistory = _hist[1];
+  // The picture Frame itself last put in place (a crop, turn or Undo). Any
+  // other new picture (Change picture) starts a fresh Undo list, so Undo
+  // never brings back a different picture.
+  var ownImgRef = React.useRef(gen.img);
+  React.useEffect(function () {
+    if (gen.img === ownImgRef.current) return;
+    ownImgRef.current = gen.img;
+    setHistory([]); setShape("free");
+    if (gen.cropRatioRef) gen.cropRatioRef.current = null;
+  }, [gen.img]); // eslint-disable-line react-hooks/exhaustive-deps
+  function mine(img) { ownImgRef.current = img; }
 
   // Dragging crops, except while the background colour is being picked:
   // then a click on the picture picks it (srcClick).
@@ -19360,7 +19377,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   function applyRect() {
     if (!cropReady) return false;
     remember();
-    var ok = gen.applyCrop();
+    var ok = gen.applyCrop({ onDone: mine });
     setShape("free");
     if (gen.cropRatioRef) gen.cropRatioRef.current = null;
     return ok;
@@ -19369,7 +19386,8 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     remember();
     var keep = shape;
     gen.setCropRect(null);
-    gen.applyCrop({ source: window.rotatePictureCanvas(gen.img, by), whole: true, onDone: function () {
+    gen.applyCrop({ source: window.rotatePictureCanvas(gen.img, by), whole: true, onDone: function (img) {
+      mine(img);
       // A shape chosen before turning starts again on the turned picture.
       if (keep !== "free") window.requestAnimationFrame(function () { startShape(keep); });
     } });
@@ -19380,6 +19398,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     setHistory(history.slice(0, -1));
     setShape("free");
     if (gen.cropRatioRef) gen.cropRatioRef.current = null;
+    mine(prev);
     gen.replacePicture(prev);
   }
   function clearRect() {
@@ -19402,6 +19421,9 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     function onKey(e) {
       var t = e.target, tag = t && t.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+      // Keys in a dialog over Frame (Help, Preferences, a rename) are the
+      // dialog's: Escape closes it rather than clearing the crop.
+      if (t && t.closest && t.closest('[role="dialog"], [role="alertdialog"], [aria-modal="true"]')) return;
       var k = keysRef.current;
       // Enter on a button presses that button.
       if (e.key === "Enter" && k.rect && tag !== "BUTTON") { e.preventDefault(); k.applyRect(); }
@@ -19422,6 +19444,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   }, []);
 
   if (!gen.img || !gen.img.src) return null;
+  var hasChart = !!(pd && pd.pat);
   var w = gen.origW || gen.img.naturalWidth || gen.img.width, hh = gen.origH || gen.img.naturalHeight || gen.img.height;
   var small = Math.max(w, hh) < window.FRAME_SMALL_PICTURE_PX;
 
@@ -19481,7 +19504,9 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     h("aside", { className: "fr-panel", "aria-labelledby": "fr-title" },
       h("div", { className: "fr-panel__head" },
         h("h2", { id: "fr-title", className: "fr-panel__title" }, "Frame your picture"),
-        h("p", { className: "cs-toolsec__hint" }, "Crop to the part you want to stitch and check what the Creator took it for. Next come the size, threads and detail.")),
+        h("p", { className: "cs-toolsec__hint" }, "Crop to the part you want to stitch and check what the Creator took it for. Next come the size, threads and detail."),
+        hasChart && h("p", { className: "cs-toolsec__hint fr-panel__chart-note", "data-frame-chart-note": "" },
+          "Your chart stays as it is until you Regenerate, so its edits and stitching are safe while you try a new crop.")),
       h("div", { className: "fr-panel__body" },
         window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
       h("footer", { className: "fr-footer" },

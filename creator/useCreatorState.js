@@ -1069,6 +1069,9 @@ window.useCreatorState = function useCreatorState() {
   // Thread organiser
   var _thOwned  = useState({});      var threadOwned = _thOwned[0], setThreadOwned = _thOwned[1];
   var _glStash  = useState({});      var globalStash = _glStash[0], setGlobalStash = _glStash[1];
+  // False until the stash has been read (creator-main.js), so an empty {}
+  // before then is not taken for an empty stash.
+  var _glStashLoaded = useState(false); var globalStashLoaded = _glStashLoaded[0], setGlobalStashLoaded = _glStashLoaded[1];
   var _kitResult= useState(null);    var kittingResult = _kitResult[0], setKittingResult = _kitResult[1];
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
@@ -2747,7 +2750,7 @@ window.useCreatorState = function useCreatorState() {
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
     sessions, setSessions, partialStitches, setPartialStitches,
     partialStitchTool: effPartialStitchTool, setPartialStitchTool: choosePartialStitchTool, partialStitchToolRef: effPartialToolRef.current, threadOwned, setThreadOwned,
-    globalStash, setGlobalStash, kittingResult, setKittingResult,
+    globalStash, setGlobalStash, globalStashLoaded, setGlobalStashLoaded, kittingResult, setKittingResult,
     altOpen, setAltOpen,
     resizeCanvasOpen, setResizeCanvasOpen,
     adaptModalOpen, setAdaptModalOpen,
@@ -2815,10 +2818,12 @@ window.useCreatorState = function useCreatorState() {
     // How many threads of the convert brand the stash holds, whether or not
     // Use only stash threads is on, so Convert can say up front when the
     // stash is empty (creator/ConvertPanel.js).
+    // null until the stash has been read.
     ownedThreadCount: useMemo(function() {
+      if (!globalStashLoaded) return null;
       if (!globalStash) return 0;
       return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
-    }, [globalStash, convertBrand]),
+    }, [globalStash, globalStashLoaded, convertBrand]),
 
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {

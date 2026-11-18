@@ -564,7 +564,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     let cancelled = false;
     const fetchStash = () => {
       window.StashBridge.getGlobalStash()
-        .then(s => { if (!cancelled) state.setGlobalStash(s || {}); })
+        .then(s => { if (!cancelled) { state.setGlobalStash(s || {}); if (state.setGlobalStashLoaded) state.setGlobalStashLoaded(true); } })
         .catch(e => console.warn('getGlobalStash failed:', e));
     };
     fetchStash();
@@ -1559,6 +1559,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.pat,.oxs,.xsd,.xml,.json,.pdf") : "image/*,.pat,.oxs,.xsd,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];
           if (!f) return;
+          // A picture chosen here did not come from the Tracker.
+          window.__creatorPictureFromTracker = false;
           var n = (f.name || '').toLowerCase();
           if (rejectUnsupportedFile(f)) { e.target.value = ''; return; }
           var isImage = !/\.(pat|xsd)$/i.test(n) && (f.type || '').indexOf('image/') === 0;

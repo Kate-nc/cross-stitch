@@ -4230,8 +4230,13 @@ function sendPictureToCreator(f) {
   if (project) lastSnapshotRef.current = project;
   try { window.Toast && window.Toast.show && window.Toast.show({ message: 'Opening the picture in the Pattern Creator\u2026', type: 'info', duration: 4000 }); } catch (_) {}
   (project ? persistProjectRecord(project) : Promise.resolve(null)).then(function (saveResult) {
-    // A cross-tab conflict that the user resolved by reloading: stay here.
-    if (saveResult && noWriteReason(saveResult.reason)) return null;
+    // Nothing was written (noWriteReason): stay, and say why the picture
+    // didn't open, except when the page is reloading anyway.
+    if (saveResult && noWriteReason(saveResult.reason)) {
+      if (saveResult.reason === 'held') setLoadError("The open project couldn't be saved just now, so the picture wasn't opened. Try again in a moment.");
+      else if (saveResult.reason === 'merged') setLoadError("The open project was just updated from another tab, so the picture wasn't opened. Open it again to carry on.");
+      return null;
+    }
     if (saveResult && saveResult.ok === false) throw new Error(saveResult.reason || 'save failed');
     return BS.handOffPicture(f, { from: 'tracker' });
   }).then(function (url) {

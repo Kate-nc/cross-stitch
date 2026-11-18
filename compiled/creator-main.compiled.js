@@ -1139,7 +1139,10 @@ function CreatorApp({
     let cancelled = false;
     const fetchStash = () => {
       window.StashBridge.getGlobalStash().then(s => {
-        if (!cancelled) state.setGlobalStash(s || {});
+        if (!cancelled) {
+          state.setGlobalStash(s || {});
+          if (state.setGlobalStashLoaded) state.setGlobalStashLoaded(true);
+        }
       }).catch(e => console.warn('getGlobalStash failed:', e));
     };
     fetchStash();
@@ -2507,6 +2510,8 @@ function CreatorApp({
     onChange: e => {
       var f = e.target.files && e.target.files[0];
       if (!f) return;
+      // A picture chosen here did not come from the Tracker.
+      window.__creatorPictureFromTracker = false;
       var n = (f.name || '').toLowerCase();
       if (rejectUnsupportedFile(f)) {
         e.target.value = '';

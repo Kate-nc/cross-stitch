@@ -94,6 +94,69 @@ test.describe('First use on desktop', function() {
     });
     expect(stray).toBe(false);
   });
+
+  test('while the stash is still loading, Use only stash threads is not called empty', async function({ page }) {
+    // A stash with threads that takes a while to read.
+    await page.addInitScript(function() {
+      let v;
+      Object.defineProperty(window, 'StashBridge', { configurable: true, get: function() { return v; }, set: function(x) {
+        v = x;
+        if (x && x.getGlobalStash) x.getGlobalStash = function() {
+          return new Promise(function(r) { setTimeout(function() { r({ 'dmc:310': { owned: 2 }, 'dmc:321': { owned: 1 }, 'dmc:3865': { owned: 1 } }); }, 3000); });
+        };
+      } });
+    });
+    await openConvertWithLogo(page);
+    await convertStep(page, 'threads');
+    const box = page.getByRole('checkbox', { name: 'Use only stash threads' });
+    await expect(box).toBeEnabled();
+    await expect(page.locator('[data-stash-empty]')).toHaveCount(0);
+    await page.waitForTimeout(3500);
+    await expect(box).toBeEnabled();
+    await expect(page.locator('[data-stash-empty]')).toHaveCount(0);
+  });
+
+  test('Undo in Frame never brings back a different picture', async function({ page }) {
+    await openFrameWith(page, path.join(__dirname, '..', 'fixtures', 'panorama.jpg'));
+    await page.getByRole('radio', { name: 'Square' }).click();
+    await page.getByRole('button', { name: 'Apply crop' }).click();
+    await expect(page.locator('.fr-cropbar__size')).toHaveText('300×300px');
+    const undo = page.getByRole('button', { name: 'Undo crop or turn' });
+    await expect(undo).toBeEnabled();
+    // Change picture starts a new Undo list.
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Change picture' }).click()
+    ]);
+    await chooser.setFiles(path.join(__dirname, '..', 'fixtures', 'logo.png'));
+    await expect(page.locator('.fr-cropbar__size')).toHaveText('400×400px');
+    await expect(undo).toBeDisabled();
+  });
+
+  test('reframing a picture that already has a chart says the chart is kept until Regenerate', async function({ page }) {
+    await openConvertWithLogo(page, { frame: true });
+    await expect(page.locator('[data-frame-chart-note]')).toHaveCount(0);
+    await continueFromFrame(page);
+    await clickGenerate(page);
+    await waitForEdit(page);
+    await page.getByRole('tab', { name: 'Convert' }).first().click();
+    await page.locator('[data-reframe]').click();
+    await expect(page.locator('[data-frame-chart-note]')).toContainText('until you Regenerate');
+  });
+
+  test('Escape in a dialog over Frame belongs to the dialog', async function({ page }) {
+    await openFrameWith(page, path.join(__dirname, '..', 'fixtures', 'panorama.jpg'));
+    await page.getByRole('radio', { name: 'Square' }).click();
+    await expect(page.locator('[data-crop-rect]')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Change picture' }).focus();
+    await page.keyboard.press('Shift+Slash');
+    const help = page.getByRole('dialog');
+    await expect(help).toHaveCount(1);
+    await help.locator('button').first().focus();
+    await page.keyboard.press('Escape');
+    await expect(help).toHaveCount(0);
+    await expect(page.locator('[data-crop-rect]')).toHaveCount(1);
+  });
 });
 
 test.describe('First use on a phone', function() {
@@ -114,5 +177,22 @@ test.describe('First use on a phone', function() {
     });
     expect(words).toContain('Help is in the More menu at the top.');
     expect(words).not.toContain('Press ?');
+  });
+
+  test('the settings drawer opens over "Your pattern is ready", not under it', async function({ page }) {
+    await quietOnboarding(page);
+    await openFrameWith(page, path.join(__dirname, '..', 'fixtures', 'logo.png'));
+    await continueFromFrame(page);
+    await clickGenerate(page);
+    await waitForEdit(page);
+    await expect(page.locator('.ready-bar')).toBeVisible();
+    await page.locator('.creator-rail button', { hasText: 'Colour' }).first().tap();
+    await expect(page.locator('.rpanel--open')).toHaveCount(1);
+    const top = await page.locator('.ready-bar').evaluate(function(bar) {
+      const r = bar.getBoundingClientRect();
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return el && el.closest('.ready-bar') ? 'ready-bar' : 'other';
+    });
+    expect(top).toBe('other');
   });
 });
