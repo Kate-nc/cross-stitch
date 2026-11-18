@@ -57,12 +57,30 @@ function findBest(lab, palette, allowBlends = true, blendTable = null) {
 
   return solidMatch;
 }
+// The colour of two threads stitched together (a blend: one strand of each in
+// the needle). Side by side the strands mix as light, so their linear values
+// are averaged and re-encoded. Averaging the stored sRGB values, as before,
+// made every blend darker than it stitches: off by more than ΔE 2 for 13% of
+// the pairs conversion may blend, up to 7.4 (reports/photo-conversion-audit-2026-11.md).
+// wa and wb are each thread's share (strands), 1 and 1 when not given. The one
+// formula for a blend's colour: conversion, restoring a saved chart and
+// stripping colours on save (stripCellForSave) must all agree.
+function _srgb8ToLinearExact(v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+function blendThreadRgb(a, b, wa, wb) {
+  wa = wa > 0 ? wa : 1; wb = wb > 0 ? wb : 1;
+  const t = wa + wb, out = [0, 0, 0];
+  for (let i = 0; i < 3; i++) out[i] = _linearToSrgb8((_srgb8ToLinearExact(a[i]) * wa + _srgb8ToLinearExact(b[i]) * wb) / t);
+  return out;
+}
+// The colour blends were given before blendThreadRgb: the average of the stored
+// values. Only to recognise colours saved with it (restoreStitch).
+function legacyBlendRgb(a, b) { return [0, 1, 2].map(i => Math.round((a[i] + b[i]) / 2)); }
 // One constructor for new equal two-thread recipes. Existing saved IDs stay
 // intact so their symbols and progress references never need a migration.
 function makeThreadBlend(a, b) {
   const threads = [a, b].sort((x, y) => String(x.id).localeCompare(String(y.id), 'en'));
   const id = threads.map(t => String(t.id)).join('+');
-  const rgb = a.rgb.map((v, i) => Math.round((v + b.rgb[i]) / 2));
+  const rgb = blendThreadRgb(a.rgb, b.rgb);
   return { type: 'blend', id: id, name: id, threads: threads, rgb: rgb, lab: rgbToLab(...rgb) };
 }
 // Compare recipes without rewriting legacy IDs. Keep quantities with their
@@ -232,16 +250,24 @@ function trackerGridLook(opts) {
 
 /** Snapshot coverage before filtering. Alpha follows detectUniformBorder's 128
  * cutoff, after canvas premultiplied-alpha resizing. Never infer holes from RGB.
- * Alpha-bearing images already define their background; for opaque pictures,
- * Skip background removes only 4-connected matching regions touching the border.
+ * Pictures with see-through areas already define their background; for the
+ * rest, Skip background removes only 4-connected matching regions touching the
+ * border. A picture counts as see-through only when some stitch is under the
+ * 128 cutoff: one nearly opaque pixel (alpha 254) used to switch the colour
+ * removal off for the whole picture while its control still showed it on
+ * (reports/photo-conversion-audit-2026-11.md).
+ * Run on the stitch colours before Brightness, Contrast and Saturation
+ * (applyImageAdjustments, after this in the pipeline), so the background
+ * colour, picked from the picture itself, matches the same pixels whatever
+ * the adjustments: moving them used to move the mask.
  * Mutates this pipeline's private pixel buffer, not the source or preview cache.
  * Returns a Uint8Array coverage mask (1 = stitchable, 0 = empty).
  */
 function prepareConversionPixels(data, w, h, opts) {
   var n = w * h, mask = new Uint8Array(n), hasTransparency = false;
   for (var i = 0; i < n; i++) {
-    if (data[i * 4 + 3] < 255) hasTransparency = true;
     mask[i] = data[i * 4 + 3] >= 128 ? 1 : 0;
+    if (!mask[i]) hasTransparency = true;
   }
   if (opts.skipBg && !hasTransparency) {
     var bgLab = rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]);
@@ -268,6 +294,29 @@ function prepareConversionPixels(data, w, h, opts) {
     if (!mask[i]) data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = 0;
   }
   return mask;
+}
+
+// Brightness, Contrast and Saturation (each -100 to +100, 0 = no change), the
+// same formulas as the CSS filters brightness((100+bri)%) contrast((100+con)%)
+// saturate((100+sat)%), each step clamped to 0..255 as CSS does, on RGBA
+// pixels in place. The conversion pipeline (runCleanupPipeline and
+// generate-worker.js) applies it to the stitch colours after the background
+// mask, so every browser gives the same result.
+function applyImageAdjustments(d, bri, con, sat) {
+  bri = bri || 0; con = con || 0; sat = sat || 0;
+  if (bri === 0 && con === 0 && sat === 0) return;
+  var briFactor = (100 + bri) / 100, conFactor = (100 + con) / 100, satFactor = (100 + sat) / 100;
+  function clamp(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+  for (var i = 0; i < d.length; i += 4) {
+    var r = clamp(d[i] * briFactor), g = clamp(d[i + 1] * briFactor), b = clamp(d[i + 2] * briFactor);
+    r = clamp((r - 127.5) * conFactor + 127.5);
+    g = clamp((g - 127.5) * conFactor + 127.5);
+    b = clamp((b - 127.5) * conFactor + 127.5);
+    var gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    d[i]     = Math.round(clamp(gray + (r - gray) * satFactor));
+    d[i + 1] = Math.round(clamp(gray + (g - gray) * satFactor));
+    d[i + 2] = Math.round(clamp(gray + (b - gray) * satFactor));
+  }
 }
 
 function quantize(data,w,h,n,allowedPalette,options){
@@ -539,7 +588,7 @@ function _blendUse(uc, pal, as) {
     for (let j = i + 1; j < pal.length; j++) {
       const a = pal[i].lab, b = pal[j].lab;
       if (_dE2000Core(a[0], a[1], a[2], b[0], b[1], b[2]) > BLEND_MAX_PARTNER_DE) continue;
-      const rgb = pal[i].rgb.map((v,k) => Math.round((v + pal[j].rgb[k]) / 2));
+      const rgb = blendThreadRgb(pal[i].rgb, pal[j].rgb);
       pairs.push({ i: i, j: j, lab: rgbToLab(...rgb) });
     }
   }
@@ -1412,7 +1461,7 @@ function restoreStitch(m,brand){
       if (threads.length === 2) {
         const weights = threads.map((t,i) => ratio && ratio[i] > 0 ? ratio[i] : (t.strands > 0 ? t.strands : 1));
         const total = weights[0] + weights[1];
-        const rgb = m.rgb ? m.rgb.slice() : threads[0].rgb.map((v,i) => Math.round((v*weights[0]+threads[1].rgb[i]*weights[1])/total));
+        const rgb = m.rgb ? m.rgb.slice() : blendThreadRgb(threads[0].rgb, threads[1].rgb, weights[0], weights[1]);
         const out = {type:'blend', id:m.id, name:m.name||m.id, rgb:rgb, lab:rgbToLab(...rgb), threads:threads, dist:0, symbol:m.symbol};
         ['blendRatio','blend_ratio'].forEach(function(k){if(Array.isArray(m[k]))out[k]=m[k].slice();});
         ['provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)out[k]=m[k];});
@@ -1423,11 +1472,15 @@ function restoreStitch(m,brand){
     }
     let ids=splitBlendId(m.id),t0=findThreadInCatalog(b,ids[0]),t1=findThreadInCatalog(b,ids[1]);
     if(ids.length===2&&t0&&t1){
-      let out={type:"blend",id:m.id,name:m.name||m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:rgbToLab(Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)),threads:[t0,t1],dist:0};
+      const mixed=blendThreadRgb(t0.rgb,t1.rgb);
+      let out={type:"blend",id:m.id,name:m.name||m.id,rgb:mixed,lab:rgbToLab(...mixed),threads:[t0,t1],dist:0};
       // Explicit RGB is retained by the saver for custom/imported colours.
       // Bare IDs follow catalogue updates; legacy explicit RGB stays intact
       // because its origin cannot safely be inferred from the thread number.
-      if(m.rgb&&m.rgb.some((v,i)=>v!==out.rgb[i])){out.rgb=m.rgb;out.lab=rgbToLab(...m.rgb);}
+      // A colour equal to the old stored-value average of these very threads
+      // was worked out from them, not chosen, so it follows the new formula.
+      const legacy=legacyBlendRgb(t0.rgb,t1.rgb);
+      if(m.rgb&&m.rgb.some((v,i)=>v!==out.rgb[i])&&m.rgb.some((v,i)=>v!==legacy[i])){out.rgb=m.rgb;out.lab=rgbToLab(...m.rgb);}
       ['provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)out[k]=m[k];});
       out.symbol=m.symbol;
       if(tag){out.brand=tag;out.threads=[Object.assign({},t0,{brand:tag}),Object.assign({},t1,{brand:tag})];}
@@ -2669,14 +2722,18 @@ function confettiCleanupPlan(stitchCleanup, orphans) {
   };
 }
 // Run Reduce confetti on `mapped` (pixel data `raw` for the edge map). Returns
-// { mapped, preCleanupIds, confettiClean } or null when it is off.
+// { mapped, preCleanupIds, tidiedCells, confettiClean } or null when it is off.
+// tidiedCells marks (1) the stitches Reduce confetti itself changed: not the
+// rare-colour or edge-shade folds before it, nor the stages after it.
 function runConfettiCleanup(mapped, raw, w, h, saliencyMap, preLabels, stitchCleanup, orphans) {
   var plan = confettiCleanupPlan(stitchCleanup, orphans);
   if (!plan) return null;
   var edgeMap = plan.protectEdges ? generateEdgeMap(raw, w, h, { edgeDilation: ORPHAN_EDGE_DILATION }) : null;
   var preCleanupIds = mapped.map(function (m) { return m.id; });
   var out = removeOrphanStitches(mapped, w, h, plan.maxOrphanSize, edgeMap, saliencyMap, plan.options, preLabels);
-  return { mapped: out, preCleanupIds: preCleanupIds, confettiClean: analyzeConfetti(out, w, h, labelConnectedComponents(out, w, h)) };
+  var tidiedCells = new Uint8Array(out.length);
+  for (var i = 0; i < out.length; i++) if (preCleanupIds[i] !== '__skip__' && preCleanupIds[i] !== out[i].id) tidiedCells[i] = 1;
+  return { mapped: out, preCleanupIds: preCleanupIds, tidiedCells: tidiedCells, confettiClean: analyzeConfetti(out, w, h, labelConnectedComponents(out, w, h)) };
 }
 
 // Analyses a mapped pattern and returns confetti stitch statistics without mutating the array.
@@ -3434,4 +3491,4 @@ _colourUtilsGlobal.RARE_COLOUR_CONTRAST_GUARD_DE = RARE_COLOUR_CONTRAST_GUARD_DE
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, applyImageAdjustments, prepareConversionPixels, blendThreadRgb, legacyBlendRgb, makeThreadBlend, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }

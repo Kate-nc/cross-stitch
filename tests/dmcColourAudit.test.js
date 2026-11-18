@@ -73,7 +73,8 @@ it('resolves aliases without losing canonical IDs or leading zeros', () => {
 
 it('restores ID-only blends from corrected components consistently with matching', () => {
   const b = run('restoreStitch({id:"505+783",type:"blend",symbol:"X"})');
-  expect(Array.from(b.rgb)).toEqual([116, 113, 58]);
+  // The two threads mixed as light (blendThreadRgb), not their stored-value average [116, 113, 58].
+  expect(Array.from(b.rgb)).toEqual([149, 113, 60]);
   expect(b.symbol).toBe('X');
   // 505 and 783 are too far apart for a new blend to pair them
   // (BLEND_MAX_PARTNER_DE); lift the limit to compare the composite formula.

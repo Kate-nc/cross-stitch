@@ -114,7 +114,10 @@ describe('wiring', () => {
     // Same pipeline settings as Generate, the same picture-to-stitches step
     // (gridPixels, which owns the filter fallback) and Separate similar neighbours.
     expect(strip).toMatch(/disambig: s\.disambig, disambigLevel: s\.disambigLevel/);
-    expect(strip).toMatch(/gridPixels\(img, pw, ph, \{ bri: s\.bri, con: s\.con, sat: s\.sat, preSharpenOpts:/);
+    // Brightness, Contrast and Saturation go to the pipeline (after the
+    // background mask), not to gridPixels.
+    expect(strip).toMatch(/gridPixels\(img, pw, ph, \{ preSharpenOpts:/);
+    expect(strip).toMatch(/bri: s\.bri, con: s\.con, sat: s\.sat,/);
     expect(strip).toMatch(/fmtHours\(window\.compareHours\(r\.stats\.stitches, props\.stitchSpeed\)\)/);
     // A failing worker is handled here, never by the page's error handler,
     // and the jobs fall back to the page after two failures.

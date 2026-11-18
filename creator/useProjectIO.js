@@ -757,11 +757,17 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Look at the picture once: plain backgrounds are left unstitched
     // automatically (if the outer 2% is one colour, skip it, with Undo), and
     // the picture type is guessed and its preset applied (audit IMG-01).
+    // A photo's plain background is only offered: everything joined to the
+    // border within the match goes with it, and in a photo that can be part
+    // of the subject, such as a pale shirt against a pale wall
+    // (reports/photo-conversion-audit-2026-11.md). The guess decides this even
+    // when Preferences turn off applying its preset.
     function examinePicture(imgEl) {
       var info = null;
       try { info = creatorExaminePicture(imgEl); }
       catch (err) { console.warn("useProjectIO: picture check failed", err); }
-      autoSkipBackground(info ? info.border : null);
+      var looksLikePhoto = !!(info && info.w && typeof window.guessPictureType === "function" && window.guessPictureType(info) === "photo");
+      autoSkipBackground(info ? info.border : null, looksLikePhoto);
       if (info && info.w && state.setPictureInfo) {
         state.setPictureInfo(info);
         // Preferences > Pattern Creator > Guess the picture type. Off: the
@@ -773,12 +779,23 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         }
       }
     }
-    function autoSkipBackground(found) {
+    function autoSkipBackground(found, offerOnly) {
       if (!state.setSkipBg) return;
       var autoRef = state.bgAutoSkippedRef;
-      if (!found) {
+      if (!found || offerOnly) {
         // A skip we switched on for the previous picture shouldn't carry over.
         if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
+        if (found && state.addToast) {
+          state.addToast("This photo has a plain background. Leave it unstitched? The preview will show what's left out.", {
+            type: "info", duration: 12000,
+            action: { label: "Leave it unstitched", onClick: function () {
+              state.setBgCol(found.rgb);
+              state.setSkipBg(true);
+              if (autoRef) autoRef.current = true;
+              if (state.setShowBackground) state.setShowBackground(true);
+            } }
+          });
+        }
         return;
       }
       state.setBgCol(found.rgb);

@@ -16,6 +16,26 @@ Earlier work: [photo-conversion-accuracy-review.md](photo-conversion-accuracy-re
 [photo-conversion-accuracy-audit.md](photo-conversion-accuracy-audit.md) (October), and the
 [DMC colour calibration](dmc-colour-calibration.md).
 
+**Status (implemented on `claude/trusting-volta-1bnstq`):** recommendations 1 to 4.
+- **Edge-shade fold off for photos** (`stitchCleanup.foldEdgeShades`, false at every Photo
+  step; unset in older saves, so they fold as before). Measured on the ten photos with the
+  shipped code: Balanced colour error 5.27 to 4.74, boundary error 7.18 to 6.16, confetti
+  3.8% to 4.9%. Every Photo step gained accuracy; the figures in `STITCH_STYLES` are
+  updated.
+- **Background:**
+  - for a photo, removal is offered in a toast instead of applied;
+  - the Background step counts the unstitched stitches and can mark them on the preview;
+  - Brightness, Contrast and Saturation now apply after the mask (in the pipeline, not
+    `gridPixels`);
+  - only a genuinely see-through stitch (alpha below 128) switches colour removal off.
+
+  The ΔE2000 tolerance and crop fixes (recommendations 2 and 6) are not done.
+- **Wording:** *Stitch Cleanup* text follows the picture type and says what Off still
+  changes; the tidied count is now exactly what Reduce confetti changed (`tidiedCells`).
+- **Blends** are mixed as light everywhere a blend's colour is worked out
+  (`blendThreadRgb`), including saving and restoring. A saved colour equal to the old
+  stored-value average is recognised and updated.
+
 ## Summary
 
 1. **Background removal can erase part of the subject, or silently not run (B).** It is

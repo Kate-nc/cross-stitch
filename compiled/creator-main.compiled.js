@@ -71,6 +71,7 @@ function ComparisonSlider({
   heatmapSrc,
   highlightSrc,
   tidiedSrc,
+  backgroundSrc,
   changedSrc,
   width,
   height,
@@ -299,6 +300,23 @@ function ComparisonSlider({
   }), !previewLoading && showHeatmap && heatmapSrc && /*#__PURE__*/React.createElement("img", {
     "data-testid": "cmp-heatmap",
     src: heatmapSrc,
+    style: {
+      clipPath: `inset(0 0 0 ${splitPos}%)`,
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      objectFit: "fill",
+      imageRendering: "pixelated",
+      pointerEvents: "none",
+      zIndex: 5
+    },
+    alt: "",
+    "aria-hidden": "true"
+  }), !previewLoading && backgroundSrc && /*#__PURE__*/React.createElement("img", {
+    "data-testid": "cmp-background",
+    src: backgroundSrc,
     style: {
       clipPath: `inset(0 0 0 ${splitPos}%)`,
       position: "absolute",
@@ -673,7 +691,7 @@ function ConvertPreview({
     alt: "",
     "aria-hidden": "true"
   }) : null;
-  const overlays = !state.previewLoading && /*#__PURE__*/React.createElement(React.Fragment, null, showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap'), state.showTidied && overlay(state.previewTidied, 'cvp-tidied'), showChanged && overlay(state.previewChanged, 'cvp-changed'), overlay(state.previewHighlight, 'cvp-highlight'));
+  const overlays = !state.previewLoading && /*#__PURE__*/React.createElement(React.Fragment, null, showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap'), state.showTidied && overlay(state.previewTidied, 'cvp-tidied'), state.showBackground && overlay(state.previewBackground, 'cvp-background'), showChanged && overlay(state.previewChanged, 'cvp-changed'), overlay(state.previewHighlight, 'cvp-highlight'));
   let body;
   if (view === 'compare') {
     body = /*#__PURE__*/React.createElement(ComparisonSlider, {
@@ -683,6 +701,7 @@ function ConvertPreview({
       highlightSrc: state.previewHighlight,
       changedSrc: showChanged ? state.previewChanged : null,
       tidiedSrc: state.showTidied ? state.previewTidied : null,
+      backgroundSrc: state.showBackground ? state.previewBackground : null,
       width: state.sW,
       height: state.sH,
       previewPw: dims && dims.pw,
@@ -818,7 +837,14 @@ function ConvertPreview({
     onClick: function () {
       state.setShowTidied(!state.showTidied);
     }
-  }, Icons.eye(), /*#__PURE__*/React.createElement("span", null, "Show tidied stitches"))), view === 'stitched' && /*#__PURE__*/React.createElement("p", {
+  }, Icons.eye(), /*#__PURE__*/React.createElement("span", null, "Show tidied stitches")), state.previewBackground && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: 'cs-seltools__btn' + (state.showBackground ? ' cs-seltools__btn--on' : ''),
+    "aria-pressed": state.showBackground ? 'true' : 'false',
+    onClick: function () {
+      state.setShowBackground(!state.showBackground);
+    }
+  }, Icons.eye(), /*#__PURE__*/React.createElement("span", null, "Show unstitched background"))), view === 'stitched' && /*#__PURE__*/React.createElement("p", {
     className: "cvp-caption"
   }, "Simulated stitches: 2 strands on ", window.fabricShortLabel(ct), " fabric in your fabric colour. Screens show thread colours only roughly."));
 }
@@ -1586,6 +1612,9 @@ function CreatorApp({
       setShowTidied: state.setShowTidied,
       previewChange: state.previewChange,
       previewTidied: state.previewTidied,
+      showBackground: state.showBackground,
+      setShowBackground: state.setShowBackground,
+      previewBackground: state.previewBackground,
       splitPaneEnabled: state.splitPaneEnabled,
       setSplitPaneEnabled: state.setSplitPaneEnabled,
       splitPaneRatio: state.splitPaneRatio,
@@ -1689,7 +1718,7 @@ function CreatorApp({
       removeTracePicture: io.removeTracePicture,
       isActive: isActive
     };
-  }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied, state.showBackground, state.previewBackground, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {

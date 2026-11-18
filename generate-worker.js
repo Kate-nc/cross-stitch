@@ -5,7 +5,7 @@
    Message protocol:
      Main → Worker:
        { type: 'generate', reqId: number, pixels: ArrayBuffer, width: number, height: number,
-         settings: { maxC, dith, allowBlends, skipBg, bgCol, bgTh, minSt,
+         settings: { bri, con, sat (applied after the background mask), maxC, dith, allowBlends, skipBg, bgCol, bgTh, minSt,
                      smooth, smoothType, stitchCleanup,
                      disambig?: boolean, disambigLevel?: 'gentle'|'standard'|'strong',
                      allowedPalette? } }  // allowedPalette: array of DMC entries or null
@@ -82,7 +82,10 @@ self.onmessage = function(e) {
       try { self.postMessage({ type: 'progress', reqId: reqId, stage: stage, message: message }); } catch (_) {}
     }
 
+    // The background in the picture's own colours, then Brightness, Contrast
+    // and Saturation on what is stitched (mirrors runCleanupPipeline).
     var coverageMask = prepareConversionPixels(raw, width, height, settings);
+    applyImageAdjustments(raw, settings.bri, settings.con, settings.sat);
 
     // ── 1. Pre-processing: image smoothing ─────────────────────────────────
     if (settings.preSmooth) {
@@ -154,7 +157,8 @@ self.onmessage = function(e) {
 
     // ── Edge-blend fold (mirrors runCleanupPipeline, audit IMG-01) ───────────
     // Without dithering the fold allows more (EDGE_BLEND_MAX_DE_NO_DITHER).
-    if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === 'function') {
+    // Not for photos (stitchCleanup.foldEdgeShades false; unset folds).
+    if (stitchCleanup && stitchCleanup.enabled && stitchCleanup.foldEdgeShades !== false && typeof mergeEdgeBlendColours === 'function') {
       mergeEdgeBlendColours(mapped, width, height, {
         // Coverage is already decided. Colour cleanup must not create new holes.
         preserveCoverage: true,
@@ -169,7 +173,7 @@ self.onmessage = function(e) {
     var preLabels   = labelConnectedComponents(mapped, width, height);
     var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
     var confettiClean = null;
-    var preCleanupIds = null;
+    var preCleanupIds = null, tidiedCells = null;
 
     // Reduce confetti: runs when Stitch Cleanup is on and the level is above 0
     // (mirrors runCleanupPipeline).
@@ -178,6 +182,7 @@ self.onmessage = function(e) {
     if (cleaned) {
       mapped = cleaned.mapped;
       preCleanupIds = cleaned.preCleanupIds;
+      tidiedCells = cleaned.tidiedCells;
       confettiClean = cleaned.confettiClean;
     }
 
@@ -260,6 +265,7 @@ self.onmessage = function(e) {
       cmap: palResult.cmap,
       confettiData: { raw: confettiRaw, clean: confettiClean || confettiRaw, final: confettiFinal },
       preCleanupIds: preCleanupIds,
+      tidiedCells: tidiedCells,
       disambigData: disambigData,
     });
 

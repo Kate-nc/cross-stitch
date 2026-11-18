@@ -1,6 +1,9 @@
 /** @jest-environment jsdom */
 const fs = require('fs');
 const source = fs.readFileSync('./import-formats.js', 'utf8');
+// import-formats.js mixes blend colours with blendThreadRgb (colour-utils.js,
+// always loaded before it in the app).
+global.blendThreadRgb = require('../colour-utils.js').blendThreadRgb;
 const DMC = [
   {id:'310',name:'Black',rgb:[0,0,0]},
   {id:'666',name:'Red',rgb:[204,0,0]},
@@ -25,7 +28,8 @@ test('sparse mixed chart preserves semantic objects and thread assignments throu
   const first=parseOXS(fixture);
   expect(first.warnings).toEqual([]);
   expect(first.bsLines.map(l=>l.colorId)).toEqual(['666','3750','310+550']);
-  expect(first.bsLines.map(l=>l.color)).toEqual(['#CC0000','#203A63','#22002C']);
+  // 310 + 550 mixed as light (blendThreadRgb), not their stored-value average #22002C.
+  expect(first.bsLines.map(l=>l.color)).toEqual(['#CC0000','#203A63','#2F003E']);
   expect(first.pattern[1].id).toBe('__skip__');
   expect(first.partialStitches.map(([i,qs])=>[i,Object.keys(qs).sort()])).toEqual([
     [5,['BL','TR']], [6,['BR','TL']], [7,['BL','TL','TR']], [8,['TR']],

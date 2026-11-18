@@ -194,9 +194,10 @@ var PICTURE_PRESET_ORDER = ['graphic', 'photo', 'pixel'];
 // fine details]. What each step means depends on the picture type, because
 // logos and pixel art are never shaded. Photo steps were measured on ten
 // photos at 100 stitches (scripts/conversion-accuracy; confetti stitches,
-// stitches in patches of 3 or fewer, colour error per stitch):
-//   More detail   9.8%  18.4%  5.28      Tidier            0.13%  5.8%  5.60
-//   Balanced      4.3%   9.1%  5.41      Easiest to stitch 0.11%  1.1%  6.27
+// stitches in patches of 3 or fewer, colour error per stitch), without the
+// edge-shade fold, which photos skip (foldEdgeShades below):
+//   More detail  12.4%  23.4%  4.51      Tidier            0.16%  7.6%  4.99
+//   Balanced      4.9%  10.7%  4.74      Easiest to stitch 0.17%  1.7%  5.16
 var STITCH_STYLE_ORDER = ['detail', 'balanced', 'tidier', 'easiest'];
 var STITCH_STYLE_LABELS = { detail: 'More detail', balanced: 'Balanced', tidier: 'Tidier', easiest: 'Easiest to stitch' };
 var STITCH_STYLES = {
@@ -241,11 +242,18 @@ var STITCH_STYLE_DESCRIPTIONS = {
 };
 // The settings keys a style sets (useCreatorState setters' names without "set";
 // cleanup and protectDetails are Stitch Cleanup's enabled and protectDetails).
-var STITCH_STYLE_KEYS = ['dithMode', 'cleanup', 'orphans', 'protectDetails']; // terminology-lint-allow (state keys, not UI text)
+var STITCH_STYLE_KEYS = ['dithMode', 'cleanup', 'orphans', 'protectDetails', 'foldEdgeShades']; // terminology-lint-allow (state keys, not UI text)
+// Whether Stitch Cleanup folds blurry in-between shades along edges into the
+// colours either side (mergeEdgeBlendColours). Made for graphics: shrinking a
+// logo blurs every edge. In a shaded photo nearly every colour passes its
+// tests, and it changed 11% of the stitches, costing colour error 5.27 to
+// 4.74 at Balanced (reports/photo-conversion-audit-2026-11.md), so photos
+// skip it at every step.
+function foldsEdgeShades(basis) { return basis !== 'photo' && !!STITCH_STYLES[basis]; }
 // The settings for a step of a picture type's styles (photo when unknown).
 function stitchStyleValues(basis, step) {
   var t = (STITCH_STYLES[basis] || STITCH_STYLES.photo)[step];
-  return t ? { dithMode: t[0], cleanup: t[1], orphans: t[2], protectDetails: t[3] } : null;
+  return t ? { dithMode: t[0], cleanup: t[1], orphans: t[2], protectDetails: t[3], foldEdgeShades: foldsEdgeShades(basis) } : null;
 }
 // Which step `cur` ({ dithMode, cleanup, orphans, protectDetails }) is, or
 // 'custom'. Settings that do nothing are not compared: with Stitch Cleanup off
@@ -491,6 +499,7 @@ if (typeof window !== 'undefined') {
   window.STITCH_STYLE_LABELS = STITCH_STYLE_LABELS;
   window.STITCH_STYLE_DESCRIPTIONS = STITCH_STYLE_DESCRIPTIONS;
   window.stitchStyleValues = stitchStyleValues;
+  window.foldsEdgeShades = foldsEdgeShades;
   window.stitchStyleOf = stitchStyleOf;
   window.picturePresetValues = picturePresetValues;
   window.analysePicture = analysePicture;
@@ -883,7 +892,7 @@ window.useCreatorState = function useCreatorState() {
     if (v.maxC != null) setMaxC(v.maxC);
     if (v.dithMode != null) setDithMode(v.dithMode);
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
-    if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails }); });
+    if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails, foldEdgeShades: v.foldEdgeShades }); });
     if (v.orphans != null) setOrphans(v.orphans);
     if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
@@ -923,7 +932,7 @@ window.useCreatorState = function useCreatorState() {
     var v = stitchStyleValues(stitchStyleBasis, step);
     if (!v) return;
     setDithMode(v.dithMode);
-    setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails }); });
+    setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails, foldEdgeShades: v.foldEdgeShades }); });
     setOrphans(v.orphans);
   }, [stitchStyleBasis]);
 
@@ -1120,6 +1129,11 @@ window.useCreatorState = function useCreatorState() {
   // and whether Convert shows it.
   var _prevTidied = useState(null); var previewTidied = _prevTidied[0], setPreviewTidied = _prevTidied[1];
   var _showTidied = useState(false); var showTidied = _showTidied[0], setShowTidied = _showTidied[1];
+  // The stitches the preview leaves unstitched as background, as an overlay
+  // picture (usePreview), and whether it is shown: what Leave background
+  // unstitched removes is otherwise invisible on fabric of the same colour.
+  var _prevBackground = useState(null); var previewBackground = _prevBackground[0], setPreviewBackground = _prevBackground[1];
+  var _showBackground = useState(false); var showBackground = _showBackground[0], setShowBackground = _showBackground[1];
   // What the last settings change did to the preview (usePreview.js
   // describePreviewChange): which settings, and the counts before and after.
   var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
@@ -2202,7 +2216,9 @@ window.useCreatorState = function useCreatorState() {
       // Extract pixel data here (requires canvas — must stay on main thread)
       var imageData;
       try {
-        imageData = gridPixels(img, sW, sH, { bri: bri, con: con, sat: sat, preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
+        // Brightness, Contrast and Saturation are applied in the worker,
+        // after the background mask (runCleanupPipeline).
+        imageData = gridPixels(img, sW, sH, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -2242,6 +2258,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
+          bri: bri, con: con, sat: sat,
           maxC: effMaxC, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: effAllowBlends, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
@@ -2348,7 +2365,7 @@ window.useCreatorState = function useCreatorState() {
         // thumbnail matches the chart it makes.
         var _gcxImgData;
         try {
-          _gcxImgData = gridPixels(img, gw, gh, { bri: bri, con: con, sat: sat, preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
+          _gcxImgData = gridPixels(img, gw, gh, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
         } catch (_) {
           // SecurityError: skip this gallery slot silently — generation will
           // still use the main canvas which already showed an error toast.
@@ -2357,6 +2374,7 @@ window.useCreatorState = function useCreatorState() {
         var rawPx = _gcxImgData.data;
 
         var res = runCleanupPipeline(rawPx, gw, gh, {
+          bri: bri, con: con, sat: sat,
           smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
@@ -2753,6 +2771,7 @@ window.useCreatorState = function useCreatorState() {
     previewLoading, setPreviewLoading,
     previewError, setPreviewError,
     previewTidied, setPreviewTidied, showTidied, setShowTidied,
+    previewBackground, setPreviewBackground, showBackground, setShowBackground,
     previewChange, setPreviewChange,
     previewChanged, setPreviewChanged, previewSnapshot, setPreviewSnapshot,
     pinnedPreview, setPinnedPreview, pinPreview, applyPinnedSettings, previewRestoreSettings,

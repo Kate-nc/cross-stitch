@@ -34,16 +34,18 @@
 
   var CACHE_LIMIT = 24;
 
-  // Picture pixels at pw × ph with the picture adjustments: generate's own
-  // step (gridPixels in creator/generate.js).
+  // Picture pixels at pw × ph: generate's own step (gridPixels in
+  // creator/generate.js). Brightness, Contrast and Saturation are applied by
+  // the pipeline, after the background mask (pipelineSettings).
   function picturePixels(img, pw, ph, s) {
-    return gridPixels(img, pw, ph, { bri: s.bri, con: s.con, sat: s.sat, preSharpenOpts: s.preSharpen ? { amount: s.preSharpenAmount } : null });
+    return gridPixels(img, pw, ph, { preSharpenOpts: s.preSharpen ? { amount: s.preSharpenAmount } : null });
   }
 
   function pipelineSettings(s, values, paletteFor) {
     var pool = s.allowedPalette;
     if (values.convertBrand && values.convertBrand !== s.convertBrand && typeof paletteFor === "function") pool = paletteFor(values.convertBrand);
     return {
+      bri: s.bri, con: s.con, sat: s.sat,
       maxC: values.maxC != null ? values.maxC : s.maxC,
       dith: s.dith, dithStrength: s.dithStrength, dithAlgo: s.dithAlgo, dithBayerSize: s.dithBayerSize,
       allowBlends: values.allowBlends != null ? values.allowBlends : s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,

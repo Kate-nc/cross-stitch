@@ -173,13 +173,27 @@ describe('gridPixels', () => {
 
 describe('every picture-to-stitches path uses gridPixels', () => {
   test.each([
-    ['creator/generate.js', /gridPixels\(img, sW, sH, \{ bri: bri, con: con, sat: sat, preSharpenOpts: opts\.preSharpenOpts \}\)/],
+    ['creator/generate.js', /gridPixels\(img, sW, sH, \{ preSharpenOpts: opts\.preSharpenOpts \}\)/],
     ['creator/useCreatorState.js', /imageData = gridPixels\(img, sW, sH,/],
     ['creator/useCreatorState.js', /_gcxImgData = gridPixels\(img, gw, gh,/],
     ['creator/usePreview.js', /gridPixels\(img, pw, ph,/],
     ['creator/CompareStrip.js', /gridPixels\(img, pw, ph,/],
   ])('%s', (file, re) => {
     expect(loadSource(file)).toMatch(re);
+  });
+
+  // The background mask is found in the picture's own colours: every path
+  // hands Brightness, Contrast and Saturation to the pipeline instead of
+  // gridPixels (reports/photo-conversion-audit-2026-11.md).
+  test.each([
+    ['creator/generate.js', /var raw = gridPixels\(img, sW, sH, \{ preSharpenOpts/, /bri: bri, con: con, sat: sat,\n    maxC: maxC/],
+    ['creator/useCreatorState.js', /imageData = gridPixels\(img, sW, sH, \{ preSharpenOpts/, /settings: \{\n          bri: bri, con: con, sat: sat,/],
+    ['creator/useCreatorState.js', /_gcxImgData = gridPixels\(img, gw, gh, \{ preSharpenOpts/, /runCleanupPipeline\(rawPx, gw, gh, \{\n          bri: bri, con: con, sat: sat,/],
+    ['creator/usePreview.js', /gridPixels\(img, pw, ph, \{ preSharpenOpts/, /var o = \{\n          bri: bri, con: con, sat: sat,/],
+  ])('%s adjusts in the pipeline, after the mask', (file, pixels, settings) => {
+    const src = loadSource(file);
+    expect(src).toMatch(pixels);
+    expect(src).toMatch(settings);
   });
 
   test('the gamma-space halving chain is gone', () => {

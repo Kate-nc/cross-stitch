@@ -211,7 +211,16 @@
             Icons.eyedropper(), h("span", null, gen.pickBg ? "Click the picture…" : "Pick from picture"))),
         h(SliderRow, { label: "How close a match", value: gen.bgTh, min: 3, max: 50, onChange: gen.setBgTh,
           helpText: "How closely a pixel must match the background colour to be left unstitched. Higher leaves out more." }),
-        hint("Only plain areas that touch the picture's edge are left unstitched.")
+        hint("Only plain areas that touch the picture's edge are left unstitched. Pale parts of the subject that touch a pale background can go with it: check the preview, and lower How close a match if they do."),
+        // How much is left out, and a way to see exactly which stitches: on
+        // fabric of the background's colour the preview can't show them.
+        ps && ps.skipped != null && !app.previewLoading && h("div", { className: "cv-tidied" },
+          hint(ps.skipped === 0 ? "In the preview, no stitches are left unstitched."
+            : "In the preview, " + ps.skipped.toLocaleString() + " stitch" + (ps.skipped === 1 ? " is" : "es are") + " left unstitched" +
+              (ps.stitchable + ps.skipped > 0 ? " (" + (ps.skipped / (ps.stitchable + ps.skipped) * 100).toFixed(1) + "% of the chart)." : ".")),
+          ps.skipped > 0 && app.setShowBackground && h("button", { type: "button", className: "cs-seltools__btn" + (app.showBackground ? " cs-seltools__btn--on" : ""),
+            "aria-pressed": app.showBackground ? "true" : "false", onClick: function () { app.setShowBackground(!app.showBackground); } },
+            Icons.eye(), h("span", null, "Show them on the preview")))
       ) : hint("Off: every pixel is stitched, background included.")
     );
 
@@ -461,11 +470,19 @@
           ? "Merges groups of up to 2 stitches cut off from their colour, and up to 6 in plain areas."
           : "Merges groups of up to 3 stitches cut off from their colour, and up to 9 in plain areas.";
     }
+    // Graphics and pixel art also fold blurry edge shades; photos don't
+    // (stitchCleanup.foldEdgeShades, useCreatorState.js). Unset folds.
+    var foldsEdges = sc2.foldEdgeShades !== false;
+    var cleanupOn = !sc2.enabled ? "Off: no tidying. Colours used by only a few stitches still merge into a neighbouring colour, and Threads (max) still applies."
+      : foldsEdges ? (gen.orphans > 0 ? "Merges confetti stitches and folds blurry in-between shades along edges into the colours either side." : "Folds blurry in-between shades along edges into the colours either side. Reduce confetti is Off.")
+      : (gen.orphans > 0 ? "Merges confetti stitches into the colour around them." : "Nothing is tidied while Reduce confetti is Off.");
     var tidySec = sec("tidying", "Tidying", null,
       check({ checked: sc2.enabled, label: "Stitch Cleanup",
         onChange: function (v) { gen.setStitchCleanup(function (s) { return Object.assign({}, s, { enabled: v }); }); },
-        info: "Tidies the chart after colours are matched: confetti stitches (single stitches of a colour on their own) merge into the colour around them, and blurry in-between shades along edges fold into the colours either side. Off keeps every stitch exactly as matched." }),
-      hint(sc2.enabled ? "Merges confetti stitches and folds blurry in-between shades along edges into the colours either side." : "Off: every stitch stays exactly as matched."),
+        info: "Tidies the chart after colours are matched: confetti stitches (single stitches of a colour on their own) merge into the colour around them" +
+          (foldsEdges ? ", and blurry in-between shades along edges fold into the colours either side." : ". Photos keep their in-between shades, which are part of the shading.") +
+          " On or off, a colour used by only a few stitches merges into a neighbouring colour unless it stands out (such as a catchlight), and Threads (max) still applies." }),
+      hint(cleanupOn),
       sc2.enabled && h(React.Fragment, null,
         h(SliderRow, { label: "Reduce confetti", value: gen.orphans, min: 0, max: 3, onChange: gen.setOrphans,
           format: function (v) { return v === 0 ? "Off" : String(v); },
@@ -477,8 +494,8 @@
           onChange: function (v) { gen.setStitchCleanup(function (s) { return Object.assign({}, s, { protectDetails: v }); }); },
           info: "Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines, out of the tidying. Turn off for the tidiest chart. Bright accents such as a catchlight are kept either way." }),
         tidied != null && !app.previewLoading && h("div", { className: "cv-tidied" },
-          hint(tidied === 0 ? "In the preview, tidying changed no stitches."
-            : "In the preview, tidying changed " + tidied.toLocaleString() + " stitch" + (tidied === 1 ? "" : "es") +
+          hint(tidied === 0 ? "In the preview, Reduce confetti changed no stitches."
+            : "In the preview, Reduce confetti changed " + tidied.toLocaleString() + " stitch" + (tidied === 1 ? "" : "es") +
               (ps.stitchable > 0 ? " (" + (tidied / ps.stitchable * 100).toFixed(1) + "%)." : ".")),
           tidied > 0 && app.setShowTidied && h("button", { type: "button", className: "cs-seltools__btn" + (app.showTidied ? " cs-seltools__btn--on" : ""),
             "aria-pressed": app.showTidied ? "true" : "false", onClick: function () { app.setShowTidied(!app.showTidied); } },

@@ -27,7 +27,7 @@ function confettiTier(pct){
   return{color:"#A53D3D",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, tidiedSrc, changedSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
+function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, tidiedSrc, backgroundSrc, changedSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
@@ -147,6 +147,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, ti
         </div>
         {!previewLoading&&changedSrc&&<img data-testid="cvp-changed" src={changedSrc} className="cvp-overlay" style={{clipPath:`inset(0 0 0 ${splitPos}%)`}} alt="" aria-hidden="true"/>}
         {!previewLoading&&showHeatmap&&heatmapSrc&&<img data-testid="cmp-heatmap" src={heatmapSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
+        {!previewLoading&&backgroundSrc&&<img data-testid="cmp-background" src={backgroundSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {!previewLoading&&tidiedSrc&&<img data-testid="cmp-tidied" src={tidiedSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {!previewLoading&&highlightSrc&&<img data-testid="cmp-highlight" src={highlightSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
         <div
@@ -294,13 +295,14 @@ function ConvertPreview({state, onRetry}) {
   const overlays = !state.previewLoading && <>
     {showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap')}
     {state.showTidied && overlay(state.previewTidied, 'cvp-tidied')}
+    {state.showBackground && overlay(state.previewBackground, 'cvp-background')}
     {showChanged && overlay(state.previewChanged, 'cvp-changed')}
     {overlay(state.previewHighlight, 'cvp-highlight')}
   </>;
 
   let body;
   if (view === 'compare') {
-    body = <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
+    body = <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} backgroundSrc={state.showBackground ? state.previewBackground : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
   } else if (view === 'flat') {
     body = <div className="cvp-box" data-testid="cvp-flat" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
       <img src={state.previewUrl} alt="Preview" className="cvp-flat"/>
@@ -367,6 +369,8 @@ function ConvertPreview({state, onRetry}) {
         <button type="button" className="cs-seltools__btn" disabled={state.previewLoading || !state.previewSnapshot} onClick={state.pinPreview}>Pin this preview</button>
         {state.previewTidied && <button type="button" className={'cs-seltools__btn' + (state.showTidied ? ' cs-seltools__btn--on' : '')} aria-pressed={state.showTidied ? 'true' : 'false'}
           onClick={function(){ state.setShowTidied(!state.showTidied); }}>{Icons.eye()}<span>Show tidied stitches</span></button>}
+        {state.previewBackground && <button type="button" className={'cs-seltools__btn' + (state.showBackground ? ' cs-seltools__btn--on' : '')} aria-pressed={state.showBackground ? 'true' : 'false'}
+          onClick={function(){ state.setShowBackground(!state.showBackground); }}>{Icons.eye()}<span>Show unstitched background</span></button>}
       </div>}
       {view === 'stitched' && <p className="cvp-caption">Simulated stitches: 2 strands on {window.fabricShortLabel(ct)} fabric in your fabric colour. Screens show thread colours only roughly.</p>}
     </div>
@@ -866,6 +870,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     convertTab: state.convertTab, setConvertTab: state.setConvertTab,
     showTidied: state.showTidied, setShowTidied: state.setShowTidied,
     previewChange: state.previewChange, previewTidied: state.previewTidied,
+    showBackground: state.showBackground, setShowBackground: state.setShowBackground, previewBackground: state.previewBackground,
     splitPaneEnabled: state.splitPaneEnabled, setSplitPaneEnabled: state.setSplitPaneEnabled,
     splitPaneRatio: state.splitPaneRatio, setSplitPaneRatio: state.setSplitPaneRatio,
     splitPaneSyncEnabled: state.splitPaneSyncEnabled, setSplitPaneSyncEnabled: state.setSplitPaneSyncEnabled,
@@ -924,6 +929,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.lastGenSnapshot, convertChartState,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied,
+    state.showBackground, state.previewBackground,
     state.splitPaneEnabled, state.splitPaneRatio,
     state.splitPaneSyncEnabled, state.rightPaneMode,
     state.exportPage, state.pageMode,

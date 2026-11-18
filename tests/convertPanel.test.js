@@ -200,14 +200,44 @@ describe('the counts come from the preview', () => {
     expect(q('[data-threads-used]').textContent).toBe('In the preview: 18 threads and 30 chart symbols; 12 blends, 25% of stitches. ');
   });
 
-  test('Detail says how many stitches tidying changed and can show them', () => {
+  test('Detail says how many stitches Reduce confetti changed and can show them', () => {
     app.convertTab = 'detail';
     app.previewStats = { stitchable: 2000, tidiedStitches: 50, confettiFinalSingles: 20 };
     app.setShowTidied = jest.fn();
     draw();
-    expect(text()).toContain('In the preview, tidying changed 50 stitches (2.5%).');
+    expect(text()).toContain('In the preview, Reduce confetti changed 50 stitches (2.5%).');
     act(() => all('button').find((b) => b.textContent === 'Show them on the preview').click());
     expect(app.setShowTidied).toHaveBeenCalledWith(true);
+  });
+
+  test('Stitch Cleanup says what it does for the picture type, and what Off still changes', () => {
+    app.convertTab = 'detail';
+    // A photo keeps its in-between shades (no edge-shade fold).
+    gen.stitchCleanup = { enabled: true, protectDetails: true, foldEdgeShades: false };
+    draw();
+    expect(text()).toContain('Merges confetti stitches into the colour around them.');
+    expect(text()).not.toContain('folds blurry in-between shades');
+    gen.orphans = 0; draw();
+    expect(text()).toContain('Nothing is tidied while Reduce confetti is Off.');
+    // A graphic folds them; so does a chart saved before the setting existed.
+    gen.orphans = 2; gen.stitchCleanup = { enabled: true, protectDetails: true };
+    draw();
+    expect(text()).toContain('Merges confetti stitches and folds blurry in-between shades along edges into the colours either side.');
+    // Off no longer claims every stitch stays as matched.
+    gen.stitchCleanup = { enabled: false, protectDetails: true };
+    draw();
+    expect(text()).toContain('Off: no tidying. Colours used by only a few stitches still merge into a neighbouring colour, and Threads (max) still applies.');
+    expect(text()).not.toContain('exactly as matched');
+  });
+
+  test('Background says how many stitches are left unstitched and can show them', () => {
+    gen.skipBg = true; gen.bgCol = [230, 230, 230];
+    app.previewStats = { stitchable: 6000, skipped: 1500 };
+    app.setShowBackground = jest.fn();
+    draw();
+    expect(text()).toContain('In the preview, 1,500 stitches are left unstitched (20.0% of the chart).');
+    act(() => all('button').find((b) => b.textContent === 'Show them on the preview').click());
+    expect(app.setShowBackground).toHaveBeenCalledWith(true);
   });
 });
 

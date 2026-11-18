@@ -5,6 +5,9 @@
 // Uses the regex+eval extraction pattern from embroidery-image-processing.test.js
 // to pull pure functions out of import-formats.js without a module system.
 
+// import-formats.js mixes blend colours with blendThreadRgb (colour-utils.js,
+// always loaded before it in the app).
+global.blendThreadRgb = require('../colour-utils.js').blendThreadRgb;
 const fs = require('fs');
 
 // ─── Minimal DMC stub ─────────────────────────────────────────────────────

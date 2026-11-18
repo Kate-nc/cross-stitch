@@ -334,7 +334,7 @@
       ),
 
       h(Section, { title: "Tidying up the pattern" },
-        h(Row, { label: "Stitch Cleanup", desc: "Merges confetti stitches (single stitches of a colour on their own; slow to stitch) into the colour around them, and folds away the in-between shades along edges. Off keeps every stitch as matched. Used when the picture type isn't guessed; otherwise the type's Detail and tidiness step sets it." },
+        h(Row, { label: "Stitch Cleanup", desc: "Merges confetti stitches (single stitches of a colour on their own; slow to stitch) into the colour around them and, for graphics and pixel art, folds away the in-between shades along edges. Off skips this tidying, though a colour used by only a few stitches still merges into a neighbouring colour. Used when the picture type isn't guessed; otherwise the type's Detail and tidiness step sets it." },
           h(Switch, { checked: cleanup[0], onChange: cleanup[1] })
         ),
         h(Row, { label: "Reduce confetti", desc: "How much Stitch Cleanup merges. 0 merges none; 1 merges single confetti stitches; 3 merges groups of up to 3. Plain areas allow groups three times larger. Used when the picture type isn't guessed." },

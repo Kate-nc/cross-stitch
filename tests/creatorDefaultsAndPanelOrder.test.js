@@ -93,8 +93,22 @@ describe('defaults', () => {
     // border check, then the skip and the picture-type guess are applied.
     expect(io).toMatch(/window\.analysePicture\(data, imgEl\.width, imgEl\.height\)/);
     expect(io).toMatch(/window\.detectUniformBorder\(data\)/);
-    expect(io).toMatch(/autoSkipBackground\(info \? info\.border : null\)/);
+    expect(io).toMatch(/autoSkipBackground\(info \? info\.border : null, looksLikePhoto\)/);
     expect(io).toMatch(/state\.addToast\("Background left unstitched\.", \{[\s\S]*?label: "Undo"/);
+  });
+
+  test('a photo\'s plain background is offered, not applied', () => {
+    const io = loadSource('creator/useProjectIO.js');
+    // In a photo the subject can touch the background (a pale shirt on a pale
+    // wall), so the guess decides, and a photo gets a toast to opt in.
+    expect(io).toMatch(/window\.guessPictureType\(info\) === "photo"/);
+    const fn = io.slice(io.indexOf('function autoSkipBackground('), io.indexOf('state.setBgCol(found.rgb);\n      state.setSkipBg(true);\n      if (autoRef) autoRef.current = true;\n      if (state.addToast) {'));
+    expect(fn).toMatch(/if \(!found \|\| offerOnly\) \{[\s\S]*?return;\n      \}/);
+    const offer = fn.slice(fn.indexOf('if (!found || offerOnly)'));
+    expect(offer).toMatch(/label: "Leave it unstitched", onClick: function \(\) \{\n\s*state\.setBgCol\(found\.rgb\);\n\s*state\.setSkipBg\(true\);/);
+    expect(offer).toMatch(/state\.setShowBackground\(true\)/);
+    // Nothing is switched on before the stitcher chooses it.
+    expect(offer.slice(0, offer.indexOf('label: "Leave it unstitched"'))).not.toMatch(/state\.setSkipBg\(true\)/);
     expect((io.match(/examinePicture\((i|scaledImg)\)/g) || []).length).toBe(2);
   });
 });

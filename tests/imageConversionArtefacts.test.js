@@ -141,7 +141,9 @@ describe('the palette has no near-copies and gives distinct small features a thr
   test('with blends on, a thread a blend needs is not pruned', () => {
     // A flat grey that only a blend of 3799 and 317 matches: neither thread
     // is any pixel's nearest solid on its own, but both are needed.
-    const w = 30, h = 10, data = image(w, h, () => [63, 63, 63]);
+    // Grey 65: the blend (the two threads mixed as light) is 0.7 away, and
+    // both threads over 6 (PALETTE_BLEND_KEEP_DE), so only the blend serves it.
+    const w = 30, h = 10, data = image(w, h, () => [65, 65, 65]);
     const stash = [dmc('3799'), dmc('317')];
     const pal = C.quantizeConstrained(data, w, h, 2, stash, { seed: 1337, blends: true });
     expect(pal.map((e) => e.id).sort()).toEqual(['317', '3799']);

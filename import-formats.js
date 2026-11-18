@@ -216,7 +216,7 @@ function parseOXS(xmlString) {
           (blendBrand === 'dmc' ? _importDmcById(r.id) : blendBrand === 'anchor' && typeof findThreadInCatalog === 'function' ? findThreadInCatalog(blendBrand, r.id) : null));
         if (threads.length === 2 && threads.every(Boolean) && strands[0] === strands[1] &&
             strands.every(n => Number.isInteger(Number(n)) && Number(n) > 0)) {
-          const rgb = threads[0].rgb.map((v, i) => Math.round((v + threads[1].rgb[i]) / 2));
+          const rgb = blendThreadRgb(threads[0].rgb, threads[1].rgb);
           const t = { type: 'blend', id: threads.map(t => t.id).join('+'), rgb: rgb,
             name: el.getAttribute('name') || threads.map(t => t.id).join('+'), threads: threads };
           if (blendBrand !== 'dmc') t.brand = blendBrand;
@@ -679,7 +679,7 @@ function generateOXS(project) {
       if (blends.some(t => !t || !rgbOK(t.rgb))) { warn(type, 'blend ' + id + ' has unavailable component colours'); return null; }
     }
     if (m.rgb != null && !rgbOK(m.rgb)) warn(type, 'invalid colour; using catalogue or component colour where available');
-    const rgb = rgbOK(m.rgb) ? m.rgb : info && info.rgb || (blends && blends[0].rgb.map((v,i) => Math.round((v + blends[1].rgb[i]) / 2)));
+    const rgb = rgbOK(m.rgb) ? m.rgb : info && info.rgb || (blends && blendThreadRgb(blends[0].rgb, blends[1].rgb));
     if (!rgbOK(rgb)) { warn(type, 'thread ' + id + ' has no valid colour'); return null; }
     if (palMap.has(key)) return palMap.get(key);
     const e = { index: palette.length + 1, id: id, brand: b, name: m.name || info && info.name || id, rgb: rgb, blends: blends };

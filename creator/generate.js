@@ -159,7 +159,11 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
 
   // Work on a private copy: preview runs multiple passes over cached RGBA.
   raw = new Uint8ClampedArray(raw);
+  // The background is found in the picture's own colours, then Brightness,
+  // Contrast and Saturation apply to what is stitched (opts.bri, con, sat;
+  // `raw` comes from gridPixels without them). Mirrored in generate-worker.js.
   var coverageMask = prepareConversionPixels(raw, width, height, opts);
+  applyImageAdjustments(raw, opts.bri, opts.con, opts.sat);
   if (opts.preSmooth) applyBilateralFilter(raw, width, height);
   if (opts.smooth > 0) {
     if (opts.smoothType === "gaussian") applyGaussianBlur(raw, width, height, opts.smooth);
@@ -210,7 +214,12 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // Without dithering a thin in-between shade is anti-aliasing, so the fold
   // allows more (EDGE_BLEND_MAX_DE_NO_DITHER, colour-utils.js). Mirrored in
   // generate-worker.js.
-  if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === "function") {
+  // Graphics and pixel art only: stitchCleanup.foldEdgeShades is false for
+  // photos (PICTURE_PRESETS, useCreatorState.js), where nearly every colour
+  // looks like an edge shade and the fold changed 11% of the stitches
+  // (reports/photo-conversion-audit-2026-11.md). Unset, as in charts saved
+  // before it existed, it folds.
+  if (stitchCleanup && stitchCleanup.enabled && stitchCleanup.foldEdgeShades !== false && typeof mergeEdgeBlendColours === "function") {
     mergeEdgeBlendColours(mapped, width, height, {
       // Coverage is already decided. Colour cleanup must not create new holes.
       preserveCoverage: true,
@@ -225,7 +234,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
-  var preCleanupIds = null;
+  var preCleanupIds = null, tidiedCells = null;
 
   // Reduce confetti (colour-utils.js runConfettiCleanup): runs when Stitch
   // Cleanup is on and the Reduce confetti level is above 0.
@@ -233,6 +242,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   if (cleaned) {
     mapped = cleaned.mapped;
     preCleanupIds = cleaned.preCleanupIds;
+    tidiedCells = cleaned.tidiedCells;
     confettiClean = cleaned.confettiClean;
   }
 
@@ -268,7 +278,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     ? analyzeConfetti(mapped, width, height)
     : (confettiClean || confettiRaw);
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, confettiFinal: confettiFinal, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, disambigData: disambigData };
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, confettiFinal: confettiFinal, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, tidiedCells: tidiedCells, disambigData: disambigData };
 };
 
 // Keep at most maxC threads (a blend counts its two). Mutates mapped; true
@@ -354,9 +364,10 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   // caller can surface a friendly error.
   if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
-  var raw = gridPixels(img, sW, sH, { bri: bri, con: con, sat: sat, preSharpenOpts: opts.preSharpenOpts }).data;
+  var raw = gridPixels(img, sW, sH, { preSharpenOpts: opts.preSharpenOpts }).data;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
+    bri: bri, con: con, sat: sat,
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,
