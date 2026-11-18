@@ -1,143 +1,181 @@
-# Photo conversion audit
+# Photo conversion audit (combined)
 
-18 November 2026. Covers turning a photo into a chart: upload, the Convert settings,
-`creator/generate.js`, `generate-worker.js`, `colour-utils.js`, the thread catalogue, and the
-Stitch Tracker's own picture import. It follows
-[photo-conversion-accuracy-review.md](photo-conversion-accuracy-review.md) and
-[photo-conversion-accuracy-audit.md](photo-conversion-accuracy-audit.md) (October), and
-re-measures everything after the October changes and the
-[DMC colour calibration](dmc-colour-calibration.md). No app code is changed by this report.
+18 November 2026, stitchx 1.0.253 (commit `34cd287`). Two audits of turning a photo into a
+chart were made independently on the same code:
+
+- **Audit A**: this repository's own audit. It measured the pipeline on ten photos, listed
+  the assumptions it makes and compared other tools.
+- **Audit B**: a second agent's report. It traced the Creator path and the Tracker import,
+  built small test fixtures and ran spot checks on three photos.
+
+Every claim from both was checked again for this combined report: in the code, by rerunning
+B's fixtures and spot checks, and against other tools' published pages where they could be
+reached. The **Checked** column says how. No app code is changed by this report.
+
+Earlier work: [photo-conversion-accuracy-review.md](photo-conversion-accuracy-review.md) and
+[photo-conversion-accuracy-audit.md](photo-conversion-accuracy-audit.md) (October), and the
+[DMC colour calibration](dmc-colour-calibration.md).
 
 ## Summary
 
-The October work fixed shrinking, the thread budget and confetti cleanup. Since then, two
-things have moved: the thread colours were darkened, and the Convert controls became one
-*Detail and tidiness* choice. Measured again on the same ten photos:
+1. **Background removal can erase part of the subject, or silently not run (B).** It is
+   switched on automatically whenever the picture's border is plain, photos included.
+   Several problems follow:
+   - It removes everything joined to the border within ΔE76 15. A pale stripe 12 L* darker
+     than a pale background was erased with it.
+   - A single pixel with alpha 254 anywhere turns the colour removal off for the whole
+     picture, while the control still shows it as on.
+   - The mask is tested after brightness, contrast and saturation, so moving those sliders
+     moves the mask.
+2. **The edge-shade fold costs photos the most accuracy (A).** It is meant to remove blurry
+   in-between shades around logos, and its code assumes photos are left alone. In fact it
+   changes 11% of every photo's stitches, and it runs even at *More detail* (B). Turning it
+   off for photos lowers colour error from 5.32 to 4.77, and boundary error from 7.23 to
+   6.15. That beats every variant B tested, on B's own photos too.
+3. **The cleanup labels and the "tidied" count say more than the code does (B).**
+   - *Stitch Cleanup* Off says "every stitch stays exactly as matched", but the rare-colour
+     fold and the thread caps still change stitches.
+   - The tidied count misses the folds, and counts later changes as tidying.
+4. **"Fuzzy" has three causes, and each needs its own fix (A and B):**
+   - the grid is too coarse for the detail, which no setting can recover;
+   - each stitch is the average of what it covers, so outlines blur by up to a stitch;
+   - the fold then makes some edges blocky.
 
-1. **One cleanup step does most of the remaining damage.** The *edge-shade fold*, built to
-   remove blurry in-between shades around logos, changes **11% of every photo's stitches**
-   (6 to 20%). Its code assumes photos are left alone, but with 24 threads and shading
-   nearly every photo colour passes its tests. Turning it off for photos lowers the colour
-   error from **5.32 to 4.77** and the boundary error from **7.23 to 6.15**, for about one
-   point more confetti. This is the cheapest, largest accuracy gain available.
-2. **"Fuzzy" has two causes, and they need different fixes.**
-   - Each stitch is the average of the picture under it. A stitch that straddles an
-     edge becomes an in-between colour, so outlines blur by up to a stitch. This is correct
-     to the light, but it reads as soft.
-   - The edge-shade fold then pushes some of those in-between stitches to one side, so the
-     edges become blocky.
+   *Sharpen details* and *Soften* both make things worse. B suggests showing the photo at
+   stitch size beside the chart, so a user can see where detail was lost. A's prototype
+   "dominant colour" shrink makes outlines visibly crisper.
+5. **The thread range and blend maths limit accuracy (A, confirmed by B for blends).**
+   - Even with all 525 DMC threads, a quarter of photo stitches have no thread within ΔE 5.
+     The gaps are muted greys, olives, browns and skin.
+   - Blends close most of that gap, but their colours are worked out in gamma space, which
+     predicts them too dark (more than ΔE 2 off for 13% of pairs).
+6. **Previews and side paths don't always match Generate (B, A).**
+   - With stash-only on and an empty stash, the preview uses the full catalogue, while
+     Generate refuses.
+   - The stash gallery runs at 2,500 cells and skips look-alike separation; its "threads"
+     figure is really a symbol count.
+   - The Tracker's picture import is a separate, noisier pipeline that also skips white
+     anywhere in the picture.
 
-   *Sharpen details* does not help: it made every accuracy measure worse. A prototype "dominant
-   colour" shrink makes each edge stitch take a side, and visibly sharpens outlines (see
-   [Finding 5](#5-why-charts-look-fuzzy)).
-3. **The thread range itself caps accuracy.** Even with all 525 DMC threads available, the
-   nearest thread is on average ΔE 3.8 from the photo, and a quarter of stitches have no
-   thread within ΔE 5. The gaps are muted mid-tones: greys, olives, browns and skin. This is
-   why charts look muddier than the photo in those areas, and no setting can fix it. Blends
-   of two threads close most of the gap (ΔE 3.8 to 1.4).
-4. **Blend colours are worked out the old, darkening way.** A blend's colour is the average
-   of its two threads' stored values, the same gamma-space averaging October removed from
-   shrinking. For 13% of the blends the app can choose, the predicted colour is off by more
-   than ΔE 2 (up to 7.4).
-5. **Several assumptions are untested or false.** They are listed in
-   [The assumptions the conversion makes](#the-assumptions-the-conversion-makes), with the
-   evidence for each. The most important false ones:
-   - the fold leaves photos alone;
-   - the "detail" map finds flat areas (it marks 87% of a photo as detail);
-   - the fabric colour does not matter (it is never passed to the conversion);
-   - one random palette start is good enough (the default seed is among the worst of six
-     tried).
-6. **Compared with other tools**, the pipeline is more careful than any converter whose
-   method is published. It leads on light-correct shrinking, perceptual colour matching,
-   palette refinement, blends and stash-only charts. Two features it lacks are common
-   elsewhere: choosing colours the chart must keep, by clicking the picture or picking
-   threads, and a "most common colour" way of picking each stitch's colour.
+## How the two audits compare
 
-## How this was checked
+| Topic | Audit A | Audit B | Checked | Verdict |
+|---|---|---|---|---|
+| Background removal: subject loss, alpha bypass, mask after adjustments | Noted only the ΔE76 tolerance | **Found all three** | Fixtures rerun, code read | **B correct.** A missed it |
+| Edge-shade fold on photos | **Main accuracy cost, 11% of stitches** | Noted it runs at *More detail*, treated as a labelling issue | Measured on all ten photos and on B's three | **A's stronger conclusion holds**; B's spot checks agree |
+| Cleanup labels, tidied count | Not covered | **Found** | Code read | **B correct** |
+| Grid size limits detail | Mentioned | **Diagnostic view and size comparison** | B's 150-stitch rows rerun | Agree; B's suggestion is new |
+| Averaging blurs edges; Sharpen doesn't help | **Measured, crisp-edge prototype** | Not covered | Measured | A |
+| Soften hurts | Carried over from October | Spot-checked | Rerun on three photos | Agree |
+| Palette by area; faces | Carried over from October; eyedropper suggestion | Subject weighting or pinned threads | Code | Agree |
+| Blends averaged in gamma space | **Measured on all 18,174 pairs** | Noted | Measured | Agree |
+| Thread range sets an accuracy floor | **Measured** | Says physical validation is needed | Measured | Agree, complementary |
+| Preview, gallery and stash parity | Not covered | **Found** | Code read | **B correct** |
+| Crop edge cases | Not covered | **Found** | Code read | **B correct** |
+| Tracker import differs | Second pipeline, no cleanup | Also skips white anywhere | Code read | Both correct |
+| Palette seed, saliency map, fabric colour ignored | **Found** | Not covered | Measured or code read | A |
+| Spot-check numbers | — | 18 rows | **All 18 reproduced exactly** with the shared harness | B's numbers stand |
+| Competitor features | WinStitch, cstitch, KG-Chart, Stitch Fiddle, mySewnet | Pic2Pat, FlossCross, StitchXCross, Stitch Fiddle, Pixel-Stitch | Web search; some sites unreachable | Partly checked: see [Other tools](#other-tools) |
 
-- **Code:** every path from a picture to stitches. That covers upload and shrinking
-  (`useProjectIO.js`), the picture-type guess and presets (`useCreatorState.js`),
-  `gridPixels`, the shared pipeline (`runCleanupPipeline` and `generate-worker.js`, which
-  still mirror each other), the preview (`usePreview.js`), and the Tracker's
-  `parseImagePattern` in `import-formats.js`.
-- **Measurements:** the existing harness (`scripts/conversion-accuracy/`) runs the real
-  worker in Node on ten standard photos at 100 stitches on the long side. New scripts are in
-  [`scripts/conversion-accuracy/audit-2026-11/`](../scripts/conversion-accuracy/audit-2026-11/README.md).
-  The measures are the same as October:
-
-  | Measure | What it means |
-  |---|---|
-  | Colour error | Mean ΔE2000 per stitch against the photo's light-average under it. About 1 is just noticeable; over 5 is clearly a different colour. |
-  | Viewed error | The same after blurring both by one stitch, roughly how the chart reads from arm's length. |
-  | Boundary error | Colour error on strong boundaries only. |
-  | Confetti | Stitches with no same-colour neighbour. |
-  | Small patches | Stitches in same-colour patches of 1 to 3. |
-
-- **Other tools:** web search plus the published documentation that could be reached. This
-  session's network could not reach the WinStitch/MacStitch, PCStitch, mySewnet and KXStitch
-  manuals directly, so those rows rely on search excerpts of their manuals and are marked as
-  such.
-
-**Limits of the measures.** They compare the chart with the photo *averaged per stitch*, in
-the app's own thread colours. Two consequences:
-
-- Any method that makes edges crisper scores worse by construction, so softness can't be
-  judged from the numbers alone. The renders below are there for that.
-- If the thread colours are wrong, the numbers can't tell. The catalogue is a calibrated
-  approximation, not a measurement (see the calibration report).
-
-## The pipeline today
-
-```
-upload (shrunk to 2000 x 2000 if larger, halving steps)
-  -> picture-type guess (Graphic / Photo / Pixel art) sets the preset and Detail and tidiness step
-  -> automatic "leave the background unstitched" if the outer border is one colour
-  -> gridPixels: each stitch = light-correct average of the pixels under it     <- finding 5
-     then brightness / contrast / saturation on the stitch colours
-  -> [optional] Soften (median / Gaussian), at stitch size
-  -> palette: k-means on real threads (one random start)                         <- finding 7
-              -> drop near-duplicates -> add small, clearly different colours
-  -> match each stitch: nearest thread by ΔE2000, Smooth blend (Atkinson at 50%),
-     two-thread blends allowed when they are clearly nearer                      <- findings 3, 4
-  -> fold rare colours (under 0.5% of stitches, unless they stand out)
-  -> fold edge shades into their neighbours (Stitch Cleanup on)                  <- finding 1
-  -> Reduce confetti (level 2), skipping patches on an outline
-  -> [optional] keep look-alike colours apart
-  -> enforce Threads (max) and the blend limit (12 recipes)
-```
-
-What a new user gets for a photo: 24 threads, *Balanced* (Smooth blend at 50%, Stitch
-Cleanup on, Reduce confetti 2, Protect fine details on), blends on, Min stitches 0,
-100 stitches on the long side.
+Where they differ, B recommends measuring before changing the Photo preset. That measurement
+has now been done for the fold, on both audits' photos (finding 2). B's broader test set is
+still worth running before shipping: faces, low light, fine lines, transparency, and stitchers
+comparing previews.
 
 ## The assumptions the conversion makes
 
 | # | Assumption | Where | Holds? | Evidence |
 |---|---|---|---|---|
-| A1 | The picture is sRGB | Browser canvas | Mostly | Browsers convert embedded profiles to sRGB when drawing to a canvas. Wide-gamut phone photos (Display P3) lose their most saturated colours, which rarely matter for thread. HEIC files only open where the browser can decode them (Safari); elsewhere the user gets "Couldn't read that image". |
-| A2 | A stitch shows the light-average of the picture under it | `gridPixels`, `linearAreaDownscale` | Yes, physically | Correct as light. Perceptually it blurs edges: see finding 5. |
-| A3 | Stitches are square, one full cross per pixel | Everywhere | Yes for Aida and evenweave over two | No support for non-square fabric counts, which some other programs offer. Rarely needed. |
-| A4 | A thread's colour on screen is the catalogue RGB | `dmc-data.js` | Approximately | Calibrated against a scanned card (median ΔE 6.4 to it), not measured. Puts a floor under every accuracy number. |
-| A5 | Two threads in one needle look like the average of their stored RGB values | `makeThreadBlend` | **No** | Strands side by side mix as light. The stored-value average is too dark: mean error ΔE 1.1, 13% over 2 (finding 4). |
-| A6 | ΔE2000 under D65 is how different two colours look | `findSolid`, `findBest`, palette | Yes | Standard. Clustering uses OKLab and cluster centres are averaged in CIELAB; these agree closely enough. |
-| A7 | The edge-shade fold leaves photos alone because their colours are not "minor and thin" | `mergeEdgeBlendColours` comment | **No** | With 24 threads and shading, most photo colours are under 5% of stitches and mostly lie along other colours. The fold changes 11% of stitches (finding 1). |
-| A8 | The "detail" (saliency) map separates flat areas from detailed ones | `generateSaliencyMap` | **No** | Mean 0.81 on photos; only 13% of stitches count as flat (finding 6). Reduce confetti's larger flat-area patches and the confetti-aware shading therefore rarely act. |
-| A9 | One random palette start is good enough | `quantizeConstrained`, seed 1337 | **Partly** | Colour error ranges from 5.21 to 5.34 over six seeds; 1337 gives 5.32 (finding 7). |
-| A10 | Threads should go to the largest areas | k-means weights each pixel equally | **Partly** | Faces and small subjects get leftover threads. Carried over from October, still open (finding 8). |
-| A11 | The fabric colour does not affect the conversion | Not passed to the pipeline | **No** | Areas of the picture that match the fabric are still stitched, unless they touch the border (finding 9). |
-| A12 | Background = the border colour, within ΔE76 15 | `prepareConversionPixels` | Mostly | The only colour test still in ΔE76; elsewhere the pipeline uses ΔE2000. ΔE76 15 is a big step in neutrals and a small one in saturated colours. |
-| A13 | Alpha under 128 means "not stitched" | `prepareConversionPixels` | Yes | Consistent across all paths. |
-| A14 | Graphic when 85% of pixels are in eight colour groups and 60% of neighbours match exactly | `guessPictureType` | Yes | JPEG logos at quality 0.7 to 0.95 and flat graphics are all guessed correctly; all ten photos are guessed as photos. |
-| A15 | The Tracker's picture import and the Creator's Convert give the same chart | `parseImagePattern` | **No** | It is a separate pipeline: full-strength shading, and no rare-colour fold, edge fold, confetti cleanup or thread limit (finding 10). |
+| 1 | The picture is sRGB | Browser canvas | Mostly | Browsers convert embedded profiles to sRGB on a canvas; wide-gamut (Display P3) phone photos lose their most saturated colours. HEIC opens only where the browser can decode it. |
+| 2 | Shrinking a large upload to about 4 megapixels loses nothing that matters | `useProjectIO.js` | Mostly | Files over 2000 × 2000 or 5 MB are shrunk and kept as PNG. Crop then works on that copy, so a tight crop of a large photo has fewer pixels to work with (B). At 2000 pixels there are still 4 pixels per stitch even at 500 stitches. |
+| 3 | A plain border means a background to leave unstitched, for any picture type | `examinePicture`, `detectUniformBorder` | **Not safely** | Auto-applied on upload, with an Undo toast. The border is plain when 85% of the outer 2% is within ΔE76 8 of one colour (finding 1). |
+| 4 | Everything joined to the border within ΔE76 15 is background | `prepareConversionPixels` | **No** | A pale stripe up to 12 L* darker is erased; it survives only at 16 (finding 1). ΔE76 is also the only colour test not in ΔE2000. |
+| 5 | Any partial transparency means the picture has its own mask | `prepareConversionPixels` | **No** | One pixel at alpha 254 switches colour removal off for the whole picture (finding 1). Opaque photos never trigger it: averaging keeps alpha 255 (0 of 231,828 stitches tested). |
+| 6 | The background colour and the pixels it is tested against are in the same state | `gridPixels` then the mask | **No** | The colour comes from the source; the stitches it is compared with have brightness, contrast and saturation applied (finding 1). |
+| 7 | A stitch shows the light-average of the picture under it | `gridPixels`, `linearAreaDownscale` | Yes, physically | Correct as light; reads as soft at edges (finding 4). |
+| 8 | Stitches are square, one full cross per pixel | Everywhere | Yes for Aida and evenweave over two | |
+| 9 | A thread looks like its catalogue RGB | `dmc-data.js` | Approximately | Calibrated against a scanned card, not measured. Floors every accuracy number (finding 8). |
+| 10 | Two threads in one needle look like the average of their stored RGB values | `makeThreadBlend` | **No** | Strands mix as light; mean error ΔE 1.1, 13% over 2 (finding 9). |
+| 11 | ΔE2000 under D65 is how different two colours look | Matching, palette | Yes | |
+| 12 | The edge-shade fold leaves photos alone | `mergeEdgeBlendColours` comment | **No** | Changes 11% of photo stitches, at every Photo step except *Easiest* (finding 2). |
+| 13 | *Stitch Cleanup* Off means stitches stay as matched | `ConvertPanel.js` text | **No** | The rare-colour fold and caps still run (finding 3). |
+| 14 | The "detail" map separates flat areas from detailed ones | `generateSaliencyMap` | **No** | Mean 0.81 on photos; only 13% of stitches count as flat (finding 11). |
+| 15 | One random palette start is good enough | `quantizeConstrained`, seed 1337 | Partly | Colour error 5.21–5.34 over six seeds; 1337 gives 5.32 (finding 10). |
+| 16 | Threads should go to the largest areas | k-means | Partly | Faces get leftover threads (finding 12). |
+| 17 | The fabric colour does not affect the conversion | Not passed to the pipeline | **No** | Fabric-coloured areas inside the picture are stitched (finding 13). |
+| 18 | A preview or thumbnail shows the chart Generate makes | Preview, gallery | Mostly | The main preview and Generate share the worker; the exceptions are in finding 5. |
+| 19 | The Tracker's picture import gives the Creator's chart | `parseImagePattern` | **No** | Separate pipeline; skips near-white anywhere (finding 7). |
+| 20 | A crop keeps the chart within its limits and refreshes the picture's analysis | `applyCrop` | **No** | The locked height has no 500 maximum; the picture type and border are not re-examined (finding 6). |
+
+## How this was checked
+
+- **Code:** every path from a picture to stitches. That covers upload and crop, the
+  picture-type guess and presets, `gridPixels`, the shared pipeline
+  (`creator/generate.js` and `generate-worker.js`), the preview, the stash gallery, and the
+  Tracker's `parseImagePattern`.
+- **Measurements:** the harness in `scripts/conversion-accuracy/` runs the real worker in
+  Node on ten standard photos, at 100 stitches on the long side unless stated. This audit's
+  scripts, including B's background fixtures, are in
+  [`scripts/conversion-accuracy/audit-2026-11/`](../scripts/conversion-accuracy/audit-2026-11/README.md).
+  The measures:
+  - **Colour error:** mean ΔE2000 per stitch against the photo's light-average.
+  - **Viewed error:** the same after blurring by one stitch.
+  - **Boundary error:** colour error on strong edges only.
+  - **Confetti:** stitches with no same-colour neighbour.
+  - **Small patches:** stitches in same-colour patches of 1 to 3.
+- **Limits:**
+  - The reference is the photo averaged per stitch, in the app's own thread colours. Crisper
+    methods therefore score worse by construction, and catalogue errors are invisible.
+  - Nothing was checked in a real browser, on a phone, or against stitched fabric. B could
+    not start Chromium; A did not try.
 
 ## Findings
 
-### 1. The edge-shade fold costs photos the most accuracy
+Grouped as B suggests: what undermines trust first, then accuracy.
 
-`mergeEdgeBlendColours` was added for logos: shrinking a flat graphic blurs every edge, and
-each blurry shade got its own thread. It only folds colours that are under 5% of the stitches
-and lie mostly along other colours, on the assumption that photos don't have those. With a
-24-thread photo palette and shading, they nearly all do.
+### Trust and correctness
+
+#### 1. Background removal (B; confirmed)
+
+On upload, `examinePicture` calls `autoSkipBackground` for every picture whose border is
+plain, photos included (a toast offers Undo). Then `prepareConversionPixels` removes every
+stitch joined to the border within ΔE76 `bgTh` (15) of the border colour.
+
+Fixtures rerun (7 × 7, pale grey 240 border, stripe through the middle touching both edges):
+
+| Stripe | ΔE76 from border | Stitches kept |
+|---|---|---|
+| 225 | 5.3 | 0 of 49 |
+| 215 | 8.8 | 0 of 49 |
+| 205 | 12.4 | 0 of 49 |
+| 195 | 16.0 | 7 of 49 (the stripe) |
+| 225, one corner pixel alpha 254 | — | 49 of 49: colour removal off |
+
+- **Pale subjects:** a pale shirt, white hair or a light object touching a pale studio
+  backdrop goes with the background.
+- **Partial transparency:** any pixel below alpha 255 sets `hasTransparency`, which skips the
+  colour removal entirely. The *Leave background unstitched* control still shows as on.
+  Averaging an opaque photo never causes this.
+- **Adjustments move the mask:** the background colour is taken from the source (the
+  automatic check and the eyedropper `srcClick`). The stitches it is compared with have
+  already had brightness, contrast and saturation applied in `gridPixels`.
+
+**Fix:**
+- For photos, suggest background removal instead of applying it, and show the mask in the
+  preview before it is used.
+- Compute the mask from the unadjusted stitch colours.
+- Make "use the picture's transparency" and "remove a colour" separate choices.
+- Measure the tolerance in ΔE2000 (about 8 to 10 matches today's neutrals); this needs a
+  migration for saved `bgTh`.
+- Tests: the stripe, alpha 254 and 127/128, a white highlight inside the subject, and a
+  brightness change with an unchanged mask.
+
+#### 2. The edge-shade fold damages photos (A; confirmed on B's photos too)
+
+`mergeEdgeBlendColours` was written for logos. It folds colours that are under 5% of the
+stitches and lie mostly along other colours, assuming photos have none. With a 24-thread
+photo palette and shading, nearly all of them do. It runs whenever *Stitch Cleanup* is on,
+which for photos is every step except *Easiest to stitch*.
 
 | Photo | Stitches the fold changes | Threads it removes entirely |
 |---|---|---|
@@ -153,275 +191,324 @@ What each stage costs (ten photos, everything else at the Photo default):
 | Configuration | Colour error | Viewed error | Boundary error | Confetti | Small patches |
 |---|---|---|---|---|---|
 | **Photo default (Balanced)** | 5.32 | 3.36 | 7.23 | 3.98% | 8.60% |
-| Default without the edge-shade fold | **4.77** | **2.96** | **6.15** | 5.06% | 10.94% |
+| Default without the fold | **4.77** | **2.96** | **6.15** | 5.06% | 10.94% |
 | Shading off, without the fold, Reduce confetti 2 | 4.70 | 3.12 | 6.05 | 4.86% | 9.94% |
 | Shading on, Stitch Cleanup off | 4.57 | 2.68 | 5.72 | 12.64% | 23.73% |
 | Plain matching (no shading, no cleanup) | 4.46 | 2.92 | 5.61 | 10.33% | 18.08% |
-| More detail (Reduce confetti 0) | 5.18 | 3.12 | 6.88 | 9.03% | 17.14% |
+| More detail | 5.18 | 3.12 | 6.88 | 9.03% | 17.14% |
 | Tidier | 5.55 | 3.48 | 8.09 | 0.14% | 5.68% |
 | Easiest to stitch | 5.91 | 4.02 | 9.11 | 0.10% | 1.10% |
 
-*More detail* is shading plus the fold: the same shading with Stitch Cleanup off scores 4.57,
-so the fold alone costs it 0.6. Without the fold, *Balanced* recovers about 60% of the gap to
-plain matching's accuracy, and keeps about 80% of its confetti reduction (10.33% to 5.06%,
-against 3.98% with the fold).
+B's spot checks, rerun, with one row added. Confetti and small patches are measured on the
+finished chart:
+
+| Photo | Grid | Variant | Colour error | Boundary error | Confetti | Small patches | Threads / symbols |
+|---|---|---|---:|---:|---:|---:|---:|
+| Portrait | 100 × 100 | Balanced | 5.73 | 9.25 | 5.51% | 10.51% | 24 / 35 |
+| Portrait | 100 × 100 | More detail | 5.52 | 8.89 | 8.66% | 15.96% | 24 / 36 |
+| Portrait | 100 × 100 | Tidier | 6.09 | 10.52 | 0.80% | 6.04% | 24 / 32 |
+| Portrait | 100 × 100 | Gaussian Soften 1 | 6.73 | 11.96 | 3.67% | 8.44% | 22 / 34 |
+| Portrait | 100 × 100 | 40-thread cap | 5.29 | 7.89 | 6.49% | 12.44% | 25 / 37 |
+| Portrait | 100 × 100 | **Balanced, no fold** | **4.59** | **6.26** | 6.72% | 13.02% | 24 / 36 |
+| Portrait | 150 × 150 | Balanced | 5.16 | 8.55 | 4.92% | 9.46% | 24 / 36 |
+| Cat | 100 × 67 | Balanced | 5.41 | 6.36 | 1.55% | 4.30% | 13 / 18 |
+| Cat | 100 × 67 | More detail | 5.21 | 5.64 | 7.94% | 15.25% | 13 / 22 |
+| Cat | 100 × 67 | Tidier | 5.40 | 6.60 | 0.21% | 5.37% | 13 / 21 |
+| Cat | 100 × 67 | Gaussian Soften 1 | 5.75 | 8.79 | 0.48% | 1.34% | 15 / 23 |
+| Cat | 100 × 67 | 40-thread cap | 5.56 | 6.12 | 2.04% | 4.88% | 16 / 23 |
+| Cat | 100 × 67 | **Balanced, no fold** | **4.70** | 5.78 | 2.60% | 7.64% | 13 / 22 |
+| Cat | 150 × 100 | Balanced | 5.18 | 5.90 | 1.43% | 3.89% | 15 / 23 |
+| Motorbikes | 100 × 67 | Balanced | 6.36 | 7.08 | 8.99% | 18.78% | 21 / 28 |
+| Motorbikes | 100 × 67 | More detail | 5.85 | 6.40 | 19.03% | 34.06% | 21 / 33 |
+| Motorbikes | 100 × 67 | Tidier | 6.98 | 8.14 | 2.60% | 11.06% | 21 / 22 |
+| Motorbikes | 100 × 67 | Gaussian Soften 1 | 8.33 | 10.98 | 3.34% | 9.25% | 22 / 34 |
+| Motorbikes | 100 × 67 | 40-thread cap | 6.56 | 7.55 | 7.88% | 16.28% | 18 / 27 |
+| Motorbikes | 100 × 67 | **Balanced, no fold** | 6.08 | 6.71 | 10.88% | 22.91% | 21 / 29 |
+| Motorbikes | 150 × 100 | Balanced | 6.41 | 7.31 | 8.18% | 16.33% | 24 / 36 |
+
+On the portrait, removing the fold does more than a 40-thread cap or a 150-stitch grid. On
+the busiest photo (motorbikes) it costs a few points of confetti; the *Tidier* step can win
+those back.
 
 ![Astronaut: photo at stitch size, Photo default, without the fold, shading off without the fold, plain matching](photo-conversion-audit-2026-11/astronaut.png)
 
 Left to right: photo at stitch size; Photo default; without the fold; shading off, without the
-fold; plain matching. In the default, the white shuttle (right) breaks into black and white
-blocks and the dark collar is blocked in. Without the fold, both follow the photo.
+fold; plain matching. In the default, the white shuttle breaks into black and white blocks and
+the dark collar is blocked in.
 
 ![Parrots, same five panels](photo-conversion-audit-2026-11/kodim23.png)
 
-**Fix:** run the fold for Graphic and Pixel art only, or when shading is off and the palette
-is small. The simplest version is a `foldEdgeShades` flag in `PICTURE_PRESETS` (on for
-graphic, off for photo), passed through both pipelines. Then re-measure the photo steps and
-update the figures in the `STITCH_STYLES` comment and in the step descriptions.
+**Fix:** run the fold for Graphic and Pixel art only, for example with a `foldEdgeShades`
+flag in `PICTURE_PRESETS`, passed through both pipelines. Then re-measure the style steps and
+update their figures and descriptions.
 
-### 2. Shading earns its place only for arm's-length viewing
+#### 3. Cleanup labels and the tidied count (B; confirmed)
 
-Once the fold is off, Smooth blend at 50% is nearly neutral: colour error 4.77 against 4.70
-without shading, viewed error 2.96 against 3.12, with similar confetti. It still helps
-gradients (skies, skin) look smooth from a distance, so keeping it in *Balanced* is
-reasonable. It is not the source of the inaccuracy.
+- **What Off promises:** *Stitch Cleanup* Off says "Off: every stitch stays exactly as
+  matched" (`ConvertPanel.js`). Several stages still change stitches:
+  - the automatic rare-colour fold (colours under 0.5% of stitches, 2 to 15 stitches);
+  - a user-set minimum per colour, which has no contrast guard;
+  - *Threads (max)* and the blend limit.
+- **The tidied count** (`usePreview.js`) compares `preCleanupIds` with the final chart.
+  - The snapshot is taken inside Reduce confetti, *after* the rare-colour and edge-shade
+    folds, so the fold's 11% is never shown.
+  - It is compared with the chart *after* look-alike separation and the thread limit, so
+    those changes count as tidying.
+  - At Reduce confetti 0 there is no snapshot at all, so *More detail* reports nothing while
+    the fold changes about one stitch in nine.
 
-### 3. The thread range caps accuracy, and blends are the way round it
+**Fix:**
+- Reword the Off text now ("Stitches are only changed to fit the thread limit and to merge
+  very rare colours").
+- Record a snapshot after matching and one per stage, and report each stage's changes
+  separately.
+- Use a one-stitch accent fixture to test which stages can change it.
 
-For each stitch of each photo, the nearest thread in the *whole* catalogue:
+#### 4. Why charts look fuzzy, and how a user can tell why (A and B)
 
-| | Mean distance | Stitches with no thread within ΔE 5 |
-|---|---|---|
-| Current (calibrated) DMC colours | 3.84 | 25.0% |
-| Pre-calibration (community) colours | 4.26 | 31.4% |
-| Current colours, with every allowed two-thread blend | 1.36 | not measured |
+Three causes, in order:
 
-- **The calibration helped.** Photos sit closer to the darker, calibrated thread colours than
-  to the old, lighter community values.
-- **The colours with no close thread are muted mid-tones:** near-neutral greys (28% of them),
-  yellow-olives (20%), muted reds and browns, and skin (17%). Their mean chroma is 18, against
-  21 for all stitches. This matches what people see: brown dirt comes out grey-mauve, and
-  olive foliage comes out flatter than the photo.
-- **Blends close most of the gap, but are capped.** In a chart they only help a little
-  (colour error 5.52 without blends, 5.32 with). Blends can only pair threads already in the
-  24-thread palette, within ΔE 20 of each other. A blend is used only when the nearest solid
-  thread is over ΔE 5 away and the blend is at least 3 nearer. And at most 12 blend recipes
-  are kept.
+1. **The grid is too coarse for the detail (B).** At 100 stitches across, the test portrait's face is
+   about 13 stitches wide. An eye or whisker thinner than a stitch is averaged away before any thread
+   is chosen. No setting recovers it.
+2. **Averaging blurs edges (A).** A stitch straddling an edge becomes an in-between colour, so
+   every outline gains a one-stitch band. This is correct to the light, but it reads as
+   soft. The flat preview draws stitches crisply (`image-rendering: pixelated`), so the
+   preview itself is not the cause.
+3. **The fold makes edges blocky (A):** see finding 2.
 
-  Worth measuring before changing: letting the palette step choose threads *as blend pairs*
-  aimed at the photo's poorly-served colours, and relaxing the "3 nearer" margin.
+*Sharpen details* and *Soften* do not help:
 
-### 4. Blend colours are mixed in gamma space
+| | Colour error | Viewed error | Boundary error |
+|---|---|---|---|
+| Photo default | 5.32 | 3.36 | 7.23 |
+| Sharpen details 0.5 | 5.45 | 3.52 | 7.55 |
+| Sharpen details 1.0 | 5.67 | 3.82 | 8.04 |
+| Soften, Gaussian 1 (change on B's three photos) | +1.1 | not measured | +3.0 |
 
-`makeThreadBlend` sets a blend's RGB to the average of the two threads' stored sRGB values,
-then derives its Lab from that. Two strands side by side mix as light, which is lighter.
-For all 18,174 thread pairs the app is allowed to blend (within ΔE 20):
+**Fixes:**
 
-- mean difference between the two models: ΔE 1.08;
-- over ΔE 2: 13.1%; over ΔE 3: 4.4%;
-- worst: 740 + 3771 (ΔE 7.4);
-- the light model is lighter by 0.5 L* on average.
-
-So the app picks blends for colours slightly darker than they really are, and shows blend
-swatches too dark. The measurement harness already scores blends with the light model; only
-the app uses the old one.
-
-**Fix:** average the threads' linear values in `makeThreadBlend` (blend IDs and symbols do not
-change). Then check the blend tests and `restoreStitch`, which rebuilds blend colours from
-their parts.
-
-### 5. Why charts look fuzzy
-
-In the chart preview, the flat view draws stitches with `image-rendering: pixelated`, so the
-preview itself is not blurring anything. The softness comes from the conversion:
-
-- **Averaging.** A stitch that covers half a white collar and half a dark background becomes
-  mid-grey, then the nearest thread to mid-grey. Every outline gains a one-stitch band of
-  in-between colours. This is the light-correct answer, but the eye reads it as a soft edge.
-- **Then blocky.** The edge-shade fold (finding 1) pushes some of those band stitches to one
-  side and leaves others. The result is an edge that is both soft and jagged.
-- ***Sharpen details* does not fix it.** It works before shrinking, so it brightens halos
-  rather than choosing sides:
-
-  | | Colour error | Viewed error | Boundary error |
-  |---|---|---|---|
-  | Photo default | 5.32 | 3.36 | 7.23 |
-  | Sharpen details 0.5 | 5.45 | 3.52 | 7.55 |
-  | Sharpen details 1.0 | 5.67 | 3.82 | 8.04 |
-
-**Prototype: "dominant colour" shrink.** For each stitch, split the pixels under it into two
-groups. If they are clearly different (ΔE over 12) and the larger covers at least 60%, the
-stitch takes the larger group's colour; otherwise the average, as now. 16% of photo stitches
-take a side. Tools such as cstitch offer this kind of choice ("Median" or "Mode" squaring).
+- **Show where detail went (B).** Add *At stitch size* to Convert's comparison: the photo
+  sampled one pixel per stitch, beside the chart, at the same zoom. If a feature is already
+  gone there, crop tighter or enlarge the grid; if it survives sampling but not the chart,
+  look at the palette, shading and cleanup.
+  - Offer two or three sizes side by side, with finished size, stitch count and time. On the
+    portrait, 150 stitches lowers colour error from 5.73 to 5.16, at 2.25 times the
+    stitches.
+  - Convert has no such view today.
+- **Crisp edges (A).** A prototype "dominant colour" shrink splits the pixels under each
+  stitch into two groups. When they are clearly different (ΔE over 12) and one covers at
+  least 60%, the stitch takes that group's colour; otherwise it takes the average, as now.
+  - 16% of photo stitches take a side, and outlines are visibly crisper.
+  - It scores worse (5.23 against 4.70) because the reference *is* the averaged photo, so
+    stitchers need to compare real charts.
+  - cstitch offers a similar choice ("Median" and "Mode" squaring).
 
 ![Motorbikes: photo at stitch size, current shrink, dominant-colour shrink](photo-conversion-audit-2026-11/crisp-kodim05.png)
 
 Left to right: photo; light-average shrink; dominant-colour shrink. Both use shading off and
-no fold. The right-hand chart has brighter whites and clearer helmets, wheels and number
-plates. It scores worse (colour error 5.23 against 4.70, boundary error 7.84 against 6.05),
-because the reference *is* the averaged photo. Whether stitchers prefer it needs people
-looking at both, not this metric.
+no fold.
 
-**Suggestion:** offer it as a *Crisp edges* option, on by default for Graphic, and try it on
-Photo with a few real charts. It slots into `gridPixels` (`_averagedGridPixels`), so preview,
-Generate and Compare options stay in step.
+#### 5. Previews, the stash gallery and the empty stash (B; confirmed)
 
-### 6. The detail map still treats almost every photo as detailed
+The main preview and Generate share the worker at full size, so they match. The exceptions:
 
-`generateSaliencyMap` averages 0.81 on the ten photos; only 13% of stitches score under 0.25,
-and on the six busiest photos it is 1 to 8%. Two features depend on it:
+- **Empty stash:** with stash-only on and an empty stash, `conversionSettings` sends no
+  palette, so the preview uses the full catalogue. Generate stops with "Your stash is empty".
+- **Stash gallery** (`generateGallery`):
+  - thumbnails are made at most 2,500 cells, and Reduce confetti's sizes are counted in
+    stitches, so a thumbnail is tidied more than its chart;
+  - it skips look-alike separation;
+  - its count is the number of distinct thread or blend IDs, so a blend counts as one and
+    its two threads are not counted. It is a symbol count, labelled as threads.
+- **Without workers** (opened from `file://`), the preview is capped at 40,000 stitches and
+  its counts are scaled up. They are labelled as estimates.
 
-- Reduce confetti's larger patch size in flat areas (twice as big);
-- Smooth blend's preference for a thread a neighbour already uses (`4 × (1 − detail)` ΔE;
-  about 0.8 ΔE at the mean, so it rarely changes a choice).
+**Fix:**
+- Make the empty-stash preview say what Generate will say.
+- Label gallery thumbnails as previews, and recompute the chosen one at full size.
+- Count threads and symbols with `creatorThreadCounts`.
 
-October found raising the divisor alone did nothing. The map needs recalibrating at stitch
-size (for example, normalising by the photo's own spread of local contrast rather than a fixed
-40-grey step), or these two features should be dropped as inert. This becomes worth doing once
-the fold is off for photos, because Reduce confetti then has more to work on.
+#### 6. Crop (B; confirmed)
 
-### 7. The palette depends on a random start
+`applyCrop` (`useCanvasInteraction.js`) has four problems:
+- With the aspect lock on, it sets the height to `max(10, round(width / ratio))` with no
+  500-stitch maximum. A 10:1 tall crop of a 100-wide chart asks for 1,000 rows.
+- It does not re-run the picture check, so a crop that removes the plain border keeps the
+  background removal decided for the uncropped picture.
+- It crops the working copy (at most about 4 megapixels).
+- It can't be undone back to the original.
 
-`quantizeConstrained` uses one k-means++ start with a fixed seed (1337). Over six seeds on the
-ten photos, colour error ranges from 5.21 to 5.34; the default seed gives 5.32. *Variation*
-already exposes other seeds, but by hand.
+**Fix:**
+- Reuse the size helper that keeps both sides within 10 to 500.
+- Re-examine the cropped picture, keeping settings the user changed.
+- Crop from the original upload where it is still in memory.
 
-**Fix:** run three to five starts and keep the palette with the lowest mapping error. This is
-standard k-means practice and keeps the result repeatable. Palette choice is a small part of
-generation time at 100 stitches, but should be timed on a 500 × 500 chart in the browser
-before shipping.
+#### 7. The Tracker's picture import (A and B; confirmed)
 
-### 8. Faces and small subjects still get leftover threads (open since October)
-
-k-means gives each pixel one vote, so backgrounds and clothing win thread slots. October
-measured the astronaut's face at ΔE 6.2 with 20 threads. Raising the Photo preset to 24
-threads helped, but the palette is still chosen by area.
-
-Other tools handle this by letting the user say which colours matter: cstitch lets you click
-the picture to add colours, and WinStitch can import using a palette you saved.
-
-**Suggestion:** a *Keep this colour* eyedropper in Convert. Clicking the picture reserves the
-nearest thread before clustering, and the preview's change line shows the effect. This is
-more predictable than automatic face detection, and also serves logos, where one brand colour
-must be exact.
-
-### 9. The fabric colour is ignored by the conversion
-
-The Creator keeps a fabric colour (`fabricColour`), but it is never passed to the conversion. Two effects:
-
-- **On white Aida,** white areas inside the picture (a shirt, a cloud) are stitched in
-  white thread. Only background that touches the border is left unstitched.
-- **On coloured fabric,** a pale background is still stitched unless it touches the border.
-  Nothing tells the user that a dark fabric changes how the unstitched areas will look.
-
-**Suggestion:** offer *Leave fabric-coloured areas unstitched*. Any stitch within a small
-ΔE2000 of the fabric colour becomes unstitched, not just regions touching the border. Then
-show it in the preview over the fabric colour. Treat this as a design choice for the user:
-some stitchers want full coverage.
-
-### 10. The Tracker's picture import is a second pipeline (open since October)
-
-`parseImagePattern` (`import-formats.js`) shares `linearAreaDownscale`, `quantizeConstrained`
-and the matching functions. It does not run:
-
+`parseImagePattern` shares shrinking and matching. It does not run:
 - the rare-colour fold;
 - the edge-shade fold;
 - Reduce confetti;
 - the thread and blend limits.
 
-It also shades at full Atkinson strength, where Convert uses 50%. A picture opened straight in
-the Tracker therefore gives a noisier chart than the same picture through Convert. Routing it
-through `runCleanupPipeline` with the Photo or Graphic preset would remove the drift.
+It also shades at full Atkinson strength. Its *skip white background* option leaves out any
+stitch within ΔE76 `bgThreshold` of pure white *anywhere*, including highlights inside the
+subject. It decides this after the palette is chosen, so white can still take a thread slot.
 
-### 11. Smaller points
+**Fix:** decide which differences are intended, then route it through `runCleanupPipeline`
+and the Creator's border-connected background rule.
 
-- **Skip background** (A12) uses ΔE76 with a threshold of 15; everything else uses ΔE2000.
-  Switching it to ΔE2000 with an equivalent threshold (about 8 to 10) would treat neutrals and
-  saturated backgrounds alike. Needs a migration for saved `bgTh` values.
-- **Upload limit:** pictures over 2000 × 2000 are shrunk in halving steps (gamma-space). At
-  500 stitches that is still 4 pixels per stitch, so the error is small. It is the one
-  shrinking step left that does not average as light.
-- **October's open items** are unchanged: the migration note for old cleanup settings, the
-  symbol count with blends (now 27 symbols for 18 threads on average), and the browser tests
-  not running in CI.
+### Accuracy
 
-## Comparison with other tools
+#### 8. The thread range sets a floor; blends are the way round it (A)
 
-What each tool's published documentation says about turning a photo into a chart. Blank
-means the documentation reached did not say.
+For each stitch, the nearest thread in the *whole* catalogue:
 
-| | stitchx | WinStitch / MacStitch | cstitch (open source) | KG-Chart | Stitch Fiddle | Pic2Pat / mySewnet |
-|---|---|---|---|---|---|---|
-| Photo vs graphic modes | Guessed automatically, three types, then four Detail and tidiness steps | Photo or Clip art; Photo turns on dithering¹ | No | | | |
-| Colour count | Threads (max), with blends counted | Number of thread colours¹ | Number of colours, or "all nearest DMC" | Number of colours² | | Pic2Pat shows results by colour count³; mySewnet suggests an "optimal" count⁴ |
-| Size from fabric | Fabric count and finished size | Cloth holes per inch and finished size¹ | Square size with a dimension helper | Chart size² | | |
-| Shrinking | Light-correct average | | Median or most-common colour per square | | | |
-| Colour matching | ΔE2000, k-means on real threads, palette refinement | | "Closest matching DMC colour" | DMC by default² | | Nearest thread in the chosen range⁴ |
-| Dithering | Smooth blend (Atkinson 50%), Pattern blend (Bayer) | Dither (Photo) checkbox¹ | No | | | |
-| Two-thread blends | Yes, automatic | | No | | | |
-| Must-keep colours | No | Import with a saved palette (Premium)¹ | Click the picture to add colours | | | |
-| Only threads you own | Stash-only | Saved palette (Premium)¹ | No | | | |
-| Confetti cleanup | Automatic rare-colour fold, Reduce confetti | Per-colour counts to find strays (third-party report) | Replace rare colours | | | |
-| Background | Automatic when the border is plain | Advises making it one colour before import¹ | | | Advises editing the picture first (Canva)⁵ | |
-| Preview before committing | Live, with what changed | Advanced Import preview¹ | Compare colour choices | | | |
+| | Mean distance | Stitches with no thread within ΔE 5 |
+|---|---|---|
+| Current (calibrated) DMC colours | 3.84 | 25.0% |
+| Pre-calibration colours | 4.26 | 31.4% |
+| Current colours plus every allowed two-thread blend | 1.36 | — |
 
-¹ Ursa Software user guides 2012–2023, via search excerpts. ² Third-party guide. ³ Forum
-report. ⁴ mySewnet help, via search excerpt. ⁵ Stitch Fiddle's import help.
+- The colours without a close thread are muted mid-tones: greys (28%), yellow-olives (20%),
+  and muted reds, browns and skin (17%). That is why dirt comes out grey-mauve and foliage
+  flatter than the photo.
+- In a chart, blends help only a little (5.52 without, 5.32 with). They can only pair
+  palette threads within ΔE 20, are used only when the nearest solid thread is over ΔE 5 away
+  and the blend at least 3 nearer, and are capped at 12 recipes.
+- Choosing threads *as blend pairs* aimed at poorly served colours is the largest remaining
+  opportunity, but needs research.
+- B adds that any accuracy claim needs physical swatches under consistent light. Agreed: the
+  calibration report suggests photographing threads beside a colour checker card.
 
-**Where stitchx is ahead:**
+#### 9. Blend colours are averaged in gamma space (A and B; measured)
+
+`makeThreadBlend` averages the two threads' stored sRGB values. Strands side by side mix as
+light. Across the 18,174 pairs the app may blend:
+- mean difference between the two models: ΔE 1.08;
+- over ΔE 2: 13.1%; over ΔE 3: 4.4%;
+- worst: 740 + 3771 (ΔE 7.4).
+
+The light model is 0.5 L* lighter on average, so blends are chosen for colours slightly
+darker than they are. The measurement harness already uses the light model.
+
+**Fix:** average linear values in `makeThreadBlend` (IDs and symbols unchanged), and check
+`restoreStitch` and the blend tests.
+
+#### 10. The palette depends on one random start (A)
+
+One k-means++ start with seed 1337. Over six seeds, colour error is 5.21 to 5.34; 1337 gives
+5.32.
+
+**Fix:** keep the best of three to five starts by mapping error. Time it on a 500 × 500 chart
+first.
+
+#### 11. The detail map treats almost every photo as detailed (A)
+
+`generateSaliencyMap` averages 0.81 on photos, and only 13% of stitches count as flat. So
+Reduce confetti's larger flat-area patches, and Smooth shading's preference for a neighbour's
+thread (about 0.8 ΔE at the mean), rarely act.
+
+**Fix:** recalibrate the map at stitch size, or drop the two features. Do this after
+finding 2, since Reduce confetti then has more to do.
+
+#### 12. Faces and small subjects get leftover threads (A and B; open since October)
+
+k-means gives each pixel one vote. Both audits suggest letting the user say what matters:
+- A: a *Keep this colour* eyedropper that reserves the nearest thread;
+- B: subject weighting, or pinned threads.
+
+B also suggests showing local colour error and the nearest alternatives, so a user can see
+*why* a face went grey. cstitch lets users click the picture to add colours.
+
+#### 13. The fabric colour is ignored (A)
+
+`fabricColour` never reaches the conversion. So white areas inside the picture are stitched
+in white on white Aida, and nothing reflects a dark fabric.
+
+**Fix:** an opt-in *Leave fabric-coloured areas unstitched*, shown over the fabric colour in
+the preview.
+
+## Other tools
+
+Documented features only; this is not a ranking of chart quality. This session could not
+fetch several vendors' pages, so some rows rest on search excerpts.
+
+| Tool | What it documents | Lesson for stitchx | Checked |
+|---|---|---|---|
+| WinStitch / MacStitch | Photo or Clip art (Photo turns on dithering); cloth count sets finished size; thread count; Advanced Import with preview; can import using a saved palette (Premium); advises making the background one colour before import | Must-keep colours via a saved palette | Search excerpts of Ursa's 2012–2023 guides |
+| cstitch | Number of colours or "all nearest DMC"; click the picture to add colours; "Median" or "Mode" squaring per stitch; replace rare colours | Must-keep colours; dominant-colour shrink (finding 4) | Page read |
+| Pic2Pat | Size, fabric and colour count | Show results by colour count | Search excerpts. B also cites white balance and transparent areas left empty from its FAQ, which could not be reached; a Pic2Pat forum post says transparent areas became white, and the operator suggested editing colour balance elsewhere. **Unconfirmed** |
+| FlossCross | Imports pictures; textures rendered from photos of 498 DMC flosses under even lighting; shows the source image "above" the chart | Keep simulated thread appearance clearly separate from chart data | Homepage via search. B's "overlays" may mean a layer or a position above; unclear |
+| Stitch Fiddle | Import picture; suggests editing it in Canva first | Short path from an automatic palette to targeted edits | Help page via search. B's aspect-ratio point not checked |
+| StitchXCross, Pixel-Stitch | B: shaped crops and optional background removal before matching (StitchXCross); a focus on stitch and colour count (Pixel-Stitch) | Reversible mask preview beside crop | **Not checked** |
+| KG-Chart, mySewnet Cross Stitcher | Size, palette, colour count; mySewnet suggests an "optimal" colour count | | Search excerpts |
+
+**Where stitchx leads:**
 - light-correct shrinking;
 - ΔE2000 matching with palette refinement;
 - automatic blends;
-- automatic background and picture-type detection;
-- a live preview that explains each change.
+- stash-only charts;
+- picture-type presets;
+- a live full-size preview that explains each change.
 
-None of the other tools' documentation describes anything comparable for the first three.
+None of the other tools documents comparable shrinking or matching.
 
-**Where others offer something stitchx doesn't:**
-- user-chosen must-keep colours (finding 8);
-- a most-common-colour way of choosing each stitch (finding 5).
-
-General guidance on converters recommends 25 to 40 colours for photos and no dithering.
-stitchx's 24-thread cap is at the low end of that. Its shading is gentle enough that
-"no dithering" advice aimed at full-strength error diffusion doesn't really apply.
+**Where others offer more:**
+- must-keep colours;
+- a dominant-colour option per stitch;
+- (unconfirmed) white balance and a visible background mask before removal.
 
 ## Recommendations
 
-In order of benefit for effort.
+Combined and ordered as B suggests: trust first, then diagnosis, then accuracy changes.
 
-| # | Change | Effort | Expected effect | Risk |
-|---|---|---|---|---|
-| 1 | Don't run the edge-shade fold for photos (finding 1) | Small | Colour error 5.32 to 4.77, boundary 7.23 to 6.15; confetti +1 point | Changes every new photo chart; re-measure the style steps and update their text and the changelog |
-| 2 | Mix blend colours as light (finding 4) | Small | Blend predictions right to within rounding; better blend choices | Blend swatches get slightly lighter in existing projects |
-| 3 | Best of three to five palette starts (finding 7) | Small | About 0.1 lower colour error; less luck in the result | Generation time; time it on large charts |
-| 4 | Route the Tracker's picture import through the shared pipeline (finding 10) | Medium | Same chart from either tool | Changes another tool's output |
-| 5 | *Keep this colour* eyedropper (finding 8) | Medium | Faces, logos and key colours get their thread | UI design needed |
-| 6 | *Crisp edges* (dominant-colour) option (finding 5) | Medium | Sharper outlines; worse on the averaged-photo metric | Needs people to compare real charts |
-| 7 | *Leave fabric-coloured areas unstitched* (finding 9) | Medium | Less stitching, truer look on coloured fabric | Opt-in, so low |
-| 8 | Recalibrate or remove the detail map (finding 6) | Medium | Makes two features do what they say | Needs measuring after 1 |
-| 9 | Palette chosen with blends in mind, aimed at muted mid-tones (finding 3) | Large | Most of the remaining colour error is here | Research; more symbols |
-| 10 | Photograph real thread beside a colour checker card | Outside code | Puts a measured floor under A4 | None |
+| # | Change | Finding | Effort | Effect | Risk |
+|---|---|---|---|---|---|
+| **Fix trust** |
+| 1 | Don't run the edge-shade fold for photos | 2 | Small | Colour error 5.32 to 4.77, boundary 7.23 to 6.15; confetti +1 point | Changes new photo charts; update the style figures, help and changelog |
+| 2 | Background: suggest instead of applying for photos, show the mask, mask before adjustments, separate transparency from colour removal, ΔE2000 tolerance | 1 | Medium | No more erased subjects or silent no-ops | Migrate saved `bgTh`; the PDF palette may change |
+| 3 | Correct the *Stitch Cleanup* Off text; per-stage change counts | 3 | Small, then medium | Labels match behaviour | None |
+| 4 | Mix blend colours as light | 9 | Small | Blend predictions correct | Blend swatches slightly lighter in existing projects |
+| 5 | Empty-stash preview matches Generate; gallery labels and counts | 5 | Small | Previews honest | None |
+| 6 | Crop: keep within 10 to 500, re-examine the picture, crop from the original | 6 | Small | No out-of-range charts or stale background | None |
+| **Help users diagnose** |
+| 7 | *At stitch size* view and a side-by-side size comparison | 4 | Medium | Users see whether detail was lost to the grid or to the chart | None |
+| 8 | Local colour error and nearest alternatives for a selected region | 12 | Medium | Explains grey faces | UI design |
+| **Improve accuracy** |
+| 9 | Best of three to five palette starts | 10 | Small | About 0.1 lower colour error | Generation time |
+| 10 | *Keep this colour* / pinned threads | 12 | Medium | Faces, logos and key colours get their thread | UI design |
+| 11 | *Crisp edges* option | 4 | Medium | Sharper outlines | Needs stitchers to compare |
+| 12 | Route the Tracker's import through the shared pipeline | 7 | Medium | Same chart from either tool | Changes another tool's output |
+| 13 | *Leave fabric-coloured areas unstitched* | 13 | Medium | Truer look on coloured fabric | Opt-in |
+| 14 | Recalibrate or remove the detail map | 11 | Medium | Two features start working | Measure after 1 |
+| 15 | Palette chosen with blends in mind | 8 | Large | Most of the remaining colour error | Research; more symbols |
 
-Recommendations 1 to 3 need only small changes and can be checked with the scripts in
-`scripts/conversion-accuracy/audit-2026-11/`. Recommendation 1 alone fixes the clearest
-inaccuracy and part of the blocky look.
+**Before shipping 1 and 2** (from B's verification plan):
+- Run the harness on a broader set at 75, 100 and 150 stitches: faces, pets, low light,
+  highlights, busy backgrounds, fine lines, plus transparent and plain-border fixtures.
+- Ask stitchers to compare equal-size previews.
+- Check that the final chart matches the settled preview in desktop Chromium and mobile
+  WebKit, with and without workers.
+- Run the Pattern Keeper PDF regression whenever the palette or symbols change.
+- Get the browser tests running in CI; they have not run since October.
 
 ## Sources
 
-- [MacStitch / WinStitch User Guide 2012](https://www.ursasoftware.com/help/2012_en/manual/manual.html),
-  [Importing Pics (2012)](https://www.ursasoftware.com/help/2012_en/filemenu/page14/page14.html),
-  [User Guide 2014](https://www.ursasoftware.com/help/2014_en/importexport/styled/page19.html),
-  [The Import Wizard (2023)](https://ursasoftware.com/help/2023/TheImportWizard.html):
-  search excerpts only; the site could not be fetched from this session.
-- [cstitch documentation](https://cstitch.sourceforge.net/doc.shtml): read in full.
+- [cstitch documentation](https://cstitch.sourceforge.net/doc.shtml) (read in full).
+- Ursa Software guides via search excerpts:
+  [2012](https://www.ursasoftware.com/help/2012_en/manual/manual.html),
+  [Importing Pics](https://www.ursasoftware.com/help/2012_en/filemenu/page14/page14.html),
+  [2014](https://www.ursasoftware.com/help/2014_en/importexport/styled/page19.html),
+  [Import Wizard 2023](https://ursasoftware.com/help/2023/TheImportWizard.html).
+- [FlossCross](https://flosscross.com/) (homepage via search).
+- [Pic2Pat FAQ](https://www.pic2pat.com/faq.en.php) (cited by B, not reachable here) and
+  Pic2Pat community posts [1341](https://pic2pat.com/community/index.php?msg=1341),
+  [2100](https://www.pic2pat.com/community/index.php?msg=2100).
 - [Stitch Fiddle: Import picture](https://www.stitchfiddle.com/en/help/1pej-wc93j/import-picture).
-- [KG-Chart / StitchSketch blog](https://www.iktsoft.net/kgchart-en/blog/?page=14) and
-  [KG-Chart Pro](https://www.mozusystems.com/products/kg-chart-pro/).
-- [mySewnet Cross Stitcher: Choose Thread Colors](https://softwarehelp.mysewnet.com/MSM/120/CrossStitcher/Topics/Choose_Thread_Colors.htm)
-  and [Cross Stitch Design Wizard](https://softwarehelp.mysewnet.com/MSW/100/CrossStitcher/Topics/PP3W_Cross_30_Pic_Wizard.htm):
-  search excerpts only.
-- [Photo to cross stitch pattern best settings](https://stitchpatternmaker.pages.dev/blog/photo-to-cross-stitch-pattern-best-settings)
-  and [Lord Libidan: best cross stitch pattern software](https://lordlibidan.com/best-cross-stitch-pattern-software/):
-  general guidance, third-party.
-- [PCStitch vs WinStitch for photo conversion](https://omidsaffari.com/blog/pcstitch-vs-winstitch-for-photo-conversion):
-  third-party and promotional; used only for the per-colour count note.
+- [StitchXCross](https://stitchxcross.com/photo-to-cross-stitch) and
+  [Pixel-Stitch](https://www.pixel-stitch.net/) (cited by B, not checked).
+- [KG-Chart / StitchSketch blog](https://www.iktsoft.net/kgchart-en/blog/?page=14),
+  [mySewnet Cross Stitcher help](https://softwarehelp.mysewnet.com/MSM/120/CrossStitcher/Topics/Choose_Thread_Colors.htm)
+  (search excerpts).

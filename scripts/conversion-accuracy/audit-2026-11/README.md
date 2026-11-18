@@ -13,5 +13,7 @@ test photos from `../fetch-images.sh`. Run from the repository root after `npm c
 | `edge-fold-renders.js <outdir>` | Stitches the edge-shade fold changes on each photo, plus side-by-side renders |
 | `saliency-coverage.js` | Saliency ("detail") map and edge-map coverage on photos |
 | `crisp-edges.js <outdir>` | Prototype "dominant colour" shrink against the light average, plus renders |
+| `spot-checks.js` | The second audit's three-photo spot checks, plus Balanced without the edge-shade fold |
+| `background-fixtures.js` | Background removal: a pale stripe touching the border, one pixel at alpha 254, and alpha after shrinking |
 
 `measure.js` and `stages-and-sharpen.js` take about 3 minutes each.
