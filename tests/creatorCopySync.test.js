@@ -18,7 +18,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
 // there (a string literal, so `"Edit"` or `"Generate Pattern"`).
 const CONTROLS = {
   "Generate":        [["creator/CompactBar.js", "Generate"]],
-  "Generate Pattern": [["creator/ActionBar.js", "Generate Pattern"]],
+  "Generate Pattern": [["creator/ConvertPanel.js", "Generate Pattern"]],
   "Compare options": [["creator/CompareStrip.js", "Compare options"]],
   "Convert":         [["creator/ActionBar.js", "Convert"], ["creator/CompactBar.js", "Convert"]],
   "Canvas":          [["creator/ActionBar.js", "Canvas"], ["creator/CompactBar.js", "Canvas"]],

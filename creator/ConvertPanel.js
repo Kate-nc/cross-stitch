@@ -2,10 +2,13 @@
    while a picture is being converted).
 
    Laid out like the Edit panel: a strip of tabs in the order the choices are
-   made (Picture, Size, Threads, Detail, then Project), flat sections with the
-   Edit panel's headings and hints (.cs-toolsec), a Next button at the foot of
-   each step, and Generate pinned at the bottom under a one-line summary of
-   what it will make. Every setting is shown once.
+   made (Picture, Size, Threads, Detail), flat sections with the Edit panel's
+   headings and hints (.cs-toolsec), a Next button at the foot of each step,
+   and Generate pinned at the bottom under a one-line summary of what it will
+   make. Every setting is shown once. Within a step, a setting comes before
+   the ones it limits (the stash before the thread count). The pattern's name
+   comes from the picture's file name and shows in the header; designer and
+   notes are in Edit's Project tab (reports/create-from-image-workflow).
 
    Sidebar.js renders this in Convert (appMode "create" with a picture); a
    design drawn from scratch has the Canvas panel instead. Reads the Creator
@@ -18,10 +21,9 @@
     { id: "picture", label: "Picture", icon: "image",    next: "size",    lead: "What the picture is, its background, and fixes to the picture itself." },
     { id: "size",    label: "Size",    icon: "ruler",    next: "threads", lead: "How big the pattern is, and the fabric it is stitched on." },
     { id: "threads", label: "Threads", icon: "palette",  next: "detail",  lead: "Which threads the colours are matched to, and how many." },
-    { id: "detail",  label: "Detail",  icon: "sparkles", next: "project",      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
-    { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name, designer and notes." }
+    { id: "detail",  label: "Detail",  icon: "sparkles", next: null,      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." }
   ];
-  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness", project: "Project" };
+  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness" };
   window.CONVERT_TABS = CONVERT_TABS;
 
   // Hover text for each picture type.
@@ -307,6 +309,8 @@
       hint(gen.minSt === 0 ? "Off still folds away stray colours, and keeps small bright accents." : "Colours used fewer than " + gen.minSt + " times merge into a similar neighbour.")
     );
 
+    // The stash comes first: it limits the thread count and blends below.
+    // Its tools (the threads, adding one, variations) follow the settings.
     var stashSec = (typeof StashBridge !== "undefined") ? sec("stash", "Stash", null,
       check({ checked: gen.stashConstrained, label: "Use only stash threads", onChange: function (v) { gen.setStashConstrained(v); },
         info: "Constrains the palette to the " + brandLabel + " threads you own. Produces a pattern you can stitch immediately without buying anything." }),
@@ -314,6 +318,13 @@
       gen.stashConstrained && h(React.Fragment, null,
         note("info", (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in your stash" +
           (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? "; the pattern may use up to " + gen.effectiveMaxC + "." : ".")),
+        gen.coverageGaps && gen.coverageGaps.hasGaps && note("warning", h(React.Fragment, null, "Your stash may lack colours in: ",
+          gen.coverageGaps.gaps.map(function (g, i) {
+            return h("span", { key: g.hue }, (i > 0 ? ", " : ""), h("strong", null, g.hue), g.severity === "high" ? " (significant)" : "");
+          }))))
+    ) : null;
+
+    var stashToolsSec = (typeof StashBridge !== "undefined" && gen.stashConstrained) ? sec("stash-tools", "Your stash threads", null,
         gen.stashPalette && gen.stashPalette.length > 0 && h("div", { className: "cv-stash-strip" },
           h("div", { className: "cv-stash-strip__chips" },
             (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0, 60)).map(function (t) {
@@ -323,10 +334,6 @@
             })),
           gen.stashPalette.length > 60 && h("button", { type: "button", className: "cv-link", onClick: function () { setStashStripExpanded(function (o) { return !o; }); } },
             stashStripExpanded ? "Show fewer" : "Show " + (gen.stashPalette.length - 60) + " more")),
-        gen.coverageGaps && gen.coverageGaps.hasGaps && note("warning", h(React.Fragment, null, "Your stash may lack colours in: ",
-          gen.coverageGaps.gaps.map(function (g, i) {
-            return h("span", { key: g.hue }, (i > 0 ? ", " : ""), h("strong", null, g.hue), g.severity === "high" ? " (significant)" : "");
-          }))),
         h("div", { className: "cv-quickadd" },
           h("label", { className: "cv-field__label", htmlFor: "cv-quickadd" }, "Add a thread to your stash"),
           h("div", { className: "cv-quickadd__row" },
@@ -398,7 +405,6 @@
                   h("span", null, "#" + entry.seed));
               })))
         )
-      )
     ) : null;
 
     // ═══ Detail ════════════════════════════════════════════════════════════
@@ -501,24 +507,11 @@
       )
     );
 
-    // ═══ Project ═══════════════════════════════════════════════════════════
-    function field(label, input) { return h("label", { className: "cv-field" }, h("span", { className: "cv-field__label" }, label), input); }
-    var projectSec = sec("project", "Project info", null,
-      field("Pattern name", h("input", { type: "text", className: "cv-input", value: app.projectName || "", maxLength: 60,
-        placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
-        onChange: function (e) { var v = e.target.value.slice(0, 60); if (typeof app.renameProject === "function") app.renameProject(v); else if (typeof app.setProjectName === "function") app.setProjectName(v); } })),
-      field("Designer (optional)", h("input", { type: "text", className: "cv-input", value: app.projectDesigner || "", maxLength: 80, placeholder: "Your name or studio",
-        onChange: function (e) { if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(e.target.value.slice(0, 80)); } })),
-      field("Description / notes (optional)", h("textarea", { className: "cv-input cv-input--area", value: app.projectDescription || "", maxLength: 500, rows: 3,
-        placeholder: "Source, copyright, stitching notes…",
-        onChange: function (e) { if (typeof app.setProjectDescription === "function") app.setProjectDescription(e.target.value.slice(0, 500)); } }))
-    );
     var content;
     if (tab === "picture") content = [pictureType, background, adjust];
     else if (tab === "size") content = [sizeSec, fabricSec];
-    else if (tab === "threads") content = [brandSec, countSec, blendSec, rareSec, stashSec];
-    else if (tab === "detail") content = [stepsSec, shadingSec, tidySec, lookSec];
-    else content = [projectSec];
+    else if (tab === "threads") content = [stashSec, countSec, blendSec, brandSec, stashToolsSec];
+    else content = [stepsSec, shadingSec, tidySec, rareSec, lookSec];
 
     // ── Tab strip (the Edit panel's) ────────────────────────────────────────
     var tabBar = h("div", { role: "tablist", "aria-label": "Convert steps", className: "cv-tabs" },
@@ -544,16 +537,21 @@
         })));
 
     var next = tabMeta.next;
+    var hasImg = !!(gen.img && gen.img.src);
     var panel = h("div", { ref: contentRef, className: "cv-panel", role: "tabpanel", id: "convert-panel", "aria-labelledby": "convert-tab-" + tab },
       h("p", { className: "cv-lead" }, tabMeta.lead),
       content,
       next && h("div", { className: "cv-next" },
         h("button", { type: "button", className: "cv-next__btn", onClick: function () { pickTab(next); } },
-          h("span", null, "Next: " + NEXT_LABELS[next]), Icons.chevronRight()))
+          h("span", null, "Next: " + NEXT_LABELS[next]), Icons.chevronRight())),
+      // The last step: what comes next is Generate, just below.
+      !next && hasImg && h("div", { className: "cv-next cv-last-step", "data-last-step": "" },
+        hint(gen.hasGenerated
+          ? "That is every step. Regenerate below when the preview looks right."
+          : "That is every step. Generate the pattern below when the preview looks right; you can come back and change any of these."))
     );
 
     // ── Footer: what Generate will make, and Generate ──────────────────────
-    var hasImg = !!(gen.img && gen.img.src);
     var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : "Custom";
     var summary = gen.exactPixelArt
       ? "Exact pixel art · one stitch per pixel"
@@ -562,15 +560,18 @@
     var editCount = (cv.editHistory && cv.editHistory.length) || 0;
     var chartState = ctx.pat ? app.convertChartState : null;
     var stateText = chartStateText(chartState, editCount);
+    // The tour points at this button on wider screens; on phones, at the
+    // compact bar's Generate (the panel is a closed sheet there).
+    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
     var footer = h("footer", { className: "cv-footer" },
       hasImg && h("p", { className: "cv-footer__summary", "data-convert-summary": "" }, summary),
       hasImg && stateText && h("p", { className: "cv-footer__state", "data-chart-state": chartState }, stateText),
-      hasImg ? h("button", {
+      hasImg ? h("button", Object.assign(compact ? {} : { "data-onboard": "creator-generate" }, {
         type: "button", className: "cv-generate" + (chartState === "same" ? " cv-generate--quiet" : ""),
         // Generate asks before replacing an edited or unknown chart.
         onClick: function () { gen.generate(); },
         disabled: gen.busy, "aria-label": gen.hasGenerated ? "Regenerate pattern" : "Generate pattern"
-      }, gen.busy ? (gen.progressMessage || "Generating…") : h(React.Fragment, null, Icons.refresh(), gen.hasGenerated ? " Regenerate" : " Generate Pattern"))
+      }), gen.busy ? (gen.progressMessage || "Generating…") : h(React.Fragment, null, Icons.refresh(), h("span", null, gen.hasGenerated ? "Regenerate" : "Generate Pattern")))
         : hint("Upload an image to get started", { className: "cs-toolsec__hint cv-footer__empty" })
     );
 

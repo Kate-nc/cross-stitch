@@ -396,3 +396,25 @@ Each phase works on its own and can ship separately.
 3. **After Create: Review or Edit?** This proposal says Review. People who
    mostly hand-edit converted charts may prefer a preference to go straight
    to Edit.
+
+---
+
+## 8. Decisions and status (November 2026)
+
+- **Frame stage:** shown every time a picture arrives, with a Preferences
+  option to turn it off.
+- **Stage 2:** keeps the step tabs.
+- **After Create (Review or Edit):** still open.
+
+**Phase A is done.** Items 1–6 shipped as written, with these differences:
+
+- The last step has no Next button. Instead, a note points to the Generate
+  button at the foot of the panel, so there is still only one Generate.
+- Stash is split in two. "Use only stash threads" opens Threads, and the
+  stash tools (your threads, Add a thread, variations) come after the brand.
+- Brand moved below Threads (max) and Blends.
+- The crop re-check keeps choices the user made: the picture type's starting
+  values are reapplied only while the settings are not Custom, and a
+  background the user picked is kept.
+- Tests: `tests/cropReframe.test.js` (unit) and
+  `tests/e2e/convert-crop-reframe.spec.js` (browser).

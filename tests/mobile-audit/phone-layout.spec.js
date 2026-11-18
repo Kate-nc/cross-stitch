@@ -36,7 +36,7 @@ async function openCreatorEdit(page) {
   await page.locator('input.home-create-file-input').setInputFiles(LOGO);
   await page.waitForURL(/create\.html/);
   await page.waitForSelector('.rpanel', { state: 'attached' });
-  await page.locator('.cc-generate:visible, .creator-actionbar [aria-label="Generate pattern"]:visible').first().click();
+  await page.locator('.cc-generate:visible, .cv-generate:visible').first().click();
   await page.waitForSelector('.rpanel--edit', { state: 'attached', timeout: 30000 });
   await page.waitForSelector('.creator-rail, .toolbar-row', { timeout: 30000 });
   await page.waitForTimeout(600);

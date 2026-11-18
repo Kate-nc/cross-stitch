@@ -23,6 +23,37 @@ function lineCells(x0, y0, x1, y1) {
 }
 window.lineCells = lineCells;
 
+/* Crop geometry (CropModal). Rectangles are in the displayed picture's
+   pixels, inside bounds { w, h }; ratio is width / height, or null for a
+   free shape. */
+// The rectangle dragged from `start` to the pointer at (px, py), kept to
+// `ratio` and inside the picture. It grows away from the starting corner.
+function constrainCropRect(start, px, py, ratio, bounds) {
+  var cx = Math.max(0, Math.min(bounds.w, px)), cy = Math.max(0, Math.min(bounds.h, py));
+  var dx = cx - start.x, dy = cy - start.y;
+  if (!ratio) {
+    return { x: Math.min(start.x, cx), y: Math.min(start.y, cy), w: Math.abs(dx), h: Math.abs(dy) };
+  }
+  // The larger of the two drags decides the size.
+  var w = Math.max(Math.abs(dx), Math.abs(dy) * ratio), h = w / ratio;
+  var roomW = dx >= 0 ? bounds.w - start.x : start.x;
+  var roomH = dy >= 0 ? bounds.h - start.y : start.y;
+  if (w > roomW) { w = roomW; h = w / ratio; }
+  if (h > roomH) { h = roomH; w = h * ratio; }
+  return { x: dx >= 0 ? start.x : start.x - w, y: dy >= 0 ? start.y : start.y - h, w: w, h: h };
+}
+window.constrainCropRect = constrainCropRect;
+
+// The largest rectangle of `ratio` centred in the picture (all of it when
+// ratio is null): what choosing a shape starts from.
+function centredCropRect(bounds, ratio) {
+  if (!ratio) return { x: 0, y: 0, w: bounds.w, h: bounds.h };
+  var w = bounds.w, h = w / ratio;
+  if (h > bounds.h) { h = bounds.h; w = h * ratio; }
+  return { x: (bounds.w - w) / 2, y: (bounds.h - h) / 2, w: w, h: h };
+}
+window.centredCropRect = centredCropRect;
+
 /* computePinchScroll — pure maths for the two-finger gesture. `pinch` holds
    the scroll position and finger midpoint captured when the gesture began,
    plus the scroll container's viewport origin and the canvas's offset inside
@@ -1482,11 +1513,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
     if (!isCropping || !cropStartRef.current || !cropRef.current) return;
     var r = cropRef.current.getBoundingClientRect();
-    var cx = Math.max(0, Math.min(r.width, e.clientX - r.left));
-    var cy = Math.max(0, Math.min(r.height, e.clientY - r.top));
-    var x = Math.min(cropStartRef.current.x, cx), y = Math.min(cropStartRef.current.y, cy);
-    var w = Math.abs(cx - cropStartRef.current.x), h = Math.abs(cy - cropStartRef.current.y);
-    state.setCropRect({ x: x, y: y, w: w, h: h });
+    var ratio = state.cropRatioRef ? state.cropRatioRef.current : null;
+    state.setCropRect(constrainCropRect(cropStartRef.current, e.clientX - r.left, e.clientY - r.top, ratio, { w: r.width, h: r.height }));
   }
 
   function handleCropMouseUp(e) {
@@ -1530,19 +1558,27 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     state.setCropRect(null);
   }
 
-  function applyCrop() {
-    var cropRect = state.cropRect, cropRef = state.cropRef, img = state.img;
-    if (!cropRect || cropRect.w < 10 || cropRect.h < 10 || !cropRef.current || !img) {
+  // Crops the picture to the dialog's rectangle. opts.source (an image or canvas) is the picture
+  // the dialog shows when it has been turned (CropModal); without a
+  // rectangle, a turned picture is kept whole.
+  function applyCrop(opts) {
+    var cropRect = state.cropRect, cropRef = state.cropRef;
+    var src = (opts && opts.source) || state.img;
+    var hasRect = !!(cropRect && cropRect.w >= 10 && cropRect.h >= 10);
+    if (!src || (!hasRect && src === state.img) || (hasRect && !cropRef.current)) {
       state.setIsCropping(false);
       return;
     }
-    var r = cropRef.current.getBoundingClientRect();
-    var scaleX = img.width / r.width, scaleY = img.height / r.height;
-    var cropX = Math.floor(cropRect.x * scaleX), cropY = Math.floor(cropRect.y * scaleY);
-    var cropW = Math.floor(cropRect.w * scaleX), cropH = Math.floor(cropRect.h * scaleY);
+    var cropX = 0, cropY = 0, cropW = src.width, cropH = src.height;
+    if (hasRect) {
+      var r = cropRef.current.getBoundingClientRect();
+      var scaleX = src.width / r.width, scaleY = src.height / r.height;
+      cropX = Math.max(0, Math.floor(cropRect.x * scaleX)); cropY = Math.max(0, Math.floor(cropRect.y * scaleY));
+      cropW = Math.min(src.width - cropX, Math.floor(cropRect.w * scaleX)); cropH = Math.min(src.height - cropY, Math.floor(cropRect.h * scaleY));
+    }
     var c = document.createElement("canvas"); c.width = cropW; c.height = cropH;
     var cx = c.getContext("2d");
-    cx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+    cx.drawImage(src, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
     var newImg = new Image();
     newImg.onload = function() {
       state.setImg(newImg);
@@ -1553,11 +1589,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
       state.setIsCropping(false);
       state.setCropRect(null);
+      // Look at the cropped picture again: its type, plain background and
+      // (pixel art) size were worked out from the whole picture.
+      var examine = state.pictureExaminerRef && state.pictureExaminerRef.current;
+      if (typeof examine === "function") examine(newImg, { reframed: true });
       // An existing chart is kept, with its edits and progress: Convert's
       // preview shows the cropped picture, and the chart changes only when
       // Regenerate replaces it (which asks first when it was edited).
     };
-    newImg.src = c.toDataURL();
+    // PNG keeps transparency (pixel art, logos with clear backgrounds).
+    newImg.src = c.toDataURL("image/png");
   }
 
   function srcClick(e) {

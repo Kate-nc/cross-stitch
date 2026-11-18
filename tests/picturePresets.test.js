@@ -171,7 +171,9 @@ describe('the hook', () => {
     expect(prefs).toMatch(/label: "Guess the picture type"/);
     const io = loadSource('creator/useProjectIO.js');
     expect(io).toMatch(/UserPrefs\.get\("creatorGuessPictureType"\) !== false/);
-    expect(io).toMatch(/if \(guess && state\.applyPicturePreset[\s\S]{0,120}state\.applyPicturePreset\(window\.guessPictureType\(info\), info\);/);
+    expect(io).toMatch(/var applyType = !!\(info && info\.w && guess && state\.applyPicturePreset/);
+    expect(io).toMatch(/var newType = applyType \? window\.guessPictureType\(info\) : null;/);
+    expect(io).toMatch(/if \(applyType\) \{\s*state\.applyPicturePreset\(newType, info\);/);
   });
 
   test('the picture-type radios choose the preset (keyboard: tests/convertPanel.test.js)', () => {
@@ -182,7 +184,7 @@ describe('the hook', () => {
   });
   test('the guess is applied on upload, before a resumed draft puts its own settings back', () => {
     const io = loadSource('creator/useProjectIO.js');
-    expect(io).toMatch(/state\.applyPicturePreset\(window\.guessPictureType\(info\), info\);/);
+    expect(io).toMatch(/state\.applyPicturePreset\(newType, info\);/);
     expect(io).toMatch(/examinePicture\(i\);[^\n]*startDraft\(f\);/);
     expect(io).toMatch(/examinePicture\(scaledImg\);[^\n]*startDraft\(f\);/);
     expect(src).toMatch(/setPictureInfo\(null\); setPresetApplied\(null\);/);

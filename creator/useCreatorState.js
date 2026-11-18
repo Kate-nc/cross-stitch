@@ -932,6 +932,12 @@ window.useCreatorState = function useCreatorState() {
   var _cropRect= useState(null);     var cropRect   = _cropRect[0], setCropRect = _cropRect[1];
   var cropStartRef = useRef(null);
   var cropRef      = useRef(null);
+  // The crop dialog's shape: null (free) or width / height. The drag in
+  // useCanvasInteraction keeps the rectangle to it.
+  var cropRatioRef = useRef(null);
+  // useProjectIO's picture check (type, background, pixel-art size), so a
+  // crop can look at the cropped picture again (useCanvasInteraction.applyCrop).
+  var pictureExaminerRef = useRef(null);
 
   // Cleanup mode handlers ref — set by useCleanupMode so useCanvasInteraction
   // can dispatch click/drag events without a circular hook dependency.
@@ -2708,7 +2714,7 @@ window.useCreatorState = function useCreatorState() {
     convertTab, setConvertTab,
     stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
-    cropRect, setCropRect, cropStartRef, cropRef,
+    cropRect, setCropRect, cropStartRef, cropRef, cropRatioRef, pictureExaminerRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
     penNavigation, setPenNavigation, penNavigationRef,

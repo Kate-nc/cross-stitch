@@ -59,9 +59,9 @@ async function startBlankGrid(page, opts) {
 }
 
 // Phones (under 900px) have the compact top bar's Generate; wider screens
-// the action bar's.
+// the one at the foot of the Convert panel.
 async function clickGenerate(page) {
-  const btn = page.locator('.cc-generate:visible, .creator-actionbar [aria-label="Generate pattern"]:visible, .creator-actionbar [aria-label="Regenerate pattern"]:visible').first();
+  const btn = page.locator('.cc-generate:visible, .cv-generate:visible').first();
   await btn.click();
 }
 

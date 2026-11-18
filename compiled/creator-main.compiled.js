@@ -1172,6 +1172,10 @@ function CreatorApp({
   // Convert shows the live preview of the current settings, also once a chart
   // exists: the chart itself is Edit's. Without a chart the preview is all
   // there is to show.
+  // Before Generate, Convert's pattern is named after the picture's file
+  // (useProjectIO nameFromImage); the header shows it and it can be renamed
+  // there, instead of "No project" (reports/create-from-image-workflow, F7).
+  const _convertName = !(state.pat && state.pal) && state.img && !state.isScratchMode && state.projectName || '';
   const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || state.appMode === 'create' && state.tab === 'pattern'));
   // Materials & Output and the Adapt modal live in creator/extras-bundle.js,
   // loaded the first time either is opened rather than on every Creator load.
@@ -1248,8 +1252,8 @@ function CreatorApp({
   const stableShapePreview = React.useCallback(function () {
     return _cvHRef.current.shapePreview ? _cvHRef.current.shapePreview() : null;
   }, []);
-  const stableApplyCrop = React.useCallback(function () {
-    _cvHRef.current.applyCrop();
+  const stableApplyCrop = React.useCallback(function (opts) {
+    _cvHRef.current.applyCrop(opts);
   }, []);
   const stableSrcClick = React.useCallback(function (e) {
     _cvHRef.current.srcClick(e);
@@ -1512,6 +1516,7 @@ function CreatorApp({
       setIsCropping: state.setIsCropping,
       cropRect: state.cropRect,
       setCropRect: state.setCropRect,
+      cropRatioRef: state.cropRatioRef,
       cropStartRef: state.cropStartRef,
       cropRef: state.cropRef,
       generate: state.generate,
@@ -2209,8 +2214,8 @@ function CreatorApp({
     } : undefined,
     onPreferences: typeof window.PreferencesModal !== 'undefined' ? () => state.setPreferencesOpen(true) : undefined,
     setModal: state.setModal,
-    projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : undefined,
-    onNameChange: state.pat && state.pal ? n => state.renameProject(n) : undefined,
+    projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : _convertName || undefined,
+    onNameChange: state.pat && state.pal || _convertName ? n => state.renameProject(n) : undefined,
     showAutosaved: !!(state.pat && state.pal),
     saveStatus: state.saveStatus,
     savedAt: state.savedAt,
@@ -2358,7 +2363,8 @@ function CreatorApp({
     onOpenCanvas: handleOpenCanvas,
     generatingPattern: !!state.busy,
     onGenerate: state.generate,
-    projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : '',
+    projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : _convertName,
+    canRename: !!(state.pat && state.pal) || !!_convertName,
     saveStatus: state.saveStatus,
     savedAt: state.savedAt,
     onTabChange: function (t) {
@@ -2408,9 +2414,7 @@ function CreatorApp({
     onMoreExports: () => _nameNudgeRef.current('exports'),
     hasImage: !!(state.img && state.img.src) && !state.isScratchMode,
     sourceTab: _sourceTab,
-    onOpenCanvas: handleOpenCanvas,
-    generatingPattern: !!state.busy,
-    onGenerate: state.generate
+    onOpenCanvas: handleOpenCanvas
   }), /*#__PURE__*/React.createElement(window.CreatorToolStrip, null), /*#__PURE__*/React.createElement("div", {
     className: "cs-page-content"
   }, state.loadError && /*#__PURE__*/React.createElement("div", {

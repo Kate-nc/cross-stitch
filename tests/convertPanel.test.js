@@ -5,8 +5,9 @@
    The Convert settings panel (creator/ConvertPanel.js), rendered with stub
    Creator contexts:
    - laid out like Edit: the same tab strip and section headings, with the
-     steps in the order the choices are made (Picture, Size, Threads, Detail,
-     then Project) and a Next button that falls through to the next step;
+     steps in the order the choices are made (Picture, Size, Threads, Detail)
+     and a Next button that falls through to the next step; within a step a
+     setting comes before the ones it limits (the stash first in Threads);
    - every setting appears once, in one step, and each has a named hint;
    - Generate is pinned underneath with a summary of what it will make, and
      says when a chart already exists and the settings have moved on.
@@ -95,10 +96,10 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); container.remove(); });
 
 describe('laid out like Edit, in the order the choices are made', () => {
-  test('the steps are the Edit tab strip: Picture, Size, Threads, Detail, Project', () => {
+  test('the steps are the Edit tab strip: Picture, Size, Threads, Detail', () => {
     expect(q('[role="tablist"] .creator-sidebar-tabs')).not.toBeNull();
     const tabs = all('[role="tab"].creator-sidebar-tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['Picture', 'Size', 'Threads', 'Detail', 'Project']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['Picture', 'Size', 'Threads', 'Detail']);
     expect(tabs[0].getAttribute('aria-selected')).toBe('true');
     expect(q('[role="tabpanel"]').getAttribute('aria-labelledby')).toBe('convert-tab-picture');
   });
@@ -108,16 +109,19 @@ describe('laid out like Edit, in the order the choices are made', () => {
     expect(headings()).toEqual(['Picture type', 'Background', 'Adjust picture']);
   });
 
-  test('Next falls through Picture, Size, Threads and Detail to Project', () => {
+  test('Next falls through Picture, Size and Threads to Detail, which points to Generate', () => {
     const seen = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const next = all('.cv-next__btn')[0];
       seen.push(next.textContent);
       act(() => next.click());
     }
-    expect(seen).toEqual(['Next: Size and fabric', 'Next: Threads', 'Next: Detail and tidiness', 'Next: Project']);
-    expect(app.convertTab).toBe('project');
+    expect(seen).toEqual(['Next: Size and fabric', 'Next: Threads', 'Next: Detail and tidiness']);
+    expect(app.convertTab).toBe('detail');
     expect(q('.cv-next__btn')).toBeNull();
+    // The last step says Generate comes next; the name is in the header now.
+    expect(q('[data-last-step]').textContent).toMatch(/Generate the pattern below/);
+    expect(q('input.cv-input[placeholder$="pattern"]')).toBeNull();
   });
 
   test('arrow keys move between the steps', () => {
@@ -141,12 +145,11 @@ describe('each setting once, each with a named hint', () => {
       hints: ['About Picture type', 'About Background', 'About Adjust picture',
         'About Brightness', 'About Contrast', 'About Saturation', 'About Sharpen details', 'About Soften grainy photos'] },
     size: { headings: [], stubs: ['size-field', 'fabric-block'] },
-    threads: { headings: ['Thread brand', 'Number of threads', 'Blends', 'Rare colours', 'Stash'],
-      hints: ['About Thread brand', 'About Threads (max)', 'About Allow two-thread blends', 'About Min stitches per colour', 'About Use only stash threads'] },
-    detail: { headings: ['Detail and tidiness', 'Shading pattern', 'Tidying', 'Look-alike colours'],
+    threads: { headings: ['Stash', 'Number of threads', 'Blends', 'Thread brand'],
+      hints: ['About Use only stash threads', 'About Threads (max)', 'About Allow two-thread blends', 'About Thread brand'] },
+    detail: { headings: ['Detail and tidiness', 'Shading pattern', 'Tidying', 'Rare colours', 'Look-alike colours'],
       hints: ['About Detail and tidiness', 'About Shading pattern', 'About Stitch Cleanup', 'About Reduce confetti', 'About Protect fine details',
-        'About Keep look-alike colours apart', 'About How strict'] },
-    project: { headings: ['Project info'] }
+        'About Min stitches per colour', 'About Keep look-alike colours apart', 'About How strict'] }
   };
   test.each(Object.keys(byTab))('the %s step', (tab) => {
     app.convertTab = tab; draw();

@@ -21,8 +21,8 @@ describe("welcome walkthrough targets exist on their own page", () => {
   const STEPS = loadSteps();
   // Where each page's walkthrough is mounted, and the files that render it.
   const PAGE_SOURCES = {
-    creator: ["creator/Sidebar.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
-    "creator-convert": ["creator/Sidebar.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
+    creator: ["creator/Sidebar.js", "creator/ConvertPanel.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
+    "creator-convert": ["creator/Sidebar.js", "creator/ConvertPanel.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
     "creator-scratch": ["creator/Sidebar.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
     "creator-import": ["creator/Sidebar.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
     manager: ["manager-app.js"],

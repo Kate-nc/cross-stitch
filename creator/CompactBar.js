@@ -113,11 +113,11 @@
       h("button", {
         type: "button", className: "cc-name",
         onClick: function () { window.dispatchEvent(new CustomEvent("cs:openRename")); },
-        disabled: !hasPat,
+        disabled: !(hasPat || props.canRename),
         title: "Rename", "aria-label": "Rename “" + (props.projectName || "pattern") + "”"
       },
         h("span", { className: "cc-name__text" }, props.projectName || "New pattern"),
-        hasPat && Icons.pencil ? h("span", { className: "cc-name__icon", "aria-hidden": "true" }, Icons.pencil()) : null
+        (hasPat || props.canRename) && Icons.pencil ? h("span", { className: "cc-name__icon", "aria-hidden": "true" }, Icons.pencil()) : null
       ),
       hasPat ? h("span", {
         className: "cc-save cc-save--" + status.tone, role: "status", "aria-label": status.label, title: status.label

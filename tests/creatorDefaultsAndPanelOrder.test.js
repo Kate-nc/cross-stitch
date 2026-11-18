@@ -93,7 +93,7 @@ describe('defaults', () => {
     // border check, then the skip and the picture-type guess are applied.
     expect(io).toMatch(/window\.analysePicture\(data, imgEl\.width, imgEl\.height\)/);
     expect(io).toMatch(/window\.detectUniformBorder\(data\)/);
-    expect(io).toMatch(/autoSkipBackground\(info \? info\.border : null\)/);
+    expect(io).toMatch(/autoSkipBackground\(info \? info\.border : null, reframed\)/);
     expect(io).toMatch(/state\.addToast\("Background left unstitched\.", \{[\s\S]*?label: "Undo"/);
     expect((io.match(/examinePicture\((i|scaledImg)\)/g) || []).length).toBe(2);
   });
@@ -104,12 +104,14 @@ describe('Convert panel order', () => {
   // this pins the order in the source.
   const cp = loadSource('creator/ConvertPanel.js');
 
-  test('steps: Picture (type, background, adjust), Size (size, fabric), Threads, Detail, Project', () => {
+  // A setting comes before the ones it limits: the stash before the thread
+  // count; rare colours sit with the other tidying (reports/create-from-image-workflow).
+  test('steps: Picture (type, background, adjust), Size (size, fabric), Threads (stash first), Detail', () => {
     expect(cp).toMatch(/if \(tab === "picture"\) content = \[pictureType, background, adjust\];/);
     expect(cp).toMatch(/else if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
-    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[brandSec, countSec, blendSec, rareSec, stashSec\];/);
-    expect(cp).toMatch(/else if \(tab === "detail"\) content = \[stepsSec, shadingSec, tidySec, lookSec\];/);
-    expect(cp).toMatch(/else content = \[projectSec\];/);
+    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[stashSec, countSec, blendSec, brandSec, stashToolsSec\];/);
+    expect(cp).toMatch(/else content = \[stepsSec, shadingSec, tidySec, rareSec, lookSec\];/);
+    expect(cp).not.toMatch(/projectSec/);
   });
 
   test('section headings', () => {
@@ -117,7 +119,7 @@ describe('Convert panel order', () => {
      '"brand", "Thread brand"', '"count", "Number of threads"', '"blends", "Blends"', '"rare", "Rare colours"',
      '"style", "Detail and tidiness"', '"shading", "Shading pattern"', '"tidying", "Tidying"', '"lookalike", "Look-alike colours"']
       .forEach((h) => expect(cp).toContain('sec(' + h));
-    // Min stitches per colour is a thread choice, in Threads.
+    // Min stitches per colour merges rare colours away; it is in Detail with tidying.
     const rare = cp.slice(cp.indexOf('var rareSec = '), cp.indexOf('var stashSec = '));
     expect(rare).toMatch(/label: "Min stitches per colour"/);
   });

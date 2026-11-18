@@ -56,8 +56,8 @@
       Tap: coarse ? "Tap" : "Click", tap: coarse ? "tap" : "click",
       settings: compact ? "the Settings sheet" : "the panel on the right",
       actions: compact ? "the More menu at the top" : "the bar at the top",
-      // The compact bar's button is labelled Generate, the action bar's
-      // Generate Pattern.
+      // The compact bar's button is labelled Generate; on wider screens the
+      // button at the foot of the Convert panel reads Generate Pattern.
       generate: compact ? "Generate" : "Generate Pattern"
     };
   }
@@ -78,14 +78,15 @@
       return [
         {
           title: "Turn your picture into a pattern",
-          body: "Work through the steps in " + d.settings + " from left to right: Picture, Size, Threads and Detail. The preview shows your pattern as stitches and says what each change did; Compare options shows neighbouring sizes and thread counts side by side."
+          body: "The steps in " + d.settings + " come in the order you would decide them: Picture, Size, Threads and Detail. Each starts from a good guess for your picture, so change only what you want. The preview shows your pattern as stitches and says what each change did; Compare options shows neighbouring sizes and thread counts side by side."
         },
         {
           title: "Generate",
           body: "When the preview looks right, " + d.tap + " " + d.generate + ". You can cancel while it works.",
           tip: "Pressing the highlighted button generates the pattern and closes this tour.",
           target: "[data-onboard=\"creator-generate\"]",
-          placement: "bottom",
+          // The compact bar's button is at the top; the panel's at the foot.
+          placement: d.compact ? "bottom" : "top",
           dismissOnTargetClick: true
         },
         {

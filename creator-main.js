@@ -590,6 +590,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // Convert shows the live preview of the current settings, also once a chart
   // exists: the chart itself is Edit's. Without a chart the preview is all
   // there is to show.
+  // Before Generate, Convert's pattern is named after the picture's file
+  // (useProjectIO nameFromImage); the header shows it and it can be renamed
+  // there, instead of "No project" (reports/create-from-image-workflow, F7).
+  const _convertName = (!(state.pat&&state.pal)&&state.img&&!state.isScratchMode&&state.projectName)||'';
   const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || (state.appMode === 'create' && state.tab === 'pattern')));
   // Materials & Output and the Adapt modal live in creator/extras-bundle.js,
   // loaded the first time either is opened rather than on every Creator load.
@@ -637,7 +641,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableHandleCropPointerUp    = React.useCallback(function(e){_cvHRef.current.handleCropPointerUp(e);},    []);
   const stableHandleCropPointerCancel= React.useCallback(function(e){_cvHRef.current.handleCropPointerCancel(e);},[]);
   const stableShapePreview = React.useCallback(function(){return _cvHRef.current.shapePreview?_cvHRef.current.shapePreview():null;},[]);
-  const stableApplyCrop              = React.useCallback(function()  {_cvHRef.current.applyCrop();},               []);
+  const stableApplyCrop              = React.useCallback(function(opts){_cvHRef.current.applyCrop(opts);},           []);
   const stableSrcClick               = React.useCallback(function(e){_cvHRef.current.srcClick(e);},               []);
 
   const stableSaveProject         = React.useCallback(function()  {_ioRef.current.saveProject();},         []);
@@ -804,6 +808,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     stitchCleanup: state.stitchCleanup, setStitchCleanup: state.setStitchCleanup,
     isCropping: state.isCropping, setIsCropping: state.setIsCropping,
     cropRect: state.cropRect, setCropRect: state.setCropRect,
+    cropRatioRef: state.cropRatioRef,
     cropStartRef: state.cropStartRef, cropRef: state.cropRef,
     generate: state.generate,
     randomise: state.randomise,
@@ -1334,8 +1339,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
         setModal={state.setModal}
-        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
-        onNameChange={state.pat&&state.pal?n=>state.renameProject(n):undefined}
+        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):_convertName||undefined}
+        onNameChange={state.pat&&state.pal||_convertName?n=>state.renameProject(n):undefined}
         showAutosaved={!!(state.pat&&state.pal)}
         saveStatus={state.saveStatus}
         savedAt={state.savedAt}
@@ -1451,7 +1456,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onOpenCanvas={handleOpenCanvas}
         generatingPattern={!!state.busy}
         onGenerate={state.generate}
-        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):''}
+        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):_convertName}
+        canRename={!!(state.pat&&state.pal)||!!_convertName}
         saveStatus={state.saveStatus}
         savedAt={state.savedAt}
         onTabChange={function(t){state.setTab(t);}}
@@ -1495,8 +1501,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         hasImage={!!(state.img&&state.img.src)&&!state.isScratchMode}
         sourceTab={_sourceTab}
         onOpenCanvas={handleOpenCanvas}
-        generatingPattern={!!state.busy}
-        onGenerate={state.generate}
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">

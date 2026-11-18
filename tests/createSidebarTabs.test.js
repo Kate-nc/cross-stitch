@@ -21,12 +21,12 @@ describe('Convert and Edit each have their own tabs', () => {
     expect(m[1]).toMatch(/id:\s*"view"[\s\S]{0,160}disabled:\s*!hasPattern/);
   });
 
-  it('Convert steps are Picture / Size / Threads / Detail / Project, each falling through to the next', () => {
+  it('Convert steps are Picture / Size / Threads / Detail, each falling through to the next', () => {
     const m = convertSrc.match(/var CONVERT_TABS = \[([\s\S]*?)\];/);
     const ids = Array.from(m[1].matchAll(/id: "([^"]+)"/g)).map(x => x[1]);
-    expect(ids).toEqual(['picture', 'size', 'threads', 'detail', 'project']);
+    expect(ids).toEqual(['picture', 'size', 'threads', 'detail']);
     const next = Array.from(m[1].matchAll(/next: (null|"[^"]+")/g)).map(x => x[1]);
-    expect(next).toEqual(['"size"', '"threads"', '"detail"', '"project"', 'null']);
+    expect(next).toEqual(['"size"', '"threads"', '"detail"', 'null']);
   });
 
   it('no longer ships the legacy single-Settings tab, nor the old Convert ids in Edit', () => {
