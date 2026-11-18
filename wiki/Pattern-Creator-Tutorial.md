@@ -85,6 +85,8 @@ Screen colours are approximations; check physical threads when choosing material
 
 **Threads (max)** — how many threads can appear (2–100). Each thread is one colour of stranded cotton, so this is how many to buy.
 
+**Colours to keep** — threads go to the biggest areas first, so a small face or a logo's colour can come out in the background's colours. Press **Pick from picture** and click the colour in the preview (it shows your picture at stitch size while you pick; Esc cancels). Its nearest available thread is then always in the pattern and never merged away. Keep up to 8.
+
 A blend stitches two threads together in one needle (one strand of each) and gets its own chart symbol, so a chart can have more symbols than threads. In the key a blend reads, for example, "DMC 341 + 826 (blend)", and **Allow two-thread blends** in Convert turns them on or off. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow. No two threads on a chart share a symbol, and the symbols on screen are the same shapes the PDF prints. A chart needing more than 112 symbols shows a warning after converting.
 
 | Threads | Use case |

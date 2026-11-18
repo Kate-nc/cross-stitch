@@ -193,8 +193,9 @@ describe('foldRareColours', () => {
   test('both pipelines use it, with the guard on the automatic pass only', () => {
     for (const f of ['creator/generate.js', 'generate-worker.js']) {
       const src = fs.readFileSync(f, 'utf8');
-      expect(src).toMatch(/foldRareColours\(mapped, width, height, minSt\);/);
-      expect(src).toMatch(/foldRareColours\(mapped, width, height, _autoThresh, \{ contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE \}\);/);
+      // Colours to keep (keep) are never folded, by either pass.
+      expect(src).toMatch(/foldRareColours\(mapped, width, height, minSt, \{ keep: keep \}\);/);
+      expect(src).toMatch(/foldRareColours\(mapped, width, height, _autoThresh, \{ contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE, keep: keep \}\);/);
     }
   });
 });

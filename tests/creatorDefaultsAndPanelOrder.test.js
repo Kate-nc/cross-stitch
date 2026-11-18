@@ -128,7 +128,7 @@ describe('Convert panel order', () => {
   test('steps: Picture (type, background, adjust), Size (size, fabric), Threads, Detail, Project', () => {
     expect(cp).toMatch(/if \(tab === "picture"\) content = \[pictureType, background, adjust\];/);
     expect(cp).toMatch(/else if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
-    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[brandSec, countSec, blendSec, rareSec, stashSec\];/);
+    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[brandSec, countSec, keepSec, blendSec, rareSec, stashSec\];/);
     expect(cp).toMatch(/else if \(tab === "detail"\) content = \[stepsSec, shadingSec, tidySec, lookSec\];/);
     expect(cp).toMatch(/else content = \[projectSec\];/);
   });

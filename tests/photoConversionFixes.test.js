@@ -137,3 +137,65 @@ test('reopening a project keeps its edge-shade setting', () => {
   expect(restore({ enabled: true, protectDetails: true, foldEdgeShades: true }).foldEdgeShades).toBe(true);
   expect(restore({ enabled: true, protectDetails: true }).foldEdgeShades).toBeUndefined();
 });
+
+describe('Colours to keep (keepIds)', () => {
+  // A big two-colour picture with a small patch of a colour close to one of
+  // them (ΔE 10), like a face against a pale wall: k-means gives the threads
+  // to the big areas and the patch is drawn in the wall's thread.
+  const W = 40, H = 40;
+  const small = (x, y) => x >= 30 && x < 33 && y >= 30 && y < 33;   // 9 stitches, 0.6%
+  const data = picture(W, H, (x, y) => (small(x, y) ? [215, 190, 160] : x < 20 ? [30, 70, 140] : [235, 225, 200]));
+  const smallIds = (res) => [...new Set(res.mapped.filter((m, i) => small(i % W, (i / W) | 0)).map((m) => m.id))];
+
+  test('a kept thread is in the palette and draws its patch, even when rare', () => {
+    const Wk = runtime();
+    const skin = Wk.findSolid(Wk.rgbToLab(215, 190, 160), require('vm').runInContext('DMC', Wk));
+    const plain = runWorker(data, W, H, settings({ maxC: 3 }), Wk);
+    expect(smallIds(plain)).not.toContain(skin.id);
+    const kept = runWorker(data, W, H, settings({ maxC: 3, keepIds: [skin.id] }), Wk);
+    expect(smallIds(kept)).toEqual([skin.id]);
+    expect(new Set(kept.mapped.map((m) => m.id)).size).toBeLessThanOrEqual(3);
+  });
+
+  test('quantizeConstrained: kept threads come first, within the limit, from the pool only', () => {
+    const C = runtime();
+    const DMC = require('vm').runInContext('DMC', C);
+    const pal = C.quantizeConstrained(data, W, H, 4, null, { seed: 1337, reserved: ['945', 'not-a-thread', '945'] });
+    expect(pal[0].id).toBe('945');
+    expect(pal.filter((e) => e.id === '945')).toHaveLength(1);
+    expect(pal.length).toBeLessThanOrEqual(4);
+    // Kept but not in a stash-only pool: ignored.
+    const stash = [DMC.find((t) => t.id === '310'), DMC.find((t) => t.id === 'B5200'), DMC.find((t) => t.id === '798')];
+    expect(C.quantizeConstrained(data, W, H, 3, stash, { seed: 1337, reserved: ['945'] }).map((e) => e.id)).not.toContain('945');
+    // More kept than the limit: the first ones.
+    expect(C.quantizeConstrained(data, W, H, 2, null, { seed: 1337, reserved: ['945', '310', '798'] }).map((e) => e.id)).toEqual(['945', '310']);
+  });
+
+  test('the rare-colour fold, the edge fold and the thread limit leave kept colours', () => {
+    const C = runtime();
+    const DMC = require('vm').runInContext('DMC', C);
+    const a = DMC.find((t) => t.id === '310'), b = DMC.find((t) => t.id === '945');
+    const cells = () => Array.from({ length: 100 }, (_, i) => (i === 55 ? b : a));
+    const m1 = cells();
+    C.foldRareColours(m1, 10, 10, 5);
+    expect(m1[55].id).toBe('310');
+    const m2 = cells();
+    C.foldRareColours(m2, 10, 10, 5, { keep: new Set(['945']) });
+    expect(m2[55].id).toBe('945');
+  });
+});
+
+test('Colours to keep travel with projects, drafts, the preview and Generate', () => {
+  const io = fs.readFileSync('creator/useProjectIO.js', 'utf8');
+  // Saved in all three project-save paths, restored on open, kept in drafts.
+  expect(io.match(/keepColours: state\.keepColours && state\.keepColours\.length \? state\.keepColours : undefined/g)).toHaveLength(3);
+  expect(io).toMatch(/state\.setKeepColours\(Array\.isArray\(s\.keepColours\)/);
+  expect(io).toMatch(/'keepColours',\n\s*\/\/ The picture type chosen/);
+  const st = fs.readFileSync('creator/useCreatorState.js', 'utf8');
+  expect(st).toMatch(/keepIds: keepColours\.map\(function \(k\) \{ return k\.id; \}\),\n\s*\/\/ Cleanup/);   // conversionSettings
+  expect(st.match(/keepIds: keepColours\.map\(function \(k\) \{ return k\.id; \}\)/g).length).toBeGreaterThanOrEqual(4);   // + Generate (worker, page) and gallery
+  expect(fs.readFileSync('creator/usePreview.js', 'utf8')).toMatch(/keepIds: settings\.keepIds \|\| null/);
+  expect(fs.readFileSync('creator/CompareStrip.js', 'utf8')).toMatch(/keepIds: s\.keepIds \|\| null/);
+  // A new picture starts with none.
+  expect(st).toMatch(/setKeepColours\(\[\]\); setPickKeep\(false\);/);
+});

@@ -169,6 +169,7 @@ var CONVERSION_STATE_KEYS = [
   'variationSeed', 'variationSubset',
   'fabricCt', 'exactPixelArt',
   'disambig', 'disambigLevel',
+  'keepColours',
 ];
 
 // ── Picture-type presets (audit IMG-01) ────────────────────────────────────
@@ -634,6 +635,15 @@ window.useCreatorState = function useCreatorState() {
 
   var _maxBlends = useState(12);
   var maxBlends = _maxBlends[0], setMaxBlends = _maxBlends[1];
+  // Colours to keep (Convert > Threads): threads the stitcher picked from the
+  // picture, [{ id, name, rgb }], always in the palette and never folded away
+  // (quantizeConstrained's reserved). k-means gives threads to the biggest
+  // areas, so a small face can be drawn in the background's colours; keeping
+  // one skin thread lowered the test portrait's face error by about a tenth
+  // (reports/photo-conversion-audit-2026-11.md). A new picture starts empty.
+  var KEEP_COLOURS_MAX = 8;
+  var _keep = useState([]);           var keepColours = _keep[0], setKeepColours = _keep[1];
+  var _pickKeep = useState(false);    var pickKeep = _pickKeep[0], setPickKeep = _pickKeep[1];
 
   // Pattern data
   var _pat  = useState(null);         var pat  = _pat[0],  setPat  = _pat[1];
@@ -1140,6 +1150,8 @@ window.useCreatorState = function useCreatorState() {
   // chart with it, to tell detail lost to the chart's size from detail lost
   // in matching threads and tidying.
   var _prevSampled = useState(null); var previewSampled = _prevSampled[0], setPreviewSampled = _prevSampled[1];
+  // The same picture's pixels, { data, w, h }, for picking Colours to keep.
+  var previewSampledRef = useRef(null);
   // What the last settings change did to the preview (usePreview.js
   // describePreviewChange): which settings, and the counts before and after.
   var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
@@ -1692,6 +1704,7 @@ window.useCreatorState = function useCreatorState() {
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     _setConvertTabRaw("picture"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    setKeepColours([]); setPickKeep(false);
     setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
@@ -2245,6 +2258,7 @@ window.useCreatorState = function useCreatorState() {
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends, maxBlends: maxBlends,
+              keepIds: keepColours.map(function (k) { return k.id; }),
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
               preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null,
@@ -2271,6 +2285,7 @@ window.useCreatorState = function useCreatorState() {
           stitchCleanup: stitchCleanup, orphans: orphans,
           disambig: disambig, disambigLevel: disambigLevel,
           allowedPalette: allowedPalette, seed: _seed,
+          keepIds: keepColours.map(function (k) { return k.id; }),
         },
       }, [imageData.data.buffer]);
     };
@@ -2280,7 +2295,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, keepColours, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -2384,6 +2399,7 @@ window.useCreatorState = function useCreatorState() {
           smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
+          keepIds: keepColours.map(function (k) { return k.id; }),
           allowedPalette: slotSubset, seed: slotSeed,
         });
         var slotUrl = null, usedCt = 0;
@@ -2409,7 +2425,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, keepColours]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -2636,6 +2652,8 @@ window.useCreatorState = function useCreatorState() {
       convertBrand: convertBrand,
       // Background
       skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+      // Colours to keep: their threads' ids
+      keepIds: keepColours.map(function (k) { return k.id; }),
       // Cleanup
       minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
       disambig: disambig, disambigLevel: disambigLevel,
@@ -2651,12 +2669,62 @@ window.useCreatorState = function useCreatorState() {
     exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
     maxC, dith, dithMode, dithStrength, allowBlends, maxBlends,
     skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
-    disambig, disambigLevel,
+    disambig, disambigLevel, keepColours,
     stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
   ]);
 
+  // Keep the thread nearest the picture's colour at (fx, fy), each 0..1 across
+  // the preview: the light-average of the 3 × 3 stitches there in the picture
+  // at stitch size (with the picture adjustments), matched in the threads the
+  // conversion may use. Returns the thread, or null.
+  function addKeepColourAt(fx, fy) {
+    var s = previewSampledRef.current;
+    setPickKeep(false);
+    if (!s || !s.data || !(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) return null;
+    var cx = Math.min(s.w - 1, Math.floor(fx * s.w)), cy = Math.min(s.h - 1, Math.floor(fy * s.h));
+    var sum = [0, 0, 0], n = 0;
+    var lin = function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    for (var y = Math.max(0, cy - 1); y <= Math.min(s.h - 1, cy + 1); y++) {
+      for (var x = Math.max(0, cx - 1); x <= Math.min(s.w - 1, cx + 1); x++) {
+        var i = (y * s.w + x) * 4;
+        if (s.data[i + 3] < 128) continue;
+        sum[0] += lin(s.data[i]); sum[1] += lin(s.data[i + 1]); sum[2] += lin(s.data[i + 2]); n++;
+      }
+    }
+    if (!n) { addToast("That part of the picture isn't stitched. Pick a colour in the picture.", { type: "info", duration: 4000 }); return null; }
+    var enc = function (v) { v = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; return Math.max(0, Math.min(255, Math.round(v * 255))); };
+    var rgb = [enc(sum[0] / n), enc(sum[1] / n), enc(sum[2] / n)];
+    var pool = conversionSettings.allowedPalette || (typeof DMC !== "undefined" ? DMC : []);
+    if (!pool || !pool.length) return null;
+    var t = findSolid(rgbToLab(rgb[0], rgb[1], rgb[2]), pool);
+    if (!t || t.id === "__empty__") return null;
+    var label = (window.formatThread ? window.formatThread(Object.assign({ brand: convertBrand }, t)) : (convertBrand === "anchor" ? "Anchor " : "DMC ") + t.id);
+    if (keepColours.some(function (k) { return String(k.id) === String(t.id); })) {
+      addToast(label + " is already kept.", { type: "info", duration: 3000 });
+      return t;
+    }
+    if (keepColours.length >= KEEP_COLOURS_MAX) {
+      addToast("You can keep up to " + KEEP_COLOURS_MAX + " colours. Remove one to keep another.", { type: "info", duration: 4000 });
+      return null;
+    }
+    setKeepColours(keepColours.concat([{ id: String(t.id), name: t.name, rgb: t.rgb.slice() }]));
+    return t;
+  }
+  // Kept threads the conversion can't use now (another brand, or not in the
+  // stash when stash-only): they are skipped, and Convert says so.
+  var keepPool = conversionSettings.allowedPalette;
+  var keepUnavailable = useMemo(function () {
+    if (!keepColours.length || !keepPool) return [];
+    var have = {};
+    keepPool.forEach(function (t) { have[String(t.id)] = true; });
+    return keepColours.filter(function (k) { return !have[String(k.id)]; }).map(function (k) { return k.id; });
+  }, [keepColours, keepPool]);
+  function removeKeepColour(id) {
+    setKeepColours(function (list) { return list.filter(function (k) { return String(k.id) !== String(id); }); });
+  }
+
   // Capture editable values, including those masked by stash constraints.
-  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied};
+  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied, keepColours: keepColours};
   function pinPreview() {
     if (!previewLoading && previewSnapshot) setPinnedPreview(previewSnapshot);
   }
@@ -2694,6 +2762,7 @@ window.useCreatorState = function useCreatorState() {
     setFabricColour(values.fabricColour);
     setArLock(values.arLock);
     setPresetApplied(values.presetApplied);
+    setKeepColours(values.keepColours || []);
   }
 
   // ─── Return everything ───────────────────────────────────────────────────────
@@ -2778,7 +2847,8 @@ window.useCreatorState = function useCreatorState() {
     previewError, setPreviewError,
     previewTidied, setPreviewTidied, showTidied, setShowTidied,
     previewBackground, setPreviewBackground, showBackground, setShowBackground,
-    previewSampled, setPreviewSampled,
+    previewSampled, setPreviewSampled, previewSampledRef,
+    keepColours, setKeepColours, pickKeep, setPickKeep, addKeepColourAt, removeKeepColour, keepUnavailable,
     previewChange, setPreviewChange,
     previewChanged, setPreviewChanged, previewSnapshot, setPreviewSnapshot,
     pinnedPreview, setPinnedPreview, pinPreview, applyPinnedSettings, previewRestoreSettings,

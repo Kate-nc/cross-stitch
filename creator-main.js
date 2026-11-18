@@ -321,7 +321,20 @@ function ConvertPreview({state, onRetry}) {
   let body;
   // At stitch size needs the preview's own picture; until it exists, the picture.
   const sampledBefore = before === 'sampled' && !!state.previewSampled;
-  if (view === 'compare') {
+  // Picking a colour to keep (Convert > Threads): the picture at stitch size,
+  // the colours the threads are matched to, across the whole preview, in any
+  // view. A click keeps the thread nearest the colour there.
+  const picking = state.pickKeep && !!state.previewSampled;
+  // Esc cancels picking, through the app's Esc stack (keyboard-utils.js), which
+  // takes Esc before any other key handler.
+  const cancelPickKeep = React.useCallback(function() { state.setPickKeep(false); }, [state.setPickKeep]);
+  if (window.useEscape) window.useEscape(state.pickKeep ? cancelPickKeep : null);
+  if (picking) {
+    body = <div className="cvp-box cvp-pick" data-testid="cvp-pick" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
+      <img src={state.previewSampled} alt="Your picture at stitch size. Click the colour to keep." className="cvp-flat"
+        onClick={function(e){ const r = e.currentTarget.getBoundingClientRect(); state.addKeepColourAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }}/>
+    </div>;
+  } else if (view === 'compare') {
     body = <ComparisonSlider originalSrc={sampledBefore ? state.previewSampled : state.img.src} originalPixelated={sampledBefore} leftLabel={sampledBefore ? 'At stitch size' : 'Original'} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} backgroundSrc={state.showBackground ? state.previewBackground : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
   } else if (view === 'flat') {
     body = <div className="cvp-box" data-testid="cvp-flat" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
@@ -377,7 +390,12 @@ function ConvertPreview({state, onRetry}) {
           ? 'This preview shows your new settings. Your chart changes when you Regenerate.'
           : 'This preview shows these settings; your chart may differ. It changes only when you Regenerate.'}</span>
       </div>}
-      {changeText && <p className="cvp-change" data-preview-change="" aria-live="polite"><strong>{changeText.names}:</strong> {changeText.detail}.</p>}
+      {changeText && !picking && <p className="cvp-change" data-preview-change="" aria-live="polite"><strong>{changeText.names}:</strong> {changeText.detail}.</p>}
+      {picking && <div role="status" className="cvp-note cvp-note--pick">
+        <span className="cvp-note__icon" aria-hidden="true">{Icons.eyedropper()}</span>
+        <span>Click the colour to keep in your picture. Its nearest thread will always be in the pattern.</span>
+        <button type="button" className="cs-seltools__btn cvp-note__action" onClick={function(){ state.setPickKeep(false); }}>Cancel</button>
+      </div>}
       <div className="cvp-body" ref={bodyRef}>{body}</div>
       {<div className="cvp-tools">
         {view === 'stitched' && <button type="button" className="cs-seltools__btn" aria-pressed={closeUp ? 'true' : 'false'} onClick={function(){ setCloseUp(function(c){ return !c; }); }}>
@@ -821,6 +839,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     bgTh: state.bgTh, setBgTh: state.setBgTh,
     bgCol: state.bgCol, setBgCol: state.setBgCol,
     pickBg: state.pickBg, setPickBg: state.setPickBg,
+    keepColours: state.keepColours, pickKeep: state.pickKeep, setPickKeep: state.setPickKeep,
+    removeKeepColour: state.removeKeepColour, keepUnavailable: state.keepUnavailable,
     minSt: state.minSt, setMinSt: state.setMinSt,
     smooth: state.smooth, setSmooth: state.setSmooth,
     smoothType: state.smoothType, setSmoothType: state.setSmoothType,
@@ -873,6 +893,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.img, state.isUploading, state.isDragging,
     state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
+    state.keepColours, state.pickKeep, state.keepUnavailable,
     state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount,
     state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage,
     state.origW, state.origH, state.hasGenerated,

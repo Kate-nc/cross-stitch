@@ -294,6 +294,48 @@
         : hint("A limit, not a target: simpler pictures use fewer.")
     );
 
+    // Colours to keep: threads picked from the picture that are always in the
+    // pattern (useCreatorState addKeepColourAt; quantizeConstrained's reserved).
+    var kept = gen.keepColours || [];
+    var keptOff = gen.keepUnavailable || [];
+    var keptLabel = function (k) { return brandLabel + " " + k.id + (k.name ? " " + k.name : ""); };
+    var keepSec = gen.setPickKeep && !gen.exactPixelArt ? sec("keep", "Colours to keep",
+      "Makes sure a colour gets a thread of its own, such as skin, eyes or a logo's colour. Threads go to the biggest areas of the picture first, so a small face can come out in the background's colours.",
+      h("div", { className: "cv-keep" },
+        kept.map(function (k) {
+          var off = keptOff.indexOf(k.id) >= 0;
+          return h("span", { key: k.id, className: "cv-keep__chip" + (off ? " cv-keep__chip--off" : ""), "data-keep-id": k.id },
+            h("span", { className: "cv-keep__swatch", style: { background: "rgb(" + k.rgb.join(",") + ")" }, "aria-hidden": "true" }),
+            h("span", { className: "cv-keep__name" }, keptLabel(k)),
+            h("button", { type: "button", className: "cv-keep__remove", "aria-label": "Stop keeping " + keptLabel(k), title: "Stop keeping",
+              onClick: function () { gen.removeKeepColour(k.id); } }, Icons.x()));
+        }),
+        h("button", { type: "button", className: "cs-seltools__btn" + (gen.pickKeep ? " cs-seltools__btn--on" : ""), "aria-pressed": gen.pickKeep ? "true" : "false",
+          onClick: function () {
+            var on = !gen.pickKeep;
+            gen.setPickKeep(on);
+            // Bring the preview, where the picking happens, into view.
+            if (on && typeof window !== "undefined" && window.requestAnimationFrame) {
+              window.requestAnimationFrame(function () {
+                window.requestAnimationFrame(function () {
+                  var el = document.querySelector('[data-testid="cvp-pick"]');
+                  if (el && el.scrollIntoView) {
+                    try { var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" }); }
+                    catch (_) { el.scrollIntoView(); }
+                  }
+                });
+              });
+            }
+          } },
+          Icons.eyedropper(), h("span", null, gen.pickKeep ? "Click a colour in the preview…" : "Pick from picture"))
+      ),
+      hint(gen.pickKeep
+        ? "The preview shows your picture at stitch size. Click the colour to keep; Esc cancels."
+        : kept.length ? "Kept threads are always in the pattern and count towards Threads (max)." : "None yet: the threads follow the picture's biggest areas."),
+      keptOff.length ? note("info", kept.filter(function (k) { return keptOff.indexOf(k.id) >= 0; }).map(keptLabel).join(", ") +
+        (keptOff.length === 1 ? " isn't" : " aren't") + " among the threads this pattern can use, so " + (keptOff.length === 1 ? "it isn't" : "they aren't") + " kept. Pick again to keep the nearest available thread.") : null
+    ) : null;
+
     var blendSec = sec("blends", "Blends", null,
       check({ checked: gen.effectiveAllowBlends, disabled: gen.blendsAutoDisabled, label: "Allow two-thread blends",
         onChange: function (v) { gen.setAllowBlends(v); },
@@ -533,7 +575,7 @@
     var content;
     if (tab === "picture") content = [pictureType, background, adjust];
     else if (tab === "size") content = [sizeSec, fabricSec];
-    else if (tab === "threads") content = [brandSec, countSec, blendSec, rareSec, stashSec];
+    else if (tab === "threads") content = [brandSec, countSec, keepSec, blendSec, rareSec, stashSec];
     else if (tab === "detail") content = [stepsSec, shadingSec, tidySec, lookSec];
     else content = [projectSec];
 

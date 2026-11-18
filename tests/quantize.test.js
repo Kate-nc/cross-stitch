@@ -39,6 +39,7 @@ function extractFn(src, name) {
 eval('var _de2000Cache = new Map(); var _DE2000_CACHE_MAX = 5000;'); // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'dE2000'));              // eslint-disable-line no-eval  (needed by quantizeConstrained)
 eval(extractFn(cuSrc, 'quantize'));            // eslint-disable-line no-eval
+eval(extractFn(cuSrc, '_reservedEntries'));    // eslint-disable-line no-eval  (quantizeConstrained's Colours to keep)
 eval(extractFn(cuSrc, 'quantizeConstrained')); // eslint-disable-line no-eval
 // Top-level `var NAME = value;` constants the extracted functions read.
 const extractVar = (src, name) => src.match(new RegExp(`\\nvar ${name} = [^;]+;`))[0];

@@ -29,6 +29,8 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.morePanelOpen) { state.setMorePanelOpen(false); return; }
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
+        // Picking a colour to keep: ESC backs out the same way.
+        if (state.pickKeep) { state.setPickKeep(false); return; }
         if (state.clipFloatActive) { state.cancelClipFloat(); return; }
         if (state.moveActive) { state.cancelMove(); return; }
         if (state.floatActive && state.activeTool === 'move') { state.revertFloat(); return; }
@@ -251,6 +253,9 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.isActive, state.activeTool, state.bsStart,
       state.editHistory, state.redoHistory, state.pat, state.pal,
       state.namePromptOpen, state.modal, state.morePanelOpen,
+      // Esc cancels picking a colour (background, or a colour to keep): the
+      // run() closure must see them change.
+      state.pickBg, state.pickKeep,
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,

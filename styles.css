@@ -9087,6 +9087,15 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .cv-bgpick { display: flex; align-items: center; gap: var(--s-2); margin: var(--s-2) 0; }
 .cv-bgpick__swatch { width: 28px; height: 28px; border-radius: var(--radius-sm); border: 2px solid var(--border); cursor: pointer; padding: 0; flex-shrink: 0; }
 .cv-bgpick .cs-seltools__btn, .cv-reset { width: auto; }
+.cv-keep { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin: var(--s-2) 0; }
+.cv-keep .cs-seltools__btn { width: auto; }
+.cv-keep__chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 2px 2px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font-size: var(--text-xs); color: var(--text-primary); }
+.cv-keep__chip--off { opacity: 0.6; }
+.cv-keep__swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); flex-shrink: 0; }
+.cv-keep__remove { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; padding: 0; border: 0; background: none; color: var(--text-secondary); cursor: pointer; border-radius: var(--radius-sm); }
+.cv-keep__remove:hover { color: var(--text-primary); background: var(--surface-tertiary); }
+.cv-keep__remove svg { width: 14px; height: 14px; }
+.cvp-pick { cursor: crosshair; }
 .cv-reset { margin-top: var(--s-2); }
 .cv-field { display: flex; flex-direction: column; gap: 4px; margin-top: var(--s-2); }
 .cv-field:first-of-type { margin-top: 0; }
@@ -9153,6 +9162,9 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .cvp-note { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; border-radius: var(--radius-md); font-size: var(--text-xs); line-height: 1.45; color: var(--text-primary); background: var(--surface-secondary); border: 1px solid var(--line); }
 .cvp-note--warn { background: var(--warning-soft); }
 .cvp-note--stale { background: var(--accent-soft); border-color: var(--accent-border, var(--line)); }
+.cvp-note--pick { align-items: center; background: var(--accent-soft); }
+.cvp-note--pick > span:nth-child(2) { flex: 1; }
+.cvp-note__action { width: auto; flex-shrink: 0; }
 .cvp-note__icon { display: inline-flex; width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; }
 .cvp-note__icon svg { width: 14px; height: 14px; }
 .cvp-change { margin: 0; font-size: var(--text-xs); line-height: 1.45; color: var(--text-secondary); }

@@ -963,7 +963,10 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   }
 
   // Physical blends work independently of spatial shading. Keep their components.
-  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends});
+  // Colours to keep (Convert): their threads are always in the palette and
+  // never folded away. Mirrored in generate-worker.js.
+  var keep = opts.keepIds && opts.keepIds.length ? new Set(opts.keepIds.map(String)) : null;
+  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
   // An all-transparent image is a valid empty pattern, not a quantiser error.
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
@@ -987,7 +990,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // foldRareColours (colour-utils.js) redraws each patch of a rare colour in
   // the closest colour it touches. Mirrored in generate-worker.js.
   // 1. The user's "minimum stitches per colour": every colour under it goes.
-  if (minSt > 0) foldRareColours(mapped, width, height, minSt);
+  if (minSt > 0) foldRareColours(mapped, width, height, minSt, { keep: keep });
   // 2. Automatic: colours covering under 0.5% of the stitches (capped at 15)
   //    are quantisation stragglers that would take a palette slot, unless they
   //    stand out from everything they touch (a catchlight, a pupil): the
@@ -996,7 +999,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     var _atTotal = 0;
     for (var _ati = 0; _ati < mapped.length; _ati++) { if (mapped[_ati].id !== '__skip__') _atTotal++; }
     var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
-    if (_autoThresh > minSt) foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE });
+    if (_autoThresh > minSt) foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE, keep: keep });
   }
 
   // ── Edge-blend fold (audit IMG-01) ───────────────────────────────────────
@@ -1014,6 +1017,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     mergeEdgeBlendColours(mapped, width, height, {
       // Coverage is already decided. Colour cleanup must not create new holes.
       preserveCoverage: true,
+      keep: keep,
       bgLab: (!dith || dithAlgo === 'off') && opts.skipBg ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null,
       // Undithered, an edge shade is also judged by the pixels it was drawn from.
       // (Dithered stitches all lie between their neighbours' colours, so not then.)
@@ -1060,7 +1064,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // threads and redraws the rest in the closest of them. Here, not only in
   // runGenerationPipeline, so the preview on the page is the chart Generate
   // makes (generate-worker.js does the same).
-  var limited = enforceMaxColours(mapped, p, raw, maxC);
+  var limited = enforceMaxColours(mapped, p, raw, maxC, keep);
   limited = limitGeneratedBlends(mapped, raw, width, height, p, opts.maxBlends) || limited;
 
   // The finished chart's confetti. Measured again only when a stage after
@@ -1072,15 +1076,15 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, confettiFinal: confettiFinal, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, tidiedCells: tidiedCells, disambigData: disambigData };
 };
 
-// Keep at most maxC threads (a blend counts its two). Mutates mapped; true
-// when any stitch changed.
-function enforceMaxColours(mapped, p, raw, maxC) {
+// Keep at most maxC threads (a blend counts its two), the colours to keep
+// (a Set of ids, or null) first. Mutates mapped; true when any stitch changed.
+function enforceMaxColours(mapped, p, raw, maxC, keep) {
   var changed = false;
   for (var safe = 0; safe < 5; safe++) {
     var ids = collectPaletteIds(mapped);
     if (ids.size <= maxC) break;
     var tu = buildPaletteUsageMap(mapped);
-    var ks = findTopThreads(tu, maxC);
+    var ks = findTopThreads(tu, maxC, keep);
     var kp = p.filter(function(t) { return ks.has(t.id); });
     if (!kp.length) break;
     migrateNonKeptColors(mapped, ks, kp, raw);
@@ -1114,9 +1118,13 @@ function buildPaletteUsageMap(mapped) {
   return tu;
 }
 
-// Pick the top `maxC` thread ids by usage. Returns a Set of id strings.
-function findTopThreads(usageMap, maxC) {
-  var sorted = Object.entries(usageMap).sort(function(a, b) { return b[1] - a[1]; });
+// Pick the top `maxC` thread ids by usage, colours to keep first. Returns a
+// Set of id strings.
+function findTopThreads(usageMap, maxC, keep) {
+  var sorted = Object.entries(usageMap).sort(function(a, b) {
+    var ka = keep && keep.has(a[0]) ? 1 : 0, kb = keep && keep.has(b[0]) ? 1 : 0;
+    return (kb - ka) || (b[1] - a[1]);
+  });
   return new Set(sorted.slice(0, maxC).map(function(e) { return e[0]; }));
 }
 
@@ -1163,7 +1171,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-    stitchCleanup: stitchCleanup, orphans: opts.orphans,
+    stitchCleanup: stitchCleanup, orphans: opts.orphans, keepIds: opts.keepIds || null,
     minSt: minSt, seed: opts.seed, smooth: smooth, smoothType: smoothType,
     preSmooth: opts.preSmooth, disambig: opts.disambig, disambigLevel: opts.disambigLevel,
   });
@@ -6715,6 +6723,7 @@ var CONVERSION_STATE_KEYS = [
   'variationSeed', 'variationSubset',
   'fabricCt', 'exactPixelArt',
   'disambig', 'disambigLevel',
+  'keepColours',
 ];
 
 // ── Picture-type presets (audit IMG-01) ────────────────────────────────────
@@ -7180,6 +7189,15 @@ window.useCreatorState = function useCreatorState() {
 
   var _maxBlends = useState(12);
   var maxBlends = _maxBlends[0], setMaxBlends = _maxBlends[1];
+  // Colours to keep (Convert > Threads): threads the stitcher picked from the
+  // picture, [{ id, name, rgb }], always in the palette and never folded away
+  // (quantizeConstrained's reserved). k-means gives threads to the biggest
+  // areas, so a small face can be drawn in the background's colours; keeping
+  // one skin thread lowered the test portrait's face error by about a tenth
+  // (reports/photo-conversion-audit-2026-11.md). A new picture starts empty.
+  var KEEP_COLOURS_MAX = 8;
+  var _keep = useState([]);           var keepColours = _keep[0], setKeepColours = _keep[1];
+  var _pickKeep = useState(false);    var pickKeep = _pickKeep[0], setPickKeep = _pickKeep[1];
 
   // Pattern data
   var _pat  = useState(null);         var pat  = _pat[0],  setPat  = _pat[1];
@@ -7686,6 +7704,8 @@ window.useCreatorState = function useCreatorState() {
   // chart with it, to tell detail lost to the chart's size from detail lost
   // in matching threads and tidying.
   var _prevSampled = useState(null); var previewSampled = _prevSampled[0], setPreviewSampled = _prevSampled[1];
+  // The same picture's pixels, { data, w, h }, for picking Colours to keep.
+  var previewSampledRef = useRef(null);
   // What the last settings change did to the preview (usePreview.js
   // describePreviewChange): which settings, and the counts before and after.
   var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
@@ -8238,6 +8258,7 @@ window.useCreatorState = function useCreatorState() {
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     _setConvertTabRaw("picture"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    setKeepColours([]); setPickKeep(false);
     setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
@@ -8791,6 +8812,7 @@ window.useCreatorState = function useCreatorState() {
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends, maxBlends: maxBlends,
+              keepIds: keepColours.map(function (k) { return k.id; }),
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
               preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null,
@@ -8817,6 +8839,7 @@ window.useCreatorState = function useCreatorState() {
           stitchCleanup: stitchCleanup, orphans: orphans,
           disambig: disambig, disambigLevel: disambigLevel,
           allowedPalette: allowedPalette, seed: _seed,
+          keepIds: keepColours.map(function (k) { return k.id; }),
         },
       }, [imageData.data.buffer]);
     };
@@ -8826,7 +8849,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, keepColours, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -8930,6 +8953,7 @@ window.useCreatorState = function useCreatorState() {
           smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
+          keepIds: keepColours.map(function (k) { return k.id; }),
           allowedPalette: slotSubset, seed: slotSeed,
         });
         var slotUrl = null, usedCt = 0;
@@ -8955,7 +8979,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, keepColours]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -9182,6 +9206,8 @@ window.useCreatorState = function useCreatorState() {
       convertBrand: convertBrand,
       // Background
       skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+      // Colours to keep: their threads' ids
+      keepIds: keepColours.map(function (k) { return k.id; }),
       // Cleanup
       minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
       disambig: disambig, disambigLevel: disambigLevel,
@@ -9197,12 +9223,62 @@ window.useCreatorState = function useCreatorState() {
     exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
     maxC, dith, dithMode, dithStrength, allowBlends, maxBlends,
     skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
-    disambig, disambigLevel,
+    disambig, disambigLevel, keepColours,
     stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
   ]);
 
+  // Keep the thread nearest the picture's colour at (fx, fy), each 0..1 across
+  // the preview: the light-average of the 3 × 3 stitches there in the picture
+  // at stitch size (with the picture adjustments), matched in the threads the
+  // conversion may use. Returns the thread, or null.
+  function addKeepColourAt(fx, fy) {
+    var s = previewSampledRef.current;
+    setPickKeep(false);
+    if (!s || !s.data || !(fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1)) return null;
+    var cx = Math.min(s.w - 1, Math.floor(fx * s.w)), cy = Math.min(s.h - 1, Math.floor(fy * s.h));
+    var sum = [0, 0, 0], n = 0;
+    var lin = function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    for (var y = Math.max(0, cy - 1); y <= Math.min(s.h - 1, cy + 1); y++) {
+      for (var x = Math.max(0, cx - 1); x <= Math.min(s.w - 1, cx + 1); x++) {
+        var i = (y * s.w + x) * 4;
+        if (s.data[i + 3] < 128) continue;
+        sum[0] += lin(s.data[i]); sum[1] += lin(s.data[i + 1]); sum[2] += lin(s.data[i + 2]); n++;
+      }
+    }
+    if (!n) { addToast("That part of the picture isn't stitched. Pick a colour in the picture.", { type: "info", duration: 4000 }); return null; }
+    var enc = function (v) { v = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; return Math.max(0, Math.min(255, Math.round(v * 255))); };
+    var rgb = [enc(sum[0] / n), enc(sum[1] / n), enc(sum[2] / n)];
+    var pool = conversionSettings.allowedPalette || (typeof DMC !== "undefined" ? DMC : []);
+    if (!pool || !pool.length) return null;
+    var t = findSolid(rgbToLab(rgb[0], rgb[1], rgb[2]), pool);
+    if (!t || t.id === "__empty__") return null;
+    var label = (window.formatThread ? window.formatThread(Object.assign({ brand: convertBrand }, t)) : (convertBrand === "anchor" ? "Anchor " : "DMC ") + t.id);
+    if (keepColours.some(function (k) { return String(k.id) === String(t.id); })) {
+      addToast(label + " is already kept.", { type: "info", duration: 3000 });
+      return t;
+    }
+    if (keepColours.length >= KEEP_COLOURS_MAX) {
+      addToast("You can keep up to " + KEEP_COLOURS_MAX + " colours. Remove one to keep another.", { type: "info", duration: 4000 });
+      return null;
+    }
+    setKeepColours(keepColours.concat([{ id: String(t.id), name: t.name, rgb: t.rgb.slice() }]));
+    return t;
+  }
+  // Kept threads the conversion can't use now (another brand, or not in the
+  // stash when stash-only): they are skipped, and Convert says so.
+  var keepPool = conversionSettings.allowedPalette;
+  var keepUnavailable = useMemo(function () {
+    if (!keepColours.length || !keepPool) return [];
+    var have = {};
+    keepPool.forEach(function (t) { have[String(t.id)] = true; });
+    return keepColours.filter(function (k) { return !have[String(k.id)]; }).map(function (k) { return k.id; });
+  }, [keepColours, keepPool]);
+  function removeKeepColour(id) {
+    setKeepColours(function (list) { return list.filter(function (k) { return String(k.id) !== String(id); }); });
+  }
+
   // Capture editable values, including those masked by stash constraints.
-  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied};
+  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied, keepColours: keepColours};
   function pinPreview() {
     if (!previewLoading && previewSnapshot) setPinnedPreview(previewSnapshot);
   }
@@ -9240,6 +9316,7 @@ window.useCreatorState = function useCreatorState() {
     setFabricColour(values.fabricColour);
     setArLock(values.arLock);
     setPresetApplied(values.presetApplied);
+    setKeepColours(values.keepColours || []);
   }
 
   // ─── Return everything ───────────────────────────────────────────────────────
@@ -9324,7 +9401,8 @@ window.useCreatorState = function useCreatorState() {
     previewError, setPreviewError,
     previewTidied, setPreviewTidied, showTidied, setShowTidied,
     previewBackground, setPreviewBackground, showBackground, setShowBackground,
-    previewSampled, setPreviewSampled,
+    previewSampled, setPreviewSampled, previewSampledRef,
+    keepColours, setKeepColours, pickKeep, setPickKeep, addKeepColourAt, removeKeepColour, keepUnavailable,
     previewChange, setPreviewChange,
     previewChanged, setPreviewChanged, previewSnapshot, setPreviewSnapshot,
     pinnedPreview, setPinnedPreview, pinPreview, applyPinnedSettings, previewRestoreSettings,
@@ -13054,6 +13132,8 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.morePanelOpen) { state.setMorePanelOpen(false); return; }
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
+        // Picking a colour to keep: ESC backs out the same way.
+        if (state.pickKeep) { state.setPickKeep(false); return; }
         if (state.clipFloatActive) { state.cancelClipFloat(); return; }
         if (state.moveActive) { state.cancelMove(); return; }
         if (state.floatActive && state.activeTool === 'move') { state.revertFloat(); return; }
@@ -13276,6 +13356,9 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.isActive, state.activeTool, state.bsStart,
       state.editHistory, state.redoHistory, state.pat, state.pal,
       state.namePromptOpen, state.modal, state.morePanelOpen,
+      // Esc cancels picking a colour (background, or a colour to keep): the
+      // run() closure must see them change.
+      state.pickBg, state.pickKeep,
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
@@ -13316,6 +13399,7 @@ var DRAFT_SETTING_KEYS = [
   'sW', 'sH', 'arLock', 'ar', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'maxBlends', 'minSt', 'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
   'exactPixelArt', 'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand',
+  'keepColours',
   // The picture type chosen ({ id, values }): restored after the guess made on
   // reload, so Detail and tidiness keeps following the type the person chose.
   'presetApplied'
@@ -13519,7 +13603,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, maxBlends: state.maxBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, maxBlends: state.maxBlends, stitchCleanup: stitchCleanup, keepColours: state.keepColours && state.keepColours.length ? state.keepColours : undefined, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
       // can be reconstructed from the DMC catalogue at load time. See
       // reports/deferred-1-rgb-stripping-analysis.md. Toggleable via
@@ -13585,7 +13669,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       namePromptShown: !!state.namePromptShown,
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
-      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, maxBlends: state.maxBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, maxBlends: state.maxBlends, stitchCleanup: stitchCleanup, keepColours: state.keepColours && state.keepColours.length ? state.keepColours : undefined, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
@@ -13738,6 +13822,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         foldEdgeShades: typeof s.stitchCleanup.foldEdgeShades === "boolean" ? s.stitchCleanup.foldEdgeShades : undefined,
       });
     }
+    // Colours to keep ([{ id, name, rgb }]); older projects have none.
+    if (state.setKeepColours) state.setKeepColours(Array.isArray(s.keepColours) ? s.keepColours.filter(function (k) { return k && k.id != null; }).map(function (k) { return { id: String(k.id), name: k.name, rgb: Array.isArray(k.rgb) ? k.rgb.slice(0, 3) : [128, 128, 128] }; }) : []);
     if (s.fabricCt) state.setFabricCt(s.fabricCt);
     // The pattern's own fabric colour (audit COMMON-08); older projects take
     // the default for new patterns.
@@ -14576,7 +14662,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, state.pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, maxBlends: state.maxBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, maxBlends: state.maxBlends, stitchCleanup: state.stitchCleanup, keepColours: state.keepColours && state.keepColours.length ? state.keepColours : undefined, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
@@ -14823,7 +14909,7 @@ var PREVIEW_CHANGE_LABELS = [
   [['maxC'], 'Threads (max)'], [['dith', 'dithMode', 'dithStrength', 'dithAlgo', 'dithBayerSize'], 'Shading'],
   [['allowBlends', 'maxBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
   [['skipBg', 'bgCol', 'bgTh'], 'Background'], [['stitchCleanup', 'orphans'], 'Tidying'],
-  [['disambig', 'disambigLevel'], 'Look-alike colours'], [['stashConstrained', 'stashCount'], 'Stash'],
+  [['disambig', 'disambigLevel'], 'Look-alike colours'], [['keepIds'], 'Colours to keep'], [['stashConstrained', 'stashCount'], 'Stash'],
   [['convertBrand'], 'Thread brand'], [['seed', 'subset'], 'Variation']
 ];
 function _sameSetting(a, b) {
@@ -14999,6 +15085,7 @@ window.usePreview = function usePreview(state) {
           allowBlends: settings.allowBlends, maxBlends: settings.maxBlends, allowedPalette: settings.allowedPalette,
           skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
           stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
+          keepIds: settings.keepIds || null,
           minSt: settings.minSt, seed: settings.seed,
           smooth: smooth, smoothType: smoothType,
           disambig: settings.disambig, disambigLevel: settings.disambigLevel,
@@ -15018,6 +15105,8 @@ window.usePreview = function usePreview(state) {
           var scx = sc.getContext("2d"); var sData = scx.createImageData(pw, ph);
           sData.data.set(sampled); scx.putImageData(sData, 0, 0);
           state.setPreviewSampled(sc.toDataURL());
+          // Its pixels, for picking Colours to keep (addKeepColourAt).
+          if (state.previewSampledRef) state.previewSampledRef.current = { data: sampled, w: pw, h: ph };
         } else {
           state.setPreviewSampled(null);
         }
@@ -15552,7 +15641,7 @@ window.usePreview = function usePreview(state) {
       allowBlends: values.allowBlends != null ? values.allowBlends : s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
       seed: s.seed, minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
-      stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed,
+      stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed, keepIds: s.keepIds || null,
       disambig: s.disambig, disambigLevel: s.disambigLevel
     };
   }
@@ -21603,6 +21692,48 @@ window.CreatorSidebar = function CreatorSidebar() {
         : hint("A limit, not a target: simpler pictures use fewer.")
     );
 
+    // Colours to keep: threads picked from the picture that are always in the
+    // pattern (useCreatorState addKeepColourAt; quantizeConstrained's reserved).
+    var kept = gen.keepColours || [];
+    var keptOff = gen.keepUnavailable || [];
+    var keptLabel = function (k) { return brandLabel + " " + k.id + (k.name ? " " + k.name : ""); };
+    var keepSec = gen.setPickKeep && !gen.exactPixelArt ? sec("keep", "Colours to keep",
+      "Makes sure a colour gets a thread of its own, such as skin, eyes or a logo's colour. Threads go to the biggest areas of the picture first, so a small face can come out in the background's colours.",
+      h("div", { className: "cv-keep" },
+        kept.map(function (k) {
+          var off = keptOff.indexOf(k.id) >= 0;
+          return h("span", { key: k.id, className: "cv-keep__chip" + (off ? " cv-keep__chip--off" : ""), "data-keep-id": k.id },
+            h("span", { className: "cv-keep__swatch", style: { background: "rgb(" + k.rgb.join(",") + ")" }, "aria-hidden": "true" }),
+            h("span", { className: "cv-keep__name" }, keptLabel(k)),
+            h("button", { type: "button", className: "cv-keep__remove", "aria-label": "Stop keeping " + keptLabel(k), title: "Stop keeping",
+              onClick: function () { gen.removeKeepColour(k.id); } }, Icons.x()));
+        }),
+        h("button", { type: "button", className: "cs-seltools__btn" + (gen.pickKeep ? " cs-seltools__btn--on" : ""), "aria-pressed": gen.pickKeep ? "true" : "false",
+          onClick: function () {
+            var on = !gen.pickKeep;
+            gen.setPickKeep(on);
+            // Bring the preview, where the picking happens, into view.
+            if (on && typeof window !== "undefined" && window.requestAnimationFrame) {
+              window.requestAnimationFrame(function () {
+                window.requestAnimationFrame(function () {
+                  var el = document.querySelector('[data-testid="cvp-pick"]');
+                  if (el && el.scrollIntoView) {
+                    try { var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" }); }
+                    catch (_) { el.scrollIntoView(); }
+                  }
+                });
+              });
+            }
+          } },
+          Icons.eyedropper(), h("span", null, gen.pickKeep ? "Click a colour in the preview…" : "Pick from picture"))
+      ),
+      hint(gen.pickKeep
+        ? "The preview shows your picture at stitch size. Click the colour to keep; Esc cancels."
+        : kept.length ? "Kept threads are always in the pattern and count towards Threads (max)." : "None yet: the threads follow the picture's biggest areas."),
+      keptOff.length ? note("info", kept.filter(function (k) { return keptOff.indexOf(k.id) >= 0; }).map(keptLabel).join(", ") +
+        (keptOff.length === 1 ? " isn't" : " aren't") + " among the threads this pattern can use, so " + (keptOff.length === 1 ? "it isn't" : "they aren't") + " kept. Pick again to keep the nearest available thread.") : null
+    ) : null;
+
     var blendSec = sec("blends", "Blends", null,
       check({ checked: gen.effectiveAllowBlends, disabled: gen.blendsAutoDisabled, label: "Allow two-thread blends",
         onChange: function (v) { gen.setAllowBlends(v); },
@@ -21842,7 +21973,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var content;
     if (tab === "picture") content = [pictureType, background, adjust];
     else if (tab === "size") content = [sizeSec, fabricSec];
-    else if (tab === "threads") content = [brandSec, countSec, blendSec, rareSec, stashSec];
+    else if (tab === "threads") content = [brandSec, countSec, keepSec, blendSec, rareSec, stashSec];
     else if (tab === "detail") content = [stepsSec, shadingSec, tidySec, lookSec];
     else content = [projectSec];
 
@@ -22199,8 +22330,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       document.removeEventListener("pointerdown", close);
     };
   }, [menu]);
+  // Only while a menu is open: useEscape's top handler takes every Esc, and
+  // this one re-registered on every render, so with no menu it swallowed Esc
+  // meant for anything else (cancelling a colour pick in Convert).
   if (typeof window !== "undefined" && window.useEscape) {
-    window.useEscape(function() { if (menu) cv.setContextMenu(null); });
+    window.useEscape(menu ? function() { cv.setContextMenu(null); } : null);
   }
 
   if (!menu) return null;

@@ -230,6 +230,30 @@ describe('the counts come from the preview', () => {
     expect(text()).not.toContain('exactly as matched');
   });
 
+  test('Colours to keep lists kept threads, removes them and starts picking', () => {
+    app.convertTab = 'threads';
+    gen.keepColours = [{ id: '945', name: 'Tawny', rgb: [230, 170, 140] }, { id: '3865', name: 'Winter White', rgb: [250, 247, 240] }];
+    gen.keepUnavailable = [];
+    gen.setPickKeep = jest.fn(); gen.removeKeepColour = jest.fn();
+    draw();
+    expect(headings()).toContain('Colours to keep');
+    expect(all('[data-keep-id]').map((e) => e.getAttribute('data-keep-id'))).toEqual(['945', '3865']);
+    expect(text()).toContain('Kept threads are always in the pattern and count towards Threads (max).');
+    act(() => q('button[aria-label="Stop keeping DMC 945 Tawny"]').click());
+    expect(gen.removeKeepColour).toHaveBeenCalledWith('945');
+    act(() => all('button').find((b) => b.textContent === 'Pick from picture').click());
+    expect(gen.setPickKeep).toHaveBeenCalledWith(true);
+    // While picking, it says where to click.
+    gen.pickKeep = true; draw();
+    expect(all('button').find((b) => b.textContent === 'Click a colour in the preview…').getAttribute('aria-pressed')).toBe('true');
+    // A kept thread the pattern can't use (another brand, not in the stash) is named.
+    gen.pickKeep = false; gen.keepUnavailable = ['3865']; draw();
+    expect(text()).toContain("DMC 3865 Winter White isn't among the threads this pattern can use, so it isn't kept.");
+    // Exact pixel art keeps every pixel's own colour: no section.
+    gen.exactPixelArt = true; draw();
+    expect(headings()).not.toContain('Colours to keep');
+  });
+
   test('Background says how many stitches are left unstitched and can show them', () => {
     gen.skipBg = true; gen.bgCol = [230, 230, 230];
     app.previewStats = { stitchable: 6000, skipped: 1500 };

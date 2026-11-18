@@ -395,6 +395,18 @@ function quantize(data,w,h,n,allowedPalette,options){
   }
   return pl;
 }
+// Pool indices of the kept threads (ids), in order, at most maxN, each once.
+function _reservedEntries(pool,ids,maxN){
+  if(!ids||!ids.length)return [];
+  let at=new Map();for(let ti=0;ti<pool.length;ti++)if(!at.has(String(pool[ti].id)))at.set(String(pool[ti].id),ti);
+  let out=[],seen=new Set();
+  for(let k=0;k<ids.length&&out.length<maxN;k++){
+    let id=String(ids[k]),ti=at.get(id);
+    if(ti==null||seen.has(id))continue;
+    seen.add(id);out.push(ti);
+  }
+  return out;
+}
 function quantizeConstrained(data,w,h,n,allowedPalette,options){
   var pool=allowedPalette&&allowedPalette.length?allowedPalette:DMC;
   var maxN=Math.min(n,pool.length);
@@ -415,7 +427,20 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   // This keeps every centroid on an achievable DMC colour throughout all iterations.
   // csOk tracks the OKLab triplet for each selected centre in parallel with cs[].
   let cs=[], csOk=[], usedInit=new Set();
-  {
+  // Colours to keep (options.reserved: thread ids the stitcher picked from the
+  // picture, Convert's Colours to keep): always in the palette, ahead of the
+  // clusters. k-means gives each pixel one vote, so a small face or a logo's
+  // brand colour can lose its thread to big areas; these can't. They sit at
+  // the front of cs, never move in Lloyd's iterations and are never pruned or
+  // swapped out. Ids not in the pool (another brand, a thread not in the
+  // stash) are ignored.
+  let reserved=_reservedEntries(pool,options&&options.reserved,maxN);
+  let R=reserved.length;
+  for(let ri=0;ri<R;ri++){
+    let ti=reserved[ri];
+    cs.push(pool[ti]);csOk.push(poolOk[ti]);usedInit.add(pool[ti].id);
+  }
+  if(!R){
     let fp=px[Math.floor(random()*len)];
     let b=null,bd=1e9,bti=-1;
     for(let ti=0;ti<pool.length;ti++){let d=dE2(fp,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];bti=ti;}}
@@ -428,6 +453,9 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   let familiesInCs=new Set(cs.filter(function(e){return e.fam>0;}).map(function(e){return e.fam;}));
   let ds=new Float32Array(len);
   for(let i=0;i<len;i++)ds[i]=1e9;
+  // The loop below measures from the newest centre only: count the other
+  // kept threads first.
+  for(let ri=0;ri<R-1;ri++){let o=csOk[ri];for(let i=0;i<len;i++){let d=dE2ok(pxOk[i],o);if(d<ds[i])ds[i]=d;}}
   while(cs.length<Math.min(maxN,pool.length)){
     // Use OKLab for k-means++ distance weighting: better hue uniformity than
     // CIE LAB, so the probabilistic sampling reflects perceptual spread more accurately.
@@ -471,6 +499,8 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
     let mv=false;
     let usedIter=new Set();
     for(let c=0;c<cs.length;c++){
+      // A kept thread stays put (it is first, so others can't take it).
+      if(c<R){usedIter.add(cs[c].id);continue;}
       // Empty cluster: anchor to current centre to keep it stable; it still
       // competes for pool entries so a previously-claimed entry can't cause
       // a duplicate in the output.
@@ -496,14 +526,15 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   if(cs.length&&!(options&&options.refine===false)){
     let uc=_uniqueColours(data,w,h);
     let blends=!!(options&&options.blends);
-    let pruned=prunePalette(uc,cs,w,blends,pool);
+    let keep=new Set(cs.slice(0,R).map(function(e){return e.id;}));
+    let pruned=prunePalette(uc,cs,w,blends,pool,keep);
     if(pruned.length<cs.length){
       let poolIdx=new Map();for(let ti=0;ti<pool.length;ti++)poolIdx.set(pool[ti].id,ti);
       cs=pruned;csOk=cs.map(function(e){let ti=poolIdx.get(e.id);return ti!=null?poolOk[ti]:rgbToOklab(e.rgb[0],e.rgb[1],e.rgb[2]);});
       lloyd();
-      cs=prunePalette(uc,cs,w,blends,pool);
+      cs=prunePalette(uc,cs,w,blends,pool,keep);
     }
-    cs=addDistinctColours(uc,w,cs,pool,maxN,blends);
+    cs=addDistinctColours(uc,w,cs,pool,maxN,blends,keep);
   }
   // Empty-palette fallback: mirrors quantize behaviour
   if(!cs.length){
@@ -638,7 +669,7 @@ var PALETTE_BLEND_KEEP_DE = 6;
 var PALETTE_NOISE_PATCH = 8;
 var PALETTE_NOISE_NEAR_DE = 10;
 var PALETTE_PRUNE_NOISY_DE = 5;
-function prunePalette(uc, cs, w, blends, pool) {
+function prunePalette(uc, cs, w, blends, pool, keep) {
   const pal = cs.filter(function (e) { return e && e.lab; });
   if (pal.length < 2 || !uc.n) return pal.length ? pal : cs;
   const cols = pal.map(function (e) { return _distColumn(uc, e); });
@@ -714,6 +745,7 @@ function prunePalette(uc, cs, w, blends, pool) {
           if (_dE2000Core(e[0], e[1], e[2], f[0], f[1], f[2]) < PALETTE_NOISE_NEAR_DE) { limit = PALETTE_PRUNE_NOISY_DE; break; }
         }
       }
+      if (keep && keep.has(pal[c].id)) continue;   // a colour to keep stays
       if (mean < limit && (drop < 0 || cost[c] < cost[drop])) drop = c;
     }
     if (drop < 0) break;
@@ -750,7 +782,7 @@ function _segDist76(p, a, b) {
 }
 // With `blends`, how well a pixel is served counts a blend that would serve
 // it (_blendUse), and a thread a used blend needs is never swapped out.
-function addDistinctColours(uc, w, cs, pool, maxN, blends) {
+function addDistinctColours(uc, w, cs, pool, maxN, blends, keep) {
   const pal = cs.filter(function (e) { return e && e.lab; });
   if (!pal.length || !uc.n) return cs;
   const U = uc.n, N = uc.pixU.length, pixU = uc.pixU;
@@ -882,7 +914,7 @@ function addDistinctColours(uc, w, cs, pool, maxN, blends) {
       cost[as.best[u]] += uc.count[u] * (as.d2[u] - as.d1[u]);
     }
     let out = -1;
-    for (let c = 0; c < pal.length; c++) if (!needed[c] && (out < 0 || cost[c] < cost[out])) out = c;
+    for (let c = 0; c < pal.length; c++) if (!needed[c] && !(keep && keep.has(pal[c].id)) && (out < 0 || cost[c] < cost[out])) out = c;
     if (out < 0 || !(pickGain > cost[out])) break;
     const oldE = pal[out], oldCol = cols[out];
     pal[out] = pick; cols[out] = _distColumn(uc, pick);
@@ -3306,6 +3338,7 @@ function _mergeEdgeBlendPass(mapped, w, h, opts) {
   ids.forEach(function (id) {
     var st = stats[id];
     if (majors.indexOf(id) >= 0 || st.count >= total * minorShare || !st.entry.lab || st.edge / st.count < thinShare) return;
+    if (opts.keep && opts.keep.has(id)) return;   // a colour to keep is never folded
     eligible[id] = true; anyEligible = true;
   });
   if (!anyEligible) return 0;
@@ -3435,6 +3468,7 @@ _colourUtilsGlobal.mergeEdgeBlendColours = mergeEdgeBlendColours;
 // is further away than this is a deliberate accent (a catchlight, a pupil) and
 // stays. The automatic pass sets it; the user's explicit "minimum stitches per
 // colour" does not, so that setting still removes every colour under it.
+// opts.keep (a Set of ids): Convert's Colours to keep, never folded away.
 // `mapped` is changed in place. Returns the number of colours removed.
 var RARE_COLOUR_CONTRAST_GUARD_DE = 20;
 function foldRareColours(mapped, w, h, minCount, opts) {
@@ -3450,8 +3484,9 @@ function foldRareColours(mapped, w, h, minCount, opts) {
   }
   var ids = Object.keys(count);
   var isRare = {}, rareN = 0, keepIds = [];
+  var keepSet = opts.keep || null;   // colours to keep are never folded away
   ids.forEach(function (id) {
-    if (count[id] < minCount) { isRare[id] = true; rareN++; }
+    if (count[id] < minCount && !(keepSet && keepSet.has(id))) { isRare[id] = true; rareN++; }
     else if (entry[id].lab) keepIds.push(id);
   });
   if (!rareN || !keepIds.length) return 0;

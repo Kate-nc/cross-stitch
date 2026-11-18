@@ -115,7 +115,9 @@ self.onmessage = function(e) {
     var allowedPalette = settings.allowedPalette || null;
     postProgress('quantizing', 'Choosing colours…');
     // Physical blends work with or without spatial shading, as in the fallback.
-    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!allowBlends});
+    // Colours to keep (mirrors runCleanupPipeline).
+    var keep = settings.keepIds && settings.keepIds.length ? new Set(settings.keepIds.map(String)) : null;
+    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!allowBlends, reserved: settings.keepIds || null});
     if (!p.length && coverageMask.some(function(v) { return v !== 0; })) {
       self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;
@@ -143,7 +145,7 @@ self.onmessage = function(e) {
     var minSt = settings.minSt;
     if (minSt > 0) {
       postProgress('rarity', 'Removing rare colours…');
-      foldRareColours(mapped, width, height, minSt);
+      foldRareColours(mapped, width, height, minSt, { keep: keep });
     }
     {
       var _atTotal = 0;
@@ -151,7 +153,7 @@ self.onmessage = function(e) {
       var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
       if (_autoThresh > (minSt || 0)) {
         postProgress('rarity', 'Removing rare colours…');
-        foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE });
+        foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE, keep: keep });
       }
     }
 
@@ -162,6 +164,7 @@ self.onmessage = function(e) {
       mergeEdgeBlendColours(mapped, width, height, {
         // Coverage is already decided. Colour cleanup must not create new holes.
         preserveCoverage: true,
+        keep: keep,
         bgLab: (!dith || dithAlgo === 'off') && settings.skipBg ? rgbToLab(settings.bgCol[0], settings.bgCol[1], settings.bgCol[2]) : null,
         // Undithered, an edge shade is also judged by the pixels it was drawn from.
         // (Dithered stitches all lie between their neighbours' colours, so not then.)
@@ -226,7 +229,11 @@ self.onmessage = function(e) {
           tu[m2.id] = (tu[m2.id] || 0) + 1;
         }
       }
-      var sorted = Object.entries(tu).sort(function(a, b) { return b[1] - a[1]; });
+      // Colours to keep first (mirrors findTopThreads).
+      var sorted = Object.entries(tu).sort(function(a, b) {
+        var ka = keep && keep.has(a[0]) ? 1 : 0, kb = keep && keep.has(b[0]) ? 1 : 0;
+        return (kb - ka) || (b[1] - a[1]);
+      });
       var ks = new Set(sorted.slice(0, maxC).map(function(e2) { return e2[0]; }));
       var kp = p.filter(function(t) { return ks.has(t.id); });
       if (!kp.length) break;

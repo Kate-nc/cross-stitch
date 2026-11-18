@@ -172,7 +172,10 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   }
 
   // Physical blends work independently of spatial shading. Keep their components.
-  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends});
+  // Colours to keep (Convert): their threads are always in the palette and
+  // never folded away. Mirrored in generate-worker.js.
+  var keep = opts.keepIds && opts.keepIds.length ? new Set(opts.keepIds.map(String)) : null;
+  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
   // An all-transparent image is a valid empty pattern, not a quantiser error.
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
@@ -196,7 +199,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // foldRareColours (colour-utils.js) redraws each patch of a rare colour in
   // the closest colour it touches. Mirrored in generate-worker.js.
   // 1. The user's "minimum stitches per colour": every colour under it goes.
-  if (minSt > 0) foldRareColours(mapped, width, height, minSt);
+  if (minSt > 0) foldRareColours(mapped, width, height, minSt, { keep: keep });
   // 2. Automatic: colours covering under 0.5% of the stitches (capped at 15)
   //    are quantisation stragglers that would take a palette slot, unless they
   //    stand out from everything they touch (a catchlight, a pupil): the
@@ -205,7 +208,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     var _atTotal = 0;
     for (var _ati = 0; _ati < mapped.length; _ati++) { if (mapped[_ati].id !== '__skip__') _atTotal++; }
     var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
-    if (_autoThresh > minSt) foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE });
+    if (_autoThresh > minSt) foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE, keep: keep });
   }
 
   // ── Edge-blend fold (audit IMG-01) ───────────────────────────────────────
@@ -223,6 +226,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     mergeEdgeBlendColours(mapped, width, height, {
       // Coverage is already decided. Colour cleanup must not create new holes.
       preserveCoverage: true,
+      keep: keep,
       bgLab: (!dith || dithAlgo === 'off') && opts.skipBg ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null,
       // Undithered, an edge shade is also judged by the pixels it was drawn from.
       // (Dithered stitches all lie between their neighbours' colours, so not then.)
@@ -269,7 +273,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // threads and redraws the rest in the closest of them. Here, not only in
   // runGenerationPipeline, so the preview on the page is the chart Generate
   // makes (generate-worker.js does the same).
-  var limited = enforceMaxColours(mapped, p, raw, maxC);
+  var limited = enforceMaxColours(mapped, p, raw, maxC, keep);
   limited = limitGeneratedBlends(mapped, raw, width, height, p, opts.maxBlends) || limited;
 
   // The finished chart's confetti. Measured again only when a stage after
@@ -281,15 +285,15 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, confettiFinal: confettiFinal, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, tidiedCells: tidiedCells, disambigData: disambigData };
 };
 
-// Keep at most maxC threads (a blend counts its two). Mutates mapped; true
-// when any stitch changed.
-function enforceMaxColours(mapped, p, raw, maxC) {
+// Keep at most maxC threads (a blend counts its two), the colours to keep
+// (a Set of ids, or null) first. Mutates mapped; true when any stitch changed.
+function enforceMaxColours(mapped, p, raw, maxC, keep) {
   var changed = false;
   for (var safe = 0; safe < 5; safe++) {
     var ids = collectPaletteIds(mapped);
     if (ids.size <= maxC) break;
     var tu = buildPaletteUsageMap(mapped);
-    var ks = findTopThreads(tu, maxC);
+    var ks = findTopThreads(tu, maxC, keep);
     var kp = p.filter(function(t) { return ks.has(t.id); });
     if (!kp.length) break;
     migrateNonKeptColors(mapped, ks, kp, raw);
@@ -323,9 +327,13 @@ function buildPaletteUsageMap(mapped) {
   return tu;
 }
 
-// Pick the top `maxC` thread ids by usage. Returns a Set of id strings.
-function findTopThreads(usageMap, maxC) {
-  var sorted = Object.entries(usageMap).sort(function(a, b) { return b[1] - a[1]; });
+// Pick the top `maxC` thread ids by usage, colours to keep first. Returns a
+// Set of id strings.
+function findTopThreads(usageMap, maxC, keep) {
+  var sorted = Object.entries(usageMap).sort(function(a, b) {
+    var ka = keep && keep.has(a[0]) ? 1 : 0, kb = keep && keep.has(b[0]) ? 1 : 0;
+    return (kb - ka) || (b[1] - a[1]);
+  });
   return new Set(sorted.slice(0, maxC).map(function(e) { return e[0]; }));
 }
 
@@ -372,7 +380,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-    stitchCleanup: stitchCleanup, orphans: opts.orphans,
+    stitchCleanup: stitchCleanup, orphans: opts.orphans, keepIds: opts.keepIds || null,
     minSt: minSt, seed: opts.seed, smooth: smooth, smoothType: smoothType,
     preSmooth: opts.preSmooth, disambig: opts.disambig, disambigLevel: opts.disambigLevel,
   });

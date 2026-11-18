@@ -723,7 +723,34 @@ function ConvertPreview({
   let body;
   // At stitch size needs the preview's own picture; until it exists, the picture.
   const sampledBefore = before === 'sampled' && !!state.previewSampled;
-  if (view === 'compare') {
+  // Picking a colour to keep (Convert > Threads): the picture at stitch size,
+  // the colours the threads are matched to, across the whole preview, in any
+  // view. A click keeps the thread nearest the colour there.
+  const picking = state.pickKeep && !!state.previewSampled;
+  // Esc cancels picking, through the app's Esc stack (keyboard-utils.js), which
+  // takes Esc before any other key handler.
+  const cancelPickKeep = React.useCallback(function () {
+    state.setPickKeep(false);
+  }, [state.setPickKeep]);
+  if (window.useEscape) window.useEscape(state.pickKeep ? cancelPickKeep : null);
+  if (picking) {
+    body = /*#__PURE__*/React.createElement("div", {
+      className: "cvp-box cvp-pick",
+      "data-testid": "cvp-pick",
+      style: {
+        aspectRatio: pw + '/' + ph,
+        background: fabricBg
+      }
+    }, /*#__PURE__*/React.createElement("img", {
+      src: state.previewSampled,
+      alt: "Your picture at stitch size. Click the colour to keep.",
+      className: "cvp-flat",
+      onClick: function (e) {
+        const r = e.currentTarget.getBoundingClientRect();
+        state.addKeepColourAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+      }
+    }));
+  } else if (view === 'compare') {
     body = /*#__PURE__*/React.createElement(ComparisonSlider, {
       originalSrc: sampledBefore ? state.previewSampled : state.img.src,
       originalPixelated: sampledBefore,
@@ -824,11 +851,23 @@ function ConvertPreview({
   }, /*#__PURE__*/React.createElement("span", {
     className: "cvp-note__icon",
     "aria-hidden": "true"
-  }, Icons.info()), /*#__PURE__*/React.createElement("span", null, chartState === 'changed' ? 'This preview shows your new settings. Your chart changes when you Regenerate.' : 'This preview shows these settings; your chart may differ. It changes only when you Regenerate.')), changeText && /*#__PURE__*/React.createElement("p", {
+  }, Icons.info()), /*#__PURE__*/React.createElement("span", null, chartState === 'changed' ? 'This preview shows your new settings. Your chart changes when you Regenerate.' : 'This preview shows these settings; your chart may differ. It changes only when you Regenerate.')), changeText && !picking && /*#__PURE__*/React.createElement("p", {
     className: "cvp-change",
     "data-preview-change": "",
     "aria-live": "polite"
-  }, /*#__PURE__*/React.createElement("strong", null, changeText.names, ":"), " ", changeText.detail, "."), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("strong", null, changeText.names, ":"), " ", changeText.detail, "."), picking && /*#__PURE__*/React.createElement("div", {
+    role: "status",
+    className: "cvp-note cvp-note--pick"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "cvp-note__icon",
+    "aria-hidden": "true"
+  }, Icons.eyedropper()), /*#__PURE__*/React.createElement("span", null, "Click the colour to keep in your picture. Its nearest thread will always be in the pattern."), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "cs-seltools__btn cvp-note__action",
+    onClick: function () {
+      state.setPickKeep(false);
+    }
+  }, "Cancel")), /*#__PURE__*/React.createElement("div", {
     className: "cvp-body",
     ref: bodyRef
   }, body), /*#__PURE__*/React.createElement("div", {
@@ -1553,6 +1592,11 @@ function CreatorApp({
       setBgCol: state.setBgCol,
       pickBg: state.pickBg,
       setPickBg: state.setPickBg,
+      keepColours: state.keepColours,
+      pickKeep: state.pickKeep,
+      setPickKeep: state.setPickKeep,
+      removeKeepColour: state.removeKeepColour,
+      keepUnavailable: state.keepUnavailable,
       minSt: state.minSt,
       setMinSt: state.setMinSt,
       smooth: state.smooth,
@@ -1633,7 +1677,7 @@ function CreatorApp({
       applyCrop: stableApplyCrop,
       srcClick: stableSrcClick
     };
-  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.keepColours, state.pickKeep, state.keepUnavailable, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {

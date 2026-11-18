@@ -36,6 +36,11 @@ Earlier work: [photo-conversion-accuracy-review.md](photo-conversion-accuracy-re
   (`blendThreadRgb`), including saving and restoring. A saved colour equal to the old
   stored-value average is recognised and updated.
 
+**Also implemented on this branch since:**
+- the *At stitch size* comparison and finished sizes in Compare options (recommendation 7);
+- the browser tests running in CI;
+- *Colours to keep* (recommendation 10): pick a colour on the preview and its nearest thread is always in the palette, never folded away, and kept through the thread limit. On the test portrait, keeping one skin thread (DMC 841) lowered the face's colour error from 5.56 to 5.05 (mean of four seeds), with the whole picture 4.72 to 4.66.
+
 ## Summary
 
 1. **Background removal can erase part of the subject, or silently not run (B).** It is

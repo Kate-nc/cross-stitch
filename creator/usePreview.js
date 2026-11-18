@@ -29,7 +29,7 @@ var PREVIEW_CHANGE_LABELS = [
   [['maxC'], 'Threads (max)'], [['dith', 'dithMode', 'dithStrength', 'dithAlgo', 'dithBayerSize'], 'Shading'],
   [['allowBlends', 'maxBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
   [['skipBg', 'bgCol', 'bgTh'], 'Background'], [['stitchCleanup', 'orphans'], 'Tidying'],
-  [['disambig', 'disambigLevel'], 'Look-alike colours'], [['stashConstrained', 'stashCount'], 'Stash'],
+  [['disambig', 'disambigLevel'], 'Look-alike colours'], [['keepIds'], 'Colours to keep'], [['stashConstrained', 'stashCount'], 'Stash'],
   [['convertBrand'], 'Thread brand'], [['seed', 'subset'], 'Variation']
 ];
 function _sameSetting(a, b) {
@@ -205,6 +205,7 @@ window.usePreview = function usePreview(state) {
           allowBlends: settings.allowBlends, maxBlends: settings.maxBlends, allowedPalette: settings.allowedPalette,
           skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
           stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
+          keepIds: settings.keepIds || null,
           minSt: settings.minSt, seed: settings.seed,
           smooth: smooth, smoothType: smoothType,
           disambig: settings.disambig, disambigLevel: settings.disambigLevel,
@@ -224,6 +225,8 @@ window.usePreview = function usePreview(state) {
           var scx = sc.getContext("2d"); var sData = scx.createImageData(pw, ph);
           sData.data.set(sampled); scx.putImageData(sData, 0, 0);
           state.setPreviewSampled(sc.toDataURL());
+          // Its pixels, for picking Colours to keep (addKeepColourAt).
+          if (state.previewSampledRef) state.previewSampledRef.current = { data: sampled, w: pw, h: ph };
         } else {
           state.setPreviewSampled(null);
         }
