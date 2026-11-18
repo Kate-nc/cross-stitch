@@ -85,7 +85,7 @@ const ORDER = [
   'ToolStrip.js',
   'MagicWandPanel.js',
   'BulkAddModal.js',
-  'CropModal.js',
+  'FrameView.js',
   'FabricBlock.js',
   'SizeField.js',
   'NewDesignSheet.js',

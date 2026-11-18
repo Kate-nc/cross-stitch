@@ -1,9 +1,12 @@
 /* tests/cropReframe.test.js — framing a picture in Convert
    (reports/create-from-image-workflow, Phase A):
-   - the crop dialog's shapes keep the dragged rectangle to Square, 4:3 or
-     3:4 inside the picture, and choosing one starts from the largest that fits;
+   - Frame the picture's crop shapes keep the dragged rectangle to Square,
+     4:3 or 3:4 inside the picture, and choosing one starts from the largest
+     that fits;
    - a crop looks at the cropped picture again (type, background, pixel-art
-     size), without undoing what the user chose themselves. */
+     size), without undoing what the user chose themselves;
+   - a new picture opens on Frame the picture unless Preferences turn it off
+     or a draft is being continued. */
 
 const fs = require('fs');
 const path = require('path');
@@ -48,12 +51,24 @@ describe('crop shapes', () => {
     expect(w.centredCropRect(bounds, null)).toEqual({ x: 0, y: 0, w: 400, h: 300 });
   });
 
-  test('the dialog offers Free, Square, 4:3 and 3:4, turns the picture, and closes on Escape', () => {
-    const src = read('creator/CropModal.js');
+  test('Frame offers Free, Square, 4:3 and 3:4, turning, Undo, and Escape to clear', () => {
+    const src = read('creator/FrameView.js');
     expect(src).toMatch(/id: "free"[\s\S]*id: "square"[\s\S]*id: "4:3"[\s\S]*id: "3:4"/);
     expect(src).toMatch(/"aria-label": "Turn left"/);
     expect(src).toMatch(/"aria-label": "Turn right"/);
+    expect(src).toMatch(/"aria-label": "Undo crop or turn"/);
     expect(src).toMatch(/e\.key === "Escape"/);
+    // The crop dialog it replaced is gone.
+    expect(fs.existsSync(path.join(__dirname, '..', 'creator/CropModal.js'))).toBe(false);
+  });
+
+  test('Frame shows brightness, contrast and saturation on the picture as Generate applies them', () => {
+    global.document = global.document || undefined;
+    // eslint-disable-next-line no-eval
+    eval(read('creator/FrameView.js').replace(/^/, 'var React = {};\n'));
+    expect(window.framePictureFilter(0, 0, 0)).toBe('none');
+    expect(window.framePictureFilter(10, -20, 5)).toBe('brightness(110%) contrast(80%) saturate(105%)');
+    expect(read('creator/useCreatorState.js')).toMatch(/brightness\(\(100\+bri\)%\) contrast\(\(100\+con\)%\) saturate\(\(100\+sat\)%\)/);
   });
 });
 
@@ -72,6 +87,7 @@ describe('a crop looks at the cropped picture again', () => {
     const state = Object.assign({
       pictureExaminerRef: { current: null }, bgAutoSkippedRef: { current: false },
       skipBg: false, bgCol: [255, 255, 255], pictureType: 'photo',
+      presetApplied: { id: 'photo', values: {}, guessed: true }, presetUntouched: true,
       setSkipBg: record('setSkipBg'), setBgCol: record('setBgCol'), setPictureInfo: record('setPictureInfo'),
       applyPicturePreset: record('applyPicturePreset'), addToast: record('addToast')
     }, stateOverrides);
@@ -98,19 +114,34 @@ describe('a crop looks at the cropped picture again', () => {
     const { examine, calls } = loadExaminer({ pictureType: 'photo' }, { w: 120, h: 120, kind: 'graphic', border: { rgb: [250, 250, 250] } });
     expect(typeof examine).toBe('function');
     examine({ width: 120, height: 120 }, { reframed: true });
-    expect(calls).toContainEqual(['applyPicturePreset', 'graphic', expect.objectContaining({ kind: 'graphic' })]);
+    expect(calls).toContainEqual(['applyPicturePreset', 'graphic', expect.objectContaining({ kind: 'graphic' }), { guessed: true }]);
     expect(calls).toContainEqual(['setSkipBg', true]);
     expect(calls.filter((c) => c[0] === 'addToast').map((c) => c[1]).join(' ')).toMatch(/looks like a graphic or logo/);
   });
 
-  test('settings the user changed (Custom) and a background they chose are kept', () => {
+  test('settings the user changed and a background they chose are kept', () => {
     const { examine, calls } = loadExaminer(
-      { pictureType: 'custom', skipBg: true, bgCol: [10, 20, 30], bgAutoSkippedRef: { current: false } },
+      { pictureType: 'photo', presetUntouched: false, skipBg: true, bgCol: [10, 20, 30], bgAutoSkippedRef: { current: false } },
       { w: 120, h: 120, kind: 'graphic', border: { rgb: [250, 250, 250] } });
     examine({ width: 120, height: 120 }, { reframed: true });
     expect(calls.some((c) => c[0] === 'applyPicturePreset')).toBe(false);
     expect(calls.some((c) => c[0] === 'setSkipBg' || c[0] === 'setBgCol')).toBe(false);
     expect(calls).toContainEqual(['setPictureInfo', expect.objectContaining({ kind: 'graphic' })]);
+  });
+
+  test('a type the user chose is kept after a crop', () => {
+    const { examine, calls } = loadExaminer(
+      { pictureType: 'photo', presetApplied: { id: 'photo', values: {} }, presetUntouched: true },
+      { w: 120, h: 120, kind: 'graphic', border: null });
+    examine({ width: 120, height: 120 }, { reframed: true });
+    expect(calls.some((c) => c[0] === 'applyPicturePreset')).toBe(false);
+  });
+
+  test('a new picture is guessed, and the guess is marked as the Creator\'s', () => {
+    const { examine, calls } = loadExaminer({ pictureType: null, presetApplied: null, presetUntouched: false },
+      { w: 120, h: 120, kind: 'photo', border: null });
+    examine({ width: 120, height: 120 });
+    expect(calls).toContainEqual(['applyPicturePreset', 'photo', expect.objectContaining({ kind: 'photo' }), { guessed: true }]);
   });
 
   test('a background skipped automatically is stitched again when the crop has no plain border', () => {
@@ -130,5 +161,25 @@ describe('a crop looks at the cropped picture again', () => {
       { w: 120, h: 90, kind: 'photo', border: { rgb: [250, 250, 250] } });
     examine({ width: 120, height: 90 }, { reframed: true });
     expect(calls.filter((c) => c[0] === 'addToast')).toEqual([]);
+  });
+});
+
+describe('which part of Convert a picture opens on', () => {
+  const io = read('creator/useProjectIO.js');
+  test('Frame the picture, unless Preferences turn it off or a draft is continued', () => {
+    const fn = io.match(/function openingStage\(resuming\) \{[\s\S]*?\n {2}\}/)[0];
+    const run = (resuming, pref) => new Function('UserPrefs', fn + ' return openingStage(' + resuming + ');')({ get: () => pref }); // eslint-disable-line no-new-func
+    expect(run(false, undefined)).toBe('frame');
+    expect(run(false, true)).toBe('frame');
+    expect(run(false, false)).toBe('make');
+    expect(run(true, true)).toBe('make');
+    expect(io).toMatch(/examinePicture\(i\); if \(state\.setConvertStage\) state\.setConvertStage\(openingStage\(resumingDraft\)\);/);
+    // A saved project never opens on Frame.
+    expect(io).toMatch(/function processLoadedProject\(project\) \{[\s\S]{0,300}state\.setConvertStage\("make"\)/);
+    expect(read('user-prefs.js')).toMatch(/creatorShowFrameStep:\s*true,/);
+  });
+
+  test('a crop is kept in the Convert draft', () => {
+    expect(io).toMatch(/if \(reframed\) reframeDraft\(imgEl\);/);
   });
 });

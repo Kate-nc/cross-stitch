@@ -272,6 +272,7 @@
   // --------------------------------------------------------------------
   function CreatorPanel() {
     var guessType = usePref("creatorGuessPictureType", true);
+    var frameStep = usePref("creatorShowFrameStep", true);
     var pal = usePref("creatorDefaultPaletteSize", 15);
     var fab = usePref("creatorDefaultFabricCount", 16);
     var fabColour = usePref("creatorFabricColour", "#FFFFFF");
@@ -294,6 +295,9 @@
         subtitle: "Defaults used when starting a new pattern. You can still adjust everything per-project from the Creator's sidebar." }),
 
       h(Section, { title: "Generation defaults" },
+        h(Row, { label: "Start with Frame the picture", desc: "When you add a picture, open Frame the picture first, to crop it, turn it and check its type and background. Turn off to go straight to the pattern settings; Reframe, beside your picture, still opens it." },
+          h(Switch, { checked: frameStep[0] !== false, onChange: frameStep[1] })
+        ),
         h(Row, { label: "Guess the picture type", desc: "When you add a picture, the Creator guesses whether it is a graphic or logo, a photo or pixel art, and starts from that type's settings. Turn off to start every picture from the defaults below." },
           h(Switch, { checked: guessType[0] !== false, onChange: guessType[1] })
         ),

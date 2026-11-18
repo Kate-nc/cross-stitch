@@ -133,11 +133,17 @@ describe('Detail and tidiness steps', () => {
 });
 
 describe('the hook', () => {
-  test('choosing a preset only sets values, and changing one shows Custom', () => {
-    expect(src).toMatch(/setPresetApplied\(\{ id: id, values: v \}\);/);
-    const derive = src.match(/var pictureType = \(function \(\) \{[\s\S]*?\n {2}\}\)\(\);/)[0];
+  // The type says what the picture is: changing a value it set keeps the type
+  // (Detail and tidiness has its own Custom). presetUntouched records whether
+  // every value is still as the type set it, so a crop can guess again only
+  // then (useProjectIO.examinePicture). run() gives the type, or 'custom' for
+  // "changed since" to keep the cases below readable.
+  test('choosing a preset only sets values; the type stays, and presetUntouched says whether they changed', () => {
+    expect(src).toMatch(/setPresetApplied\(opts && opts\.guessed \? \{ id: id, values: v, guessed: true \} : \{ id: id, values: v \}\);/);
+    expect(src).toMatch(/var pictureType = presetApplied && PICTURE_PRESETS\[presetApplied\.id\] \? presetApplied\.id : null;/);
+    const derive = src.match(/var presetUntouched = \(function \(\) \{[\s\S]*?\n {2}\}\)\(\);/)[0];
     const run = (applied, cur) => new Function('presetApplied', 'maxC', 'dithMode', 'allowBlends', 'skipBg', 'sW', 'sH', 'stitchCleanup', 'bgCol', 'STITCH_STYLE_KEYS', // eslint-disable-line no-new-func
-      derive + ' return pictureType;')(applied, cur.maxC, cur.dithMode, cur.allowBlends, cur.skipBg, cur.sW, cur.sH, cur.stitchCleanup, cur.bgCol, api.STITCH_STYLE_KEYS);
+      derive + ' return presetUntouched ? presetApplied.id : "custom";')(applied, cur.maxC, cur.dithMode, cur.allowBlends, cur.skipBg, cur.sW, cur.sH, cur.stitchCleanup, cur.bgCol, api.STITCH_STYLE_KEYS);
     const photoV = api.picturePresetValues('photo', null);
     const cur = { maxC: 24, dithMode: 'weak', allowBlends: true, skipBg: false, sW: 80, sH: 80, stitchCleanup: { enabled: true, strength: 'balanced' } };
     expect(run({ id: 'photo', values: photoV }, cur)).toBe('photo');
@@ -146,6 +152,7 @@ describe('the hook', () => {
     expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { dithMode: 'off', stitchCleanup: { enabled: false, strength: 'balanced' } }))).toBe('photo');
     // Size isn't part of the Photo preset.
     expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { sW: 120 }))).toBe('photo');
+    // No type chosen: nothing is untouched (and pictureType is null).
     expect(run(null, cur)).toBe('custom');
 
     // So does moving pixel art from More detail to a tidier step.
@@ -173,7 +180,7 @@ describe('the hook', () => {
     expect(io).toMatch(/UserPrefs\.get\("creatorGuessPictureType"\) !== false/);
     expect(io).toMatch(/var applyType = !!\(info && info\.w && guess && state\.applyPicturePreset/);
     expect(io).toMatch(/var newType = applyType \? window\.guessPictureType\(info\) : null;/);
-    expect(io).toMatch(/if \(applyType\) \{\s*state\.applyPicturePreset\(newType, info\);/);
+    expect(io).toMatch(/if \(applyType\) \{\s*state\.applyPicturePreset\(newType, info, \{ guessed: true \}\);/);
   });
 
   test('the picture-type radios choose the preset (keyboard: tests/convertPanel.test.js)', () => {
@@ -184,17 +191,18 @@ describe('the hook', () => {
   });
   test('the guess is applied on upload, before a resumed draft puts its own settings back', () => {
     const io = loadSource('creator/useProjectIO.js');
-    expect(io).toMatch(/state\.applyPicturePreset\(newType, info\);/);
+    expect(io).toMatch(/state\.applyPicturePreset\(newType, info, \{ guessed: true \}\);/);
     expect(io).toMatch(/examinePicture\(i\);[^\n]*startDraft\(f\);/);
     expect(io).toMatch(/examinePicture\(scaledImg\);[^\n]*startDraft\(f\);/);
     expect(src).toMatch(/setPictureInfo\(null\); setPresetApplied\(null\);/);
   });
-  test('the Convert panel starts with the question', () => {
+  test('Frame the picture starts with the question', () => {
     const sb = loadSource('creator/ConvertPanel.js');
     expect(sb).toMatch(/"What kind of picture is this\?"/);
-    // Picture is the first step, and the picture type its first section.
-    expect(sb).toMatch(/if \(tab === "picture"\) content = \[pictureType, background, adjust\];/);
-    expect(sb.indexOf('{ id: "picture"')).toBeLessThan(sb.indexOf('{ id: "size"'));
+    // The picture type is the first of Frame's settings, before the background.
+    expect(sb).toMatch(/return h\(React\.Fragment, null, pictureType, background,/);
+    expect(sb).not.toMatch(/\{ id: "picture"/);
+    expect(loadSource('creator/FrameView.js')).toMatch(/h\(window\.CreatorPictureSections, null\)/);
   });
 });
 

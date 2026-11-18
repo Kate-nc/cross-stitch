@@ -1019,7 +1019,9 @@ function CreatorApp({
   // its picture: a saved project's picture is restored after the pattern
   // (useProjectIO's Image.onload), and its tour is about the chart, not
   // about generating.
-  const tourWayIn = state.isScratchMode ? 'scratch' : state.pat ? 'import' : state.img && state.img.src ? 'convert' : null;
+  // The picture tour waits until Frame the picture is done: it is about the
+  // preview and the steps (Frame explains itself).
+  const tourWayIn = state.isScratchMode ? 'scratch' : state.pat ? 'import' : state.img && state.img.src && state.convertStage !== 'frame' ? 'convert' : null;
   const [tourPage, setTourPage] = React.useState(null);
   React.useEffect(() => {
     if (tourPage !== null || !state.bootSettled || state.newDesignOpen || !tourWayIn) return;
@@ -1176,6 +1178,9 @@ function CreatorApp({
   // (useProjectIO nameFromImage); the header shows it and it can be renamed
   // there, instead of "No project" (reports/create-from-image-workflow, F7).
   const _convertName = !(state.pat && state.pal) && state.img && !state.isScratchMode && state.projectName || '';
+  // Frame the picture (creator/FrameView.js) comes before the preview and
+  // settings for a picture just added.
+  const _framing = !!(state.img && !state.isScratchMode && state.convertStage === 'frame' && (!state.pat || state.appMode === 'create'));
   const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || state.appMode === 'create' && state.tab === 'pattern'));
   // Materials & Output and the Adapt modal live in creator/extras-bundle.js,
   // loaded the first time either is opened rather than on every Creator load.
@@ -1253,7 +1258,10 @@ function CreatorApp({
     return _cvHRef.current.shapePreview ? _cvHRef.current.shapePreview() : null;
   }, []);
   const stableApplyCrop = React.useCallback(function (opts) {
-    _cvHRef.current.applyCrop(opts);
+    return _cvHRef.current.applyCrop(opts);
+  }, []);
+  const stableReplacePicture = React.useCallback(function (img) {
+    _cvHRef.current.replacePicture(img);
   }, []);
   const stableSrcClick = React.useCallback(function (e) {
     _cvHRef.current.srcClick(e);
@@ -1559,9 +1567,12 @@ function CreatorApp({
       handleCropPointerUp: stableHandleCropPointerUp,
       handleCropPointerCancel: stableHandleCropPointerCancel,
       applyCrop: stableApplyCrop,
+      replacePicture: stableReplacePicture,
+      convertStage: state.convertStage,
+      setConvertStage: state.setConvertStage,
       srcClick: stableSrcClick
     };
-  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {
@@ -2375,6 +2386,8 @@ function CreatorApp({
     onOpenCanvas: handleOpenCanvas,
     generatingPattern: !!state.busy,
     onGenerate: state.generate,
+    framing: _framing,
+    onContinue: () => window.dispatchEvent(new CustomEvent('cs:frameContinue')),
     projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : _convertName,
     canRename: !!(state.pat && state.pal) || !!_convertName,
     saveStatus: state.saveStatus,
@@ -2516,7 +2529,9 @@ function CreatorApp({
       fontSize: "var(--text-md)",
       color: "var(--text-secondary)"
     }
-  }, extrasFailed ? "Materials & Output couldn't be loaded. Check your connection, then open it again." : "Loading Materials & Output…")), showConvertView && /*#__PURE__*/React.createElement("div", {
+  }, extrasFailed ? "Materials & Output couldn't be loaded. Check your connection, then open it again." : "Loading Materials & Output…")), showConvertView && _framing && window.CreatorFrameView && /*#__PURE__*/React.createElement(window.CreatorFrameView, {
+    onChangePicture: () => state.fRef.current && state.fRef.current.click()
+  }), showConvertView && !_framing && /*#__PURE__*/React.createElement("div", {
     className: "cvp-layout",
     style: {
       display: "flex",
@@ -2586,20 +2601,7 @@ function CreatorApp({
       display: "flex",
       gap: 6
     }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      state.setIsCropping(true);
-      state.setCropRect(null);
-    },
-    style: {
-      fontSize: "var(--text-xs)",
-      padding: "2px 7px",
-      cursor: "pointer",
-      border: "0.5px solid var(--line)",
-      borderRadius: 6,
-      background: "var(--surface)"
-    }
-  }, "Crop"), /*#__PURE__*/React.createElement("button", {
+  }, window.CreatorReframeButton && /*#__PURE__*/React.createElement(window.CreatorReframeButton, null), /*#__PURE__*/React.createElement("button", {
     onClick: () => state.fRef.current.click(),
     style: {
       fontSize: "var(--text-xs)",
@@ -2662,7 +2664,7 @@ function CreatorApp({
     }
   }), state.previewUrl && !state.previewLoading && state.previewStats && /*#__PURE__*/React.createElement(PatternEstimates, {
     state: state
-  })))), state.tab === "pattern" && /*#__PURE__*/React.createElement(React.Fragment, null, state.panelOpen && /*#__PURE__*/React.createElement("div", {
+  })))), state.tab === "pattern" && !(showConvertView && _framing) && /*#__PURE__*/React.createElement(React.Fragment, null, state.panelOpen && /*#__PURE__*/React.createElement("div", {
     className: "rpanel-backdrop",
     onClick: () => state.setPanelOpen(false)
   }), /*#__PURE__*/React.createElement("div", {
@@ -2748,7 +2750,7 @@ function CreatorApp({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "Go to Convert")))), typeof window.CropModal !== "undefined" && /*#__PURE__*/React.createElement(window.CropModal, null)), state.busy && window.CreatorGenerateProgress && /*#__PURE__*/React.createElement(window.CreatorGenerateProgress, {
+  }, "Go to Convert"))))), state.busy && window.CreatorGenerateProgress && /*#__PURE__*/React.createElement(window.CreatorGenerateProgress, {
     stage: state.progressStage,
     onCancel: state.cancelGenerate,
     cancellable: state.generateCancellable

@@ -404,7 +404,10 @@ Each phase works on its own and can ship separately.
 - **Frame stage:** shown every time a picture arrives, with a Preferences
   option to turn it off.
 - **Stage 2:** keeps the step tabs.
-- **After Create (Review or Edit):** still open.
+- **After Create:** land in Edit, with one "Your pattern is ready" bar in
+  place of the separate Review page (item 10, reduced). The Convert preview
+  already does most of a review's job, so a separate page would mostly add a
+  click for people who edit.
 
 **Phase A is done.** Items 1–6 shipped as written, with these differences:
 
@@ -418,3 +421,46 @@ Each phase works on its own and can ship separately.
   background the user picked is kept.
 - Tests: `tests/cropReframe.test.js` (unit) and
   `tests/e2e/convert-crop-reframe.spec.js` (browser).
+
+**"Your pattern is ready" is done** (`creator/ReadyBar.js`). After Generate,
+one bar above the chart says what was made: size, threads, chart symbols,
+about how many skeins, and that it is saved. It has Print PDF, Open in
+Tracker and Threads to buy (Materials > Threads), plus links to Ready to
+stitch review and What's a blend?. It replaces the success toast and, while
+it shows, the Tools tab tip, the first-stitch tip, the review note and the
+shortcuts hint. It closes on its buttons, the first edit or leaving Edit.
+The Palette panel's notes, which were showing at body-text size, got their
+missing small-print style.
+
+**Phase B is done.** Items 7–9 shipped as written, with these differences:
+
+- Frame shows the picture with the settings beside it, rather than every
+  control on top of the picture. Each crop or turn applies straight away,
+  with Undo (up to ten steps), so the type and background update as you go.
+  A rectangle still drawn is applied by Continue.
+- The background is not yet shown as a highlight on the picture. It is still
+  a checkbox and a colour picker, now in Frame. Brightness, contrast and
+  saturation do show on the picture as they change.
+- Stage 2's steps keep their names: Size, Threads, Detail. They were not
+  renamed to Size, Colours, Style, because "threads" is the app's word
+  throughout.
+- On a phone, Continue replaces Generate in the top bar during Frame. Stage 2
+  opens with the settings sheet closed, as before, not half-open, so the
+  preview stays visible.
+- The picture type no longer turns into Custom. It records whether the
+  Creator guessed it: after a crop the Creator guesses again only if it made
+  the guess and nothing it set has changed.
+- A Convert draft keeps its crop, and continuing a draft skips Frame.
+- The crop dialog is gone. The steps no longer include Picture, and an old
+  stored "picture" step opens Size.
+- Preference: Preferences > Pattern Creator > Start with Frame the picture
+  (on by default; portable in backups).
+- Tests: `tests/cropReframe.test.js`, `tests/convertPanel.test.js`,
+  `tests/e2e/convert-crop-reframe.spec.js` and
+  `tests/e2e/creator-ready-bar.spec.js`, plus the existing specs moved to the
+  new flow.
+
+**Still to do (Phase C):** item 11, sending the Tracker's picture import
+to Convert and removing the experimental wizard and the legacy Tracker
+dialog.
+

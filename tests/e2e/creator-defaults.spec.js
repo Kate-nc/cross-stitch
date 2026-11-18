@@ -5,7 +5,7 @@ const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 
-const { device, openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
+const { device, openConvertWithLogo, clickGenerate, waitForEdit, quietOnboarding, LOGO } = require('./creator-helpers');
 
 // The value under an estimate label in the Preview Estimates card.
 async function estimate(page, label) {
@@ -32,11 +32,24 @@ test.describe('Convert defaults on desktop', function() {
     await waitForEdit(page);
   });
 
-  test('Convert opens on the Picture step: picture type, background, then picture fixes', async function({ page }) {
-    await openConvertWithLogo(page);
-    await expect(page.locator('#convert-tab-picture')).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('#convert-panel h3')).toHaveText(['Picture type', 'Background', 'Adjust picture']);
+  test('a picture opens on Frame the picture: picture type, background, then picture fixes', async function({ page }) {
+    await openConvertWithLogo(page, { frame: true });
+    await expect(page.locator('[data-frame-view] h3')).toHaveText(['Picture type', 'Background']);
+    await expect(page.locator('[data-frame-view] details[data-cv-fix] summary')).toHaveText('Fix the picture');
     // The background was found and left unstitched, so the switch is on.
     await expect(page.getByRole('checkbox', { name: 'Leave background unstitched' })).toBeChecked();
+  });
+
+  test('with Start with Frame the picture off, a picture opens on Convert\'s Size step', async function({ page }) {
+    await page.addInitScript(function() { try { localStorage.setItem('cs_pref_creatorShowFrameStep', 'false'); } catch (e) {} });
+    await quietOnboarding(page);
+    await page.goto('/home.html?tab=create');
+    await page.locator('input.home-create-file-input').setInputFiles(LOGO);
+    await page.waitForURL(/create\.html/);
+    await expect(page.locator('#convert-tab-size')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-frame-view]')).toHaveCount(0);
+    // Reframe still opens it.
+    await page.locator('[data-reframe]').click();
+    await expect(page.locator('[data-frame-view]')).toBeVisible();
   });
 });

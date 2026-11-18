@@ -9152,6 +9152,46 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .cv-generate--quiet { color: var(--text-primary); background: var(--surface-tertiary); }
 .cv-generate:disabled { cursor: wait; color: var(--surface); background: var(--text-tertiary); }
 @media (hover: hover) { .cv-generate:not(:disabled):not(.cv-generate--quiet):hover { background: var(--accent-hover); } }
+.cv-generate svg { width: 16px; height: 16px; }
+/* "Fix the picture" in Frame the picture: brightness and the rest, folded away. */
+.cv-fix { border-top: 1px solid var(--border); }
+.cv-fix > summary { padding: 12px; cursor: pointer; font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+.cv-fix__on { font-weight: 400; color: var(--text-secondary); }
+.cv-fix > .cs-toolsec { border-top: none; padding-top: 0; }
+
+/* Frame the picture (creator/FrameView.js): the picture to crop and turn on
+   the left, what it is and its background on the right, Continue below. */
+.fr-layout { flex: 1; min-height: 0; display: flex; gap: var(--s-4); padding: 12px 16px 16px; }
+.fr-stage { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.fr-tools { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.fr-shapes { flex: 0 1 320px; }
+.fr-tools__group { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.fr-tools__group .cs-seltools__btn svg, .fr-cropbar .cs-seltools__btn svg { width: 16px; height: 16px; }
+.fr-picture { flex: 1; min-height: 240px; display: flex; align-items: center; justify-content: center; padding: var(--s-3); background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.fr-picture__crop { position: relative; display: inline-block; touch-action: none; user-select: none; cursor: crosshair; line-height: 0; }
+.fr-picture--pick .fr-picture__crop { cursor: copy; }
+.fr-picture__img { display: block; max-width: 100%; max-height: calc(100vh - 260px); width: auto; height: auto; }
+.fr-picture__rect { position: absolute; border: 2px dashed var(--accent); box-sizing: border-box; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35); }
+.fr-cropbar { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; min-height: 32px; font-size: var(--text-sm); color: var(--text-secondary); }
+.fr-cropbar__hint { flex: 1 1 200px; }
+.fr-cropbar__size { color: var(--text-tertiary); font-size: var(--text-xs); }
+.fr-panel { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 140px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.fr-panel__head { padding: 12px 12px 4px; }
+.fr-panel__title { margin: 0 0 4px; font-size: var(--text-lg); color: var(--text-primary); }
+.fr-panel__body { flex: 1; min-height: 0; overflow-y: auto; }
+.fr-footer { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 12px; border-top: 1px solid var(--border); background: var(--surface); }
+.fr-footer__note { margin: 0; text-align: center; }
+.cc-continue svg { width: 16px; height: 16px; }
+@media (max-width: 899px) {
+  .fr-layout { flex-direction: column; padding: 8px 8px 0; gap: var(--s-2); }
+  .fr-shapes { flex-basis: 100%; }
+  .fr-tools__group { margin-left: 0; }
+  .fr-picture { min-height: 0; padding: var(--s-2); }
+  .fr-picture__img { max-height: 55vh; }
+  .fr-panel { width: auto; max-height: none; overflow: visible; }
+  .fr-panel__body { overflow: visible; }
+  .fr-footer { position: sticky; bottom: 0; z-index: 11; }
+}
 @media (max-width: 899px) {
   /* In the bottom drawer the whole panel scrolls; Generate stays at its foot. */
   .cv-footer { position: sticky; bottom: 0; z-index: 11; }
@@ -9202,6 +9242,7 @@ html.pref-dark button.fabric-block__swatch.fabric-block__swatch.fabric-block__sw
 /* Convert's middle column shares the settings section type and spacing. */
 .cvp-source { flex: 0 0 auto; width: min(30%, 220px); min-width: 0; }
 .cvp-source__controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; border-top: 1px solid var(--line); }
+.cvp-source__btn { font: inherit; font-size: var(--text-xs); padding: 2px 7px; cursor: pointer; border: 0.5px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text-primary); }
 .cvp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
 .cv-estimates { color: var(--text-primary); font-size: var(--text-sm); }
 .cv-thread-list { display: flex; flex-direction: column; max-height: 240px; overflow-y: auto; }

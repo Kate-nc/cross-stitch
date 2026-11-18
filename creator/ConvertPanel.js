@@ -18,7 +18,6 @@
 (function () {
   // The steps, left to right. `next` is the step the Next button opens.
   var CONVERT_TABS = [
-    { id: "picture", label: "Picture", icon: "image",    next: "size",    lead: "What the picture is, its background, and fixes to the picture itself." },
     { id: "size",    label: "Size",    icon: "ruler",    next: "threads", lead: "How big the pattern is, and the fabric it is stitched on." },
     { id: "threads", label: "Threads", icon: "palette",  next: "detail",  lead: "Which threads the colours are matched to, and how many." },
     { id: "detail",  label: "Detail",  icon: "sparkles", next: null,      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." }
@@ -32,6 +31,66 @@
     photo: "Up to 24 threads and blends, with smooth shading tidied into patches.",
     pixel: "One stitch per pixel at the picture's own size, in its own colours. Every pixel is kept."
   };
+
+  var h = React.createElement;
+  // ── Building blocks: the Edit panel's sections, so both read the same ──
+  function sec(id, title, info) {
+    var kids = Array.prototype.slice.call(arguments, 3);
+    return h("section", { key: id, className: "cs-toolsec cv-sec cv-sec--" + id, "data-cv-section": id },
+      title ? h("div", { className: "cv-sec__head" },
+        h("h3", { className: "cs-toolsec__title cv-sec__title" }, title),
+        info ? h(InfoIcon, { label: title, text: info, width: 260 }) : null) : null,
+      kids);
+  }
+  function hint(content, extra) {
+    return h("p", Object.assign({ className: "cs-toolsec__hint" }, extra || {}), content);
+  }
+  function note(level, content, extra) {
+    var icon = level === "danger" || level === "warning" ? window.Icons.warning() : window.Icons.info();
+    return h("div", Object.assign({ role: "note", className: "cv-note cv-note--" + level }, extra || {}),
+      h("span", { className: "cv-note__icon", "aria-hidden": "true" }, icon),
+      h("span", null, content));
+  }
+  // A checkbox with its label; the hint icon sits outside the <label> so
+  // pressing it never ticks the box.
+  function check(o) {
+    return h("div", { className: "convert-label cv-check" },
+      h("label", { className: "cs-toolsec__check" + (o.disabled ? " cv-check--disabled" : "") },
+        h("input", { type: "checkbox", checked: !!o.checked, disabled: !!o.disabled,
+          onChange: function (e) { o.onChange(e.target.checked); } }),
+        h("span", null, o.label)),
+      o.info ? h(InfoIcon, { label: o.label, text: o.info, width: 260 }) : null);
+  }
+  // One choice from a row (or grid) of buttons; arrow keys move and choose.
+  function seg(o) {
+    var opts = o.options;
+    var anyOn = opts.some(function (x) { return x.id === o.value && !x.disabled; });
+    return h("div", { className: "lp-segmented cv-seg" + (o.className ? " " + o.className : ""), role: "radiogroup", "aria-label": o.label },
+      opts.map(function (x, i) {
+        var on = x.id === o.value;
+        var enabled = opts.filter(function (y) { return !y.disabled; });
+        var p = {
+          key: x.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false",
+          className: "lp-seg" + (on ? " lp-seg--on" : ""), title: x.title, disabled: !!x.disabled,
+          tabIndex: (on && !x.disabled) || (!anyOn && i === 0) ? 0 : -1,
+          "data-seg-id": x.id,
+          onClick: function () { if (!x.disabled) o.onChange(x.id); },
+          onKeyDown: function (e) {
+            var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+            if (!step) return;
+            e.preventDefault();
+            var at = enabled.indexOf(x);
+            var next = enabled[(at + step + enabled.length) % enabled.length];
+            o.onChange(next.id);
+            var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-seg-id="' + next.id + '"]');
+            if (sib) sib.focus();
+          }
+        };
+        if (o.attr) p[o.attr] = x.id;
+        return h("button", p, x.label);
+      }));
+  }
+
 
   // A warning when the chosen tidying is a lot for the pattern's size.
   function cleanupWarning(sW, sH, orphans, previewStats) {
@@ -73,99 +132,23 @@
   }
   window.convertChartStateText = chartStateText;
 
-  window.CreatorConvertPanel = function CreatorConvertPanel(props) {
-    var ctx = window.usePatternData();
-    var cv = window.useCanvas();
-    var app = window.useApp();
+  // What the picture is, its background and fixes to the picture itself:
+  // Frame the picture's settings (creator/FrameView.js), shown once there.
+  // Choosing a type starts the pattern from that type's settings; the type
+  // does not change to Custom when one of them is changed afterwards.
+  window.CreatorPictureSections = function CreatorPictureSections() {
     var gen = window.useGeneration();
-    var h = React.createElement;
     var Icons = window.Icons;
-    var contentRef = React.useRef(null);
-    var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
-    var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
-    var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
-    var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
-    var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
-
-    var tab = app.convertTab;
-    if (!CONVERT_TABS.some(function (t) { return t.id === tab; })) tab = "picture";
-    var tabMeta = CONVERT_TABS.filter(function (t) { return t.id === tab; })[0];
-    function pickTab(id) { if (app.setConvertTab) app.setConvertTab(id); }
-    // A new step starts at its top.
-    React.useEffect(function () { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
-
-    var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
-    var ps = app.previewStats;
-
-    // ── Building blocks: the Edit panel's sections, so both read the same ──
-    function sec(id, title, info) {
-      var kids = Array.prototype.slice.call(arguments, 3);
-      return h("section", { key: id, className: "cs-toolsec cv-sec cv-sec--" + id, "data-cv-section": id },
-        title ? h("div", { className: "cv-sec__head" },
-          h("h3", { className: "cs-toolsec__title cv-sec__title" }, title),
-          info ? h(InfoIcon, { label: title, text: info, width: 260 }) : null) : null,
-        kids);
-    }
-    function hint(content, extra) {
-      return h("p", Object.assign({ className: "cs-toolsec__hint" }, extra || {}), content);
-    }
-    function note(level, content, extra) {
-      var icon = level === "danger" || level === "warning" ? Icons.warning() : Icons.info();
-      return h("div", Object.assign({ role: "note", className: "cv-note cv-note--" + level }, extra || {}),
-        h("span", { className: "cv-note__icon", "aria-hidden": "true" }, icon),
-        h("span", null, content));
-    }
-    // A checkbox with its label; the hint icon sits outside the <label> so
-    // pressing it never ticks the box.
-    function check(o) {
-      return h("div", { className: "convert-label cv-check" },
-        h("label", { className: "cs-toolsec__check" + (o.disabled ? " cv-check--disabled" : "") },
-          h("input", { type: "checkbox", checked: !!o.checked, disabled: !!o.disabled,
-            onChange: function (e) { o.onChange(e.target.checked); } }),
-          h("span", null, o.label)),
-        o.info ? h(InfoIcon, { label: o.label, text: o.info, width: 260 }) : null);
-    }
-    // One choice from a row (or grid) of buttons; arrow keys move and choose.
-    function seg(o) {
-      var opts = o.options;
-      var anyOn = opts.some(function (x) { return x.id === o.value && !x.disabled; });
-      return h("div", { className: "lp-segmented cv-seg" + (o.className ? " " + o.className : ""), role: "radiogroup", "aria-label": o.label },
-        opts.map(function (x, i) {
-          var on = x.id === o.value;
-          var enabled = opts.filter(function (y) { return !y.disabled; });
-          var p = {
-            key: x.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false",
-            className: "lp-seg" + (on ? " lp-seg--on" : ""), title: x.title, disabled: !!x.disabled,
-            tabIndex: (on && !x.disabled) || (!anyOn && i === 0) ? 0 : -1,
-            "data-seg-id": x.id,
-            onClick: function () { if (!x.disabled) o.onChange(x.id); },
-            onKeyDown: function (e) {
-              var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
-              if (!step) return;
-              e.preventDefault();
-              var at = enabled.indexOf(x);
-              var next = enabled[(at + step + enabled.length) % enabled.length];
-              o.onChange(next.id);
-              var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-seg-id="' + next.id + '"]');
-              if (sib) sib.focus();
-            }
-          };
-          if (o.attr) p[o.attr] = x.id;
-          return h("button", p, x.label);
-        }));
-    }
-
-    // ═══ Picture ═══════════════════════════════════════════════════════════
     var pictureType = (gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER) ? sec("picture-type", "Picture type",
-      "Picks good starting values for the picture. Graphic or logo: a few flat colours, no shading. Photo: up to 24 threads with smooth shading. Pixel art: one stitch per pixel, every pixel kept. The Creator guesses when you add a picture; every setting stays editable.",
+      "Picks good starting values for the picture. Graphic or logo: a few flat colours, no shading. Photo: up to 24 threads with smooth shading. Pixel art: one stitch per pixel, every pixel kept. The Creator guesses when you add a picture. Choosing a type starts the threads and detail from its settings; changing them afterwards keeps the type.",
       seg({ label: "What kind of picture is this?", attr: "data-picture-type", className: "cv-seg--wrap", value: gen.pictureType,
         onChange: function (id) { gen.applyPicturePreset(id); },
         options: window.PICTURE_PRESET_ORDER.map(function (id) {
           return { id: id, label: window.PICTURE_PRESETS[id].label, title: PICTURE_TYPE_HINTS[id] };
-        }).concat([{ id: "custom", label: "Custom", disabled: true, title: "Your own settings. Pick a type to start again from its settings." }]) }),
-      hint(gen.pictureType === "custom"
-        ? "Custom: you have changed settings since choosing a type. Pick a type to start again from its settings."
-        : (PICTURE_TYPE_HINTS[gen.pictureType] || "") + " Choosing a type sets the threads and detail; you can change them after."),
+        }) }),
+      hint(!gen.pictureType
+        ? "No type chosen: your Preferences defaults are used. Choose one to start from its settings."
+        : (PICTURE_TYPE_HINTS[gen.pictureType] || "") + " Choosing a type starts the threads and detail from its settings; you can change them later."),
       // Exact import is a Pixel art option, so it shows for pixel art (or while on).
       (gen.stitchStyleBasis === "pixel" || gen.exactPixelArt) && h("div", { className: "picture-type__exact" },
         check({ checked: gen.exactPixelArt, label: "Exact pixel-art import",
@@ -179,7 +162,6 @@
     ) : null;
 
     function armBgPick() {
-      pickTab("picture");
       gen.setPickBg(true);
       // Bring the picture into view so it is clear where to click.
       if (typeof window !== "undefined" && window.requestAnimationFrame) {
@@ -218,8 +200,9 @@
     );
 
     var adjusted = !!(gen.bri || gen.con || gen.sat || gen.smooth || gen.preSharpen);
-    var adjust = sec("adjust", "Adjust picture",
-      "Changes the picture before threads are matched. Most pictures need none of these.",
+    // Folded away under "Fix the picture": most pictures need none of these.
+    var adjust = sec("adjust", null, null,
+      hint("Changes the picture before threads are matched. Most pictures need none of these. Brightness, contrast and saturation show on the picture straight away; sharpening and softening show in the preview."),
       h(SliderRow, { label: "Brightness", value: gen.bri, min: -50, max: 50, onChange: gen.setBri, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
         helpText: "Lightens or darkens the picture before threads are chosen. Try it when a photo is too dark or washed out." }),
       h(SliderRow, { label: "Contrast", value: gen.con, min: -50, max: 50, onChange: gen.setCon, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
@@ -248,6 +231,37 @@
         gen.setBri(0); gen.setCon(0); gen.setSat(0); gen.setSmooth(0); gen.setPreSharpen(false);
       } }, Icons.undo(), h("span", null, "Reset adjustments")) : null
     );
+
+    var adjustOpen = adjusted || undefined;
+    return h(React.Fragment, null, pictureType, background,
+      h("details", { className: "cv-fix", open: adjustOpen, "data-cv-fix": "" },
+        h("summary", null, "Fix the picture", adjusted ? h("span", { className: "cv-fix__on" }, " (changed)") : null),
+        adjust));
+  };
+
+  window.CreatorConvertPanel = function CreatorConvertPanel(props) {
+    var ctx = window.usePatternData();
+    var cv = window.useCanvas();
+    var app = window.useApp();
+    var gen = window.useGeneration();
+    var h = React.createElement;
+    var Icons = window.Icons;
+    var contentRef = React.useRef(null);
+    var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
+    var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
+    var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
+    var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
+    var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
+
+    var tab = app.convertTab;
+    if (!CONVERT_TABS.some(function (t) { return t.id === tab; })) tab = "size";
+    var tabMeta = CONVERT_TABS.filter(function (t) { return t.id === tab; })[0];
+    function pickTab(id) { if (app.setConvertTab) app.setConvertTab(id); }
+    // A new step starts at its top.
+    React.useEffect(function () { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
+
+    var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
+    var ps = app.previewStats;
 
     // ═══ Size ══════════════════════════════════════════════════════════════
     var sizeSec = sec("size", null, null,
@@ -508,8 +522,7 @@
     );
 
     var content;
-    if (tab === "picture") content = [pictureType, background, adjust];
-    else if (tab === "size") content = [sizeSec, fabricSec];
+    if (tab === "size") content = [sizeSec, fabricSec];
     else if (tab === "threads") content = [stashSec, countSec, blendSec, brandSec, stashToolsSec];
     else content = [stepsSec, shadingSec, tidySec, rareSec, lookSec];
 
@@ -552,10 +565,10 @@
     );
 
     // ── Footer: what Generate will make, and Generate ──────────────────────
-    var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : "Custom";
+    var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : null;
     var summary = gen.exactPixelArt
       ? "Exact pixel art · one stitch per pixel"
-      : [typeLabel, ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
+      : [typeLabel || "Your defaults", ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
          window.STITCH_STYLE_LABELS && window.STITCH_STYLE_LABELS[styleNow] ? window.STITCH_STYLE_LABELS[styleNow] : "Custom detail"].join(" · ");
     var editCount = (cv.editHistory && cv.editHistory.length) || 0;
     var chartState = ctx.pat ? app.convertChartState : null;

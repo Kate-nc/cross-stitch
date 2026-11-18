@@ -78,7 +78,7 @@
       return [
         {
           title: "Turn your picture into a pattern",
-          body: "The steps in " + d.settings + " come in the order you would decide them: Picture, Size, Threads and Detail. Each starts from a good guess for your picture, so change only what you want. The preview shows your pattern as stitches and says what each change did; Compare options shows neighbouring sizes and thread counts side by side."
+          body: "The steps in " + d.settings + " come in the order you would decide them: Size, Threads and Detail. Each starts from a good guess for your picture, so change only what you want. The preview shows your pattern as stitches and says what each change did; Compare options shows neighbouring sizes and thread counts side by side. Reframe, beside your picture, goes back to cropping it."
         },
         {
           title: "Generate",

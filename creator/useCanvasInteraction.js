@@ -23,7 +23,7 @@ function lineCells(x0, y0, x1, y1) {
 }
 window.lineCells = lineCells;
 
-/* Crop geometry (CropModal). Rectangles are in the displayed picture's
+/* Crop geometry (Frame the picture, FrameView.js). Rectangles are in the displayed picture's
    pixels, inside bounds { w, h }; ratio is width / height, or null for a
    free shape. */
 // The rectangle dragged from `start` to the pointer at (px, py), kept to
@@ -1558,47 +1558,57 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     state.setCropRect(null);
   }
 
-  // Crops the picture to the dialog's rectangle. opts.source (an image or canvas) is the picture
-  // the dialog shows when it has been turned (CropModal); without a
-  // rectangle, a turned picture is kept whole.
+  // Puts a new picture in place of the current one (a crop, a turn, or
+  // Undo in Frame the picture): its size, shape and height (aspect lock),
+  // then looks at it again, since its type, plain background and pixel-art
+  // size were worked out from the old one. An existing chart is kept, with
+  // its edits and progress: Convert's preview shows the new picture, and the
+  // chart changes only when Regenerate replaces it (which asks first when it
+  // was edited).
+  function replacePicture(newImg) {
+    if (!newImg) return;
+    var w = newImg.naturalWidth || newImg.width, hh = newImg.naturalHeight || newImg.height;
+    state.setImg(newImg);
+    state.setOrigW(w);
+    state.setOrigH(hh);
+    var newAr = w / hh;
+    state.setAr(newAr);
+    if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
+    state.setCropRect(null);
+    var examine = state.pictureExaminerRef && state.pictureExaminerRef.current;
+    if (typeof examine === "function") examine(newImg, { reframed: true });
+  }
+
+  // Crops the picture to the rectangle drawn on it (Frame the picture).
+  // opts.source (an image or canvas) is the picture to use instead of the
+  // current one, such as the current one turned; opts.whole keeps all of it,
+  // ignoring any rectangle. opts.onDone(newImg) runs once it is in place.
   function applyCrop(opts) {
+    opts = opts || {};
     var cropRect = state.cropRect, cropRef = state.cropRef;
-    var src = (opts && opts.source) || state.img;
-    var hasRect = !!(cropRect && cropRect.w >= 10 && cropRect.h >= 10);
-    if (!src || (!hasRect && src === state.img) || (hasRect && !cropRef.current)) {
-      state.setIsCropping(false);
-      return;
-    }
-    var cropX = 0, cropY = 0, cropW = src.width, cropH = src.height;
+    var src = opts.source || state.img;
+    var hasRect = !opts.whole && !!(cropRect && cropRect.w >= 10 && cropRect.h >= 10);
+    if (!src || (!hasRect && src === state.img) || (hasRect && !cropRef.current)) return false;
+    var srcW = src.naturalWidth || src.width, srcH = src.naturalHeight || src.height;
+    var cropX = 0, cropY = 0, cropW = srcW, cropH = srcH;
     if (hasRect) {
       var r = cropRef.current.getBoundingClientRect();
-      var scaleX = src.width / r.width, scaleY = src.height / r.height;
-      cropX = Math.max(0, Math.floor(cropRect.x * scaleX)); cropY = Math.max(0, Math.floor(cropRect.y * scaleY));
-      cropW = Math.min(src.width - cropX, Math.floor(cropRect.w * scaleX)); cropH = Math.min(src.height - cropY, Math.floor(cropRect.h * scaleY));
+      var scaleX = srcW / r.width, scaleY = srcH / r.height;
+      // Rounded, not floored, so a square drawn on screen stays square.
+      cropX = Math.max(0, Math.round(cropRect.x * scaleX)); cropY = Math.max(0, Math.round(cropRect.y * scaleY));
+      cropW = Math.max(1, Math.min(srcW - cropX, Math.round(cropRect.w * scaleX))); cropH = Math.max(1, Math.min(srcH - cropY, Math.round(cropRect.h * scaleY)));
     }
     var c = document.createElement("canvas"); c.width = cropW; c.height = cropH;
     var cx = c.getContext("2d");
     cx.drawImage(src, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
     var newImg = new Image();
     newImg.onload = function() {
-      state.setImg(newImg);
-      state.setOrigW(newImg.width);
-      state.setOrigH(newImg.height);
-      var newAr = newImg.width / newImg.height;
-      state.setAr(newAr);
-      if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
-      state.setIsCropping(false);
-      state.setCropRect(null);
-      // Look at the cropped picture again: its type, plain background and
-      // (pixel art) size were worked out from the whole picture.
-      var examine = state.pictureExaminerRef && state.pictureExaminerRef.current;
-      if (typeof examine === "function") examine(newImg, { reframed: true });
-      // An existing chart is kept, with its edits and progress: Convert's
-      // preview shows the cropped picture, and the chart changes only when
-      // Regenerate replaces it (which asks first when it was edited).
+      replacePicture(newImg);
+      if (typeof opts.onDone === "function") opts.onDone(newImg);
     };
     // PNG keeps transparency (pixel art, logos with clear backgrounds).
     newImg.src = c.toDataURL("image/png");
+    return true;
   }
 
   function srcClick(e) {
@@ -1636,6 +1646,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     handleCropPointerUp: handleCropPointerUp,
     handleCropPointerCancel: handleCropPointerCancel,
     applyCrop: applyCrop,
+    replacePicture: replacePicture,
     srcClick: srcClick,
     isDraggingRef: isDraggingRef,
   };

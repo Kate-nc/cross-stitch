@@ -3,7 +3,7 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, openConvertWithLogo, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit, convertStep } = require('./creator-helpers');
+const { device, openConvertWithLogo, continueFromFrame, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit, convertStep } = require('./creator-helpers');
 
 const TINY = path.join(__dirname, '..', 'fixtures', 'tiny.png');
 
@@ -38,10 +38,12 @@ test.describe('Picture-type presets on desktop', function() {
   test.use(device('desktop'));
   test.setTimeout(90000);
 
+  // The type is guessed when the picture arrives, in Frame the picture.
   test('a logo is guessed as a graphic and makes a clean pattern', async function({ page }) {
-    await openConvertWithLogo(page);
+    await openConvertWithLogo(page, { frame: true });
     await expect(page.locator('.cv-sec--picture-type')).toContainText('Picture type');
     await expect(pictureType(page, 'Graphic or logo')).toHaveAttribute('aria-checked', 'true');
+    await continueFromFrame(page);
     await convertStep(page, 'threads');
     await expect(page.getByRole('slider', { name: 'Threads (max)' })).toBeVisible();
 
@@ -54,26 +56,28 @@ test.describe('Picture-type presets on desktop', function() {
     expect(s.stitched).toBeGreaterThan(0);
 
     // Counts say threads and symbols, never colours.
-    await expect(page.locator('.creator-toast-container').filter({ hasText: 'Pattern generated' }).first())
-      .toContainText(/\d+ threads?[).,]/);
+    await expect(page.locator('[data-ready-summary]')).toContainText(/\d+ threads?[).,]/);
     await expect(page.locator('.palette-counts').first()).toHaveText(/^\d+ threads? · \d+ symbols?$/);
   });
 
-  test('changing a value shows Custom; choosing a type applies its preset', async function({ page }) {
-    await openConvertWithLogo(page);
+  // The type says what the picture is: changing a value it set keeps it.
+  test('changing a value keeps the type; choosing a type applies its preset', async function({ page }) {
+    await openConvertWithLogo(page, { frame: true });
     await expect(pictureType(page, 'Graphic or logo')).toHaveAttribute('aria-checked', 'true');
     await pictureType(page, 'Photo').click();
     await expect(pictureType(page, 'Photo')).toHaveAttribute('aria-checked', 'true');
+    await continueFromFrame(page);
     await convertStep(page, 'threads');
     const slider = page.getByRole('slider', { name: 'Threads (max)' });
     await expect(slider).toHaveValue('24');
     await slider.fill('14');
-    // The footer summary and the Picture step both say Custom.
-    await expect(page.locator('[data-convert-summary]')).toContainText(/^Custom/);
+    await expect(page.locator('[data-convert-summary]')).toContainText(/^Photo/);
     await convertStep(page, 'picture');
-    await expect(pictureType(page, 'Custom')).toHaveAttribute('aria-checked', 'true');
+    await expect(pictureType(page, 'Photo')).toHaveAttribute('aria-checked', 'true');
+    await expect(pictureType(page, 'Custom')).toHaveCount(0);
     await pictureType(page, 'Graphic or logo').click();
     await expect(pictureType(page, 'Graphic or logo')).toHaveAttribute('aria-checked', 'true');
+    await continueFromFrame(page);
     await convertStep(page, 'threads');
     await expect(slider).toHaveValue('8');
   });
@@ -82,8 +86,10 @@ test.describe('Picture-type presets on desktop', function() {
     await page.addInitScript(function() {
       try { localStorage.setItem('cs_pref_creatorGuessPictureType', 'false'); localStorage.setItem('cs_pref_creatorDefaultPaletteSize', '12'); } catch (e) {}
     });
-    await openConvertWithLogo(page);
-    await expect(pictureType(page, 'Custom')).toHaveAttribute('aria-checked', 'true');
+    await openConvertWithLogo(page, { frame: true });
+    // No type chosen.
+    await expect(page.getByRole('radiogroup', { name: 'What kind of picture is this?' }).locator('[aria-checked="true"]')).toHaveCount(0);
+    await continueFromFrame(page);
     await convertStep(page, 'threads');
     const slider = page.getByRole('slider', { name: 'Threads (max)' });
     await expect(slider).toHaveValue('12');
@@ -93,6 +99,7 @@ test.describe('Picture-type presets on desktop', function() {
     await page.keyboard.press('ArrowRight');
     await expect(pictureType(page, 'Photo')).toHaveAttribute('aria-checked', 'true');
     await expect(pictureType(page, 'Photo')).toBeFocused();
+    await continueFromFrame(page);
     await convertStep(page, 'threads');
     await expect(slider).toHaveValue('24');
   });
@@ -103,9 +110,10 @@ test.describe('Picture-type presets on desktop', function() {
     await skipTourIfShown(page);
     await page.locator('input.home-create-file-input').setInputFiles(TINY);
     await page.waitForURL(/create\.html/);
-    await page.waitForSelector('.rpanel', { state: 'attached' });
-    await skipTourIfShown(page);
+    await page.waitForSelector('[data-frame-view]');
     await expect(pictureType(page, 'Pixel art')).toHaveAttribute('aria-checked', 'true');
+    await continueFromFrame(page);
+    await skipTourIfShown(page);
     await clickGenerate(page);
     await waitForEdit(page);
     await expect.poll(async function() { const s = await patternStats(page); return s && s.w + ' x ' + s.h; }, { timeout: 15000 }).toBe('24 x 24');

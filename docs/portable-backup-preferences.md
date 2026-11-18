@@ -49,6 +49,7 @@ values fall back to defaults; no coercion of strings into numbers or booleans.
 - `cs_pref_creatorDefaultViewMode`
 - `cs_pref_creatorFabricColour`
 - `cs_pref_creatorGuessPictureType`
+- `cs_pref_creatorShowFrameStep`
 - `cs_pref_creatorMinStitchesPerColour`
 - `cs_pref_creatorOrphanRemovalStrength`
 - `cs_pref_creatorProtectDetails`

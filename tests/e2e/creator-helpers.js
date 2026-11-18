@@ -34,15 +34,33 @@ async function skipTourIfShown(page) {
   if (await skip.isVisible().catch(function() { return false; })) await skip.click();
 }
 
-// Home › Create › New from pattern file with logo.png; ends on Convert.
-async function openConvertWithLogo(page) {
+// Home › Create › New from pattern file with logo.png. A new picture opens
+// on Frame the picture; this continues to Convert's preview and steps unless
+// opts.frame (stay on Frame).
+async function openConvertWithLogo(page, opts) {
+  opts = opts || {};
   await quietOnboarding(page);
   await page.goto('/home.html?tab=create');
   await skipTourIfShown(page);
   await page.locator('input.home-create-file-input').setInputFiles(LOGO);
   await page.waitForURL(/create\.html/);
-  await page.waitForSelector('.rpanel', { state: 'attached' });
+  await page.waitForSelector('[data-frame-view]', { timeout: 15000 });
+  if (opts.frame) return;
+  await continueFromFrame(page);
   await skipTourIfShown(page);
+}
+
+// Frame the picture › Continue (the panel's, or the phone top bar's).
+async function continueFromFrame(page) {
+  await page.locator('[data-onboard="frame-continue"]:visible, .cc-continue:visible').first().click();
+  await page.waitForSelector('.rpanel', { state: 'attached' });
+  await expect(page.locator('[data-frame-view]')).toHaveCount(0);
+}
+
+// Back to Frame the picture from Convert (Reframe beside the picture).
+async function reframe(page) {
+  await page.locator('[data-reframe]:visible').first().click();
+  await page.waitForSelector('[data-frame-view]');
 }
 
 // A blank grid (P2-4): the New design sheet comes first. Opens
@@ -137,6 +155,8 @@ const undoButton = (page) => page.getByRole('button', { name: 'Undo', exact: tru
 // Convert's settings are in steps (Picture, Size, Threads, Detail, Project).
 // Opens the Settings drawer on phones, then the step.
 async function convertStep(page, id) {
+  // What the picture is, its background and fixes are in Frame the picture.
+  if (id === 'picture') { if (!(await page.locator('[data-frame-view]').count())) await reframe(page); return; }
   const header = page.locator('.rpanel-drawer-header');
   if (await header.isVisible().catch(function() { return false; })) {
     if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click();
@@ -159,7 +179,7 @@ async function previewView(page, id) {
 }
 
 module.exports = {
-  LOGO, DESKTOP, device, quietOnboarding, skipTourIfShown, openConvertWithLogo,
+  LOGO, DESKTOP, device, quietOnboarding, skipTourIfShown, openConvertWithLogo, continueFromFrame, reframe,
   startBlankGrid, clickGenerate, waitForEdit, generateLogo, isCompact, closeMorePanel,
   zoomUntilScrollable, pickDarkSwatch, undoButton, convertStep, previewView, confirmReplaceChart,
 };

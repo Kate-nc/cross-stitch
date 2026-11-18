@@ -472,7 +472,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // its picture: a saved project's picture is restored after the pattern
   // (useProjectIO's Image.onload), and its tour is about the chart, not
   // about generating.
-  const tourWayIn=state.isScratchMode?'scratch':state.pat?'import':(state.img&&state.img.src)?'convert':null;
+  // The picture tour waits until Frame the picture is done: it is about the
+  // preview and the steps (Frame explains itself).
+  const tourWayIn=state.isScratchMode?'scratch':state.pat?'import':(state.img&&state.img.src&&state.convertStage!=='frame')?'convert':null;
   const[tourPage,setTourPage]=React.useState(null);
   React.useEffect(()=>{
     if(tourPage!==null||!state.bootSettled||state.newDesignOpen||!tourWayIn)return;
@@ -594,6 +596,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // (useProjectIO nameFromImage); the header shows it and it can be renamed
   // there, instead of "No project" (reports/create-from-image-workflow, F7).
   const _convertName = (!(state.pat&&state.pal)&&state.img&&!state.isScratchMode&&state.projectName)||'';
+  // Frame the picture (creator/FrameView.js) comes before the preview and
+  // settings for a picture just added.
+  const _framing = !!(state.img && !state.isScratchMode && state.convertStage === 'frame' && (!state.pat || state.appMode === 'create'));
   const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || (state.appMode === 'create' && state.tab === 'pattern')));
   // Materials & Output and the Adapt modal live in creator/extras-bundle.js,
   // loaded the first time either is opened rather than on every Creator load.
@@ -641,7 +646,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableHandleCropPointerUp    = React.useCallback(function(e){_cvHRef.current.handleCropPointerUp(e);},    []);
   const stableHandleCropPointerCancel= React.useCallback(function(e){_cvHRef.current.handleCropPointerCancel(e);},[]);
   const stableShapePreview = React.useCallback(function(){return _cvHRef.current.shapePreview?_cvHRef.current.shapePreview():null;},[]);
-  const stableApplyCrop              = React.useCallback(function(opts){_cvHRef.current.applyCrop(opts);},           []);
+  const stableApplyCrop              = React.useCallback(function(opts){return _cvHRef.current.applyCrop(opts);},    []);
+  const stableReplacePicture         = React.useCallback(function(img){_cvHRef.current.replacePicture(img);},        []);
   const stableSrcClick               = React.useCallback(function(e){_cvHRef.current.srcClick(e);},               []);
 
   const stableSaveProject         = React.useCallback(function()  {_ioRef.current.saveProject();},         []);
@@ -836,7 +842,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleCropPointerMove: stableHandleCropPointerMove,
     handleCropPointerUp: stableHandleCropPointerUp,
     handleCropPointerCancel: stableHandleCropPointerCancel,
-    applyCrop: stableApplyCrop,
+    applyCrop: stableApplyCrop, replacePicture: stableReplacePicture,
+    convertStage: state.convertStage, setConvertStage: state.setConvertStage,
     srcClick: stableSrcClick,
   }; }, [
     state.img, state.isUploading, state.isDragging,
@@ -845,7 +852,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount,
     state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage,
     state.origW, state.origH, state.hasGenerated,
-    state.stitchCleanup, state.isCropping, state.cropRect,
+    state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage,
     state.generate, state.randomise, state.generateGallery,
     state.promoteVariation, state.applyVariationSeed,
     state.variationSeed, state.variationSubset, state.variationHistory,
@@ -1464,6 +1471,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onOpenCanvas={handleOpenCanvas}
         generatingPattern={!!state.busy}
         onGenerate={state.generate}
+        framing={_framing}
+        onContinue={()=>window.dispatchEvent(new CustomEvent('cs:frameContinue'))}
         projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):_convertName}
         canRename={!!(state.pat&&state.pal)||!!_convertName}
         saveStatus={state.saveStatus}
@@ -1565,7 +1574,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   {extrasFailed?"Materials & Output couldn't be loaded. Check your connection, then open it again.":"Loading Materials & Output…"}
                 </p>}
             </div>}
-            {showConvertView&&<div className="cvp-layout" style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
+            {showConvertView&&_framing&&window.CreatorFrameView&&<window.CreatorFrameView onChangePicture={()=>state.fRef.current&&state.fRef.current.click()}/>}
+            {showConvertView&&!_framing&&<div className="cvp-layout" style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
               {/* Left: source image with crop / change controls */}
               <div className="cvp-source">
                 <div id="bg-pick-target" className={"card cvp-source__card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
@@ -1578,7 +1588,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   <div className="cvp-source__controls">
                     <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>{state.origW}×{state.origH}px</span>
                     <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:"var(--text-xs)",padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface)"}}>Crop</button>
+                      {window.CreatorReframeButton&&<window.CreatorReframeButton/>}
                       <button onClick={()=>state.fRef.current.click()} style={{fontSize:"var(--text-xs)",padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface)"}}>Change</button>
                     </div>
                   </div>
@@ -1610,7 +1620,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               </div>
             </div>}
           </div>
-          {state.tab==="pattern"&&<>
+          {state.tab==="pattern"&&!(showConvertView&&_framing)&&<>
             {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
             <div className={"rpanel"+(state.appMode==="edit"?" rpanel--edit":"")+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
@@ -1633,8 +1643,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             </div>
           </div>
         </div>}
-        {/* ── Full-screen crop modal ── */}
-        {typeof window.CropModal!=="undefined"&&<window.CropModal/>}
       </div>
       {/* Generating: the stage, a progress bar and Cancel (audit IMG-07). */}
       {state.busy&&window.CreatorGenerateProgress&&<window.CreatorGenerateProgress stage={state.progressStage} onCancel={state.cancelGenerate} cancellable={state.generateCancellable}/>}

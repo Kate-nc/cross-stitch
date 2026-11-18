@@ -842,9 +842,15 @@ window.useCreatorState = function useCreatorState() {
   var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
-  // Convert's step tab (creator/ConvertPanel.js): Picture, Size, Threads,
-  // Detail or Project. A new picture starts on Picture (resetAll).
-  var _convertTab = useState("picture"); var convertTab = _convertTab[0], _setConvertTabRaw = _convertTab[1];
+  // Convert's step tab (creator/ConvertPanel.js): Size, Threads or Detail.
+  // A new picture starts on Size (resetAll); what the picture is and its
+  // background are set in Frame the picture (convertStage below).
+  var _convertTab = useState("size"); var convertTab = _convertTab[0], _setConvertTabRaw = _convertTab[1];
+  // Which part of Convert is showing: "frame" (Frame the picture: crop,
+  // turn, picture type, background, fixes; creator/FrameView.js) or "make"
+  // (the preview and the Size, Threads and Detail steps). A new picture opens
+  // on Frame unless Preferences > Pattern Creator turns it off.
+  var _convertStage = useState("make"); var convertStage = _convertStage[0], setConvertStage = _convertStage[1];
   function setConvertTab(v) {
     var ok = (window.CONVERT_TABS || []).some(function (t) { return t.id === v; });
     if (ok || !window.CONVERT_TABS) _setConvertTabRaw(v);
@@ -867,8 +873,11 @@ window.useCreatorState = function useCreatorState() {
   // ── Picture type (audit IMG-01) ─────────────────────────────────────────
   // pictureInfo: analysePicture() of the loaded picture. presetApplied:
   // { id, values } for the preset last chosen (or guessed on upload).
-  // pictureType is that id while every value it set is unchanged, else
-  // 'custom' (also 'custom' when no preset has been applied).
+  // pictureType is that id, or null when none was chosen (Guess the picture
+  // type off). It says what the picture is, so changing a thread setting no
+  // longer turns it into Custom: Detail and tidiness has its own Custom
+  // (reports/create-from-image-workflow, Phase B). presetUntouched says
+  // whether every value the type set is still as it set it.
   var _exactPixel = useState(false), exactPixelArt = _exactPixel[0], setExactPixelArt = _exactPixel[1];
   useEffect(function() {
     if (!exactPixelArt || !img || appMode !== "create") return;
@@ -880,7 +889,9 @@ window.useCreatorState = function useCreatorState() {
   var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
   var pictureInfoRef = useRef(null);
   pictureInfoRef.current = pictureInfo;
-  var applyPicturePreset = useCallback(function (id, info) {
+  // opts.guessed: the Creator chose it from the picture, not the user (a crop
+  // may then guess again; useProjectIO.examinePicture).
+  var applyPicturePreset = useCallback(function (id, info, opts) {
     var v = picturePresetValues(id, info === undefined ? pictureInfoRef.current : info);
     if (!v) return;
     if (v.maxC != null) setMaxC(v.maxC);
@@ -890,12 +901,12 @@ window.useCreatorState = function useCreatorState() {
     if (v.orphans != null) setOrphans(v.orphans);
     if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
-    setPresetApplied({ id: id, values: v });
+    setPresetApplied(opts && opts.guessed ? { id: id, values: v, guessed: true } : { id: id, values: v });
   }, []);
   // The Detail and tidiness step is its own choice: changing it keeps the
   // picture type, so its keys are not compared here.
-  var pictureType = (function () {
-    if (!presetApplied) return 'custom';
+  var presetUntouched = (function () {
+    if (!presetApplied) return false;
     var v = presetApplied.values, cur = {
       maxC: maxC, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
       bgCol: bgCol
@@ -904,13 +915,14 @@ window.useCreatorState = function useCreatorState() {
       if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
       // The background colour is an [r, g, b] array: compare by value.
       if (k === 'bgCol') {
-        if (!cur.bgCol || String(cur.bgCol.slice(0, 3)) !== String(v.bgCol)) return 'custom';
+        if (!cur.bgCol || String(cur.bgCol.slice(0, 3)) !== String(v.bgCol)) return false;
         continue;
       }
-      if (cur[k] !== v[k]) return 'custom';
+      if (cur[k] !== v[k]) return false;
     }
-    return presetApplied.id;
+    return true;
   })();
+  var pictureType = presetApplied && PICTURE_PRESETS[presetApplied.id] ? presetApplied.id : null;
   // Detail and tidiness: steps are read in the last picture type chosen, even
   // after another value made the type Custom. With none chosen (Guess the
   // picture type off in Preferences), in the type the picture looks like, so
@@ -1680,7 +1692,7 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null); setReadyBarOpen(false);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    _setConvertTabRaw("picture"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    _setConvertTabRaw("size"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
     setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
@@ -1997,6 +2009,7 @@ window.useCreatorState = function useCreatorState() {
     // Print PDF, Open in Tracker and Threads to buy, instead of a toast
     // arriving together with the editing tips (creator/ReadyBar.js).
     setReadyBarOpen(true);
+    setConvertStage("make");
     var tc = creatorThreadCounts(result.pal);
     // More symbols than the printed chart has (audit UX-005): say so now, not at export.
     var limitMsg = symbolLimitWarning(tc);
@@ -2681,7 +2694,7 @@ window.useCreatorState = function useCreatorState() {
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     exactPixelArt, setExactPixelArt,
-    pictureInfo, setPictureInfo, pictureType, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
+    pictureInfo, setPictureInfo, pictureType, presetUntouched, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
     stitchStyle, stitchStyleBasis, applyStitchStyle,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
@@ -2708,7 +2721,7 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    convertTab, setConvertTab,
+    convertTab, setConvertTab, convertStage, setConvertStage,
     stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef, cropRatioRef, pictureExaminerRef,

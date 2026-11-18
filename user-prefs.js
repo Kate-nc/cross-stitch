@@ -65,6 +65,9 @@
     // Guess "What kind of picture is this?" on upload and apply its preset
     // (P2-5). Off: the defaults below apply to new pictures instead.
     creatorGuessPictureType:      true,
+    // Open Frame the picture (crop, turn, type, background) when a picture is
+    // added. Off: straight to the pattern settings; Reframe still opens it.
+    creatorShowFrameStep:         true,
     creatorDefaultPaletteSize:    15,
     creatorDefaultFabricCount:    16,
     creatorAllowBlends:           true,
@@ -290,7 +293,7 @@
       return typeof v === "number" && isFinite(v) && v >= min && v <= max && (!integer || Math.floor(v) === v);
     };
   }
-  portableKeys("gridOverlayEnabled coverageAutoSync exportChartModeBw exportChartModeColour exportOverlap exportIncludeCover exportIncludeInfo exportIncludeIndex exportMiniLegend exportCentreMarks creator.pdfWorkshopTheme creatorGuessPictureType creatorAllowBlends creatorStashOnlyDefault creatorSmoothDithering creatorProtectDetails creatorStitchCleanup creatorCanvasTexture trackerCanvasTexture trackerHighlightSkipDone trackerOnlyStarted trackerShowParking trackerCelebrate trackerMinimap trackerAutomaticSnapshots managerDetailGrid a11yHighContrast a11yReducedMotion a11ySymbolOnly toastsEnabled notifSound notifHaptic notifMilestones notifLowStock autoLibraryLink homeShowCompleted", function(v) { return typeof v === "boolean"; });
+  portableKeys("gridOverlayEnabled coverageAutoSync exportChartModeBw exportChartModeColour exportOverlap exportIncludeCover exportIncludeInfo exportIncludeIndex exportMiniLegend exportCentreMarks creator.pdfWorkshopTheme creatorGuessPictureType creatorShowFrameStep creatorAllowBlends creatorStashOnlyDefault creatorSmoothDithering creatorProtectDetails creatorStitchCleanup creatorCanvasTexture trackerCanvasTexture trackerHighlightSkipDone trackerOnlyStarted trackerShowParking trackerCelebrate trackerMinimap trackerAutomaticSnapshots managerDetailGrid a11yHighContrast a11yReducedMotion a11ySymbolOnly toastsEnabled notifSound notifHaptic notifMilestones notifLowStock autoLibraryLink homeShowCompleted", function(v) { return typeof v === "boolean"; });
   portableKeys("showStreaksAndGoals showDailyStreak", function(v) { return v === null || typeof v === "boolean"; });
   portableKeys("designerName designerCopyright designerContact", function(v) { return typeof v === "string" && v.length <= 10000; });
   portableKeys("fabricColour preferredMountColour creatorFabricColour trackerFabricColour trackerTintColour appAccentColour", function(v) { return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v); });
