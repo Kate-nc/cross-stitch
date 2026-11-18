@@ -4634,11 +4634,16 @@ html.pref-dark .modal,
 html.pref-dark .toolbar,
 html.pref-dark .sidebar { background: var(--surface) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
 /* The Stash Manager's list and tab bar style their own controls from the
-   theme tokens; this blanket rule would flatten selected states. */
-html.pref-dark input:not(.stash-page *):not(.stash-st *),
+   theme tokens; this blanket rule would flatten selected states.
+   The exclusions are inside :where() so they add no specificity: the rule
+   always weighs html.pref-dark button (0,1,2), and the doubled-class
+   overrides further down (Home, Convert, Frame) keep winning however many
+   exclusions are added here. Without it, two more exclusions (Stock-take)
+   out-ranked them and turned Generate and every chosen option grey. */
+html.pref-dark input:where(:not(.stash-page *):not(.stash-st *)),
 html.pref-dark select,
 html.pref-dark textarea,
-html.pref-dark button:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch):not(.ppal-size-btn):not(.stash-page *):not(.mgr-tab-bar *):not(.stash-st *):not(.stash-fab) {
+html.pref-dark button:where(:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch):not(.ppal-size-btn):not(.stash-page *):not(.mgr-tab-bar *):not(.stash-st *):not(.stash-fab)) {
   background: var(--surface-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border) !important;
 }
 html.pref-dark a { color: var(--accent); }
@@ -9180,6 +9185,7 @@ body.creator-compact .ready-bar__actions .btn { white-space: nowrap; }
 .fr-picture__crop { position: relative; display: inline-block; touch-action: none; user-select: none; cursor: crosshair; line-height: 0; }
 .fr-picture--pick .fr-picture__crop { cursor: copy; }
 .fr-picture__img { display: block; max-width: 100%; max-height: calc(100vh - 260px); width: auto; height: auto; }
+.fr-picture__img--small { image-rendering: pixelated; }
 .fr-picture__rect { position: absolute; border: 2px dashed var(--accent); box-sizing: border-box; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35); }
 .fr-cropbar { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; min-height: 32px; font-size: var(--text-sm); color: var(--text-secondary); }
 .fr-cropbar__hint { flex: 1 1 200px; }
@@ -9244,6 +9250,8 @@ html.pref-dark button.creator-sidebar-tab.creator-sidebar-tab[aria-selected="tru
 html.pref-dark button.cs-seltools__btn.cs-seltools__btn.cs-seltools__btn--on { background: var(--accent-soft) !important; color: var(--accent-ink) !important; border-color: var(--accent) !important; }
 html.pref-dark button.cv-generate.cv-generate.cv-generate:not(.cv-generate--quiet):not(:disabled) { background: var(--accent) !important; color: var(--text-on-accent) !important; border-color: var(--accent) !important; }
 html.pref-dark button.cv-next__btn.cv-next__btn.cv-next__btn { background: var(--accent-soft) !important; color: var(--accent-ink) !important; border-color: var(--accent) !important; }
+html.pref-dark button.fr-continue.fr-continue,
+html.pref-dark button.cc-continue.cc-continue { background: var(--accent) !important; color: var(--text-on-accent) !important; border-color: var(--accent) !important; }
 html.pref-dark button.cv-bgpick__swatch.cv-bgpick__swatch.cv-bgpick__swatch,
 html.pref-dark button.fabric-block__swatch.fabric-block__swatch.fabric-block__swatch { background: var(--swatch, var(--surface-tertiary)) !important; }
 

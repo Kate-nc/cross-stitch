@@ -37,6 +37,18 @@ window.rotatePictureCanvas = function rotatePictureCanvas(img, quarters) {
   return c;
 };
 
+// Pictures smaller than this (pixel art, icons) are shown larger, with hard
+// pixel edges, so they can be seen and cropped; at their own size a 9×7
+// sprite was a dot. The crop maps from the size shown, so it stays exact.
+window.FRAME_SMALL_PICTURE_PX = 360;
+window.framePictureMinSize = function framePictureMinSize(w, h) {
+  if (!w || !h || Math.max(w, h) >= window.FRAME_SMALL_PICTURE_PX) return {};
+  var px = window.FRAME_SMALL_PICTURE_PX + "px";
+  // The longer side grows; the shorter one follows the picture's shape.
+  // Capped by the screen, not the box: the box shrinks to fit the picture.
+  return w >= h ? { minWidth: "min(" + px + ", 80vw)" } : { minHeight: "min(" + px + ", 50vh)" };
+};
+
 // The CSS filter that shows brightness, contrast and saturation on the
 // picture as Generate applies them (useCreatorState: brightness((100+bri)%)…).
 window.framePictureFilter = function framePictureFilter(bri, con, sat) {
@@ -160,6 +172,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
 
   if (!gen.img || !gen.img.src) return null;
   var w = gen.origW || gen.img.naturalWidth || gen.img.width, hh = gen.origH || gen.img.naturalHeight || gen.img.height;
+  var small = Math.max(w, hh) < window.FRAME_SMALL_PICTURE_PX;
 
   var hint = gen.pickBg ? "Click the background in the picture to choose its colour."
     : cropReady ? "Apply the crop, or drag again. Escape clears it."
@@ -199,8 +212,8 @@ window.CreatorFrameView = function CreatorFrameView(props) {
         src: gen.img.src, alt: "Your picture", draggable: false,
         onDragStart: function (e) { e.preventDefault(); },
         onClick: gen.pickBg ? gen.srcClick : undefined,
-        className: "fr-picture__img",
-        style: { filter: window.framePictureFilter(gen.bri, gen.con, gen.sat) }
+        className: "fr-picture__img" + (small ? " fr-picture__img--small" : ""),
+        style: Object.assign({ filter: window.framePictureFilter(gen.bri, gen.con, gen.sat) }, window.framePictureMinSize(w, hh))
       }),
       rect && h("div", { className: "fr-picture__rect", "data-crop-rect": "",
         style: { left: rect.x, top: rect.y, width: rect.w, height: rect.h } })));

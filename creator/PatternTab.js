@@ -125,7 +125,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     window.CreatorReadyBar && h(window.CreatorReadyBar, null),
 
-    !app.readyBarOpen && !app.shortcutsHintDismissed && !coarse && h("div", {
+    // The shortcuts hint and review note wait while "Your pattern is ready"
+    // or a one-off tip is showing, so notices come one at a time.
+    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && h("div", {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
@@ -172,7 +174,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    ctx.pat && !app.readyBarOpen && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
+    ctx.pat && !app.readyBarOpen && !app.coachTipActive && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
       h("button", {type:"button", className:"btn btn-sm", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
       h("span", {style:{marginLeft:"var(--s-2)",color:"var(--text-secondary)"}}, "Compare the current chart, stitch preview, size and material assumptions before buying.")),
 

@@ -58,7 +58,9 @@
       actions: compact ? "the More menu at the top" : "the bar at the top",
       // The compact bar's button is labelled Generate; on wider screens the
       // button at the foot of the Convert panel reads Generate Pattern.
-      generate: compact ? "Generate" : "Generate Pattern"
+      generate: compact ? "Generate" : "Generate Pattern",
+      // Phones have no keyboard for "?"; Help is in the top bar's More menu.
+      help: compact ? "Help is in the More menu at the top." : "Press ? at any time for help."
     };
   }
 
@@ -91,7 +93,7 @@
         },
         {
           title: "Edit, then print or stitch",
-          body: "Edit has the drawing tools and Materials lists the threads to buy. Print PDF and Open in Tracker are in " + d.actions + " once the pattern is made. Press ? at any time for help."
+          body: "Edit has the drawing tools and Materials lists the threads to buy. Print PDF and Open in Tracker are in " + d.actions + " once the pattern is made. " + d.help
         }
       ];
     },
@@ -107,7 +109,7 @@
         },
         {
           title: "Print or stitch it",
-          body: "Once the grid has stitches, Print PDF and Open in Tracker appear in " + d.actions + ". Press ? at any time for help."
+          body: "Once the grid has stitches, Print PDF and Open in Tracker appear in " + d.actions + ". " + d.help
         }
       ];
     },
@@ -119,7 +121,7 @@
         },
         {
           title: "Print or stitch it",
-          body: "Print PDF makes a printable chart and Open in Tracker lets you mark stitches as you go; both are in " + d.actions + ". Press ? at any time for help."
+          body: "Print PDF makes a printable chart and Open in Tracker lets you mark stitches as you go; both are in " + d.actions + ". " + d.help
         }
       ];
     }

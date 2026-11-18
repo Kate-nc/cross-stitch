@@ -323,7 +323,7 @@ function ConvertPreview({state, onRetry}) {
       {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
         <div role="status" className="cvp-note cvp-note--warn">
           <span className="cvp-note__icon" aria-hidden="true">{Icons.warning()}</span>
-          No threads marked as owned, so the preview uses every thread. Add threads in the Stash Manager to see a stash-only preview.
+          Your stash has no threads yet, so this preview uses every thread and Generate will stop. Turn off Use only stash threads, or add the threads you own in the Stash Manager.
         </div>
       )}
       <div className="cvp-head">
@@ -581,6 +581,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const _cvHRef  = React.useRef(null);  _cvHRef.current  = canvas;
   const _ioRef   = React.useRef(null);  _ioRef.current   = io;
   const _nameNudgeRef = React.useRef(function(){});
+  // True while a one-off editing tip (coaching) is showing, so the Pattern
+  // tab holds back its own standing notes and notices come one at a time.
+  const [coachTipActive, setCoachTipActive] = React.useState(false);
   // Compact phone chrome (audit COMMON-03): under 900px one top bar and a
   // bottom tool rail replace the header, action bar and tool strip.
   // body.creator-compact keys the CSS (styles.css, "Compact phone chrome").
@@ -833,7 +836,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     cleanupDiff: state.cleanupDiff, setCleanupDiff: state.setCleanupDiff,
     showCleanupDiff: state.showCleanupDiff, setShowCleanupDiff: state.setShowCleanupDiff,
     fRef: state.fRef, prevSW: state.prevSW, prevSH: state.prevSH,
-    stashThreadCount: state.stashThreadCount,
+    stashThreadCount: state.stashThreadCount, ownedThreadCount: state.ownedThreadCount,
     effectiveMaxC: state.effectiveMaxC,
     stashPalette: state.stashPalette,
     blendsAutoDisabled: state.blendsAutoDisabled,
@@ -859,7 +862,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.gallerySlots, state.galleryOpen,
     state.stashConstrained, state.convertBrand, state.coverageGaps,
     state.cleanupDiff, state.showCleanupDiff,
-    state.stashThreadCount, state.effectiveMaxC, state.stashPalette,
+    state.stashThreadCount, state.ownedThreadCount, state.effectiveMaxC, state.stashPalette,
     state.blendsAutoDisabled, state.effectiveAllowBlends,
   ]);
 
@@ -926,7 +929,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleFile: stableHandleFile, loadProject: stableLoadProject,
     handleOpenInTracker: stableHandleOpenInTracker, printPdf: stablePrintPdf,
     pictureFromTracker: !!window.__creatorPictureFromTracker,
-    readyBarOpen: state.readyBarOpen, setReadyBarOpen: state.setReadyBarOpen,
+    readyBarOpen: state.readyBarOpen, setReadyBarOpen: state.setReadyBarOpen, coachTipActive: coachTipActive,
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
     cropToStitches: stableCropToStitches,
     isScratchMode: state.isScratchMode,
@@ -934,7 +937,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     setTracePicture: io.setTracePicture, removeTracePicture: io.removeTracePicture,
     isActive: isActive,
   }; }, [
-    _sourceTab, handleOpenCanvas, state.readyBarOpen,
+    _sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive,
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot, convertChartState,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
@@ -1296,7 +1299,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     ? window.useCoachingSequence('creator', {
         // Held back while "Your pattern is ready" is showing, so the
         // notices after Generate come one at a time (creator/ReadyBar.js).
-        toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal && !state.readyBarOpen,
+        // Not on a phone: there the tabs are inside the closed settings
+        // sheet, and the drawing tools are already in the bottom bar.
+        toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal && !state.readyBarOpen && !_compact,
         firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet && !state.readyBarOpen
       })
     : { active: null, complete: ()=>{}, skip: ()=>{}, skipAll: ()=>{} };
@@ -1324,6 +1329,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const _coarsePointer = (()=>{ try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) { return false; } })();
   const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
   const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
+  // A tip that is due or showing (not one held back by a dialog).
+  const _coachTipNow = !_coachBlocked && !!_coach.active;
+  React.useEffect(()=>{ setCoachTipActive(_coachTipNow); }, [_coachTipNow]);
 
   return (
     <window.GenerationContext.Provider value={genCtx}>
@@ -1673,7 +1681,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         id: 'toolsTab_unlocked',
         target: '.creator-sidebar-tab[data-tab-id="tools"]',
         title: 'Tools and View are now unlocked',
-        body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Image, Dimensions and Palette stay one click away.',
+        body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Palette and View are beside it.',
         placement: 'left',
         showHighlight: true,
         completeOnTargetClick: true,

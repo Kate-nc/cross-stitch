@@ -8727,7 +8727,7 @@ window.useCreatorState = function useCreatorState() {
         allowedPalette = stashInfo.palette;
       }
       if (!allowedPalette || allowedPalette.length === 0) {
-        addToast("Your stash is empty — add threads to use stash-only mode.", {type: "warning", duration: 3000});
+        addToast("Your stash has no " + (window.threadBrandLabel ? window.threadBrandLabel(convertBrand) : "DMC") + " threads, so there are none to use. Turn off Use only stash threads, or add the threads you own in the Stash Manager.", {type: "warning", duration: 10000});
         setBusy(false);
         return;
       }
@@ -9346,6 +9346,14 @@ window.useCreatorState = function useCreatorState() {
     skeinData, materialThreadRows, totalSkeins, blendCount, difficulty, confettiStats: difficultyMetrics.confetti || null, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
+
+    // How many threads of the convert brand the stash holds, whether or not
+    // Use only stash threads is on, so Convert can say up front when the
+    // stash is empty (creator/ConvertPanel.js).
+    ownedThreadCount: useMemo(function() {
+      if (!globalStash) return 0;
+      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
+    }, [globalStash, convertBrand]),
 
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {
@@ -19280,6 +19288,18 @@ window.rotatePictureCanvas = function rotatePictureCanvas(img, quarters) {
   return c;
 };
 
+// Pictures smaller than this (pixel art, icons) are shown larger, with hard
+// pixel edges, so they can be seen and cropped; at their own size a 9×7
+// sprite was a dot. The crop maps from the size shown, so it stays exact.
+window.FRAME_SMALL_PICTURE_PX = 360;
+window.framePictureMinSize = function framePictureMinSize(w, h) {
+  if (!w || !h || Math.max(w, h) >= window.FRAME_SMALL_PICTURE_PX) return {};
+  var px = window.FRAME_SMALL_PICTURE_PX + "px";
+  // The longer side grows; the shorter one follows the picture's shape.
+  // Capped by the screen, not the box: the box shrinks to fit the picture.
+  return w >= h ? { minWidth: "min(" + px + ", 80vw)" } : { minHeight: "min(" + px + ", 50vh)" };
+};
+
 // The CSS filter that shows brightness, contrast and saturation on the
 // picture as Generate applies them (useCreatorState: brightness((100+bri)%)…).
 window.framePictureFilter = function framePictureFilter(bri, con, sat) {
@@ -19403,6 +19423,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
 
   if (!gen.img || !gen.img.src) return null;
   var w = gen.origW || gen.img.naturalWidth || gen.img.width, hh = gen.origH || gen.img.naturalHeight || gen.img.height;
+  var small = Math.max(w, hh) < window.FRAME_SMALL_PICTURE_PX;
 
   var hint = gen.pickBg ? "Click the background in the picture to choose its colour."
     : cropReady ? "Apply the crop, or drag again. Escape clears it."
@@ -19442,8 +19463,8 @@ window.CreatorFrameView = function CreatorFrameView(props) {
         src: gen.img.src, alt: "Your picture", draggable: false,
         onDragStart: function (e) { e.preventDefault(); },
         onClick: gen.pickBg ? gen.srcClick : undefined,
-        className: "fr-picture__img",
-        style: { filter: window.framePictureFilter(gen.bri, gen.con, gen.sat) }
+        className: "fr-picture__img" + (small ? " fr-picture__img--small" : ""),
+        style: Object.assign({ filter: window.framePictureFilter(gen.bri, gen.con, gen.sat) }, window.framePictureMinSize(w, hh))
       }),
       rect && h("div", { className: "fr-picture__rect", "data-crop-rect": "",
         style: { left: rect.x, top: rect.y, width: rect.w, height: rect.h } })));
@@ -21677,7 +21698,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         helpText: "Each thread is one colour of stranded cotton. This is the most the pattern may use. It is a limit, not a target: simpler pictures use fewer. Fewer threads means less to buy and a calmer chart.",
         inlineHint: "A blend uses two of these threads in one stitch, so the chart can have more symbols than threads.",
         helpTopic: "palette" }),
-      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && hint("Limited to " + gen.stashThreadCount + ", the threads in your stash."),
+      // !! so an empty stash (0) renders nothing, not a stray "0".
+      !!(gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount) && hint("Limited to " + gen.stashThreadCount + ", the threads in your stash."),
       used != null
         ? hint("In the preview: " + used + " thread" + (used === 1 ? "" : "s") + " and " + ps.uniqueColors + " chart symbol" + (ps.uniqueColors === 1 ? "" : "s") + "; " + (ps.blendsUsed || 0) + " blends, " + (ps.blendPct || 0) + "% of stitches. " + (ps.estimated ? "Counts are approximate." : ""), { "data-threads-used": "" })
         : hint("A limit, not a target: simpler pictures use fewer.")
@@ -21707,11 +21729,18 @@ window.CreatorSidebar = function CreatorSidebar() {
 
     // The stash comes first: it limits the thread count and blends below.
     // Its tools (the threads, adding one, variations) follow the settings.
+    // With nothing in the stash the choice can't work: say so, and where to
+    // add threads, instead of letting Generate stop on it.
+    var stashEmpty = gen.ownedThreadCount === 0;
+    var stashLink = h("a", { href: "manager.html", target: "_blank", rel: "noopener", className: "cv-link" }, "Stash Manager");
     var stashSec = (typeof StashBridge !== "undefined") ? sec("stash", "Stash", null,
       check({ checked: gen.stashConstrained, label: "Use only stash threads", onChange: function (v) { gen.setStashConstrained(v); },
+        disabled: stashEmpty && !gen.stashConstrained,
         info: "Constrains the palette to the " + brandLabel + " threads you own. Produces a pattern you can stitch immediately without buying anything." }),
-      !gen.stashConstrained && hint("Turn on to make the pattern only from threads you already own."),
-      gen.stashConstrained && h(React.Fragment, null,
+      stashEmpty && !gen.stashConstrained && hint(h(React.Fragment, null, "You haven't recorded any " + brandLabel + " threads you own yet. Add them in the ", stashLink, " to make a pattern only from them."), { className: "cs-toolsec__hint", "data-stash-empty": "" }),
+      stashEmpty && gen.stashConstrained && note("warning", h(React.Fragment, null, "Your stash has no " + brandLabel + " threads, so Generate can't use only stash threads. Turn this off, or add the threads you own in the ", stashLink, "."), { "data-stash-empty": "" }),
+      !stashEmpty && !gen.stashConstrained && hint("Turn on to make the pattern only from threads you already own."),
+      gen.stashConstrained && !stashEmpty && h(React.Fragment, null,
         note("info", (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in your stash" +
           (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? "; the pattern may use up to " + gen.effectiveMaxC + "." : ".")),
         gen.coverageGaps && gen.coverageGaps.hasGaps && note("warning", h(React.Fragment, null, "Your stash may lack colours in: ",
@@ -22607,7 +22636,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     window.CreatorReadyBar && h(window.CreatorReadyBar, null),
 
-    !app.readyBarOpen && !app.shortcutsHintDismissed && !coarse && h("div", {
+    // The shortcuts hint and review note wait while "Your pattern is ready"
+    // or a one-off tip is showing, so notices come one at a time.
+    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && h("div", {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
@@ -22654,7 +22685,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    ctx.pat && !app.readyBarOpen && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
+    ctx.pat && !app.readyBarOpen && !app.coachTipActive && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
       h("button", {type:"button", className:"btn btn-sm", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
       h("span", {style:{marginLeft:"var(--s-2)",color:"var(--text-secondary)"}}, "Compare the current chart, stitch preview, size and material assumptions before buying.")),
 

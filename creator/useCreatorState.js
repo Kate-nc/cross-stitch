@@ -2192,7 +2192,7 @@ window.useCreatorState = function useCreatorState() {
         allowedPalette = stashInfo.palette;
       }
       if (!allowedPalette || allowedPalette.length === 0) {
-        addToast("Your stash is empty — add threads to use stash-only mode.", {type: "warning", duration: 3000});
+        addToast("Your stash has no " + (window.threadBrandLabel ? window.threadBrandLabel(convertBrand) : "DMC") + " threads, so there are none to use. Turn off Use only stash threads, or add the threads you own in the Stash Manager.", {type: "warning", duration: 10000});
         setBusy(false);
         return;
       }
@@ -2811,6 +2811,14 @@ window.useCreatorState = function useCreatorState() {
     skeinData, materialThreadRows, totalSkeins, blendCount, difficulty, confettiStats: difficultyMetrics.confetti || null, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
+
+    // How many threads of the convert brand the stash holds, whether or not
+    // Use only stash threads is on, so Convert can say up front when the
+    // stash is empty (creator/ConvertPanel.js).
+    ownedThreadCount: useMemo(function() {
+      if (!globalStash) return 0;
+      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
+    }, [globalStash, convertBrand]),
 
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {
