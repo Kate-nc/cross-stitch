@@ -236,7 +236,6 @@
     flagExperimentalPreview:  false,
 
     // ─── Experimental features (opt-in, may change without notice) ──────
-    "experimental.importWizard": false,         // C7: guided 5-step image-import wizard
     "experimental.embroideryTool": false,       // Surfaces a link to the experimental embroidery planner (embroidery.html)
 
     // ─── Onboarding coaching (C8 — flattened keys, one per coachmark) ──

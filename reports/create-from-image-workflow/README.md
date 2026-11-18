@@ -460,7 +460,31 @@ missing small-print style.
   `tests/e2e/creator-ready-bar.spec.js`, plus the existing specs moved to the
   new flow.
 
-**Still to do (Phase C):** item 11, sending the Tracker's picture import
-to Convert and removing the experimental wizard and the legacy Tracker
-dialog.
+**Phase C is done.** Item 11 shipped as written:
+
+- Opening a picture in the Stitch Tracker (File > Open) now saves the open
+  project, then hands the picture to Convert in the same way Home does.
+  `BlobStore.handOffPicture` is shared by both and is the same code Home used
+  before. The picture opens on Frame the picture, and "Your pattern is
+  ready" puts Open in Tracker first, with a line saying to start stitching
+  it there.
+- The Tracker's own one-dialog image import has been removed, along with its
+  ten pieces of state.
+- The experimental five-step wizard has been removed: `creator/ImportWizard.js`,
+  `creator/useImportWizard.js`, `creator/import-wizard-bundle.js` and its
+  build step, the page loaders, the precache entry, the
+  `experimental.importWizard` preference and its switch, its help entry, and
+  its tests (`c7ImportWizard*`, `smallHelpersWizard`, and the two
+  `import-wizard-*` browser specs).
+- `parseImagePattern` stays. The import engine's image strategy uses it, and
+  `tests/imageImportWizardPipeline.test.js` still covers it. The crop, rotate
+  and saliency options it gained for the wizard are now used only by that
+  test.
+- Tests: `tests/blobStore.test.js` covers the shared handoff and both of its
+  callers. `tests/e2e/tracker-picture-to-creator.spec.js` covers the whole
+  path from the Tracker, and checks that a picture from Home keeps Print
+  PDF first.
+
+All three phases of section 6 are now done, so there are now one way to
+convert a picture and one order to do it in.
 

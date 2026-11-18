@@ -137,7 +137,7 @@ describe('Ready to stitch and Pattern info show the same count', () => {
 
 describe('Reduce confetti is the one name', () => {
   const files = ['creator/Sidebar.js', 'creator/ToolStrip.js', 'creator/MagicWandPanel.js', 'creator/PatternTab.js',
-    'preferences-modal.js', 'help-drawer.js', 'creator/ImportWizard.js', 'creator/useDenoiseMode.js', 'creator/useCreatorState.js'];
+    'preferences-modal.js', 'help-drawer.js', 'creator/FrameView.js', 'creator/useDenoiseMode.js', 'creator/useCreatorState.js'];
 
   test('the old names are gone from the app', () => {
     const old = [/Tidy stray stitches/, /Tidy stray/, /Confetti Cleanup/, /Remove Orphans/i, /stray stitches/i, /isolated (full )?(stitch|cross)/i];

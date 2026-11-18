@@ -138,9 +138,43 @@
     try { return typeof indexedDB !== 'undefined' && !!indexedDB; } catch (_) { return false; }
   }
 
+  // ── Handing a picture to the Pattern Creator ─────────────────────────────
+  // Home and the Stitch Tracker both send a picture to Convert this way: it
+  // is kept here (no size limit, unlike a sessionStorage data URL) and
+  // create.html?action=home-image-pending&handoff=<id> picks it up and
+  // deletes it (useProjectIO). Very large photos are scaled down first:
+  // conversion never uses more than 500 stitches across, so 4000 px is
+  // plenty. Resolves to the address to open; `from` ("home" or "tracker")
+  // says where the picture came from.
+  var MAX_HANDOFF_PX = 4000;
+  function downscaleIfHuge(file) {
+    if (typeof createImageBitmap !== 'function' || typeof OffscreenCanvas !== 'function') return Promise.resolve(file);
+    return createImageBitmap(file).then(function (bmp) {
+      var long = Math.max(bmp.width, bmp.height);
+      if (long <= MAX_HANDOFF_PX) { if (bmp.close) bmp.close(); return file; }
+      var k = MAX_HANDOFF_PX / long;
+      var cnv = new OffscreenCanvas(Math.round(bmp.width * k), Math.round(bmp.height * k));
+      cnv.getContext('2d').drawImage(bmp, 0, 0, cnv.width, cnv.height);
+      if (bmp.close) bmp.close();
+      return cnv.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+    }).catch(function () { return file; });
+  }
+  function handOffPicture(file, opts) {
+    var from = (opts && opts.from) || 'home';
+    var id = newId('handoff');
+    return downscaleIfHuge(file).then(function (blob) {
+      return put(id, { blob: blob, name: file.name || 'image.jpg', type: blob.type || file.type || 'image/jpeg', createdAt: Date.now() });
+    }).then(function () {
+      // Reload-safety marker: lets the Creator find the picture again if a
+      // service-worker reload strips ?handoff= from the URL.
+      try { sessionStorage.setItem('cs_pending_image_handoff', id); } catch (_) {}
+      return 'create.html?action=home-image-pending&from=' + encodeURIComponent(from) + '&handoff=' + encodeURIComponent(id);
+    });
+  }
+
   var api = {
     put: put, get: get, delete: del, list: list, sweep: sweep, newId: newId, keys: keys, deletePrefix: deletePrefix,
-    available: available, HANDOFF_TTL_MS: HANDOFF_TTL_MS,
+    available: available, HANDOFF_TTL_MS: HANDOFF_TTL_MS, handOffPicture: handOffPicture,
     _setOpener: function (fn) { opener = fn; }
   };
   root.BlobStore = api;

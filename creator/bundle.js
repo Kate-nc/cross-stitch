@@ -22450,21 +22450,27 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     var s = readySummary(ctx.sW, ctx.sH, ctx.pal, ctx.totalSkeins);
     function close() { app.setReadyBarOpen(false); }
     function then(fn) { return function () { close(); fn(); }; }
+    var fromTracker = !!app.pictureFromTracker;
+    function trackBtn(primary) {
+      return app.handleOpenInTracker ? h("button", { key: "track", type: "button", className: "btn btn-sm" + (primary ? " btn-primary" : ""), onClick: then(app.handleOpenInTracker) },
+        Icons.pointing ? Icons.pointing() : null, h("span", null, "Open in Tracker")) : null;
+    }
     return h("section", { className: "ready-bar", role: "region", "aria-label": "Your pattern is ready" },
       h("span", { className: "ready-bar__icon", "aria-hidden": "true" }, Icons.check ? Icons.check() : null),
       h("div", { className: "ready-bar__text" },
         h("strong", { className: "ready-bar__title" }, "Your pattern is ready"),
-        h("span", { className: "ready-bar__summary", "data-ready-summary": "" }, s.text + ". It is saved in your library."),
+        h("span", { className: "ready-bar__summary", "data-ready-summary": "" }, s.text + ". It is saved in your library" + (fromTracker ? "; Open in Tracker to start stitching it." : ".")),
         h("span", { className: "ready-bar__links" },
           h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
           s.blends > 0 && window.openBlendHelp && window.BLEND_HELP
             ? h("button", { type: "button", className: "ready-bar__link", onClick: function () { window.openBlendHelp(); } }, window.BLEND_HELP.title)
             : null)),
       h("div", { className: "ready-bar__actions" },
-        app.printPdf && h("button", { type: "button", className: "btn btn-sm btn-primary", onClick: then(app.printPdf) },
+        // A picture sent from the Tracker goes back there to be stitched.
+        fromTracker && trackBtn(true),
+        app.printPdf && h("button", { type: "button", className: "btn btn-sm" + (fromTracker ? "" : " btn-primary"), onClick: then(app.printPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")),
-        app.handleOpenInTracker && h("button", { type: "button", className: "btn btn-sm", onClick: then(app.handleOpenInTracker) },
-          Icons.pointing ? Icons.pointing() : null, h("span", null, "Open in Tracker")),
+        !fromTracker && trackBtn(false),
         h("button", { type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.setTab("materials"); }) },
           Icons.thread ? Icons.thread() : null, h("span", null, "Threads to buy"))),
       h("button", { type: "button", className: "ready-bar__close", onClick: close, "aria-label": "Close: keep editing", title: "Close" },

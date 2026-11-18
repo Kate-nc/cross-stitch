@@ -158,7 +158,6 @@ conflict/hotkey policies must be chosen locally.
 - `cs_pref_creatorColourDisclaimerDismissed`
 - `cs_pref_crossTabConflictPolicy`
 - `cs_pref_experimental.embroideryTool`
-- `cs_pref_experimental.importWizard`
 - `cs_pref_fabricMeasurementUnit`
 - `cs_pref_flagExperimentalPreview`
 - `cs_pref_onboarding.coached.firstStitch_creator`

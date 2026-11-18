@@ -2565,17 +2565,7 @@ useEffect(()=>{
 },[focusMode,resetFocusFade]);
 // F and Esc for focus mode are registered shortcuts (tracker.focusMode, and the end of tracker.esc), so the keys have one owner.
 
-const [importDialog, setImportDialog] = useState(null);
-const [importImage, setImportImage] = useState(null);
 const [importSuccess, setImportSuccess] = useState(null);
-const [importMaxW, setImportMaxW] = useState(80);
-const [importMaxH, setImportMaxH] = useState(80);
-const [importMaxColours, setImportMaxColours] = useState(30);
-const [importSkipBg, setImportSkipBg] = useState(false);
-const [importBgThreshold, setImportBgThreshold] = useState(15);
-const [importArLock, setImportArLock] = useState(true);
-const [importName, setImportName] = useState("");
-const [importFabricCt, setImportFabricCt] = useState(14);
 
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
@@ -4228,6 +4218,32 @@ function handleEditInCreator(){
 }
 
 
+// Sends a picture to the Pattern Creator's Convert (BlobStore.handOffPicture,
+// as Home does), after saving the open project so no stitching is lost.
+function sendPictureToCreator(f) {
+  const BS = window.BlobStore;
+  if (!BS || !BS.available() || typeof BS.handOffPicture !== 'function') {
+    setLoadError("This browser can't pass the picture to the Pattern Creator. Open it from Create on the Home page instead.");
+    return;
+  }
+  const project = pat ? buildSnapshot() : null;
+  if (project) lastSnapshotRef.current = project;
+  try { window.Toast && window.Toast.show && window.Toast.show({ message: 'Opening the picture in the Pattern Creator\u2026', type: 'info', duration: 4000 }); } catch (_) {}
+  (project ? persistProjectRecord(project) : Promise.resolve(null)).then(function (saveResult) {
+    // A cross-tab conflict that the user resolved by reloading: stay here.
+    if (saveResult && noWriteReason(saveResult.reason)) return null;
+    if (saveResult && saveResult.ok === false) throw new Error(saveResult.reason || 'save failed');
+    return BS.handOffPicture(f, { from: 'tracker' });
+  }).then(function (url) {
+    if (!url) return;
+    window.__navigatingAway = true;
+    window.location.href = url;
+  }).catch(function (err) {
+    console.error('[tracker] Could not open the picture in the Creator:', err);
+    setLoadError('Could not open the picture in the Pattern Creator. Please try again.');
+  });
+}
+
 function handleSymbolReassignment(oldColorId, newThread) {
   if (!pat || !pal || !cmap) return;
 
@@ -4830,28 +4846,12 @@ function loadProject(e){
     };
     rd.readAsText(f);
   } else if (format === "image") {
-    const MAX_FILE_SIZE = 5 * 1024 * 1024;
-    if (f.size > MAX_FILE_SIZE) {
-      setLoadError("File is too large. Please select an image under 5MB.");
-
-      return;
-    }
-    let rd=new FileReader();
-    rd.onload=ev=>{
-      let img = new Image();
-      img.onload = () => {
-        setImportImage(img);
-        setImportName(baseName);
-        setImportFabricCt(14);
-        setImportDialog("image");
-      };
-      img.onerror = () => {
-        setLoadError("Could not load image.");
-
-      };
-      img.src = ev.target.result;
-    };
-    rd.readAsDataURL(f);
+    // A picture is turned into a pattern in the Pattern Creator, the same as
+    // from Home: Frame the picture, then Size, Threads and Detail, then
+    // "Your pattern is ready" with Open in Tracker first
+    // (reports/create-from-image-workflow, Phase C). The Tracker's own
+    // one-dialog import and the experimental wizard are gone.
+    sendPictureToCreator(f);
   } else if (format === "pdf") {
     // A large chart or a scan takes a while: say which page it is on, and
     // let the stitcher stop it. The importer checks the token once a page.
@@ -8648,7 +8648,6 @@ const trackerShortcuts=!isActive ? [] : [
       if(modal){setModal(null);return;}
       if(showExitEditModal){setShowExitEditModal(false);return;}
       if(cellEditPopover){setCellEditPopover(null);return;}
-      if(importDialog){setImportDialog(null);return;}
       if(tOverflowOpen){setTOverflowOpen(false);return;}
       if(focusColour&&stitchView==="highlight"){setFocusColour(null);return;}
       if(drawer){setDrawer(false);return;}
@@ -10644,129 +10643,6 @@ return(
     </div>{/* end ppal-canvas-col */}
   </div>{/* end cs-main */}
   </>}
-
-  {importDialog==="image"&&importImage&&(()=>{
-    // C7: when the experimental import wizard is enabled, mount the new
-    // 5-step ImportWizard component instead of the legacy single-step
-    // parameter modal. The flag defaults off so existing users see no
-    // change. The wizard's commit() returns the same shape the legacy
-    // path expects so the generation call below stays identical.
-    let _useWizard=false;
-    try{ _useWizard=!!(window.UserPrefs&&window.UserPrefs.get&&window.UserPrefs.get('experimental.importWizard')); }catch(_){_useWizard=false;}
-    if(_useWizard&&window.ImportWizard){
-      return React.createElement(window.ImportWizard,{
-        image:importImage,
-        baseName:importName||"",
-        globalStash:globalStash,
-        onClose:()=>{ setImportDialog(null); setImportImage(null); },
-        onGenerate:(settings)=>{
-          try{
-            let result=parseImagePattern(importImage,Object.assign({},settings,{globalStash:globalStash}));
-            const finalName=(settings.name||'').trim().slice(0,60);
-            let project=importResultToProject(result,settings.fabricCt||14,finalName);
-            project.id=ProjectStorage.newId();
-            project.createdAt=project.createdAt||new Date().toISOString();
-            processLoadedProject(project);
-            ProjectStorage.save(project).then(id=>ProjectStorage.setActiveProject(id)).catch(err=>console.error("Import save failed:",err));
-            setImportSuccess(`Imported "${finalName||'image'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
-          }catch(err){
-            console.error(err);
-            setLoadError("Image import failed: "+err.message);
-          }
-          setImportDialog(null);
-          setImportImage(null);
-        }
-      });
-    }
-    return <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="import-pattern-title" onClick={()=>{setImportDialog(null);setImportImage(null);}}>
-    <div className="modal-content" style={{maxWidth:600}} onClick={e=>e.stopPropagation()}>
-      <button className="modal-close" onClick={()=>{setImportDialog(null);setImportImage(null);}} aria-label="Close">{Icons.x?Icons.x():null}</button>
-      <h3 id="import-pattern-title" style={{marginTop:0,marginBottom:15}}>Import Image Pattern</h3>
-      <div style={{display:"flex", flexDirection:"column", gap:'var(--s-3)', marginBottom:'var(--s-4)'}}>
-        <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
-          <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Project Name</label>
-          <input type="text" maxLength={60} value={importName} onChange={e=>setImportName(e.target.value)}
-            placeholder="e.g. Rose Garden" style={{padding:"6px 10px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)", fontSize:'var(--text-md)'}}/>
-        </div>
-      </div>
-      <div style={{display:"flex", gap:20, flexWrap:"wrap"}}>
-        <div style={{width:140, display:"flex", flexDirection:"column", gap:'var(--s-2)'}}>
-          <div style={{width:140, height:140, background:"var(--surface-secondary)", border:"0.5px solid var(--border)", borderRadius:'var(--radius-md)', display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden"}}>
-            <img src={importImage.src} style={{maxWidth:"100%", maxHeight:"100%", objectFit:"contain", imageRendering:"pixelated"}}/>
-          </div>
-          <div style={{fontSize:'var(--text-sm)', color:"var(--text-secondary)", textAlign:"center"}}>
-            {importImage.width} × {importImage.height} px
-          </div>
-        </div>
-        <div style={{flex:1, minWidth:250, display:"flex", flexDirection:"column", gap:'var(--s-4)'}}>
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:'var(--s-3)'}}>
-            <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
-              <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Max Width (stitches)</label>
-              <input type="number" inputMode="numeric" min={10} max={300} value={importMaxW} onChange={e=>{
-                let val = Number(e.target.value);
-                setImportMaxW(val);
-                if (importArLock) setImportMaxH(Math.max(10, Math.floor(val * (importImage.height / importImage.width))));
-              }} style={{padding:"6px 10px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)"}}/>
-            </div>
-            <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
-              <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Max Height (stitches)</label>
-              <input type="number" inputMode="numeric" min={10} max={300} value={importMaxH} onChange={e=>{
-                let val = Number(e.target.value);
-                setImportMaxH(val);
-                if (importArLock) setImportMaxW(Math.max(10, Math.floor(val * (importImage.width / importImage.height))));
-              }} style={{padding:"6px 10px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)"}}/>
-            </div>
-          </div>
-          <label style={{display:"flex", alignItems:"center", gap:'var(--s-2)', fontSize:'var(--text-md)', color:"var(--text-primary)", cursor:"pointer"}}>
-            <input type="checkbox" checked={importArLock} onChange={e=>setImportArLock(e.target.checked)}/> Lock aspect ratio
-          </label>
-
-          <div style={{display:"flex", flexDirection:"column", gap:'var(--s-1)'}}>
-            <label style={{fontSize:'var(--text-sm)', fontWeight:600, color:"var(--text-secondary)"}}>Fabric Count</label>
-            <select value={importFabricCt} onChange={e=>setImportFabricCt(Number(e.target.value))}
-              style={{padding:"6px 10px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)", fontSize:'var(--text-md)', background:"var(--surface)"}}>
-              {FABRIC_COUNTS.map(fc=><option key={fc.ct} value={fc.ct}>{fc.label}</option>)}
-            </select>
-          </div>
-
-          <SliderRow label="Threads (max)" val={importMaxColours} setVal={setImportMaxColours} min={5} max={40} />
-
-          <label style={{display:"flex", alignItems:"center", gap:'var(--s-2)', fontSize:'var(--text-md)', color:"var(--text-primary)", cursor:"pointer"}}>
-            <input type="checkbox" checked={importSkipBg} onChange={e=>setImportSkipBg(e.target.checked)}/> Skip near-white background
-          </label>
-
-          {importSkipBg && <SliderRow label="Background Tolerance" val={importBgThreshold} setVal={setImportBgThreshold} min={3} max={50} />}
-
-        </div>
-      </div>
-      <div style={{display:"flex", justifyContent:"flex-end", gap:10, marginTop:24, paddingTop:16, borderTop:"0.5px solid var(--border)"}}>
-        <button onClick={()=>{setImportDialog(null);setImportImage(null);}} style={{padding:"8px 16px", borderRadius:'var(--radius-md)', border:"0.5px solid var(--border)", background:"var(--surface)", cursor:"pointer", fontWeight:600}}>Cancel</button>
-        <button onClick={()=>{
-          try {
-            let result = parseImagePattern(importImage, {
-              maxWidth: importMaxW, maxHeight: importMaxH,
-              maxColours: importMaxColours, skipWhiteBg: importSkipBg, bgThreshold: importBgThreshold
-            });
-            const finalName = (importName || '').trim().slice(0, 60);
-            let project = importResultToProject(result, importFabricCt, finalName);
-            project.id = ProjectStorage.newId();
-            project.createdAt = project.createdAt || new Date().toISOString();
-            processLoadedProject(project);
-            ProjectStorage.save(project).then(id => ProjectStorage.setActiveProject(id)).catch(err => console.error("Import save failed:", err));
-            setImportSuccess(`Imported "${finalName || 'image'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
-            setImportDialog(null);
-            setImportImage(null);
-          } catch(err) {
-            console.error(err);
-            setLoadError("Image import failed: " + err.message);
-            setImportDialog(null);
-            setImportImage(null);
-          }
-        }} style={{padding:"8px 16px", borderRadius:'var(--radius-md)', border:"none", background:"var(--accent)", color:"var(--surface)", cursor:"pointer", fontWeight:600}}>Import Pattern</button>
-      </div>
-    </div>
-  </div>;
-  })()}
 
   {modal==="help"&&<SharedModals.Help defaultTab="tracker" onClose={()=>setModal(null)} />}
   {welcomeOpen&&window.WelcomeWizard&&React.createElement(window.WelcomeWizard,{

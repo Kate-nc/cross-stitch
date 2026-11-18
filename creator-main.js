@@ -925,6 +925,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     saveProject: stableSaveProject, doSaveProject: stableDoSaveProject,
     handleFile: stableHandleFile, loadProject: stableLoadProject,
     handleOpenInTracker: stableHandleOpenInTracker, printPdf: stablePrintPdf,
+    pictureFromTracker: !!window.__creatorPictureFromTracker,
     readyBarOpen: state.readyBarOpen, setReadyBarOpen: state.setReadyBarOpen,
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
     cropToStitches: stableCropToStitches,
@@ -1988,6 +1989,9 @@ function CreatorNoProjectRedirect(){
       var handoffId = p.get('handoff');
       try { if (!handoffId) handoffId = sessionStorage.getItem('cs_pending_image_handoff'); } catch (_) {}
       if (handoffId && /^handoff:/.test(handoffId)) window.__pendingCreatorHandoffId = handoffId;
+      // A picture sent from the Stitch Tracker: "Your pattern is ready" puts
+      // Open in Tracker first (creator/ReadyBar.js).
+      if (p.get('from') === 'tracker') window.__creatorPictureFromTracker = true;
       var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
       var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
       var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';

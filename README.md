@@ -17,7 +17,6 @@ Convert images into stitchable charts, or design patterns from scratch.
 - Dithering: Off, Atkinson (Subtle / Balanced / Strong) or ordered Bayer (2×2 / 4×4 / 8×8).
 - Adjust brightness, contrast and saturation, smooth or pre-sharpen the image, and treat a background colour as empty fabric (pick it from the image, with adjustable tolerance).
 - The preview updates as you change settings, before the full pattern is generated.
-- An experimental five-step guided import wizard is available under Preferences > Pattern Creator.
 
 **Palette controls**
 - Maximum number of colours: 2–100.
@@ -259,7 +258,7 @@ The app runs without a bundler, but some files are generated and committed:
 
 | Command | Output | When |
 |---|---|---|
-| `node build-creator-bundle.js` (`npm run build:creator`) | `creator/bundle.js`, `creator/extras-bundle.js`, `creator/import-wizard-bundle.js` | After editing anything in `creator/` |
+| `node build-creator-bundle.js` (`npm run build:creator`) | `creator/bundle.js`, `creator/extras-bundle.js` | After editing anything in `creator/` |
 | `node build-runtime-js.js` (`npm run build:runtime-js`) | `compiled/*.compiled.js` | After editing `tracker-app.js`, `creator-main.js`, `manager-app.js` or `embroidery.js` (JSX, precompiled so there is no in-browser Babel) |
 | `node build-import-bundle.js` | `import-engine/bundle.js` | After editing anything in `import-engine/` |
 | `node build-symbol-font.js` | `assets/fonts/CrossStitchSymbols.ttf` (+ base64) | After changing the PDF symbol set |

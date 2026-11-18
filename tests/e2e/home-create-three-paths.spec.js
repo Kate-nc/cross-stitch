@@ -34,6 +34,9 @@ test.describe('Starting a pattern on Pixel 5', function() {
     await expect(dialog).toContainText('What’s in this picture?');
     await dialog.getByRole('button', { name: /Something to turn into a pattern/ }).click();
     await page.waitForURL(/create\.html/);
+    // Convert starts with Frame the picture; Continue leads to Generate.
+    await expect(page.locator('[data-frame-view]')).toBeVisible({ timeout: 15000 });
+    await page.locator('.cc-continue').click();
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 15000 });
   });
 
