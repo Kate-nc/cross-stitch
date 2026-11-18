@@ -157,7 +157,7 @@ test.describe('Crop to the stitches on desktop', function() {
   test.setTimeout(90000);
 
   test('crops the chart, keeps its stitches and progress, and Undo puts the edges back', async function({ page }) {
-    await openConvertWithLogo(page);
+    await openConvertWithLogo(page, { leaveBackgroundOut: true });
     await clickGenerate(page);
     await waitForEdit(page);
     const before = await page.evaluate(() => {

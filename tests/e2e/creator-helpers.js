@@ -35,7 +35,10 @@ async function skipTourIfShown(page) {
 }
 
 // Home › Create › New from pattern file with logo.png; ends on Convert.
-async function openConvertWithLogo(page) {
+// opts.leaveBackgroundOut: accept the plain-background offer (the logo's
+// white background is stitched until the stitcher chooses), which also
+// clears its toast.
+async function openConvertWithLogo(page, opts) {
   await quietOnboarding(page);
   await page.goto('/home.html?tab=create');
   await skipTourIfShown(page);
@@ -43,6 +46,11 @@ async function openConvertWithLogo(page) {
   await page.waitForURL(/create\.html/);
   await page.waitForSelector('.rpanel', { state: 'attached' });
   await skipTourIfShown(page);
+  if (opts && opts.leaveBackgroundOut) {
+    const offer = page.locator('.creator-toast-container > *').filter({ hasText: 'This picture has a plain background' });
+    await offer.getByRole('button', { name: 'Leave it unstitched' }).click({ timeout: 15000 });
+    await expect(offer).toHaveCount(0);
+  }
 }
 
 // A blank grid (P2-4): the New design sheet comes first. Opens
@@ -73,8 +81,9 @@ async function waitForEdit(page) {
   await page.waitForTimeout(300);
 }
 
+// The logo generated with its background left out, as most logos are.
 async function generateLogo(page) {
-  await openConvertWithLogo(page);
+  await openConvertWithLogo(page, { leaveBackgroundOut: true });
   await clickGenerate(page);
   await waitForEdit(page);
 }
