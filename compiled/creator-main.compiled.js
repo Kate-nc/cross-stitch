@@ -67,6 +67,7 @@ function confettiTier(pct) {
 }
 function ComparisonSlider({
   originalSrc,
+  originalPixelated = false,
   previewSrc,
   heatmapSrc,
   highlightSrc,
@@ -258,9 +259,11 @@ function ComparisonSlider({
       left: 0,
       width: "100%",
       height: "100%",
-      objectFit: "fill"
+      objectFit: "fill",
+      imageRendering: originalPixelated ? "pixelated" : "auto"
     },
-    alt: "Original"
+    alt: leftLabel || "Original",
+    "data-testid": "cmp-original"
   }), /*#__PURE__*/React.createElement("div", {
     "data-testid": "cmp-preview-layer",
     style: {
@@ -597,6 +600,24 @@ const PREVIEW_VIEWS = [{
   label: 'Before / after',
   title: 'Your picture and the chart either side of a slider'
 }];
+// What Before / after puts before the chart: the picture itself, or the
+// picture at stitch size (one colour per stitch, before threads are chosen).
+const COMPARE_BEFORE = [{
+  id: 'picture',
+  label: 'Your picture'
+}, {
+  id: 'sampled',
+  label: 'At stitch size'
+}];
+function loadCompareBefore() {
+  try {
+    const v = window.UserPrefs && window.UserPrefs.get('creator.convertCompareBefore');
+    if (COMPARE_BEFORE.some(function (x) {
+      return x.id === v;
+    })) return v;
+  } catch (_) {}
+  return 'picture';
+}
 function loadPreviewView() {
   try {
     const v = window.UserPrefs && window.UserPrefs.get('creator.convertPreviewView');
@@ -626,6 +647,13 @@ function ConvertPreview({
   onRetry
 }) {
   const [view, setViewRaw] = useState(loadPreviewView);
+  const [before, setBeforeRaw] = useState(loadCompareBefore);
+  function setBefore(v) {
+    setBeforeRaw(v);
+    try {
+      if (window.UserPrefs) window.UserPrefs.set('creator.convertCompareBefore', v);
+    } catch (_) {}
+  }
   const [closeUp, setCloseUp] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showChanged, setShowChanged] = useState(false);
@@ -693,9 +721,13 @@ function ConvertPreview({
   }) : null;
   const overlays = !state.previewLoading && /*#__PURE__*/React.createElement(React.Fragment, null, showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap'), state.showTidied && overlay(state.previewTidied, 'cvp-tidied'), state.showBackground && overlay(state.previewBackground, 'cvp-background'), showChanged && overlay(state.previewChanged, 'cvp-changed'), overlay(state.previewHighlight, 'cvp-highlight'));
   let body;
+  // At stitch size needs the preview's own picture; until it exists, the picture.
+  const sampledBefore = before === 'sampled' && !!state.previewSampled;
   if (view === 'compare') {
     body = /*#__PURE__*/React.createElement(ComparisonSlider, {
-      originalSrc: state.img.src,
+      originalSrc: sampledBefore ? state.previewSampled : state.img.src,
+      originalPixelated: sampledBefore,
+      leftLabel: sampledBefore ? 'At stitch size' : 'Original',
       previewSrc: state.previewUrl,
       heatmapSrc: state.previewHeatmap,
       highlightSrc: state.previewHighlight,
@@ -846,7 +878,29 @@ function ConvertPreview({
     }
   }, Icons.eye(), /*#__PURE__*/React.createElement("span", null, "Show unstitched background"))), view === 'stitched' && /*#__PURE__*/React.createElement("p", {
     className: "cvp-caption"
-  }, "Simulated stitches: 2 strands on ", window.fabricShortLabel(ct), " fabric in your fabric colour. Screens show thread colours only roughly."));
+  }, "Simulated stitches: 2 strands on ", window.fabricShortLabel(ct), " fabric in your fabric colour. Screens show thread colours only roughly."), view === 'compare' && /*#__PURE__*/React.createElement("div", {
+    className: "cvp-before"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lp-segmented cvp-before__seg",
+    role: "radiogroup",
+    "aria-label": "Compare the chart with"
+  }, COMPARE_BEFORE.map(function (b) {
+    const on = before === b.id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: b.id,
+      type: "button",
+      role: "radio",
+      "aria-checked": on ? 'true' : 'false',
+      className: 'lp-seg' + (on ? ' lp-seg--on' : ''),
+      "data-compare-before": b.id,
+      onClick: function () {
+        setBefore(b.id);
+      }
+    }, b.label);
+  })), before === 'sampled' && /*#__PURE__*/React.createElement("p", {
+    className: "cvp-caption",
+    "data-compare-before-caption": ""
+  }, "At stitch size is your picture with one colour per stitch, before any thread is chosen. Detail already gone here is lost to the chart's size: crop tighter or make the chart bigger. Detail here but missing from the chart is lost in matching threads and tidying: try more threads or a step towards More detail.")));
 }
 window.ConvertPreview = ConvertPreview;
 function PatternEstimates({

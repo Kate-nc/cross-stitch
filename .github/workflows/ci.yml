@@ -1,8 +1,8 @@
 name: CI
 
 # Action plan §2D.3. Runs the Jest test suite on every push and PR so
-# regressions are caught before merge. The suite is fast (~3–5 s) and
-# pure-Node (no browser binaries needed).
+# regressions are caught before merge (pure Node, no browser binaries), and
+# the Convert and Creator browser tests in Chromium (the e2e job).
 
 on:
   push:
@@ -45,3 +45,43 @@ jobs:
 
       - name: Run Jest
         run: npm test -- --ci --reporters=default
+
+  e2e:
+    # The Convert and Creator browser tests (playwright.creator.config.js: a
+    # mouse desktop and a Pixel 5, plus the touch specs, which pin a tablet).
+    # Until November 2026 they ran nowhere, and several had fallen behind the
+    # app unnoticed (reports/photo-conversion-audit-2026-11.md).
+    name: Browser tests (Convert and Creator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests
+        # Serve React, pako, pdf-lib and pdf.js from node_modules rather than
+        # cdnjs, so a CDN hiccup can't fail the run (tests/e2e/local-cdn.js).
+        env:
+          E2E_LOCAL_CDN: '1'
+        run: npx playwright test --config=playwright.creator.config.js --trace off
+
+      - name: Keep failure screenshots and page snapshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 14

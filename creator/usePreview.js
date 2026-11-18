@@ -125,7 +125,7 @@ window.usePreview = function usePreview(state) {
   }
 
   function clearDetails() {
-    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Background', 'Changed', 'Snapshot'].forEach(function(key) {
+    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Background', 'Sampled', 'Changed', 'Snapshot'].forEach(function(key) {
       if (state['setPreview' + key]) state['setPreview' + key](null);
     });
   }
@@ -211,6 +211,22 @@ window.usePreview = function usePreview(state) {
         };
         if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
         return o;
+      }
+
+      // The picture at stitch size, as the matcher sees it: one colour per
+      // stitch, with the picture adjustments (Before / after's At stitch size).
+      // Not for exact pixel art, whose source pixels are the stitches.
+      if (state.setPreviewSampled) {
+        if (raw && !exactResult) {
+          var sampled = new Uint8ClampedArray(raw);
+          applyImageAdjustments(sampled, bri, con, sat);
+          var sc = document.createElement("canvas"); sc.width = pw; sc.height = ph;
+          var scx = sc.getContext("2d"); var sData = scx.createImageData(pw, ph);
+          sData.data.set(sampled); scx.putImageData(sData, 0, 0);
+          state.setPreviewSampled(sc.toDataURL());
+        } else {
+          state.setPreviewSampled(null);
+        }
       }
 
       // Helper: render a mapped array to a data URL

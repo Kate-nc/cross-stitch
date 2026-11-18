@@ -105,19 +105,34 @@ function ensureTrackerProjectFixture() {
   return filePath;
 }
 
+// Opens a saved project in the Pattern Creator. The Creator no longer has an
+// Open file button (index.html opens on the landing page, whose file input
+// sends a pattern to the Stitch Tracker), so the project is put in the
+// library and opened by id, as bead-progress.spec.js does for the Tracker.
 async function loadCreatorFixture(page, projectPath) {
-  await page.goto('/index.html');
-  await page.waitForSelector('text=Open file');
-  const chooserPromise = page.waitForEvent('filechooser');
-  await page.getByText('Open file').first().click();
-  const chooser = await chooserPromise;
-  await chooser.setFiles(projectPath || ensureCreatorProjectFixture());
-  await page.waitForSelector('.tb-strip');
-  await page.waitForFunction(function(expectedZoom) {
-    const zoomEl = document.querySelector('.tb-zoom-pct');
-    const canvases = Array.from(document.querySelectorAll('canvas'));
-    return zoomEl && zoomEl.textContent && zoomEl.textContent.includes(String(expectedZoom)) && canvases.some(function(el) { return el.width > 1000; });
-  }, Math.round(FIXTURE_ZOOM * 100));
+  await page.addInitScript(function() {
+    try {
+      ['tracker', 'creator', 'manager', 'home'].forEach(function(k) { localStorage.setItem('cs_welcome_' + k + '_done', '1'); });
+      ['firstStitch_creator', 'toolsTab_unlocked', 'import', 'undo', 'progress', 'save'].forEach(function(k) {
+        localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true');
+      });
+    } catch (e) {}
+  });
+  const project = JSON.parse(fs.readFileSync(projectPath || ensureCreatorProjectFixture(), 'utf8'));
+  project.id = project.id || 'proj_touch_e2e';
+  await page.goto('/home.html');
+  await page.evaluate(async function(p) {
+    await ProjectStorage.save(p, { resurrect: true });
+    ProjectStorage.setActiveProject(p.id);
+  }, project);
+  await page.goto('/create.html?id=' + encodeURIComponent(project.id));
+  // The edit tools (the tool strip's old .tb-strip wrapper is gone).
+  await page.waitForSelector('.toolbar-row, .creator-rail');
+  // The chart drawn at the fixture's zoom. (Touch layouts are compact and
+  // show no zoom percentage, so the canvas is the signal.)
+  await page.waitForFunction(function() {
+    return Array.from(document.querySelectorAll('canvas')).some(function(el) { return el.width > 1000; });
+  });
 }
 
 // The tracker chart canvas. Its label grew a keyboard hint, so match the
@@ -315,18 +330,11 @@ async function sampleCanvasPixel(locator, x, y) {
   }, { x, y });
 }
 
+// The fixture's red thread (DMC 606) in the Creator's palette. The palette
+// lists each thread as a row ("DMC 606 Bright Orange-Red · 1,800 stitches…");
+// it used to be a row of colour chips (.creator-palette-chip).
 async function chooseRedCreatorPaletteChip(page) {
-  const chips = page.locator('.creator-palette-chip');
-  const index = await chips.evaluateAll(function(elements) {
-    return elements.findIndex(function(el) {
-      const swatch = el.querySelector('.creator-palette-chip-swatch');
-      if (!swatch) return false;
-      const rgb = (getComputedStyle(swatch).backgroundColor.match(/\d+/g) || []).map(Number);
-      return rgb.length === 3 && rgb[0] > 200 && rgb[1] < 80 && rgb[2] < 80;
-    });
-  });
-  if (index < 0) throw new Error('Could not find a red creator palette chip');
-  await chips.nth(index).tap();
+  await page.getByRole('button', { name: /^DMC 606 Bright Orange-Red ·/ }).first().tap();
 }
 
 module.exports = {

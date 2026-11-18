@@ -1134,6 +1134,12 @@ window.useCreatorState = function useCreatorState() {
   // unstitched removes is otherwise invisible on fabric of the same colour.
   var _prevBackground = useState(null); var previewBackground = _prevBackground[0], setPreviewBackground = _prevBackground[1];
   var _showBackground = useState(false); var showBackground = _showBackground[0], setShowBackground = _showBackground[1];
+  // The picture at stitch size: one colour per stitch, the light-average of
+  // the picture under it with Brightness, Contrast and Saturation applied,
+  // before any thread is chosen (usePreview). Before / after can compare the
+  // chart with it, to tell detail lost to the chart's size from detail lost
+  // in matching threads and tidying.
+  var _prevSampled = useState(null); var previewSampled = _prevSampled[0], setPreviewSampled = _prevSampled[1];
   // What the last settings change did to the preview (usePreview.js
   // describePreviewChange): which settings, and the counts before and after.
   var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
@@ -2772,6 +2778,7 @@ window.useCreatorState = function useCreatorState() {
     previewError, setPreviewError,
     previewTidied, setPreviewTidied, showTidied, setShowTidied,
     previewBackground, setPreviewBackground, showBackground, setShowBackground,
+    previewSampled, setPreviewSampled,
     previewChange, setPreviewChange,
     previewChanged, setPreviewChanged, previewSnapshot, setPreviewSnapshot,
     pinnedPreview, setPinnedPreview, pinPreview, applyPinnedSettings, previewRestoreSettings,

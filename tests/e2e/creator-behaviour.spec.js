@@ -2,7 +2,8 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, quietOnboarding, generateLogo, pickDarkSwatch, startBlankGrid } = require('./creator-helpers');
+const fs = require('fs');
+const { LOGO, device, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit, generateLogo, pickDarkSwatch, startBlankGrid } = require('./creator-helpers');
 
 const pixel5 = device('Pixel 5');
 
@@ -110,7 +111,17 @@ test.describe('Creator behaviour on Pixel 5', function() {
   });
 
   test('Print PDF offers a name once for an auto-named project', async function({ page }) {
-    await generateLogo(page);
+    // A camera-style file name is a default worth replacing; a real one such
+    // as logo.png is kept without asking (needsNamePrompt, helpers.js).
+    await quietOnboarding(page);
+    await page.goto('/home.html?tab=create');
+    await skipTourIfShown(page);
+    await page.locator('input.home-create-file-input').setInputFiles({ name: 'IMG_2041.png', mimeType: 'image/png', buffer: fs.readFileSync(LOGO) });
+    await page.waitForURL(/create\.html/);
+    await page.waitForSelector('.rpanel', { state: 'attached' });
+    await skipTourIfShown(page);
+    await clickGenerate(page);
+    await waitForEdit(page);
     const prompt = page.getByRole('heading', { name: 'Name this pattern' });
     // On a phone Print PDF is in the top bar's More sheet (P1-2).
     const printPdf = async function() {
@@ -120,7 +131,7 @@ test.describe('Creator behaviour on Pixel 5', function() {
     await printPdf();
     await expect(prompt).toBeVisible();
     await expect(page.getByText('Give this pattern a name? It will appear on the PDF and in your library.')).toBeVisible();
-    await expect(page.locator('.name-prompt-input')).toHaveValue('logo');
+    await expect(page.locator('.name-prompt-input')).toHaveValue('IMG_2041');
     await page.getByRole('button', { name: 'Skip', exact: true }).click();
     await expect(prompt).toHaveCount(0);
     await page.waitForTimeout(1500);

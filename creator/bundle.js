@@ -7680,6 +7680,12 @@ window.useCreatorState = function useCreatorState() {
   // unstitched removes is otherwise invisible on fabric of the same colour.
   var _prevBackground = useState(null); var previewBackground = _prevBackground[0], setPreviewBackground = _prevBackground[1];
   var _showBackground = useState(false); var showBackground = _showBackground[0], setShowBackground = _showBackground[1];
+  // The picture at stitch size: one colour per stitch, the light-average of
+  // the picture under it with Brightness, Contrast and Saturation applied,
+  // before any thread is chosen (usePreview). Before / after can compare the
+  // chart with it, to tell detail lost to the chart's size from detail lost
+  // in matching threads and tidying.
+  var _prevSampled = useState(null); var previewSampled = _prevSampled[0], setPreviewSampled = _prevSampled[1];
   // What the last settings change did to the preview (usePreview.js
   // describePreviewChange): which settings, and the counts before and after.
   var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
@@ -9318,6 +9324,7 @@ window.useCreatorState = function useCreatorState() {
     previewError, setPreviewError,
     previewTidied, setPreviewTidied, showTidied, setShowTidied,
     previewBackground, setPreviewBackground, showBackground, setShowBackground,
+    previewSampled, setPreviewSampled,
     previewChange, setPreviewChange,
     previewChanged, setPreviewChanged, previewSnapshot, setPreviewSnapshot,
     pinnedPreview, setPinnedPreview, pinPreview, applyPinnedSettings, previewRestoreSettings,
@@ -14893,7 +14900,7 @@ window.usePreview = function usePreview(state) {
   }
 
   function clearDetails() {
-    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Background', 'Changed', 'Snapshot'].forEach(function(key) {
+    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Background', 'Sampled', 'Changed', 'Snapshot'].forEach(function(key) {
       if (state['setPreview' + key]) state['setPreview' + key](null);
     });
   }
@@ -14979,6 +14986,22 @@ window.usePreview = function usePreview(state) {
         };
         if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
         return o;
+      }
+
+      // The picture at stitch size, as the matcher sees it: one colour per
+      // stitch, with the picture adjustments (Before / after's At stitch size).
+      // Not for exact pixel art, whose source pixels are the stitches.
+      if (state.setPreviewSampled) {
+        if (raw && !exactResult) {
+          var sampled = new Uint8ClampedArray(raw);
+          applyImageAdjustments(sampled, bri, con, sat);
+          var sc = document.createElement("canvas"); sc.width = pw; sc.height = ph;
+          var scx = sc.getContext("2d"); var sData = scx.createImageData(pw, ph);
+          sData.data.set(sampled); scx.putImageData(sData, 0, 0);
+          state.setPreviewSampled(sc.toDataURL());
+        } else {
+          state.setPreviewSampled(null);
+        }
       }
 
       // Helper: render a mapped array to a data URL
@@ -15692,8 +15715,14 @@ window.usePreview = function usePreview(state) {
     var cards = options.map(function (o, i) {
       var r = results[keys[i]];
       var size = o.values.sW ? o.values.sW + " × " + o.values.sH : props.sW + " × " + props.sH;
+      // The finished size on the chosen fabric: what more detail costs in
+      // fabric and frame, beside what it costs in stitches.
+      var ct = props.settings && props.settings.fabricCt;
+      var finished = ct && typeof window.finishedSizeText === "function"
+        ? window.finishedSizeText(o.values.sW || props.sW, o.values.sH || props.sH, ct) + " finished" : "";
       var lines = r ? [
         r.stats.stitches.toLocaleString("en-GB") + " stitches (" + size + ")",
+        finished,
         r.stats.threads + " thread" + (r.stats.threads === 1 ? "" : "s") + " · " + fmtHours(window.compareHours(r.stats.stitches, props.stitchSpeed)),
         r.stats.symbols + " symbols · " + r.stats.blends + " blends · " + r.stats.blendPct + "% blend stitches",
         r.stats.estimated ? "Reduced preview; counts and blend coverage are approximate" : "",

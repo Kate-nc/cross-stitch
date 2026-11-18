@@ -233,8 +233,14 @@
     var cards = options.map(function (o, i) {
       var r = results[keys[i]];
       var size = o.values.sW ? o.values.sW + " × " + o.values.sH : props.sW + " × " + props.sH;
+      // The finished size on the chosen fabric: what more detail costs in
+      // fabric and frame, beside what it costs in stitches.
+      var ct = props.settings && props.settings.fabricCt;
+      var finished = ct && typeof window.finishedSizeText === "function"
+        ? window.finishedSizeText(o.values.sW || props.sW, o.values.sH || props.sH, ct) + " finished" : "";
       var lines = r ? [
         r.stats.stitches.toLocaleString("en-GB") + " stitches (" + size + ")",
+        finished,
         r.stats.threads + " thread" + (r.stats.threads === 1 ? "" : "s") + " · " + fmtHours(window.compareHours(r.stats.stitches, props.stitchSpeed)),
         r.stats.symbols + " symbols · " + r.stats.blends + " blends · " + r.stats.blendPct + "% blend stitches",
         r.stats.estimated ? "Reduced preview; counts and blend coverage are approximate" : "",

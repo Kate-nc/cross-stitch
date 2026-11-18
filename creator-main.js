@@ -27,7 +27,7 @@ function confettiTier(pct){
   return{color:"#A53D3D",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, tidiedSrc, backgroundSrc, changedSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
+function ComparisonSlider({originalSrc, originalPixelated = false, previewSrc, heatmapSrc, highlightSrc, tidiedSrc, backgroundSrc, changedSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
@@ -141,7 +141,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, ti
           if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
         }}
         onPointerLeave={function(){if(!dragging.current)setZoomPos(null);}}>
-        <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>
+        <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:originalPixelated?"pixelated":"auto"}} alt={leftLabel||"Original"} data-testid="cmp-original"/>
         <div data-testid="cmp-preview-layer" style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`,background:fabricBg}}>
           <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
         </div>
@@ -231,6 +231,19 @@ const PREVIEW_VIEWS = [
   { id: 'flat', label: 'Flat', title: 'Every stitch as a square of its thread colour' },
   { id: 'compare', label: 'Before / after', title: 'Your picture and the chart either side of a slider' }
 ];
+// What Before / after puts before the chart: the picture itself, or the
+// picture at stitch size (one colour per stitch, before threads are chosen).
+const COMPARE_BEFORE = [
+  { id: 'picture', label: 'Your picture' },
+  { id: 'sampled', label: 'At stitch size' }
+];
+function loadCompareBefore() {
+  try {
+    const v = window.UserPrefs && window.UserPrefs.get('creator.convertCompareBefore');
+    if (COMPARE_BEFORE.some(function(x){ return x.id === v; })) return v;
+  } catch (_) {}
+  return 'picture';
+}
 function loadPreviewView() {
   try {
     const v = window.UserPrefs && window.UserPrefs.get('creator.convertPreviewView');
@@ -252,6 +265,11 @@ function describeChangeText(change) {
 }
 function ConvertPreview({state, onRetry}) {
   const [view, setViewRaw] = useState(loadPreviewView);
+  const [before, setBeforeRaw] = useState(loadCompareBefore);
+  function setBefore(v) {
+    setBeforeRaw(v);
+    try { if (window.UserPrefs) window.UserPrefs.set('creator.convertCompareBefore', v); } catch (_) {}
+  }
   const [closeUp, setCloseUp] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showChanged, setShowChanged] = useState(false);
@@ -301,8 +319,10 @@ function ConvertPreview({state, onRetry}) {
   </>;
 
   let body;
+  // At stitch size needs the preview's own picture; until it exists, the picture.
+  const sampledBefore = before === 'sampled' && !!state.previewSampled;
   if (view === 'compare') {
-    body = <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} backgroundSrc={state.showBackground ? state.previewBackground : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
+    body = <ComparisonSlider originalSrc={sampledBefore ? state.previewSampled : state.img.src} originalPixelated={sampledBefore} leftLabel={sampledBefore ? 'At stitch size' : 'Original'} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} backgroundSrc={state.showBackground ? state.previewBackground : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
   } else if (view === 'flat') {
     body = <div className="cvp-box" data-testid="cvp-flat" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
       <img src={state.previewUrl} alt="Preview" className="cvp-flat"/>
@@ -373,6 +393,19 @@ function ConvertPreview({state, onRetry}) {
           onClick={function(){ state.setShowBackground(!state.showBackground); }}>{Icons.eye()}<span>Show unstitched background</span></button>}
       </div>}
       {view === 'stitched' && <p className="cvp-caption">Simulated stitches: 2 strands on {window.fabricShortLabel(ct)} fabric in your fabric colour. Screens show thread colours only roughly.</p>}
+      {view === 'compare' && <div className="cvp-before">
+        <div className="lp-segmented cvp-before__seg" role="radiogroup" aria-label="Compare the chart with">
+          {COMPARE_BEFORE.map(function(b) {
+            const on = before === b.id;
+            return <button key={b.id} type="button" role="radio" aria-checked={on ? 'true' : 'false'}
+              className={'lp-seg' + (on ? ' lp-seg--on' : '')} data-compare-before={b.id}
+              onClick={function(){ setBefore(b.id); }}>{b.label}</button>;
+          })}
+        </div>
+        {before === 'sampled' && <p className="cvp-caption" data-compare-before-caption="">
+          At stitch size is your picture with one colour per stitch, before any thread is chosen. Detail already gone here is lost to the chart's size: crop tighter or make the chart bigger. Detail here but missing from the chart is lost in matching threads and tidying: try more threads or a step towards More detail.
+        </p>}
+      </div>}
     </div>
   );
 }
