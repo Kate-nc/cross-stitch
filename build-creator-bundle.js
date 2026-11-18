@@ -94,6 +94,7 @@ const ORDER = [
   'StitchedPreview.js',
   'Toast.js',
   'ContextMenu.js',
+  'ReadyBar.js',
   'PatternTab.js',
   'ProjectTab.js',
   // UX-12 Phase 5: outcome action bar mounted in creator-main.js.

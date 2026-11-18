@@ -8981,6 +8981,23 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .ready-review-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
 .ready-review-images--sample { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: var(--s-3); }
 .ready-review-note { border-left: 3px solid var(--accent); padding-left: var(--s-3); }
+/* "Your pattern is ready" after Generate (creator/ReadyBar.js): what was
+   made, and Print PDF / Open in Tracker / Threads to buy. */
+.ready-bar { position: relative; display: flex; align-items: flex-start; gap: var(--s-3); flex-wrap: wrap; padding: var(--s-3); margin-bottom: var(--s-2); background: var(--success-soft); border: 1px solid var(--line); border-left: 3px solid var(--success); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-sm); }
+.ready-bar__icon { display: inline-flex; color: var(--success-text); margin-top: 2px; }
+.ready-bar__icon svg { width: 18px; height: 18px; }
+.ready-bar__text { flex: 1 1 260px; padding-right: 28px; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.4; }
+.ready-bar__title { font-size: var(--text-md); }
+.ready-bar__summary { color: var(--text-secondary); }
+.ready-bar__links { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+.ready-bar__link { background: none; border: none; padding: 0; color: var(--accent-text); text-decoration: underline; cursor: pointer; font: inherit; }
+.ready-bar__actions { display: flex; margin-right: 28px; gap: var(--s-2); flex-wrap: wrap; align-items: center; }
+.ready-bar__actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ready-bar__actions svg, .ready-bar__close svg { width: 16px; height: 16px; }
+.ready-bar__close { position: absolute; top: var(--s-2); right: var(--s-2); background: none; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); display: inline-flex; border-radius: var(--radius-sm); }
+@media (hover: hover) { .ready-bar__close:hover { background: var(--surface); color: var(--text-primary); } }
+/* Palette notes in Edit (creator/Sidebar.js): small print, not body text. */
+.convert-first-use { margin: 0 0 var(--s-2); font-size: var(--text-xs); line-height: 1.4; color: var(--text-secondary); }
 @media (max-width: 700px) {
   .ready-review-images, .ready-review-summary { grid-template-columns: minmax(0, 1fr); }
   .ready-review-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }

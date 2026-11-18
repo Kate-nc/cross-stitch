@@ -631,6 +631,9 @@ window.useCreatorState = function useCreatorState() {
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
   var _cmap = useState(null);         var cmap = _cmap[0], setCmap = _cmap[1];
   var _busy = useState(false);        var busy = _busy[0], setBusy = _busy[1];
+  // "Your pattern is ready" (creator/ReadyBar.js): opened by Generate,
+  // closed by its buttons, the first edit or going back to Convert.
+  var _readyBar = useState(false); var readyBarOpen = _readyBar[0], setReadyBarOpen = _readyBar[1];
   var _patternCreatedThisVisit = useState(false);
   var patternCreatedThisVisit = _patternCreatedThisVisit[0], setPatternCreatedThisVisit = _patternCreatedThisVisit[1];
   var _patternGeneratedThisVisit = useState(false);
@@ -1675,7 +1678,7 @@ window.useCreatorState = function useCreatorState() {
     setBsLines([]); setKnots([]); setSpecialtyStitches([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
-    setLastGenSnapshot(null); setGenPatSnapshot(null);
+    setLastGenSnapshot(null); setGenPatSnapshot(null); setReadyBarOpen(false);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     _setConvertTabRaw("picture"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
     setIsCropping(false); setCropRect(null);
@@ -1989,18 +1992,12 @@ window.useCreatorState = function useCreatorState() {
     setZoom(creatorFitZoom(sW, sH, null, null, G));
     pendingFitRef.current = true;
     setBusy(false);
-    // Toast on successful generation. Mentions the phase flip so users
-    // notice the sidebar tabs and canvas tools have changed; the action
-    // bar's "< Setup" button is the way back. (Polish B.)
-    // Threads and chart symbols, not "colours": a blend is one symbol made of
-    // two threads (audit IMG-02).
+    // One "Your pattern is ready" bar above the chart says what was made
+    // (threads and chart symbols, not "colours": audit IMG-02) and offers
+    // Print PDF, Open in Tracker and Threads to buy, instead of a toast
+    // arriving together with the editing tips (creator/ReadyBar.js).
+    setReadyBarOpen(true);
     var tc = creatorThreadCounts(result.pal);
-    var counts = threadCountsSentence(tc);
-    // A pattern with blends says what a blend is, one click away (UX-013).
-    var blendAction = tc.blends > 0 && typeof openBlendHelp === "function"
-      ? { label: window.BLEND_HELP.title, onClick: openBlendHelp }
-      : null;
-    addToast("Pattern generated and saved \u2014 now editing at " + sW + "\u00D7" + sH + " with " + counts + ". Use the Convert tab to change the picture, size or threads.", {type:"success", duration: blendAction ? 9000 : 5000, action: blendAction});
     // More symbols than the printed chart has (audit UX-005): say so now, not at export.
     var limitMsg = symbolLimitWarning(tc);
     if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});
@@ -2690,7 +2687,7 @@ window.useCreatorState = function useCreatorState() {
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, maxBlends, setAllowBlends, setMaxBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, readyBarOpen, setReadyBarOpen, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,

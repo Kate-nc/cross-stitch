@@ -1273,6 +1273,9 @@ function CreatorApp({
   const stableHandleOpenInTracker = React.useCallback(function () {
     _nameNudgeRef.current('track');
   }, []);
+  const stablePrintPdf = React.useCallback(function () {
+    _nameNudgeRef.current('pdf');
+  }, []);
   const stableUndoEdit = React.useCallback(function () {
     _histRef.current.undoEdit();
   }, []);
@@ -1685,6 +1688,9 @@ function CreatorApp({
       handleFile: stableHandleFile,
       loadProject: stableLoadProject,
       handleOpenInTracker: stableHandleOpenInTracker,
+      printPdf: stablePrintPdf,
+      readyBarOpen: state.readyBarOpen,
+      setReadyBarOpen: state.setReadyBarOpen,
       openResizeCanvas: () => state.setResizeCanvasOpen(true),
       cropToStitches: stableCropToStitches,
       isScratchMode: state.isScratchMode,
@@ -1694,7 +1700,7 @@ function CreatorApp({
       removeTracePicture: io.removeTracePicture,
       isActive: isActive
     };
-  }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [_sourceTab, handleOpenCanvas, state.readyBarOpen, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {
@@ -2127,8 +2133,10 @@ function CreatorApp({
   const _freshPattern = state.patternCreatedThisVisit;
   const _noEditsYet = !state.editHistory || state.editHistory.length === 0;
   const _coach = typeof window.useCoachingSequence === 'function' ? window.useCoachingSequence('creator', {
-    toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal,
-    firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet
+    // Held back while "Your pattern is ready" is showing, so the
+    // notices after Generate come one at a time (creator/ReadyBar.js).
+    toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal && !state.readyBarOpen,
+    firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet && !state.readyBarOpen
   }) : {
     active: null,
     complete: () => {},
@@ -2147,6 +2155,10 @@ function CreatorApp({
   React.useEffect(() => {
     if (_coach.active === 'firstStitch_creator' && !_noEditsYet) _coach.complete('firstStitch_creator');
   }, [_noEditsYet, _coach.active]);
+  // "Your pattern is ready" goes once editing starts, or on leaving Edit.
+  React.useEffect(() => {
+    if (state.readyBarOpen && (!_noEditsYet || state.appMode !== 'edit')) state.setReadyBarOpen(false);
+  }, [state.readyBarOpen, _noEditsYet, state.appMode]); // eslint-disable-line react-hooks/exhaustive-deps
   // Opening the Tools tab counts as having seen the tip.
   React.useEffect(() => {
     if (_coach.active === 'toolsTab_unlocked' && state.sidebarTab === 'tools') _coach.complete('toolsTab_unlocked');

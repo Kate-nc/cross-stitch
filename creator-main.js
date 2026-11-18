@@ -649,6 +649,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableHandleFile          = React.useCallback(function(e) {_ioRef.current.handleFile(e);},         []);
   const stableLoadProject         = React.useCallback(function(e) {_ioRef.current.loadProject(e);},        []);
   const stableHandleOpenInTracker = React.useCallback(function()  {_nameNudgeRef.current('track');}, []);
+  const stablePrintPdf            = React.useCallback(function()  {_nameNudgeRef.current('pdf');},   []);
 
   const stableUndoEdit = React.useCallback(function(){_histRef.current.undoEdit();}, []);
   // Latest edit history, read by toast actions that outlive the render they
@@ -916,7 +917,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     previewTimerRef: state.previewTimerRef,
     saveProject: stableSaveProject, doSaveProject: stableDoSaveProject,
     handleFile: stableHandleFile, loadProject: stableLoadProject,
-    handleOpenInTracker: stableHandleOpenInTracker,
+    handleOpenInTracker: stableHandleOpenInTracker, printPdf: stablePrintPdf,
+    readyBarOpen: state.readyBarOpen, setReadyBarOpen: state.setReadyBarOpen,
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
     cropToStitches: stableCropToStitches,
     isScratchMode: state.isScratchMode,
@@ -924,7 +926,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     setTracePicture: io.setTracePicture, removeTracePicture: io.removeTracePicture,
     isActive: isActive,
   }; }, [
-    _sourceTab, handleOpenCanvas,
+    _sourceTab, handleOpenCanvas, state.readyBarOpen,
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot, convertChartState,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
@@ -1284,8 +1286,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const _noEditsYet = !state.editHistory || state.editHistory.length === 0;
   const _coach = (typeof window.useCoachingSequence === 'function')
     ? window.useCoachingSequence('creator', {
-        toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal,
-        firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet
+        // Held back while "Your pattern is ready" is showing, so the
+        // notices after Generate come one at a time (creator/ReadyBar.js).
+        toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal && !state.readyBarOpen,
+        firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet && !state.readyBarOpen
       })
     : { active: null, complete: ()=>{}, skip: ()=>{}, skipAll: ()=>{} };
   const _coachBlocked = !isActive || !!state.namePromptOpen || !!state.busy;
@@ -1300,6 +1304,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   React.useEffect(()=>{
     if (_coach.active === 'firstStitch_creator' && !_noEditsYet) _coach.complete('firstStitch_creator');
   }, [_noEditsYet, _coach.active]);
+  // "Your pattern is ready" goes once editing starts, or on leaving Edit.
+  React.useEffect(()=>{
+    if (state.readyBarOpen && (!_noEditsYet || state.appMode !== 'edit')) state.setReadyBarOpen(false);
+  }, [state.readyBarOpen, _noEditsYet, state.appMode]); // eslint-disable-line react-hooks/exhaustive-deps
   // Opening the Tools tab counts as having seen the tip.
   React.useEffect(()=>{
     if (_coach.active === 'toolsTab_unlocked' && state.sidebarTab === 'tools') _coach.complete('toolsTab_unlocked');

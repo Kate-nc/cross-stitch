@@ -234,11 +234,10 @@ describe('blends are explained once, in plain language', () => {
     expect(has(read('user-prefs.js'), /creatorAllowBlends:\s*true/)).toBe(true);
   });
 
-  test('the Convert result toast offers What\'s a blend? when the pattern has blends', () => {
-    const state = read('creator/useCreatorState.js');
-    expect(has(state, /var blendAction = tc\.blends > 0 && typeof openBlendHelp === "function"/)).toBe(true);
-    expect(has(state, /\{ label: window\.BLEND_HELP\.title, onClick: openBlendHelp \}/)).toBe(true);
-    expect(has(state, /action: blendAction/)).toBe(true);
+  test('"Your pattern is ready" offers What\'s a blend? when the pattern has blends', () => {
+    const bar = read('creator/ReadyBar.js');
+    expect(has(bar, /s\.blends > 0 && window\.openBlendHelp && window\.BLEND_HELP/)).toBe(true);
+    expect(has(bar, /onClick: function \(\) \{ window\.openBlendHelp\(\); \} \}, window\.BLEND_HELP\.title\)/)).toBe(true);
   });
 
   test('openBlendHelp opens the glossary at its blends section', () => {
