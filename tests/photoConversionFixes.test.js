@@ -125,3 +125,15 @@ describe('blend colours', () => {
     expect(two).toBeGreaterThan(0);
   });
 });
+
+test('reopening a project keeps its edge-shade setting', () => {
+  // processLoadedProject rebuilds stitchCleanup field by field: a Photo
+  // chart's false must survive, and a project saved before the setting (none)
+  // must stay unset, so it folds as it always did.
+  const src = fs.readFileSync('creator/useProjectIO.js', 'utf8');
+  const start = src.indexOf('if (s.stitchCleanup) {'), block = src.slice(start, src.indexOf('});', start) + 3) + '}';
+  const restore = (saved) => { let out; new Function('s', 'state', block)({ stitchCleanup: saved }, { setStitchCleanup: (v) => { out = v; } }); return out; };   // eslint-disable-line no-new-func
+  expect(restore({ enabled: true, protectDetails: true, foldEdgeShades: false }).foldEdgeShades).toBe(false);
+  expect(restore({ enabled: true, protectDetails: true, foldEdgeShades: true }).foldEdgeShades).toBe(true);
+  expect(restore({ enabled: true, protectDetails: true }).foldEdgeShades).toBeUndefined();
+});

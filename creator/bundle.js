@@ -13444,6 +13444,15 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
   var sourceRestoreRef = React.useRef(0);
+  // The photo background offer on screen ({ toastId }), or null. A new picture
+  // or project withdraws it, so its button can never apply one picture's
+  // background colour to another (cancelBackgroundOffer).
+  var bgOfferRef = React.useRef(null);
+  function cancelBackgroundOffer() {
+    var offer = bgOfferRef.current;
+    bgOfferRef.current = null;
+    if (offer && state.dismissToast) state.dismissToast(offer.toastId);
+  }
   // Tracks whether we have already performed an initial (no-debounce) save for the
   // current pattern. Reset whenever pat/projectId changes so a freshly generated
   // pattern is persisted to IndexedDB and the Stash Manager library immediately,
@@ -13676,6 +13685,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   // ─── processLoadedProject ────────────────────────────────────────────────────
   function processLoadedProject(project) {
     if(!project)return;
+    cancelBackgroundOffer();
     // INT-7 Phase B-1: seed the last-seen cache so the next save() from this
     // tab has a baseline to compare against for stale-read detection.
     // No-op when CrossTabCoord isn't loaded or the project has no Phase B
@@ -13723,6 +13733,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         strength: s.stitchCleanup.strength || "balanced",
         protectDetails: s.stitchCleanup.protectDetails !== false,
         smoothDithering: s.stitchCleanup.smoothDithering !== false,
+        // False for a photo (no edge-shade fold). Projects saved before it
+        // existed have none, and fold as they always did.
+        foldEdgeShades: typeof s.stitchCleanup.foldEdgeShades === "boolean" ? s.stitchCleanup.foldEdgeShades : undefined,
       });
     }
     if (s.fabricCt) state.setFabricCt(s.fabricCt);
@@ -14057,6 +14070,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var info = null;
       try { info = creatorExaminePicture(imgEl); }
       catch (err) { console.warn("useProjectIO: picture check failed", err); }
+      cancelBackgroundOffer();
       var looksLikePhoto = !!(info && info.w && typeof window.guessPictureType === "function" && window.guessPictureType(info) === "photo");
       autoSkipBackground(info ? info.border : null, looksLikePhoto);
       if (info && info.w && state.setPictureInfo) {
@@ -14077,15 +14091,20 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         // A skip we switched on for the previous picture shouldn't carry over.
         if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
         if (found && state.addToast) {
-          state.addToast("This photo has a plain background. Leave it unstitched? The preview will show what's left out.", {
+          var offer = {};
+          offer.toastId = state.addToast("This photo has a plain background. Leave it unstitched? The preview will show what's left out.", {
             type: "info", duration: 12000,
             action: { label: "Leave it unstitched", onClick: function () {
+              // Only for the picture it was offered for.
+              if (bgOfferRef.current !== offer) return;
+              bgOfferRef.current = null;
               state.setBgCol(found.rgb);
               state.setSkipBg(true);
               if (autoRef) autoRef.current = true;
               if (state.setShowBackground) state.setShowBackground(true);
             } }
           });
+          bgOfferRef.current = offer;
         }
         return;
       }

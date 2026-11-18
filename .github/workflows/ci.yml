@@ -52,7 +52,9 @@ jobs:
     # Until November 2026 they ran nowhere, and several had fallen behind the
     # app unnoticed (reports/photo-conversion-audit-2026-11.md).
     name: Browser tests (Convert and Creator)
-    runs-on: ubuntu-latest
+    # Not ubuntu-latest: that is Ubuntu 26.04, where the pinned Playwright
+    # (1.59.1) can't install Chromium. Move on when Playwright is upgraded.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:

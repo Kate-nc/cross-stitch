@@ -208,6 +208,17 @@ describe('Round-trip: strip → restoreStitch reproduces original rgb', () => {
     expect(restoreStitch({ id: '310+321', type: 'blend', rgb: [99, 15, 20] }).rgb).toEqual([99, 15, 20]);
   });
 
+  test("blend saved with its recipe: the old average follows the threads, a chosen colour stays", () => {
+    // serializePattern saves a blend's threads and colour, so a chart saved
+    // before blends were mixed as light reopens through the recipe path.
+    const threads = [{ id: '310', rgb: [0, 0, 0] }, { id: '321', rgb: [200, 30, 40] }];
+    expect(restoreStitch({ id: '310+321', type: 'blend', rgb: [100, 15, 20], threads: threads }).rgb).toEqual([146, 19, 26]);
+    expect(restoreStitch({ id: '310+321', type: 'blend', rgb: [99, 15, 20], threads: threads }).rgb).toEqual([99, 15, 20]);
+    // Strand shares: the old weighted average is recognised too.
+    const two = { id: '310+321', type: 'blend', blendRatio: [2, 1], threads: threads };
+    expect(restoreStitch(Object.assign({ rgb: [67, 10, 13] }, two)).rgb).toEqual(blendThreadRgb([0, 0, 0], [200, 30, 40], 2, 1));
+  });
+
   test('blend: rgb survives round-trip via catalog average', () => {
     const original = { id: '310+321', type: 'blend', rgb: [146, 19, 26] };
     const stripped = stripCellForSave(original);

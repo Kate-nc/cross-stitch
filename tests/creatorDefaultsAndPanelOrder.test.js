@@ -105,8 +105,15 @@ describe('defaults', () => {
     const fn = io.slice(io.indexOf('function autoSkipBackground('), io.indexOf('state.setBgCol(found.rgb);\n      state.setSkipBg(true);\n      if (autoRef) autoRef.current = true;\n      if (state.addToast) {'));
     expect(fn).toMatch(/if \(!found \|\| offerOnly\) \{[\s\S]*?return;\n      \}/);
     const offer = fn.slice(fn.indexOf('if (!found || offerOnly)'));
-    expect(offer).toMatch(/label: "Leave it unstitched", onClick: function \(\) \{\n\s*state\.setBgCol\(found\.rgb\);\n\s*state\.setSkipBg\(true\);/);
+    expect(offer).toMatch(/label: "Leave it unstitched", onClick: function \(\) \{[\s\S]*?state\.setBgCol\(found\.rgb\);\n\s*state\.setSkipBg\(true\);/);
     expect(offer).toMatch(/state\.setShowBackground\(true\)/);
+    // An offer belongs to its picture: a new picture or project withdraws it,
+    // and a stale button does nothing (it would apply one picture's
+    // background colour to another).
+    expect(offer).toMatch(/if \(bgOfferRef\.current !== offer\) return;/);
+    expect(io).toMatch(/function examinePicture\(imgEl\) \{[\s\S]*?cancelBackgroundOffer\(\);[\s\S]*?autoSkipBackground\(/);
+    expect(io).toMatch(/function processLoadedProject\(project\) \{\n    if\(!project\)return;\n    cancelBackgroundOffer\(\);/);
+    expect(io).toMatch(/function cancelBackgroundOffer\(\) \{[\s\S]*?state\.dismissToast\(offer\.toastId\)/);
     // Nothing is switched on before the stitcher chooses it.
     expect(offer.slice(0, offer.indexOf('label: "Leave it unstitched"'))).not.toMatch(/state\.setSkipBg\(true\)/);
     expect((io.match(/examinePicture\((i|scaledImg)\)/g) || []).length).toBe(2);

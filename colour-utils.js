@@ -72,9 +72,13 @@ function blendThreadRgb(a, b, wa, wb) {
   for (let i = 0; i < 3; i++) out[i] = _linearToSrgb8((_srgb8ToLinearExact(a[i]) * wa + _srgb8ToLinearExact(b[i]) * wb) / t);
   return out;
 }
-// The colour blends were given before blendThreadRgb: the average of the stored
-// values. Only to recognise colours saved with it (restoreStitch).
-function legacyBlendRgb(a, b) { return [0, 1, 2].map(i => Math.round((a[i] + b[i]) / 2)); }
+// The colour blends were given before blendThreadRgb: the (strand-weighted)
+// average of the stored values. Only to recognise colours saved with it
+// (restoreStitch), which were worked out from the threads, not chosen.
+function legacyBlendRgb(a, b, wa, wb) {
+  wa = wa > 0 ? wa : 1; wb = wb > 0 ? wb : 1;
+  return [0, 1, 2].map(i => Math.round((a[i] * wa + b[i] * wb) / (wa + wb)));
+}
 // One constructor for new equal two-thread recipes. Existing saved IDs stay
 // intact so their symbols and progress references never need a migration.
 function makeThreadBlend(a, b) {
@@ -1461,7 +1465,14 @@ function restoreStitch(m,brand){
       if (threads.length === 2) {
         const weights = threads.map((t,i) => ratio && ratio[i] > 0 ? ratio[i] : (t.strands > 0 ? t.strands : 1));
         const total = weights[0] + weights[1];
-        const rgb = m.rgb ? m.rgb.slice() : blendThreadRgb(threads[0].rgb, threads[1].rgb, weights[0], weights[1]);
+        // Saves carry the recipe and its colour (serializePattern). A colour
+        // equal to the old stored-value average of these threads was worked
+        // out from them, so it follows blendThreadRgb like a new blend; any
+        // other saved colour was chosen or imported, and stays.
+        const mixed = blendThreadRgb(threads[0].rgb, threads[1].rgb, weights[0], weights[1]);
+        const legacy = legacyBlendRgb(threads[0].rgb, threads[1].rgb, weights[0], weights[1]);
+        const derived = !m.rgb || m.rgb.every((v,i) => v === legacy[i]);
+        const rgb = derived ? mixed : m.rgb.slice();
         const out = {type:'blend', id:m.id, name:m.name||m.id, rgb:rgb, lab:rgbToLab(...rgb), threads:threads, dist:0, symbol:m.symbol};
         ['blendRatio','blend_ratio'].forEach(function(k){if(Array.isArray(m[k]))out[k]=m[k].slice();});
         ['provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)out[k]=m[k];});
