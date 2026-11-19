@@ -631,12 +631,8 @@
           // Rebuild canonical blend id (sorted).
           var ids = cell.threads.map(function (x) { return x.id; }).sort();
           cell.id = ids.join('+');
-          // Average RGB.
-          cell.rgb = [
-            Math.round((cell.threads[0].rgb[0] + cell.threads[1].rgb[0]) / 2),
-            Math.round((cell.threads[0].rgb[1] + cell.threads[1].rgb[1]) / 2),
-            Math.round((cell.threads[0].rgb[2] + cell.threads[1].rgb[2]) / 2)
-          ];
+          // The two threads mixed as light (blendThreadRgb, colour-utils.js).
+          cell.rgb = blendThreadRgb(cell.threads[0].rgb, cell.threads[1].rgb);
         } else {
           var repCell = remap[(cell.brand || 'dmc') + ':' + cell.id] || remap[cell.id];
           if (repCell) {

@@ -2741,18 +2741,16 @@ function stripCellForSave(m,projectBrand){
   if(!m.rgb)return{id:m.id,type:m.type};
   var mr=m.rgb;
   // Blends: only safe to strip when both halves are DMC and the stored rgb
-  // matches the per-channel average — that is exactly what restoreStitch
-  // reconstructs.
+  // is the blend's own colour (blendThreadRgb, colour-utils.js) — exactly what
+  // restoreStitch reconstructs.
   if(m.type==='blend'&&typeof m.id==='string'&&m.id.indexOf('+')>=0){
     var ids=splitBlendId(m.id);
     if(ids.length===2){
       var t0=findThreadInCatalog('dmc',ids[0]);
       var t1=findThreadInCatalog('dmc',ids[1]);
       if(t0&&t1){
-        var ar=Math.round((t0.rgb[0]+t1.rgb[0])/2);
-        var ag=Math.round((t0.rgb[1]+t1.rgb[1])/2);
-        var ab=Math.round((t0.rgb[2]+t1.rgb[2])/2);
-        if(ar===mr[0]&&ag===mr[1]&&ab===mr[2])return{id:m.id,type:m.type};
+        var avg=blendThreadRgb(t0.rgb,t1.rgb);
+        if(avg[0]===mr[0]&&avg[1]===mr[1]&&avg[2]===mr[2])return{id:m.id,type:m.type};
       }
     }
     return{id:m.id,type:m.type,rgb:m.rgb};

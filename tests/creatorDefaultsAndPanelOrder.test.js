@@ -87,15 +87,42 @@ describe('defaults', () => {
     expect(st).toMatch(/loadUserPref\("creatorDefaultPaletteSize", 15\)/);
   });
 
-  test('a new image runs the background check with an Undo toast', () => {
+  test('a new image runs the background check', () => {
     const io = loadSource('creator/useProjectIO.js');
     // The picture is looked at once (P2-5): analysePicture includes the
-    // border check, then the skip and the picture-type guess are applied.
+    // border check, then the offer and the picture-type guess follow.
     expect(io).toMatch(/window\.analysePicture\(data, imgEl\.width, imgEl\.height\)/);
     expect(io).toMatch(/window\.detectUniformBorder\(data\)/);
-    expect(io).toMatch(/autoSkipBackground\(info \? info\.border : null, reframed\)/);
-    expect(io).toMatch(/state\.addToast\("Background left unstitched\.", \{[\s\S]*?label: "Undo"/);
+    expect(io).toMatch(/offerBackground\(info \? info\.border : null, reframed\)/);
+  });
+
+  test('a plain background is offered, not applied, for every type of picture', () => {
+    const io = loadSource('creator/useProjectIO.js');
+    // The subject can touch the background (a pale shirt on a pale wall), so
+    // the stitcher opts in from a toast. Nothing depends on the picture type.
+    const at = io.indexOf('function offerBackground('), fn = io.slice(at, io.indexOf('state.pictureExaminerRef.current = examinePicture', at));
+    expect(fn).not.toMatch(/guessPictureType|looksLikePhoto/);
+    expect(fn).toMatch(/label: "Leave it unstitched", onClick: function \(\) \{[\s\S]*?state\.setBgCol\(found\.rgb\);\n\s*state\.setSkipBg\(true\);/);
+    expect(fn).toMatch(/state\.setShowBackground\(true\)/);
+    expect(io).not.toMatch(/Background left unstitched\./);
+    // An offer belongs to its picture: a new picture or project withdraws it,
+    // and a stale button does nothing (it would apply one picture's
+    // background colour to another).
+    expect(fn).toMatch(/if \(bgOfferRef\.current !== offer\) return;/);
+    // examinePicture offers; the offer withdraws the previous one first.
+    expect(io).toMatch(/function examinePicture\(imgEl, opts\) \{[\s\S]*?offerBackground\(/);
+    expect(fn).toMatch(/cancelBackgroundOffer\(\);/);
+    // After a crop, a background the stitcher left out stays when the border
+    // is the same colour, or when they chose it themselves.
+    expect(fn).toMatch(/if \(reframed && state\.skipBg && !accepted\) return;/);
+    const load = io.slice(io.indexOf('function processLoadedProject(project) {'));
+    expect(load.slice(0, 1600)).toMatch(/if\(!project\)return;[\s\S]*?\n    cancelBackgroundOffer\(\);/);
+    expect(io).toMatch(/function cancelBackgroundOffer\(\) \{[\s\S]*?state\.dismissToast\(offer\.toastId\)/);
+    // Nothing is switched on before the stitcher chooses it.
+    expect(fn.slice(0, fn.indexOf('label: "Leave it unstitched"'))).not.toMatch(/state\.setSkipBg\(true\)/);
     expect((io.match(/examinePicture\((i|scaledImg)\)/g) || []).length).toBe(2);
+    // No preset switches it on either.
+    expect(loadSource('creator/useCreatorState.js')).not.toMatch(/skipBorderBackground/);
   });
 });
 
@@ -110,8 +137,8 @@ describe('Convert panel order', () => {
     expect(cp).toMatch(/if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
     // Frame the picture: type, background, and fixes folded away.
     expect(cp).toMatch(/return h\(React\.Fragment, null, pictureType, background,\s*h\("details", \{ className: "cv-fix"/);
-    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[stashSec, countSec, blendSec, brandSec, stashToolsSec\];/);
-    expect(cp).toMatch(/else content = \[stepsSec, shadingSec, tidySec, rareSec, lookSec\];/);
+    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[stashSec, countSec, keepSec, blendSec, brandSec, stashToolsSec\];/);
+    expect(cp).toMatch(/else content = \[stepsSec, shadingSec, edgesSec, tidySec, rareSec, lookSec\];/);
     expect(cp).not.toMatch(/projectSec/);
   });
 

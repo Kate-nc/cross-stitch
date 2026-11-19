@@ -69,8 +69,11 @@ test.describe('Frame the picture on desktop', function() {
 
   test('cropping inside the logo stitches the background again, since there is no plain border left', async function({ page }) {
     await openConvertWithLogo(page, { frame: true });
-    // The logo's white border is left unstitched on upload.
+    // The logo's white border is offered on upload; leave it out.
     const bg = page.getByRole('checkbox', { name: 'Leave background unstitched' });
+    await expect(bg).not.toBeChecked();
+    await page.locator('.creator-toast-container').filter({ hasText: 'This picture has a plain background' })
+      .getByRole('button', { name: 'Leave it unstitched' }).click();
     await expect(bg).toBeChecked();
     const img = await page.locator('.fr-picture__img').boundingBox();
     const k = img.width / 400;

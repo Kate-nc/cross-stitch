@@ -117,8 +117,8 @@ test('PNG decode, progressive downscaling and pre-sharpen retain coverage withou
   const source = canvas(128, 64, raw);
   const image = new Image(); image.src = source.toBuffer('image/png');
   expect(image.width).toBe(128);
-  for (const preSharpenOpts of [null, { amount: 1 }]) {
-    const opts = { ...options, maxC: 1, sW: 8, sH: 4, bri: 0, con: 0, sat: 0, preSharpenOpts };
+  for (const preSharpen of [false, true]) {
+    const opts = { ...options, maxC: 1, sW: 8, sH: 4, bri: 0, con: 0, sat: 0, preSharpen, preSharpenAmount: 1 };
     const r = c.runGenerationPipeline(image, opts);
     expect(stitchCount(r.pat)).toBe(16);
     expect(ids(r.pat).filter(id => id !== '__skip__')).toEqual(Array(16).fill('606'));
@@ -150,16 +150,19 @@ test.each(['off', 'atkinson', 'bayer', 'riemersma'])('actual preview hook and fi
   c.React = { useRef: value => ({ current: value }), useCallback: fn => fn, useEffect() {} };
   c.setTimeout = fn => { pending.push(fn); return pending.length; }; c.clearTimeout = () => {};
   const state = { img: image, conversionSettings: settings, previewTimerRef: { current: null } };
-  for (const field of ['PreviewUrl', 'PreviewStats', 'PreviewColors', 'PreviewMapped', 'PreviewDims', 'PreviewHeatmap']) state['set' + field] = value => { state[field] = value; };
+  for (const field of ['PreviewUrl', 'PreviewStats', 'PreviewColors', 'PreviewMapped', 'PreviewDims', 'PreviewHeatmap', 'PreviewSampled']) state['set' + field] = value => { state[field] = value; };
   vm.runInContext(fs.readFileSync('creator/usePreview.js', 'utf8'), c);
   const preview = c.usePreview(state);
   for (let pass = 0; pass < 2; pass++) {
     preview.generatePreview(); while (pending.length) pending.shift()();
-    const final = c.runGenerationPipeline(image, { ...settings, preSharpenOpts: { amount: 0.5 } });
+    const final = c.runGenerationPipeline(image, settings);
     expect(ids(state.PreviewMapped)).toEqual(ids(final.pat));
     expect(state.PreviewStats.stitchable).toBe(stitchCount(final.pat));
     expect(state.PreviewStats.uniqueColors).toBe(final.pal.length);
     expect(plain(state.PreviewDims)).toEqual({ pw: 8, ph: 4 });
+    // The picture at stitch size survives the quick first pass (shading on),
+    // for At stitch size and Colours to keep.
+    expect(state.PreviewSampled).toMatch(/^data:image\/png/);
   }
 });
 
@@ -187,7 +190,7 @@ test.each(['crisp', 'alpha'])('exact pixel-art PNG %s preserves every location, 
   const source = canvas(image.width, image.height, new Uint8ClampedArray(image.width * image.height * 4));
   source.getContext('2d').drawImage(image, 0, 0);
   const raw = source.getContext('2d').getImageData(0, 0, image.width, image.height).data;
-  const opts = {...options, exactPixelArt:true,sW:80,sH:80,maxC:1,dith:true,smooth:3,orphans:10,preSharpenOpts:{amount:2},bri:90,con:80,sat:-100,skipBg:true};
+  const opts = {...options, exactPixelArt:true,sW:80,sH:80,maxC:1,dith:true,smooth:3,orphans:10,preSharpen:true,preSharpenAmount:1,bri:90,con:80,sat:-100,skipBg:true};
   const r = c.runGenerationPipeline(image, opts);
   expect([r.width, r.height, r.pat.length]).toEqual([9,7,63]);
   for(let i=0;i<r.pat.length;i++) {

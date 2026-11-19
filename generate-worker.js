@@ -5,7 +5,7 @@
    Message protocol:
      Main → Worker:
        { type: 'generate', reqId: number, pixels: ArrayBuffer, width: number, height: number,
-         settings: { maxC, dith, allowBlends, skipBg, bgCol, bgTh, minSt,
+         settings: { bri, con, sat (applied after the background mask), maxC, dith, allowBlends, skipBg, bgCol, bgTh, minSt,
                      smooth, smoothType, stitchCleanup,
                      disambig?: boolean, disambigLevel?: 'gentle'|'standard'|'strong',
                      allowedPalette? } }  // allowedPalette: array of DMC entries or null
@@ -82,7 +82,10 @@ self.onmessage = function(e) {
       try { self.postMessage({ type: 'progress', reqId: reqId, stage: stage, message: message }); } catch (_) {}
     }
 
+    // The background in the picture's own colours, then Brightness, Contrast
+    // and Saturation on what is stitched (mirrors runCleanupPipeline).
     var coverageMask = prepareConversionPixels(raw, width, height, settings);
+    applyImageAdjustments(raw, settings.bri, settings.con, settings.sat);
 
     // ── 1. Pre-processing: image smoothing ─────────────────────────────────
     if (settings.preSmooth) {
@@ -99,6 +102,10 @@ self.onmessage = function(e) {
         applyMedianFilter(raw, width, height, settings.smooth);
       }
     }
+    // Sharpen details, on the stitches; the threads come from them before it
+    // (mirrors runCleanupPipeline).
+    var paletteSource = raw;
+    if (settings.preSharpen) { paletteSource = new Uint8ClampedArray(raw); sharpenStitches(raw, width, height, settings.preSharpenAmount); }
 
     // ── 2. Core pipeline (mirrors runCleanupPipeline in creator/generate.js) ─
     var maxC         = settings.maxC;
@@ -112,7 +119,9 @@ self.onmessage = function(e) {
     var allowedPalette = settings.allowedPalette || null;
     postProgress('quantizing', 'Choosing colours…');
     // Physical blends work with or without spatial shading, as in the fallback.
-    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!allowBlends});
+    // Colours to keep (mirrors runCleanupPipeline).
+    var keep = settings.keepIds && settings.keepIds.length ? new Set(settings.keepIds.map(String)) : null;
+    var p = quantizeConstrained(paletteSource, width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!allowBlends, reserved: settings.keepIds || null});
     if (!p.length && coverageMask.some(function(v) { return v !== 0; })) {
       self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;
@@ -140,7 +149,7 @@ self.onmessage = function(e) {
     var minSt = settings.minSt;
     if (minSt > 0) {
       postProgress('rarity', 'Removing rare colours…');
-      foldRareColours(mapped, width, height, minSt);
+      foldRareColours(mapped, width, height, minSt, { keep: keep });
     }
     {
       var _atTotal = 0;
@@ -148,17 +157,18 @@ self.onmessage = function(e) {
       var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
       if (_autoThresh > (minSt || 0)) {
         postProgress('rarity', 'Removing rare colours…');
-        foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE });
+        foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE, keep: keep });
       }
     }
 
     // ── Edge-blend fold (mirrors runCleanupPipeline, audit IMG-01) ───────────
     // Without dithering the fold allows more (EDGE_BLEND_MAX_DE_NO_DITHER).
-    if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === 'function') {
+    // Not for photos (stitchCleanup.foldEdgeShades false; unset folds).
+    if (stitchCleanup && stitchCleanup.enabled && stitchCleanup.foldEdgeShades !== false && typeof mergeEdgeBlendColours === 'function') {
       mergeEdgeBlendColours(mapped, width, height, {
         // Coverage is already decided. Colour cleanup must not create new holes.
         preserveCoverage: true,
-        bgLab: (!dith || dithAlgo === 'off') && settings.skipBg ? rgbToLab(settings.bgCol[0], settings.bgCol[1], settings.bgCol[2]) : null,
+        keep: keep,
         // Undithered, an edge shade is also judged by the pixels it was drawn from.
         // (Dithered stitches all lie between their neighbours' colours, so not then.)
         source: (!dith || dithAlgo === 'off') ? raw : null,
@@ -169,15 +179,16 @@ self.onmessage = function(e) {
     var preLabels   = labelConnectedComponents(mapped, width, height);
     var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
     var confettiClean = null;
-    var preCleanupIds = null;
+    var preCleanupIds = null, tidiedCells = null;
 
     // Reduce confetti: runs when Stitch Cleanup is on and the level is above 0
     // (mirrors runCleanupPipeline).
     if (confettiCleanupPlan(stitchCleanup, settings.orphans)) postProgress('cleanup', 'Cleaning up stitches…');
-    var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, settings.orphans);
+    var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, settings.orphans, keep);
     if (cleaned) {
       mapped = cleaned.mapped;
       preCleanupIds = cleaned.preCleanupIds;
+      tidiedCells = cleaned.tidiedCells;
       confettiClean = cleaned.confettiClean;
     }
 
@@ -221,7 +232,11 @@ self.onmessage = function(e) {
           tu[m2.id] = (tu[m2.id] || 0) + 1;
         }
       }
-      var sorted = Object.entries(tu).sort(function(a, b) { return b[1] - a[1]; });
+      // Colours to keep first (mirrors findTopThreads).
+      var sorted = Object.entries(tu).sort(function(a, b) {
+        var ka = keep && keep.has(a[0]) ? 1 : 0, kb = keep && keep.has(b[0]) ? 1 : 0;
+        return (kb - ka) || (b[1] - a[1]);
+      });
       var ks = new Set(sorted.slice(0, maxC).map(function(e2) { return e2[0]; }));
       var kp = p.filter(function(t) { return ks.has(t.id); });
       if (!kp.length) break;
@@ -240,10 +255,15 @@ self.onmessage = function(e) {
 
     limited = limitGeneratedBlends(mapped, raw, width, height, p, settings.maxBlends) || limited;
 
+    // The background is left out last, so everything before (the thread limit
+    // included) ran on the whole picture (mirrors runCleanupPipeline).
+    var blanked = blankUncovered(mapped, coverageMask, raw, width, settings.skipBg && settings.bgCol ? rgbToLab(settings.bgCol[0], settings.bgCol[1], settings.bgCol[2]) : null);
+    if (blanked && tidiedCells) for (var _ti = 0; _ti < mapped.length; _ti++) if (mapped[_ti].id === '__skip__') tidiedCells[_ti] = 0;
+
     // The finished chart's confetti (runCleanupPipeline's confettiFinal):
     // look-alike separation and the thread limit can change stitches after
     // Reduce confetti was measured.
-    var confettiFinal = (disambigData && disambigData.swaps > 0) || limited
+    var confettiFinal = (disambigData && disambigData.swaps > 0) || limited || blanked
       ? analyzeConfetti(mapped, width, height)
       : (confettiClean || confettiRaw);
 
@@ -260,6 +280,7 @@ self.onmessage = function(e) {
       cmap: palResult.cmap,
       confettiData: { raw: confettiRaw, clean: confettiClean || confettiRaw, final: confettiFinal },
       preCleanupIds: preCleanupIds,
+      tidiedCells: tidiedCells,
       disambigData: disambigData,
     });
 

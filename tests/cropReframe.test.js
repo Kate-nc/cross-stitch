@@ -97,7 +97,7 @@ describe('the background stripes in Frame', () => {
     return global.window;
   }
 
-  test('are worked out on Generate\'s grid, with Sharpen details, and say which picture and size they are for', () => {
+  test('are worked out on Generate\'s grid, in the picture\'s own colours, and say which picture and size they are for', () => {
     const calls = [];
     const w = loadFrameView({
       gridPixels: (img, sw, sh, opts) => { calls.push(opts); return { data: new Uint8ClampedArray(sw * sh * 4) }; },
@@ -106,12 +106,12 @@ describe('the background stripes in Frame', () => {
     });
     const img = { naturalWidth: 40, naturalHeight: 30 };
     const info = w.frameBackgroundMask(img, 4, 3, { bri: 5, con: 0, sat: 0, preSharpen: true, preSharpenAmount: 1.5, skipBg: true, bgCol: [255, 255, 255], bgTh: 15 });
-    expect(calls[0]).toEqual({ bri: 5, con: 0, sat: 0, preSharpenOpts: { amount: 1.5 } });
+    // Brightness, Contrast, Saturation and Sharpen details come after the
+    // mask in Generate, so none is asked for; Crisp edges is part of the grid.
+    expect(calls[0]).toEqual({ crisp: false });
     expect(info.count).toBe(2);
     expect(Array.from(info.mask)).toEqual([1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect([info.w, info.h, info.img]).toEqual([4, 3, img]);
-    w.frameBackgroundMask(img, 4, 3, { preSharpen: false, skipBg: true, bgCol: [0, 0, 0], bgTh: 15 });
-    expect(calls[1].preSharpenOpts).toBeNull();
   });
 
   test('stripes for another picture or size are not drawn, and none while picking the colour', () => {
@@ -219,8 +219,15 @@ describe('a crop looks at the cropped picture again', () => {
     expect(typeof examine).toBe('function');
     examine({ width: 120, height: 120 }, { reframed: true });
     expect(calls).toContainEqual(['applyPicturePreset', 'graphic', expect.objectContaining({ kind: 'graphic' }), { guessed: true }]);
+    // The cropped picture's plain background is offered, not left out.
+    expect(calls).not.toContainEqual(['setSkipBg', true]);
+    const toasts = calls.filter((c) => c[0] === 'addToast');
+    expect(toasts.map((c) => c[1]).join(' ')).toMatch(/The cropped picture has a plain background\. Leave it unstitched\?/);
+    expect(toasts.map((c) => c[1]).join(' ')).toMatch(/looks like a graphic or logo/);
+    // Accepting it leaves that border colour out.
+    toasts.find((c) => /plain background/.test(c[1]))[2].action.onClick();
+    expect(calls).toContainEqual(['setBgCol', [250, 250, 250]]);
     expect(calls).toContainEqual(['setSkipBg', true]);
-    expect(calls.filter((c) => c[0] === 'addToast').map((c) => c[1]).join(' ')).toMatch(/looks like a graphic or logo/);
   });
 
   test('settings the user changed and a background they chose are kept', () => {
@@ -248,7 +255,7 @@ describe('a crop looks at the cropped picture again', () => {
     expect(calls).toContainEqual(['applyPicturePreset', 'photo', expect.objectContaining({ kind: 'photo' }), { guessed: true }]);
   });
 
-  test('a background skipped automatically is stitched again when the crop has no plain border', () => {
+  test('a background left out from the offer is stitched again when the crop has no plain border', () => {
     const auto = { current: true };
     const { examine, calls } = loadExaminer(
       { pictureType: 'photo', skipBg: true, bgCol: [250, 250, 250], bgAutoSkippedRef: auto },

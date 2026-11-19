@@ -42,6 +42,11 @@ async function visibleCanvasFraction(page) {
   });
 }
 
+// A size from layout, to a hundredth of a pixel: the browser can report a
+// 44px touch target as 43.99998 (sub-pixel layout at a device pixel ratio),
+// which an exact comparison with 44 failed on in CI.
+const px = (v) => Math.round(v * 100) / 100;
+
 const CASES = [
   { name: 'Pixel 5', drawer: true, compact: true, minCanvas: 0.65 },
   { name: 'Pixel 5 landscape', drawer: true, compact: true, minCanvas: 0.5 },
@@ -64,7 +69,7 @@ for (const c of CASES) {
         await expect.poll(async function() { const b = await header.boundingBox(); return b.y + b.height; })
           .toBeLessThanOrEqual(page.viewportSize().height + 0.5);
         const box = await header.boundingBox();
-        expect(box.height).toBeGreaterThanOrEqual(44);
+        expect(px(box.height)).toBeGreaterThanOrEqual(44);
         await header.tap();
         await expect(page.locator('.rpanel')).toHaveClass(/rpanel--open/);
       } else {
@@ -97,8 +102,8 @@ for (const c of CASES) {
         });
         expect(sizes.length).toBeGreaterThanOrEqual(8);
         for (const s of sizes) {
-          expect(s.w, s.l).toBeGreaterThanOrEqual(44);
-          expect(s.h, s.l).toBeGreaterThanOrEqual(44);
+          expect(px(s.w), s.l).toBeGreaterThanOrEqual(44);
+          expect(px(s.h), s.l).toBeGreaterThanOrEqual(44);
         }
 
         // The settings drawer is hidden until asked for, then opens above the rail.

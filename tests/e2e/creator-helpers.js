@@ -36,7 +36,9 @@ async function skipTourIfShown(page) {
 
 // Home › Create › New from pattern file with logo.png. A new picture opens
 // on Frame the picture; this continues to Convert's preview and steps unless
-// opts.frame (stay on Frame).
+// opts.frame (stay on Frame). opts.leaveBackgroundOut: accept the
+// plain-background offer (the logo's white background is stitched until the
+// stitcher chooses), which also clears its toast.
 async function openConvertWithLogo(page, opts) {
   opts = opts || {};
   await quietOnboarding(page);
@@ -48,6 +50,11 @@ async function openConvertWithLogo(page, opts) {
   if (opts.frame) return;
   await continueFromFrame(page);
   await skipTourIfShown(page);
+  if (opts.leaveBackgroundOut) {
+    const offer = page.locator('.creator-toast-container > *').filter({ hasText: 'This picture has a plain background' });
+    await offer.getByRole('button', { name: 'Leave it unstitched' }).click({ timeout: 15000 });
+    await expect(offer).toHaveCount(0);
+  }
 }
 
 // Frame the picture › Continue (the panel's, or the phone top bar's).
@@ -91,8 +98,9 @@ async function waitForEdit(page) {
   await page.waitForTimeout(300);
 }
 
+// The logo generated with its background left out, as most logos are.
 async function generateLogo(page) {
-  await openConvertWithLogo(page);
+  await openConvertWithLogo(page, { leaveBackgroundOut: true });
   await clickGenerate(page);
   await waitForEdit(page);
 }

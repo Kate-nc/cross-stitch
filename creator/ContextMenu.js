@@ -19,8 +19,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       document.removeEventListener("pointerdown", close);
     };
   }, [menu]);
+  // Only while a menu is open: useEscape's top handler takes every Esc, and
+  // this one re-registered on every render, so with no menu it swallowed Esc
+  // meant for anything else (cancelling a colour pick in Convert).
   if (typeof window !== "undefined" && window.useEscape) {
-    window.useEscape(function() { if (menu) cv.setContextMenu(null); });
+    window.useEscape(menu ? function() { cv.setContextMenu(null); } : null);
   }
 
   if (!menu) return null;

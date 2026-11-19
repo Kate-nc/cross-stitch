@@ -20,8 +20,9 @@ const { device, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit, co
 const FABRIC = '#E8D9B5';
 const FABRIC_RGB = 'rgb(232, 217, 181)';
 
-// A 160x100 picture: plain white border round a colourful middle. The Creator
-// leaves a plain border unstitched, so the preview has skipped cells.
+// A 160x100 picture: plain white border round a colourful middle. The middle
+// is a gradient, so the Creator takes it for a photo and offers to leave the
+// border unstitched; openConvert accepts, so the preview has skipped cells.
 function borderedPng() {
   const w = 160, h = 100, border = 14;
   const raw = Buffer.alloc((w * 4 + 1) * h);
@@ -59,6 +60,7 @@ async function openConvert(page) {
   await page.waitForURL(/create\.html/);
   await continueFromFrame(page);
   await skipTourIfShown(page);
+  await page.locator('.creator-toast-container').getByRole('button', { name: 'Leave it unstitched' }).click();
   await expect(page.getByTestId('cmp-preview-layer')).toBeVisible({ timeout: 20000 });
   // The first pass is the quick one; wait for the settled picture and spinner.
   await expect(page.getByRole('status', { name: 'Updating preview' })).toHaveCount(0, { timeout: 20000 });
@@ -150,11 +152,14 @@ test.describe('Convert preview fidelity', function() {
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await openConvert(page);
     // The conversion runs in a worker; the step on the page (the picture
-    // shrunk to stitches) is where a failure can be injected.
+    // shrunk to stitches) is where a failure can be injected. A new size
+    // makes the preview shrink the picture again (Brightness and Sharpen
+    // details no longer do: the worker applies them to the stitches).
     await page.evaluate(() => {
       window.__savedGridPixels = window.gridPixels;
       window.gridPixels = () => { throw new Error('injected preview failure'); };
-      window.__previewState.setBri(15);
+      const s = window.__previewState;
+      s.setSW(s.sW + 6); s.setSH(s.sH + 6);
     });
     await expect(page.getByRole('alert').filter({hasText:'Could not update the preview'})).toBeVisible();
     await expect(page.getByRole('status', {name:'Updating preview'})).toHaveCount(0);

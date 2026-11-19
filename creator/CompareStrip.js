@@ -34,22 +34,25 @@
 
   var CACHE_LIMIT = 24;
 
-  // Picture pixels at pw × ph with the picture adjustments: generate's own
-  // step (gridPixels in creator/generate.js).
+  // Picture pixels at pw × ph: generate's own step (gridPixels in
+  // creator/generate.js). Brightness, Contrast and Saturation are applied by
+  // the pipeline, after the background mask (pipelineSettings).
   function picturePixels(img, pw, ph, s) {
-    return gridPixels(img, pw, ph, { bri: s.bri, con: s.con, sat: s.sat, preSharpenOpts: s.preSharpen ? { amount: s.preSharpenAmount } : null });
+    return gridPixels(img, pw, ph, { crisp: !!s.crispEdges });
   }
 
   function pipelineSettings(s, values, paletteFor) {
     var pool = s.allowedPalette;
     if (values.convertBrand && values.convertBrand !== s.convertBrand && typeof paletteFor === "function") pool = paletteFor(values.convertBrand);
     return {
+      bri: s.bri, con: s.con, sat: s.sat,
       maxC: values.maxC != null ? values.maxC : s.maxC,
       dith: s.dith, dithStrength: s.dithStrength, dithAlgo: s.dithAlgo, dithBayerSize: s.dithBayerSize,
       allowBlends: values.allowBlends != null ? values.allowBlends : s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
       seed: s.seed, minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
-      stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed,
+      preSharpen: !!s.preSharpen, preSharpenAmount: s.preSharpenAmount,
+      stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed, keepIds: s.keepIds || null,
       disambig: s.disambig, disambigLevel: s.disambigLevel
     };
   }
@@ -126,13 +129,14 @@
       return new Promise(function (resolve, reject) {
         var dims = job.dims;
         var px = picturePixels(props.img, dims.pw, dims.ph, s);
+        var settings = pipelineSettings(s, job.values, props.paletteFor);
         var w = getWorker();
         if (!w) {
           // No workers: run on the page, after the current frame.
           setTimeout(function () {
             try {
               var raw = px.data;
-              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values, props.paletteFor));
+              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, settings);
               if (!r) { reject(new Error("no result")); return; }
               resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiFinal || r.confettiClean || r.confettiRaw || {}).pct });
             } catch (err) { reject(err); }
@@ -157,7 +161,7 @@
           reject(new Error((ev && ev.message) || "worker failed"));
         };
         w.postMessage({ type: "generate", reqId: reqId, pixels: px.data.buffer, width: dims.pw, height: dims.ph,
-          settings: pipelineSettings(s, job.values, props.paletteFor) }, [px.data.buffer]);
+          settings: settings }, [px.data.buffer]);
       });
     }
 
@@ -231,8 +235,14 @@
     var cards = options.map(function (o, i) {
       var r = results[keys[i]];
       var size = o.values.sW ? o.values.sW + " × " + o.values.sH : props.sW + " × " + props.sH;
+      // The finished size on the chosen fabric: what more detail costs in
+      // fabric and frame, beside what it costs in stitches.
+      var ct = props.settings && props.settings.fabricCt;
+      var finished = ct && typeof window.finishedSizeText === "function"
+        ? window.finishedSizeText(o.values.sW || props.sW, o.values.sH || props.sH, ct) + " finished" : "";
       var lines = r ? [
         r.stats.stitches.toLocaleString("en-GB") + " stitches (" + size + ")",
+        finished,
         r.stats.threads + " thread" + (r.stats.threads === 1 ? "" : "s") + " · " + fmtHours(window.compareHours(r.stats.stitches, props.stitchSpeed)),
         r.stats.symbols + " symbols · " + r.stats.blends + " blends · " + r.stats.blendPct + "% blend stitches",
         r.stats.estimated ? "Reduced preview; counts and blend coverage are approximate" : "",

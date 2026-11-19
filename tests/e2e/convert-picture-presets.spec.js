@@ -8,14 +8,15 @@ const { device, openConvertWithLogo, continueFromFrame, quietOnboarding, skipTou
 const TINY = path.join(__dirname, '..', 'fixtures', 'tiny.png');
 
 // The saved pattern: its size, distinct threads (blends split), isolated
-// stitches as a share of stitched cells, and stitches in a near-white thread.
+// stitches as a share of stitched cells, and stitches in a near-white thread,
+// all of them and those beside the unstitched background (a fringe).
 async function patternStats(page) {
   return page.evaluate(async function() {
     const p = await ProjectStorage.getActiveProject();
     if (!p) return null;
     const w = p.settings.sW, h = p.settings.sH, cells = p.pattern;
     const threads = new Set();
-    let stitched = 0, isolated = 0, white = 0;
+    let stitched = 0, isolated = 0, white = 0, whiteFringe = 0;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const c = cells[y * w + x];
       if (!c || c.id === '__skip__' || c.id === '__empty__') continue;
@@ -24,9 +25,13 @@ async function patternStats(page) {
       const same = function(xx, yy) { const n = xx >= 0 && yy >= 0 && xx < w && yy < h ? cells[yy * w + xx] : null; return n && n.id === c.id; };
       if (!same(x - 1, y) && !same(x + 1, y) && !same(x, y - 1) && !same(x, y + 1)) isolated++;
       const t = window.findThreadInCatalog ? window.findThreadInCatalog('dmc', String(c.id).split('+')[0]) : null;
-      if (t && t.rgb[0] > 235 && t.rgb[1] > 235 && t.rgb[2] > 235) white++;
+      if (t && t.rgb[0] > 235 && t.rgb[1] > 235 && t.rgb[2] > 235) {
+        white++;
+        const empty = function(xx, yy) { const n = xx >= 0 && yy >= 0 && xx < w && yy < h ? cells[yy * w + xx] : null; return !n || n.id === '__skip__' || n.id === '__empty__'; };
+        if (empty(x - 1, y) || empty(x + 1, y) || empty(x, y - 1) || empty(x, y + 1)) whiteFringe++;
+      }
     }
-    return { w: w, h: h, threads: threads.size, confettiPct: stitched ? isolated / stitched * 100 : 0, white: white, stitched: stitched };
+    return { w: w, h: h, threads: threads.size, confettiPct: stitched ? isolated / stitched * 100 : 0, white: white, whiteFringe: whiteFringe, stitched: stitched };
   });
 }
 
@@ -43,6 +48,9 @@ test.describe('Picture-type presets on desktop', function() {
     await openConvertWithLogo(page, { frame: true });
     await expect(page.locator('.cv-sec--picture-type')).toContainText('Picture type');
     await expect(pictureType(page, 'Graphic or logo')).toHaveAttribute('aria-checked', 'true');
+    // The plain background is only offered; leave it out, as most logos would.
+    await page.locator('.creator-toast-container').filter({ hasText: 'This picture has a plain background' })
+      .getByRole('button', { name: 'Leave it unstitched' }).click();
     await continueFromFrame(page);
     await convertStep(page, 'threads');
     await expect(page.getByRole('slider', { name: 'Threads (max)' })).toBeVisible();
@@ -52,7 +60,10 @@ test.describe('Picture-type presets on desktop', function() {
     const s = await expect.poll(function() { return patternStats(page); }, { timeout: 15000 }).not.toBeNull().then(function() { return patternStats(page); });
     expect(s.threads).toBeLessThanOrEqual(5);
     expect(s.confettiPct).toBeLessThan(1);
-    expect(s.white).toBe(0);
+    // White only inside the lettering, which is white in the logo, never as a
+    // fringe along the background. Since the October colour calibration the
+    // lettering's pure-white pixels keep B5200, as in tests/logoThreadBudget.test.js.
+    expect(s.whiteFringe).toBe(0);
     expect(s.stitched).toBeGreaterThan(0);
 
     // Counts say threads and symbols, never colours.

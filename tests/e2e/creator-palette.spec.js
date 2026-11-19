@@ -13,8 +13,11 @@ async function openPaletteTab(page) {
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
 
+// The thread's symbol in Materials › Threads. That tab now opens with an
+// Estimated use and purchases table, so look in the legend table (Sym column).
 async function legendSymbol(page, id) {
-  const row = page.locator('tr').filter({ has: page.locator('td', { hasText: new RegExp('^DMC ' + id + '$') }) }).first();
+  const legend = page.locator('table').filter({ has: page.locator('th', { hasText: /^Sym$/ }) }).first();
+  const row = legend.locator('tr').filter({ has: page.locator('td', { hasText: new RegExp('^DMC ' + id + '$') }) }).first();
   return (await row.locator('td').first().textContent()).trim();
 }
 

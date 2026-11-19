@@ -27,7 +27,7 @@ function confettiTier(pct){
   return{color:"#A53D3D",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, tidiedSrc, changedSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
+function ComparisonSlider({originalSrc, originalPixelated = false, previewSrc, heatmapSrc, highlightSrc, tidiedSrc, backgroundSrc, changedSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
@@ -141,12 +141,13 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, ti
           if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
         }}
         onPointerLeave={function(){if(!dragging.current)setZoomPos(null);}}>
-        <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>
+        <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:originalPixelated?"pixelated":"auto"}} alt={leftLabel||"Original"} data-testid="cmp-original"/>
         <div data-testid="cmp-preview-layer" style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`,background:fabricBg}}>
           <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
         </div>
         {!previewLoading&&changedSrc&&<img data-testid="cvp-changed" src={changedSrc} className="cvp-overlay" style={{clipPath:`inset(0 0 0 ${splitPos}%)`}} alt="" aria-hidden="true"/>}
         {!previewLoading&&showHeatmap&&heatmapSrc&&<img data-testid="cmp-heatmap" src={heatmapSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
+        {!previewLoading&&backgroundSrc&&<img data-testid="cmp-background" src={backgroundSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {!previewLoading&&tidiedSrc&&<img data-testid="cmp-tidied" src={tidiedSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {!previewLoading&&highlightSrc&&<img data-testid="cmp-highlight" src={highlightSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
         <div
@@ -230,6 +231,19 @@ const PREVIEW_VIEWS = [
   { id: 'flat', label: 'Flat', title: 'Every stitch as a square of its thread colour' },
   { id: 'compare', label: 'Before / after', title: 'Your picture and the chart either side of a slider' }
 ];
+// What Before / after puts before the chart: the picture itself, or the
+// picture at stitch size (one colour per stitch, before threads are chosen).
+const COMPARE_BEFORE = [
+  { id: 'picture', label: 'Your picture' },
+  { id: 'sampled', label: 'At stitch size' }
+];
+function loadCompareBefore() {
+  try {
+    const v = window.UserPrefs && window.UserPrefs.get('creator.convertCompareBefore');
+    if (COMPARE_BEFORE.some(function(x){ return x.id === v; })) return v;
+  } catch (_) {}
+  return 'picture';
+}
 function loadPreviewView() {
   try {
     const v = window.UserPrefs && window.UserPrefs.get('creator.convertPreviewView');
@@ -251,6 +265,11 @@ function describeChangeText(change) {
 }
 function ConvertPreview({state, onRetry}) {
   const [view, setViewRaw] = useState(loadPreviewView);
+  const [before, setBeforeRaw] = useState(loadCompareBefore);
+  function setBefore(v) {
+    setBeforeRaw(v);
+    try { if (window.UserPrefs) window.UserPrefs.set('creator.convertCompareBefore', v); } catch (_) {}
+  }
   const [closeUp, setCloseUp] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showChanged, setShowChanged] = useState(false);
@@ -294,13 +313,29 @@ function ConvertPreview({state, onRetry}) {
   const overlays = !state.previewLoading && <>
     {showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap')}
     {state.showTidied && overlay(state.previewTidied, 'cvp-tidied')}
+    {state.showBackground && overlay(state.previewBackground, 'cvp-background')}
     {showChanged && overlay(state.previewChanged, 'cvp-changed')}
     {overlay(state.previewHighlight, 'cvp-highlight')}
   </>;
 
   let body;
-  if (view === 'compare') {
-    body = <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
+  // At stitch size needs the preview's own picture; until it exists, the picture.
+  const sampledBefore = before === 'sampled' && !!state.previewSampled;
+  // Picking a colour to keep (Convert > Threads): the picture at stitch size,
+  // the colours the threads are matched to, across the whole preview, in any
+  // view. A click keeps the thread nearest the colour there.
+  const picking = state.pickKeep && !!state.previewSampled;
+  // Esc cancels picking, through the app's Esc stack (keyboard-utils.js), which
+  // takes Esc before any other key handler.
+  const cancelPickKeep = React.useCallback(function() { state.setPickKeep(false); }, [state.setPickKeep]);
+  if (window.useEscape) window.useEscape(state.pickKeep ? cancelPickKeep : null);
+  if (picking) {
+    body = <div className="cvp-box cvp-pick" data-testid="cvp-pick" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
+      <img src={state.previewSampled} alt="Your picture at stitch size. Click the colour to keep." className="cvp-flat"
+        onClick={function(e){ const r = e.currentTarget.getBoundingClientRect(); state.addKeepColourAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }}/>
+    </div>;
+  } else if (view === 'compare') {
+    body = <ComparisonSlider originalSrc={sampledBefore ? state.previewSampled : state.img.src} originalPixelated={sampledBefore} leftLabel={sampledBefore ? 'At stitch size' : 'Original'} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} backgroundSrc={state.showBackground ? state.previewBackground : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
   } else if (view === 'flat') {
     body = <div className="cvp-box" data-testid="cvp-flat" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
       <img src={state.previewUrl} alt="Preview" className="cvp-flat"/>
@@ -355,7 +390,12 @@ function ConvertPreview({state, onRetry}) {
           ? 'This preview shows your new settings. Your chart changes when you Regenerate.'
           : 'This preview shows these settings; your chart may differ. It changes only when you Regenerate.'}</span>
       </div>}
-      {changeText && <p className="cvp-change" data-preview-change="" aria-live="polite"><strong>{changeText.names}:</strong> {changeText.detail}.</p>}
+      {changeText && !picking && <p className="cvp-change" data-preview-change="" aria-live="polite"><strong>{changeText.names}:</strong> {changeText.detail}.</p>}
+      {picking && <div role="status" className="cvp-note cvp-note--pick">
+        <span className="cvp-note__icon" aria-hidden="true">{Icons.eyedropper()}</span>
+        <span>Click the colour to keep in your picture. Its nearest thread will always be in the pattern.</span>
+        <button type="button" className="cs-seltools__btn cvp-note__action" onClick={function(){ state.setPickKeep(false); }}>Cancel</button>
+      </div>}
       <div className="cvp-body" ref={bodyRef}>{body}</div>
       {<div className="cvp-tools">
         {view === 'stitched' && <button type="button" className="cs-seltools__btn" aria-pressed={closeUp ? 'true' : 'false'} onClick={function(){ setCloseUp(function(c){ return !c; }); }}>
@@ -367,8 +407,23 @@ function ConvertPreview({state, onRetry}) {
         <button type="button" className="cs-seltools__btn" disabled={state.previewLoading || !state.previewSnapshot} onClick={state.pinPreview}>Pin this preview</button>
         {state.previewTidied && <button type="button" className={'cs-seltools__btn' + (state.showTidied ? ' cs-seltools__btn--on' : '')} aria-pressed={state.showTidied ? 'true' : 'false'}
           onClick={function(){ state.setShowTidied(!state.showTidied); }}>{Icons.eye()}<span>Show tidied stitches</span></button>}
+        {state.previewBackground && <button type="button" className={'cs-seltools__btn' + (state.showBackground ? ' cs-seltools__btn--on' : '')} aria-pressed={state.showBackground ? 'true' : 'false'}
+          onClick={function(){ state.setShowBackground(!state.showBackground); }}>{Icons.eye()}<span>Show unstitched background</span></button>}
       </div>}
       {view === 'stitched' && <p className="cvp-caption">Simulated stitches: 2 strands on {window.fabricShortLabel(ct)} fabric in your fabric colour. Screens show thread colours only roughly.</p>}
+      {view === 'compare' && <div className="cvp-before">
+        <div className="lp-segmented cvp-before__seg" role="radiogroup" aria-label="Compare the chart with">
+          {COMPARE_BEFORE.map(function(b) {
+            const on = before === b.id;
+            return <button key={b.id} type="button" role="radio" aria-checked={on ? 'true' : 'false'}
+              className={'lp-seg' + (on ? ' lp-seg--on' : '')} data-compare-before={b.id}
+              onClick={function(){ setBefore(b.id); }}>{b.label}</button>;
+          })}
+        </div>
+        {before === 'sampled' && <p className="cvp-caption" data-compare-before-caption="">
+          At stitch size is your picture with one colour per stitch, before any thread is chosen. Detail already gone here is lost to the chart's size: crop tighter or make the chart bigger. Detail here but missing from the chart is lost in matching threads and tidying: try more threads or a step towards More detail.
+        </p>}
+      </div>}
     </div>
   );
 }
@@ -805,11 +860,15 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     bgTh: state.bgTh, setBgTh: state.setBgTh,
     bgCol: state.bgCol, setBgCol: state.setBgCol,
     pickBg: state.pickBg, setPickBg: state.setPickBg,
+    keepColours: state.keepColours, pickKeep: state.pickKeep, setPickKeep: state.setPickKeep,
+    removeKeepColour: state.removeKeepColour, keepUnavailable: state.keepUnavailable,
+    addKeepColourById: state.addKeepColourById, keepOverLimit: state.keepOverLimit,
     minSt: state.minSt, setMinSt: state.setMinSt,
     smooth: state.smooth, setSmooth: state.setSmooth,
     smoothType: state.smoothType, setSmoothType: state.setSmoothType,
     preSharpen: state.preSharpen, setPreSharpen: state.setPreSharpen,
     preSharpenAmount: state.preSharpenAmount, setPreSharpenAmount: state.setPreSharpenAmount,
+    crispEdges: state.crispEdges, setCrispEdges: state.setCrispEdges,
     orphans: state.orphans, setOrphans: state.setOrphans,
     disambig: state.disambig, setDisambig: state.setDisambig,
     disambigLevel: state.disambigLevel, setDisambigLevel: state.setDisambigLevel,
@@ -859,7 +918,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.img, state.isUploading, state.isDragging,
     state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
-    state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount,
+    state.keepColours, state.pickKeep, state.keepUnavailable, state.keepOverLimit, state.addKeepColourById,
+    state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.crispEdges,
     state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage,
     state.origW, state.origH, state.hasGenerated,
     state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage,
@@ -889,6 +949,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     convertTab: state.convertTab, setConvertTab: state.setConvertTab, convertSeen: state.convertSeen,
     showTidied: state.showTidied, setShowTidied: state.setShowTidied,
     previewChange: state.previewChange, previewTidied: state.previewTidied,
+    showBackground: state.showBackground, setShowBackground: state.setShowBackground, previewBackground: state.previewBackground,
     splitPaneEnabled: state.splitPaneEnabled, setSplitPaneEnabled: state.setSplitPaneEnabled,
     splitPaneRatio: state.splitPaneRatio, setSplitPaneRatio: state.setSplitPaneRatio,
     splitPaneSyncEnabled: state.splitPaneSyncEnabled, setSplitPaneSyncEnabled: state.setSplitPaneSyncEnabled,
@@ -949,6 +1010,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.lastGenSnapshot, convertChartState,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied,
+    state.showBackground, state.previewBackground,
     state.splitPaneEnabled, state.splitPaneRatio,
     state.splitPaneSyncEnabled, state.rightPaneMode,
     state.exportPage, state.pageMode,

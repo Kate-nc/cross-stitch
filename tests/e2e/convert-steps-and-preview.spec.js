@@ -60,8 +60,7 @@ test.describe('Convert steps and preview on desktop', function() {
       }
       return { navy, other, cssW: c.getBoundingClientRect().width, boxW: c.parentNode.parentNode.clientWidth };
     });
-    // The logo's background is left unstitched, so much of it is fabric; the
-    // rest is stitches.
+    // Navy fabric shows between the stitches; the rest is stitches.
     expect(px.navy).toBeGreaterThan(0);
     expect(px.other).toBeGreaterThan((px.navy + px.other) * 0.1);
     expect(Math.abs(px.cssW - px.boxW)).toBeLessThan(4);
@@ -83,6 +82,22 @@ test.describe('Convert steps and preview on desktop', function() {
     await expect(line).toContainText('Threads (max):');
     await expect(line).toContainText(/stitch(es)? changed|no stitches changed/);
     await expect(page.locator('[data-threads-used]')).toContainText(/In the preview: [1-3] threads?/);
+  });
+
+  test('Crisp edges changes the preview, and Generate makes what it shows', async function({ page }) {
+    await openConvertWithLogo(page);
+    await settled(page);
+    await convertStep(page, 'detail');
+    const crisp = page.getByRole('checkbox', { name: 'Crisp edges' });
+    await expect(crisp).not.toBeChecked();
+    await crisp.check();
+    await settled(page);
+    await expect(page.locator('[data-preview-change]')).toContainText('Crisp edges:');
+    const preview = await page.evaluate(() => window.__cs && window.__cs.previewMapped ? window.__cs.previewMapped.map((m) => m.id).join() : null);
+    await clickGenerate(page);
+    await waitForEdit(page);
+    expect(preview).not.toBeNull();
+    expect(await page.evaluate(() => window.__cs.pat.map((m) => m.id).join())).toBe(preview);
   });
 
   test('once a chart exists, Convert still shows the live preview and says when it differs', async function({ page }) {
@@ -163,7 +178,7 @@ test.describe('Crop to the stitches on desktop', function() {
   test.setTimeout(90000);
 
   test('crops the chart, keeps its stitches and progress, and Undo puts the edges back', async function({ page }) {
-    await openConvertWithLogo(page);
+    await openConvertWithLogo(page, { leaveBackgroundOut: true });
     await clickGenerate(page);
     await waitForEdit(page);
     const before = await page.evaluate(() => {

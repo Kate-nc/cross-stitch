@@ -64,7 +64,6 @@ describe('usePreview scheduling', () => {
     };
     global.gridPixels = (s, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
     delete global.Worker;   // the page path unless a test supplies a worker
-    global.applyPreSharpenCanvas = (s) => s;
     global.skeinEst = () => 1;
     global.isColorOwned = () => true;
     global.runExactPixelPipeline = () => { throw new Error('unused'); };

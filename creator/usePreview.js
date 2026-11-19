@@ -25,11 +25,11 @@ var PREVIEW_PAGE_MAX_AREA = 40000;
 var PREVIEW_CHANGE_LABELS = [
   [['sW', 'sH'], 'Size'], [['fabricCt'], 'Fabric count'], [['exactPixelArt'], 'Exact pixel-art import'],
   [['bri'], 'Brightness'], [['con'], 'Contrast'], [['sat'], 'Saturation'],
-  [['smooth', 'smoothType'], 'Soften grainy photos'], [['preSharpen', 'preSharpenAmount'], 'Sharpen details'],
+  [['smooth', 'smoothType'], 'Soften grainy photos'], [['preSharpen', 'preSharpenAmount'], 'Sharpen details'], [['crispEdges'], 'Crisp edges'],
   [['maxC'], 'Threads (max)'], [['dith', 'dithMode', 'dithStrength', 'dithAlgo', 'dithBayerSize'], 'Shading'],
   [['allowBlends', 'maxBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
   [['skipBg', 'bgCol', 'bgTh'], 'Background'], [['stitchCleanup', 'orphans'], 'Tidying'],
-  [['disambig', 'disambigLevel'], 'Look-alike colours'], [['stashConstrained', 'stashCount'], 'Stash'],
+  [['disambig', 'disambigLevel'], 'Look-alike colours'], [['keepIds'], 'Colours to keep'], [['stashConstrained', 'stashCount'], 'Stash'],
   [['convertBrand'], 'Thread brand'], [['seed', 'subset'], 'Variation']
 ];
 function _sameSetting(a, b) {
@@ -124,8 +124,11 @@ window.usePreview = function usePreview(state) {
     busyRef.current = false;
   }
 
-  function clearDetails() {
-    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Changed', 'Snapshot'].forEach(function(key) {
+  // keepSampled: the picture at stitch size was just made for these settings
+  // (the fast pass), so At stitch size and Colours to keep go on using it.
+  function clearDetails(keepSampled) {
+    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Background', 'Sampled', 'Changed', 'Snapshot'].forEach(function(key) {
+      if (keepSampled && key === 'Sampled') return;
       if (state['setPreview' + key]) state['setPreview' + key](null);
     });
   }
@@ -182,12 +185,15 @@ window.usePreview = function usePreview(state) {
       if (settings.exactPixelArt) {
         exactResult = runExactPixelPipeline(img, settings);
       }
-      var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
+      // Brightness, Contrast and Saturation are not part of it: the pipeline
+      // applies them after the background mask (pipelineOpts below).
+      var crisp = !!settings.crispEdges;
+      var geoSig = img.src + '|' + pw + '|' + ph + (crisp ? '|crisp' : '');
       if (exactResult) { pw = exactResult.width; ph = exactResult.height;
       } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
         raw = rawCacheRef.current.raw;
       } else {
-        var previewImageData = gridPixels(img, pw, ph, { bri: bri, con: con, sat: sat, preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
+        var previewImageData = gridPixels(img, pw, ph, { crisp: crisp });
         raw = previewImageData.data;
         rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
       }
@@ -197,17 +203,37 @@ window.usePreview = function usePreview(state) {
       // (image filters), so we strip those keys and forward everything else.
       function pipelineOpts(overrides) {
         var o = {
+          bri: bri, con: con, sat: sat,
           maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
           dithAlgo: settings.dithAlgo, dithBayerSize: settings.dithBayerSize,
           allowBlends: settings.allowBlends, maxBlends: settings.maxBlends, allowedPalette: settings.allowedPalette,
           skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
           stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
+          keepIds: settings.keepIds || null, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
           minSt: settings.minSt, seed: settings.seed,
           smooth: smooth, smoothType: smoothType,
           disambig: settings.disambig, disambigLevel: settings.disambigLevel,
         };
         if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
         return o;
+      }
+
+      // The picture at stitch size, as the matcher sees it: one colour per
+      // stitch, with the picture adjustments (Before / after's At stitch size).
+      // Not for exact pixel art, whose source pixels are the stitches.
+      if (state.setPreviewSampled) {
+        if (raw && !exactResult) {
+          var sampled = new Uint8ClampedArray(raw);
+          applyImageAdjustments(sampled, bri, con, sat);
+          var sc = document.createElement("canvas"); sc.width = pw; sc.height = ph;
+          var scx = sc.getContext("2d"); var sData = scx.createImageData(pw, ph);
+          sData.data.set(sampled); scx.putImageData(sData, 0, 0);
+          state.setPreviewSampled(sc.toDataURL());
+          // Its pixels, for picking Colours to keep (addKeepColourAt).
+          if (state.previewSampledRef) state.previewSampledRef.current = { data: sampled, w: pw, h: ph };
+        } else {
+          state.setPreviewSampled(null);
+        }
       }
 
       // Helper: render a mapped array to a data URL
@@ -242,7 +268,8 @@ window.usePreview = function usePreview(state) {
               // The worker reports the raw counts as "clean" when nothing was tidied.
               confettiClean: msg.preCleanupIds ? msg.confettiData.clean : null,
               confettiFinal: msg.confettiData.final || null,
-              preCleanupIds: msg.preCleanupIds || null
+              preCleanupIds: msg.preCleanupIds || null,
+              tidiedCells: msg.tidiedCells || null
             });
           } catch (err) { failPreview(); }
         };
@@ -272,7 +299,7 @@ window.usePreview = function usePreview(state) {
           // The size travels with the picture: the slider shapes itself from
           // previewDims, so a new-size frame must not be paired with old dims.
           var fastUrl = renderUrl(fastResult.mapped);
-          clearDetails();
+          clearDetails(true);
           state.setPreviewDims({ pw: pw, ph: ph });
           state.setPreviewUrl(fastUrl);
         }
@@ -294,6 +321,13 @@ window.usePreview = function usePreview(state) {
         // limit (exact pixel art has no later stages).
         var confettiFinal = pipelineResult.confettiFinal || confettiClean || confettiRaw;
         var preCleanupIds = pipelineResult.preCleanupIds || null;
+        // The stitches Reduce confetti changed (runConfettiCleanup). Comparing
+        // preCleanupIds with the finished chart would also count the stages
+        // after it (look-alike separation, the thread limit) as tidying.
+        var tidiedCells = pipelineResult.tidiedCells || null;
+        function wasTidied(i) {
+          return tidiedCells ? tidiedCells[i] === 1 : (preCleanupIds[i] !== mapped[i].id && preCleanupIds[i] !== "__skip__");
+        }
 
         var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
         for (var j = 0; j < mapped.length; j++) {
@@ -308,12 +342,12 @@ window.usePreview = function usePreview(state) {
         var threadsUsed = Object.keys(threadSet).length;
         var blendIds = Object.keys(colorCounts).filter(function(id){return id.indexOf('+')>=0;});
         var blendStitches = blendIds.reduce(function(n,id){return n+colorCounts[id];},0);
-        // Stitches that tidying (and look-alike separation) changed.
+        // Stitches Reduce confetti changed.
         var tidiedCount = null;
         if (preCleanupIds && ((stitchCleanup && stitchCleanup.enabled) || orphans > 0)) {
           tidiedCount = 0;
           for (var tq = 0; tq < mapped.length; tq++) {
-            if (preCleanupIds[tq] !== mapped[tq].id && preCleanupIds[tq] !== "__skip__") tidiedCount++;
+            if (wasTidied(tq)) tidiedCount++;
           }
         }
         var scaleFactor = (sW * sH) / (pw * ph);
@@ -428,7 +462,7 @@ window.usePreview = function usePreview(state) {
             var tc = document.createElement("canvas"); tc.width = pw; tc.height = ph;
             var tcx = tc.getContext("2d"); var tData = tcx.createImageData(pw, ph); var td = tData.data;
             for (var ti = 0; ti < mapped.length; ti++) {
-              if (preCleanupIds[ti] !== mapped[ti].id && preCleanupIds[ti] !== "__skip__") {
+              if (wasTidied(ti)) {
                 var tidx = ti * 4; td[tidx] = 255; td[tidx + 1] = 0; td[tidx + 2] = 255; td[tidx + 3] = 200;
               }
             }
@@ -436,6 +470,24 @@ window.usePreview = function usePreview(state) {
             state.setPreviewTidied(tc.toDataURL());
           } else {
             state.setPreviewTidied(null);
+          }
+        }
+        // What Leave background unstitched leaves out, as its own overlay: on
+        // fabric of the background's colour the preview alone can't show it.
+        // A two-tone check so it reads on light and dark fabric alike.
+        if (state.setPreviewBackground) {
+          if (settings.skipBg && skipped > 0) {
+            var bc = document.createElement("canvas"); bc.width = pw; bc.height = ph;
+            var bcx = bc.getContext("2d"); var bData = bcx.createImageData(pw, ph); var bd = bData.data;
+            for (var bi = 0; bi < mapped.length; bi++) {
+              if (mapped[bi].id !== "__skip__") continue;
+              var on = ((bi % pw) + Math.floor(bi / pw)) % 2 === 0, bidx = bi * 4;
+              bd[bidx] = on ? 30 : 250; bd[bidx + 1] = on ? 110 : 250; bd[bidx + 2] = on ? 230 : 255; bd[bidx + 3] = on ? 190 : 120;
+            }
+            bcx.putImageData(bData, 0, 0);
+            state.setPreviewBackground(bc.toDataURL());
+          } else {
+            state.setPreviewBackground(null);
           }
         }
         if (hasHeat) {

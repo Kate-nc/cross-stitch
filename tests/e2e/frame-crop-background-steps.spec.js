@@ -118,13 +118,15 @@ test.describe('Frame on desktop', function () {
     expect(skipped).toBe(striped);
   });
 
-  test('with Sharpen details on, the striped count is still what Generate leaves out', async function ({ page }) {
+  test('with Sharpen details and the picture adjustments on, the striped count is still what Generate leaves out', async function ({ page }) {
     await openFrame(page, PANORAMA);
-    // A sky-blue background on a photo: sharpening moves the edge of the match.
+    // A sky-blue background on a photo. The background is found in the
+    // picture's own colours, before Brightness, Contrast and Sharpen details.
     await page.evaluate(() => {
       const s = window.__frameState;
       s.setSkipBg(true); s.setBgCol([107, 145, 196]); s.setBgTh(12);
-      s.setPreSharpen(true); s.setPreSharpenAmount(2);
+      s.setPreSharpen(true); s.setPreSharpenAmount(1);
+      s.setBri(-30); s.setCon(20);
     });
     await expect(page.locator('[data-bg-count]')).toHaveCount(1);
     await page.waitForTimeout(400);

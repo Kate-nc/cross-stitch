@@ -195,11 +195,11 @@
             style: { background: "rgb(" + gen.bgCol + ")", "--swatch": "rgb(" + gen.bgCol + ")" } }),
           h("button", { type: "button", className: "cs-seltools__btn" + (gen.pickBg ? " cs-seltools__btn--on" : ""), onClick: armBgPick, "aria-pressed": gen.pickBg ? "true" : "false" },
             Icons.eyedropper(), h("span", null, gen.pickBg ? "Click the picture…" : "Pick from picture"))),
-        h(SliderRow, { label: "How close a match", value: gen.bgTh, min: 3, max: 50, onChange: gen.setBgTh,
+        h(SliderRow, { label: "How close a match", value: gen.bgTh, min: 1, max: 30, step: 0.5, onChange: gen.setBgTh,
           helpText: "How closely a pixel must match the background colour to be left unstitched. Higher leaves out more." }),
         hint(gen.convertStage === "frame" && !gen.exactPixelArt
-          ? "Only plain areas that touch the picture's edge are left unstitched. They are striped on the picture, so you can see what will be left out."
-          : "Only plain areas that touch the picture's edge are left unstitched.")
+          ? "Only plain areas that touch the picture's edge are left unstitched. They are striped on the picture, so you can see what will be left out. Pale parts of the subject that touch a pale background can go with it: lower How close a match if they do."
+          : "Only plain areas that touch the picture's edge are left unstitched. Pale parts of the subject that touch a pale background can go with it: check the preview, and lower How close a match if they do.")
       ) : hint("Off: every pixel is stitched, background included.")
     );
 
@@ -214,11 +214,11 @@
       h(SliderRow, { label: "Saturation", value: gen.sat, min: -50, max: 50, onChange: gen.setSat, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
         helpText: "Makes the colours more vivid, or more muted, before threads are chosen." }),
       check({ checked: gen.preSharpen, label: "Sharpen details", onChange: function (v) { gen.setPreSharpen(v); },
-        info: "Sharpens the picture before it is shrunk to stitches, so eyes, faces and fine edges survive. Colours are left as they are. Leave off for pictures that are already sharp or very grainy." }),
-      gen.preSharpen && h(SliderRow, { label: "Amount", value: gen.preSharpenAmount != null ? gen.preSharpenAmount : 0.5, min: 0.1, max: 2.0, step: 0.1,
-        onChange: gen.setPreSharpenAmount, format: function (v) { return v.toFixed(1) + "x"; },
-        helpText: "Sharpening strength. 0.5 is conservative; increase to 1.0 for visibly soft portraits.",
-        inlineHint: "0.5 is a safe default. Above 1.0 watch for halos on hard edges.", helpTopic: "image" }),
+        info: "Shrinking a picture to stitches blurs its edges: a stitch on an edge comes out between the colours either side. Sharpen details gives that stitch the colour of the side it is closer to, so outlines, eyes and lettering are crisper. It only uses colours already beside each stitch, and the threads are chosen before it sharpens." }),
+      gen.preSharpen && h(SliderRow, { label: "Amount", value: Math.min(1, gen.preSharpenAmount != null ? gen.preSharpenAmount : 0.5), min: 0.1, max: 1, step: 0.1,
+        onChange: gen.setPreSharpenAmount, format: function (v) { return Math.round(v * 100) + "%"; },
+        helpText: "How readily an edge stitch takes a side. Low: only stitches that are nearly one colour already. High: almost every stitch on an edge.",
+        inlineHint: "50% suits most pictures. Higher gives crisper edges, but can make soft shading steppy.", helpTopic: "image" }),
       h(SliderRow, { label: "Soften grainy photos", value: gen.smooth, min: 0, max: 4, step: 0.1, onChange: gen.setSmooth,
         format: function (v) { return v === 0 ? "Off" : v.toFixed(1); },
         helpText: "Blurs the picture slightly before threads are chosen: fewer speckled stitches, but softer edges and outlines. Most photos look best at Off.",
@@ -357,6 +357,67 @@
         ? hint("In the preview: " + used + " thread" + (used === 1 ? "" : "s") + " and " + ps.uniqueColors + " chart symbol" + (ps.uniqueColors === 1 ? "" : "s") + "; " + (ps.blendsUsed || 0) + " blends, " + (ps.blendPct || 0) + "% of stitches. " + (ps.estimated ? "Counts are approximate." : ""), { "data-threads-used": "" })
         : hint("A limit, not a target: simpler pictures use fewer.")
     );
+
+    // Colours to keep: threads picked from the picture that are always in the
+    // pattern (useCreatorState addKeepColourAt; quantizeConstrained's reserved).
+    var kept = gen.keepColours || [];
+    var keptOff = gen.keepUnavailable || [], keptOver = gen.keepOverLimit || [];
+    var keyOf = window.keepColourKey || function (k) { return (k.brand || "dmc") + ":" + k.id; };
+    // Each in the brand it was picked in.
+    var keptLabel = function (k) {
+      var b = window.threadBrandLabel ? window.threadBrandLabel(k.brand || "dmc") : (k.brand === "anchor" ? "Anchor" : "DMC");
+      return b + " " + k.id + (k.name ? " " + k.name : "");
+    };
+    var keptIn = function (keys) { return kept.filter(function (k) { return keys.indexOf(keyOf(k)) >= 0; }).map(keptLabel); };
+    var keepSec = gen.setPickKeep && !gen.exactPixelArt ? sec("keep", "Colours to keep",
+      "Makes sure a colour gets a thread of its own, such as skin, eyes or a logo's colour. Threads go to the biggest areas of the picture first, so a small face can come out in the background's colours.",
+      h("div", { className: "cv-keep" },
+        kept.map(function (k) {
+          var off = keptOff.indexOf(keyOf(k)) >= 0 || keptOver.indexOf(keyOf(k)) >= 0;
+          return h("span", { key: keyOf(k), className: "cv-keep__chip" + (off ? " cv-keep__chip--off" : ""), "data-keep-id": k.id, "data-keep-used": off ? "false" : "true" },
+            h("span", { className: "cv-keep__swatch", style: { background: "rgb(" + k.rgb.join(",") + ")" }, "aria-hidden": "true" }),
+            h("span", { className: "cv-keep__name" }, keptLabel(k)),
+            h("button", { type: "button", className: "cv-keep__remove", "aria-label": "Stop keeping " + keptLabel(k), title: "Stop keeping",
+              onClick: function () { gen.removeKeepColour(keyOf(k)); } }, Icons.x()));
+        }),
+        h("button", { type: "button", className: "cs-seltools__btn" + (gen.pickKeep ? " cs-seltools__btn--on" : ""), "aria-pressed": gen.pickKeep ? "true" : "false",
+          onClick: function () {
+            var on = !gen.pickKeep;
+            gen.setPickKeep(on);
+            // Bring the preview, where the picking happens, into view.
+            if (on && typeof window !== "undefined" && window.requestAnimationFrame) {
+              window.requestAnimationFrame(function () {
+                window.requestAnimationFrame(function () {
+                  var el = document.querySelector('[data-testid="cvp-pick"]');
+                  if (el && el.scrollIntoView) {
+                    try { var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" }); }
+                    catch (_) { el.scrollIntoView(); }
+                  }
+                });
+              });
+            }
+          } },
+          Icons.eyedropper(), h("span", null, gen.pickKeep ? "Click a colour in the preview…" : "Pick from picture"))
+      ),
+      // Or by its number: the way to keep a thread without a pointer.
+      gen.addKeepColourById && h("form", { className: "cv-keep__byid",
+        onSubmit: function (e) {
+          e.preventDefault();
+          var input = e.currentTarget.querySelector("input");
+          if (input && gen.addKeepColourById(input.value)) input.value = "";
+        } },
+        h("label", { className: "cv-keep__byid-label" }, "Or keep a thread by number",
+          h("input", { type: "text", className: "cv-keep__byid-input", inputMode: "text", autoComplete: "off", spellCheck: false,
+            placeholder: brandLabel + " number" })),
+        h("button", { type: "submit", className: "cs-seltools__btn" }, "Keep")),
+      hint(gen.pickKeep
+        ? "The preview shows your picture at stitch size. Click the colour to keep; Esc cancels."
+        : kept.length ? "Kept threads are always in the pattern and count towards Threads (max)." : "None yet: the threads follow the picture's biggest areas."),
+      keptOff.length ? note("info", keptIn(keptOff).join(", ") +
+        (keptOff.length === 1 ? " isn't" : " aren't") + " among the threads this pattern can use, so " + (keptOff.length === 1 ? "it isn't" : "they aren't") + " kept. Pick again to keep the nearest available thread.") : null,
+      keptOver.length ? note("info", "Threads (max) is " + gen.maxC + ", so " + keptIn(keptOver).join(", ") +
+        (keptOver.length === 1 ? " isn't" : " aren't") + " kept. Raise Threads (max), or stop keeping another colour.") : null
+    ) : null;
 
     var blendSec = sec("blends", "Blends", null,
       check({ checked: gen.effectiveAllowBlends, disabled: gen.blendsAutoDisabled, label: "Allow two-thread blends",
@@ -536,6 +597,17 @@
         h("p", null, "Smooth shading is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Regular pattern is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.")) // terminology-lint-allow
     );
 
+    // Crisp edges: how each stitch takes its colour from the picture
+    // (dominantAreaDownscale, colour-utils.js). Not for exact pixel art,
+    // whose pixels are the stitches.
+    var edgesSec = gen.setCrispEdges && !gen.exactPixelArt ? sec("edges", "Edges",
+      "A stitch on an edge covers part of each side. Normally it takes the blend of everything under it, which is true to the picture but gives every outline a soft band of in-between colour. With Crisp edges, a stitch that is mostly one colour takes that colour instead.",
+      check({ checked: !!gen.crispEdges, label: "Crisp edges", onChange: function (v) { gen.setCrispEdges(v); } }),
+      hint(gen.crispEdges
+        ? "Each stitch that is mostly one colour (at least 60% of it) takes that colour, so outlines are sharp. A detail thinner than a stitch can come out thinner or go."
+        : "Off: each stitch is the blend of everything under it, so outlines are soft but true to the picture.")
+    ) : null;
+
     var tidied = ps && ps.tidiedStitches != null ? ps.tidiedStitches : null;
     var orphanDesc = null;
     if (sc2.enabled && gen.orphans > 0) {
@@ -545,11 +617,19 @@
           ? "Merges groups of up to 2 stitches cut off from their colour, and up to 6 in plain areas."
           : "Merges groups of up to 3 stitches cut off from their colour, and up to 9 in plain areas.";
     }
+    // Graphics and pixel art also fold blurry edge shades; photos don't
+    // (stitchCleanup.foldEdgeShades, useCreatorState.js). Unset folds.
+    var foldsEdges = sc2.foldEdgeShades !== false;
+    var cleanupOn = !sc2.enabled ? "Off: no tidying. Colours used by only a few stitches still merge into a neighbouring colour, and Threads (max) still applies."
+      : foldsEdges ? (gen.orphans > 0 ? "Merges confetti stitches and folds blurry in-between shades along edges into the colours either side." : "Folds blurry in-between shades along edges into the colours either side. Reduce confetti is Off.")
+      : (gen.orphans > 0 ? "Merges confetti stitches into the colour around them." : "Nothing is tidied while Reduce confetti is Off.");
     var tidySec = sec("tidying", "Tidying", null,
       check({ checked: sc2.enabled, label: "Stitch Cleanup",
         onChange: function (v) { gen.setStitchCleanup(function (s) { return Object.assign({}, s, { enabled: v }); }); },
-        info: "Tidies the chart after colours are matched: confetti stitches (single stitches of a colour on their own) merge into the colour around them, and blurry in-between shades along edges fold into the colours either side. Off keeps every stitch exactly as matched." }),
-      hint(sc2.enabled ? "Merges confetti stitches and folds blurry in-between shades along edges into the colours either side." : "Off: every stitch stays exactly as matched."),
+        info: "Tidies the chart after colours are matched: confetti stitches (single stitches of a colour on their own) merge into the colour around them" +
+          (foldsEdges ? ", and blurry in-between shades along edges fold into the colours either side." : ". Photos keep their in-between shades, which are part of the shading.") +
+          " On or off, a colour used by only a few stitches merges into a neighbouring colour unless it stands out (such as a catchlight), and Threads (max) still applies." }),
+      hint(cleanupOn),
       sc2.enabled && h(React.Fragment, null,
         h(SliderRow, { label: "Reduce confetti", value: gen.orphans, min: 0, max: 3, onChange: gen.setOrphans,
           format: function (v) { return v === 0 ? "Off" : String(v); },
@@ -561,8 +641,8 @@
           onChange: function (v) { gen.setStitchCleanup(function (s) { return Object.assign({}, s, { protectDetails: v }); }); },
           info: "Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines, out of the tidying. Turn off for the tidiest chart. Bright accents such as a catchlight are kept either way." }),
         tidied != null && !app.previewLoading && h("div", { className: "cv-tidied" },
-          hint(tidied === 0 ? "In the preview, tidying changed no stitches."
-            : "In the preview, tidying changed " + tidied.toLocaleString() + " stitch" + (tidied === 1 ? "" : "es") +
+          hint(tidied === 0 ? "In the preview, Reduce confetti changed no stitches."
+            : "In the preview, Reduce confetti changed " + tidied.toLocaleString() + " stitch" + (tidied === 1 ? "" : "es") +
               (ps.stitchable > 0 ? " (" + (tidied / ps.stitchable * 100).toFixed(1) + "%)." : ".")),
           tidied > 0 && app.setShowTidied && h("button", { type: "button", className: "cs-seltools__btn" + (app.showTidied ? " cs-seltools__btn--on" : ""),
             "aria-pressed": app.showTidied ? "true" : "false", onClick: function () { app.setShowTidied(!app.showTidied); } },
@@ -587,8 +667,8 @@
 
     var content;
     if (tab === "size") content = [sizeSec, fabricSec];
-    else if (tab === "threads") content = [stashSec, countSec, blendSec, brandSec, stashToolsSec];
-    else content = [stepsSec, shadingSec, tidySec, rareSec, lookSec];
+    else if (tab === "threads") content = [stashSec, countSec, keepSec, blendSec, brandSec, stashToolsSec];
+    else content = [stepsSec, shadingSec, edgesSec, tidySec, rareSec, lookSec];
 
     // ── Tab strip (the Edit panel's) ────────────────────────────────────────
     var tabBar = h("div", { role: "tablist", "aria-label": "Convert steps", className: "cv-tabs" },

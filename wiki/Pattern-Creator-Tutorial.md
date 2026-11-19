@@ -37,7 +37,7 @@ A step bar across the top of Frame the picture and Convert shows the way to a pa
 - **Undo** — puts back the picture before the last crop or turn. **Change picture** chooses another, which starts with nothing to undo.
 - Small pictures, such as pixel art, are shown larger with sharp pixels so you can see and crop them.
 
-Each crop or turn applies straight away, and the Creator looks at the picture again: a picture type it guessed follows what you kept (a note says if it changed), and a plain background is left unstitched, or stitched again if no plain border is left. A type or background you chose yourself, and settings you changed, are kept.
+Each crop or turn applies straight away, and the Creator looks at the picture again: a picture type it guessed follows what you kept (a note says if it changed), and a plain background is offered again (**Leave it unstitched**), or stitched again if no plain border is left. A type or background you chose yourself, and settings you changed, are kept.
 
 Beside the picture are the settings about the picture itself (see [Picture settings](#picture-settings) below). When it looks right, choose **Continue** (on a phone it is also in the top bar). **Reframe**, beside your picture in the next view, brings you back; if the picture already has a chart, the chart stays as it is until you **Regenerate**. To go straight to the settings for every new picture, turn off **Start with Frame the picture** in **Preferences > Pattern Creator**.
 
@@ -51,7 +51,7 @@ The preview in the middle updates as you change settings, and is the pattern Gen
 |------|-------|
 | **Stitched** (the default) | Every stitch as a cross of thread on your fabric, in your fabric colour, with as much fabric between stitches as two strands leave on that count; blends as one strand of each thread. The closest view to the finished piece. **Close up** shows the stitches larger. |
 | **Flat** | Every stitch as a square of its thread colour. |
-| **Before / after** | Your picture and the pattern either side of a divider you can drag, with **Auto-sweep** and a magnifier. |
+| **Before / after** | Your picture and the pattern either side of a divider you can drag, with **Auto-sweep** and a magnifier. Choose **At stitch size** to compare the pattern with your picture at one colour per stitch: a detail missing there is lost to the pattern's size (crop tighter or go bigger); one that is there but missing from the pattern is lost in matching threads and tidying. |
 
 **Show confetti** and **Show tidied stitches** mark those stitches without changing the preview itself. A line under the preview's size says what your last change did, for example *Threads (max): 4,349 stitches changed (65%), threads 24 to 12, confetti 4.6% to 2.6%*, or that nothing visible changed.
 
@@ -67,8 +67,8 @@ The first setting picks good starting values for the picture:
 
 | Type | Starting values |
 |------|-----------------|
-| **Graphic or logo** | Up to 8 threads, no blends; a plain border background is left unstitched; **Detail and tidiness** at Balanced |
-| **Photo** | Up to 24 threads, blends; **Detail and tidiness** at Balanced |
+| **Graphic or logo** | Up to 8 threads, no blends; **Detail and tidiness** at Balanced |
+| **Photo** | Up to 24 threads, blends; keeps the in-between shades along edges that shading makes; **Detail and tidiness** at Balanced |
 | **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across); **Detail and tidiness** at More detail, so every pixel is kept. **Exact pixel-art import** appears here |
 
 The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and changing the threads or detail afterwards keeps the type (**Detail and tidiness** shows **Custom** instead). To start every picture from your own defaults (threads, blends and shading) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
@@ -79,8 +79,8 @@ The rest of Frame's settings (the adjustments are folded under **Fix the picture
 
 - **Brightness / Contrast / Saturation** — tune the image before conversion; the picture in Frame shows them as you change them. **Reset adjustments** puts them back.
 - **Soften grainy photos** — blurs the picture at stitch size before the threads are chosen: fewer speckled stitches, softer edges. Shrinking a photo to stitches already smooths away grain, so most photos look best with it Off. The method is under **Advanced**.
-- **Sharpen details** — keeps fine lines crisp.
-- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Leave background unstitched** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Leave background unstitched**, press **Pick from picture**, click the background colour, then adjust **How close a match**. Only matching regions connected to the outside edge are removed; enclosed matching details remain. In Frame the picture, the stitches that will be removed are striped on the picture.
+- **Sharpen details** — crisper outlines: a stitch on a blurred edge takes the colour of the side it is closer to, so no new colours appear, and the threads are chosen before it sharpens. **Amount** sets how readily an edge stitch takes a side.
+- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Leave background unstitched** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Leave background unstitched**, press **Pick from picture**, click the background colour, then adjust **How close a match** (how different a colour may look and still count as background; 9 by default). Only matching regions connected to the outside edge are removed; enclosed matching details remain. In Frame the picture, the stitches that will be removed are striped on the picture. The match uses the picture's own colours, so **Brightness**, **Contrast** and **Saturation** don't change it. The background is stitched unless you choose otherwise: a picture with a plain border gets an offer (**Leave it unstitched**), not a change, because a pale subject touching a pale background goes with it. The pattern is worked out from the whole picture first and the background left out afterwards, so leaving it out or putting it back changes only the stitches at its edge. In the preview, the step says how many stitches are left unstitched, and **Show them on the preview** marks them.
 
 ### Size
 
@@ -98,6 +98,8 @@ A new picture starts with its long side at 100 stitches, never more than the pic
 Screen colours are approximations; check physical threads when choosing materials. Catalogue corrections update patterns saved by thread number alone. Explicit imported or custom colours keep their saved colour when reopened. DMC screen colours are calibrated darker than the community online tables, which look paler than real thread ([calibration](../reports/dmc-colour-calibration.md)); the [DMC catalogue audit](../reports/dmc-colour-audit.md) records source disagreements.
 
 **Threads (max)** — how many threads can appear (2–100). Each thread is one colour of stranded cotton, so this is how many to buy.
+
+**Colours to keep** — threads go to the biggest areas first, so a small face or a logo's colour can come out in the background's colours. Press **Pick from picture** and click the colour in the preview (it shows your picture at stitch size while you pick; Esc cancels). Its nearest available thread is then always in the pattern and never merged away. Keep up to 8.
 
 A blend stitches two threads together in one needle (one strand of each) and gets its own chart symbol, so a chart can have more symbols than threads. In the key a blend reads, for example, "DMC 341 + 826 (blend)", and **Allow two-thread blends** in Convert turns them on or off. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow. No two threads on a chart share a symbol, and the symbols on screen are the same shapes the PDF prints. A chart needing more than 112 symbols shows a warning after converting.
 
@@ -125,6 +127,8 @@ A blend stitches two threads together in one needle (one strand of each) and get
 
 Photos keep their shading up to **Tidier**; graphics and pixel art are never shaded. The individual controls are below the steps; changing one shows **Custom**.
 
+**Crisp edges** (under **Edges**) — a stitch that is mostly one colour (at least 60%) takes that colour instead of the blend of everything under it, so outlines are sharp rather than soft. Off by default; a detail thinner than a stitch can come out thinner, so compare the preview with it on and off.
+
 **Shading** — mixes neighbouring threads to suggest in-between colours.
 
 | Setting | Effect | When to use |
@@ -137,7 +141,7 @@ Photos keep their shading up to **Tidier**; graphics and pixel art are never sha
 The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
 
 **Min stitches per colour** (in the **Detail** step, under **Tidying**) — colours used fewer times than this are dropped. Off (the default) still folds away stray colours automatically, keeping small bright accents such as catchlights.
-**Stitch Cleanup** — the on/off switch for tidying: merges confetti stitches and folds away in-between shades along edges.
+**Stitch Cleanup** — the on/off switch for tidying: merges confetti stitches and, for graphics and pixel art, folds away in-between shades along edges (photos keep them). Off still merges colours used by only a few stitches, and **Threads (max)** still applies.
 **Reduce confetti** — how much Stitch Cleanup merges (Off, 1–3): level 1 merges single confetti stitches, level 3 groups of up to 3. Plain areas allow groups three times larger.
 **Protect fine details** — keeps small groups that touch an outline (eyes, lettering). Off gives the tidiest chart; bright accents are kept either way.
 **Keep look-alike colours apart** (with **How strict**) — moves stitches away from a neighbour too similar to tell apart on a printed chart, at some cost to colour accuracy.

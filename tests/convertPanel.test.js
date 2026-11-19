@@ -224,14 +224,93 @@ describe('the counts come from the preview', () => {
     expect(q('[data-threads-used]').textContent).toBe('In the preview: 18 threads and 30 chart symbols; 12 blends, 25% of stitches. ');
   });
 
-  test('Detail says how many stitches tidying changed and can show them', () => {
+  test('Detail has Crisp edges, off by default, and says what each choice does', () => {
+    app.convertTab = 'detail';
+    gen.crispEdges = false; gen.setCrispEdges = jest.fn();
+    draw();
+    expect(headings()).toContain('Edges');
+    expect(text()).toContain('Off: each stitch is the blend of everything under it, so outlines are soft but true to the picture.');
+    const box = all('input[type="checkbox"]').find((b) => b.closest('label').textContent === 'Crisp edges');
+    expect(box.checked).toBe(false);
+    act(() => box.click());
+    expect(gen.setCrispEdges).toHaveBeenCalledWith(true);
+    gen.crispEdges = true; draw();
+    expect(text()).toContain('Each stitch that is mostly one colour (at least 60% of it) takes that colour, so outlines are sharp.');
+    // Exact pixel art: the pixels are the stitches, so no section.
+    gen.exactPixelArt = true; draw();
+    expect(headings()).not.toContain('Edges');
+  });
+
+  test('Detail says how many stitches Reduce confetti changed and can show them', () => {
     app.convertTab = 'detail';
     app.previewStats = { stitchable: 2000, tidiedStitches: 50, confettiFinalSingles: 20 };
     app.setShowTidied = jest.fn();
     draw();
-    expect(text()).toContain('In the preview, tidying changed 50 stitches (2.5%).');
+    expect(text()).toContain('In the preview, Reduce confetti changed 50 stitches (2.5%).');
     act(() => all('button').find((b) => b.textContent === 'Show them on the preview').click());
     expect(app.setShowTidied).toHaveBeenCalledWith(true);
+  });
+
+  test('Stitch Cleanup says what it does for the picture type, and what Off still changes', () => {
+    app.convertTab = 'detail';
+    // A photo keeps its in-between shades (no edge-shade fold).
+    gen.stitchCleanup = { enabled: true, protectDetails: true, foldEdgeShades: false };
+    draw();
+    expect(text()).toContain('Merges confetti stitches into the colour around them.');
+    expect(text()).not.toContain('folds blurry in-between shades');
+    gen.orphans = 0; draw();
+    expect(text()).toContain('Nothing is tidied while Reduce confetti is Off.');
+    // A graphic folds them; so does a chart saved before the setting existed.
+    gen.orphans = 2; gen.stitchCleanup = { enabled: true, protectDetails: true };
+    draw();
+    expect(text()).toContain('Merges confetti stitches and folds blurry in-between shades along edges into the colours either side.');
+    // Off no longer claims every stitch stays as matched.
+    gen.stitchCleanup = { enabled: false, protectDetails: true };
+    draw();
+    expect(text()).toContain('Off: no tidying. Colours used by only a few stitches still merge into a neighbouring colour, and Threads (max) still applies.');
+    expect(text()).not.toContain('exactly as matched');
+  });
+
+  test('Colours to keep lists kept threads, removes them and starts picking', () => {
+    app.convertTab = 'threads';
+    gen.keepColours = [{ id: '945', name: 'Tawny', rgb: [230, 170, 140] }, { id: '3865', name: 'Winter White', rgb: [250, 247, 240] }];
+    gen.keepUnavailable = [];
+    gen.setPickKeep = jest.fn(); gen.removeKeepColour = jest.fn();
+    draw();
+    expect(headings()).toContain('Colours to keep');
+    expect(all('[data-keep-id]').map((e) => e.getAttribute('data-keep-id'))).toEqual(['945', '3865']);
+    expect(text()).toContain('Kept threads are always in the pattern and count towards Threads (max).');
+    act(() => q('button[aria-label="Stop keeping DMC 945 Tawny"]').click());
+    expect(gen.removeKeepColour).toHaveBeenCalledWith('dmc:945');
+    act(() => all('button').find((b) => b.textContent === 'Pick from picture').click());
+    expect(gen.setPickKeep).toHaveBeenCalledWith(true);
+    // While picking, it says where to click.
+    gen.pickKeep = true; draw();
+    expect(all('button').find((b) => b.textContent === 'Click a colour in the preview…').getAttribute('aria-pressed')).toBe('true');
+    // A kept thread the pattern can't use (another brand, not in the stash) is named.
+    gen.pickKeep = false; gen.keepUnavailable = ['dmc:3865']; draw();
+    expect(text()).toContain("DMC 3865 Winter White isn't among the threads this pattern can use, so it isn't kept.");
+    expect(q('[data-keep-id="3865"]').getAttribute('data-keep-used')).toBe('false');
+    // Each is named in the brand it was picked in, whatever the brand now.
+    gen.keepColours = [{ id: '310', name: 'Black', rgb: [0, 0, 0], brand: 'dmc' }, { id: '403', name: 'Black', rgb: [0, 0, 0], brand: 'anchor' }];
+    gen.keepUnavailable = []; draw();
+    expect(all('.cv-keep__name').map((e) => e.textContent)).toEqual(['DMC 310 Black', 'Anchor 403 Black']);
+    // Beyond Threads (max): named, and not used.
+    gen.maxC = 1; gen.keepOverLimit = ['anchor:403']; draw();
+    expect(text()).toContain("Threads (max) is 1, so Anchor 403 Black isn't kept. Raise Threads (max), or stop keeping another colour.");
+    expect(q('[data-keep-id="403"]').getAttribute('data-keep-used')).toBe('false');
+    gen.keepOverLimit = [];
+    // Without a pointer: keep a thread by its number.
+    gen.addKeepColourById = jest.fn(() => ({ id: '798' })); draw();
+    const input = q('.cv-keep__byid-input');
+    expect(input.closest('label').textContent).toContain('Or keep a thread by number');
+    input.value = '798';
+    act(() => q('.cv-keep__byid').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })));
+    expect(gen.addKeepColourById).toHaveBeenCalledWith('798');
+    expect(input.value).toBe('');
+    // Exact pixel art keeps every pixel's own colour: no section.
+    gen.exactPixelArt = true; draw();
+    expect(headings()).not.toContain('Colours to keep');
   });
 });
 

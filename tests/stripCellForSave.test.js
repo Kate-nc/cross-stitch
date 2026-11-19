@@ -50,6 +50,10 @@ const helperFns = mockGlobals
   + extractFn(helpersSource, 'cellBrandForSave') + '\n'
   + extractFn(helpersSource, 'stripCellForSave') + '\n'
   + extractFn(helpersSource, 'serializePattern') + '\n'
+  + extractFn(colourSource,  '_srgb8ToLinearExact') + '\n'
+  + extractFn(colourSource,  '_linearToSrgb8') + '\n'
+  + extractFn(colourSource,  'blendThreadRgb') + '\n'
+  + extractFn(colourSource,  'legacyBlendRgb') + '\n'
   + extractFn(colourSource,  'restoreStitch') + '\n';
 
 eval(helperFns); // eslint-disable-line no-eval
@@ -84,8 +88,8 @@ describe('stripCellForSave — flag ON (default)', () => {
   });
 
   test('blend cell with both DMC halves and matching average is stripped', () => {
-    // 310 (0,0,0) + 321 (200,30,40) → averaged (100,15,20)
-    const out = stripCellForSave({ id: '310+321', type: 'blend', rgb: [100, 15, 20] });
+    // 310 (0,0,0) + 321 (200,30,40), mixed as light → (146,19,26)
+    const out = stripCellForSave({ id: '310+321', type: 'blend', rgb: [146, 19, 26] });
     expect(out).toEqual({ id: '310+321', type: 'blend' });
   });
 
@@ -195,8 +199,28 @@ describe('Round-trip: strip → restoreStitch reproduces original rgb', () => {
     expect(restored.id).toBe(original.id);
   });
 
+  test("blend: an old save's stored-value average follows the threads", () => {
+    // Before blends were mixed as light their colour was (100,15,20). A save
+    // that kept it was worked out from these threads, so it is recomputed.
+    const restored = restoreStitch({ id: '310+321', type: 'blend', rgb: [100, 15, 20] });
+    expect(restored.rgb).toEqual([146, 19, 26]);
+    // Any other saved colour was chosen, and stays.
+    expect(restoreStitch({ id: '310+321', type: 'blend', rgb: [99, 15, 20] }).rgb).toEqual([99, 15, 20]);
+  });
+
+  test("blend saved with its recipe: the old average follows the threads, a chosen colour stays", () => {
+    // serializePattern saves a blend's threads and colour, so a chart saved
+    // before blends were mixed as light reopens through the recipe path.
+    const threads = [{ id: '310', rgb: [0, 0, 0] }, { id: '321', rgb: [200, 30, 40] }];
+    expect(restoreStitch({ id: '310+321', type: 'blend', rgb: [100, 15, 20], threads: threads }).rgb).toEqual([146, 19, 26]);
+    expect(restoreStitch({ id: '310+321', type: 'blend', rgb: [99, 15, 20], threads: threads }).rgb).toEqual([99, 15, 20]);
+    // Strand shares: the old weighted average is recognised too.
+    const two = { id: '310+321', type: 'blend', blendRatio: [2, 1], threads: threads };
+    expect(restoreStitch(Object.assign({ rgb: [67, 10, 13] }, two)).rgb).toEqual(blendThreadRgb([0, 0, 0], [200, 30, 40], 2, 1));
+  });
+
   test('blend: rgb survives round-trip via catalog average', () => {
-    const original = { id: '310+321', type: 'blend', rgb: [100, 15, 20] };
+    const original = { id: '310+321', type: 'blend', rgb: [146, 19, 26] };
     const stripped = stripCellForSave(original);
     expect(stripped.rgb).toBeUndefined();
     const restored = restoreStitch(stripped);

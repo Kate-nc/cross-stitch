@@ -6,7 +6,7 @@
                  removeOrphanStitches, runConfettiCleanup, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                  disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA,
-                 applyUnsharpMask; _applyImageFilters (useCreatorState.js)
+                 sharpenStitches; _applyImageFilters (useCreatorState.js)
    (all defined in colour-utils.js / constants.js). */
 
 // The averaged picture for each picture element, for the last few grid sizes
@@ -34,7 +34,9 @@ var GRID_PIXELS_CACHE_SIZES = 6;
  * @param {number} targetW  Grid width in stitches
  * @param {number} targetH  Grid height in stitches
  * @param {object} [opts]   { bri, con, sat (each -100..100, 0 = unchanged),
- *                            preSharpenOpts (applyUnsharpMask options or null) }
+ *                            crisp (Crisp edges: dominantAreaDownscale) }
+ *   Sharpen details is not applied here: the pipeline sharpens the stitches
+ *   (sharpenStitches, colour-utils.js).
  * @returns {ImageData}
  */
 function gridPixels(source, targetW, targetH, opts) {
@@ -44,12 +46,13 @@ function gridPixels(source, targetW, targetH, opts) {
   // reused for another picture (the app makes a new one each time). Not its
   // src: reading a data URL of a few megabytes takes about 20 ms each time.
   var srcSize = source ? (source.naturalWidth || source.width) + "x" + (source.naturalHeight || source.height) : "";
-  var key = targetW + "x" + targetH + "|" + (opts.preSharpenOpts ? JSON.stringify(opts.preSharpenOpts) : "") + "|" + srcSize;
+  var crisp = !!opts.crisp;
+  var key = targetW + "x" + targetH + "|" + srcSize + (crisp ? "|crisp" : "");
   var cacheable = !!(_gridPixelsCache && source && typeof source === "object" && typeof source.getContext !== "function");
   var sizes = cacheable ? _gridPixelsCache.get(source) : null;
   var averaged = sizes ? sizes.get(key) : null;
   if (!averaged) {
-    averaged = _averagedGridPixels(source, targetW, targetH, opts.preSharpenOpts);
+    averaged = _averagedGridPixels(source, targetW, targetH, crisp);
     if (cacheable) {
       if (!sizes) { sizes = new Map(); _gridPixelsCache.set(source, sizes); }
       sizes.set(key, averaged);
@@ -64,8 +67,8 @@ function gridPixels(source, targetW, targetH, opts) {
 }
 
 // gridPixels before the adjustments: a new Uint8ClampedArray (w * h * 4).
-function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
-  var src = preSharpenOpts ? applyPreSharpenCanvas(source, targetW, targetH, preSharpenOpts) : source;
+function _averagedGridPixels(source, targetW, targetH, crisp) {
+  var src = source;
   var sw = (src.naturalWidth || src.width) | 0, sh = (src.naturalHeight || src.height) | 0;
   function read(w, h) {
     var c = document.createElement("canvas");
@@ -80,56 +83,17 @@ function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
   // Each axis at the picture's own size where it shrinks (to be averaged),
   // at the grid's size where it enlarges.
   var dw = Math.max(targetW, sw), dh = Math.max(targetH, sh);
-  if (dw * dh > LINEAR_SHRINK_MAX_SOURCE_AREA) {
-    var k = Math.sqrt(LINEAR_SHRINK_MAX_SOURCE_AREA / (dw * dh));
+  // Crisp edges reads fewer pixels: 16 per stitch each way at most, and
+  // CRISP_MAX_SOURCE_AREA in all (colour-utils.js).
+  if (crisp) { dw = Math.min(dw, targetW * 16); dh = Math.min(dh, targetH * 16); }
+  var maxArea = crisp && typeof CRISP_MAX_SOURCE_AREA === "number" ? CRISP_MAX_SOURCE_AREA : LINEAR_SHRINK_MAX_SOURCE_AREA;
+  if (dw * dh > maxArea) {
+    var k = Math.sqrt(maxArea / (dw * dh));
     dw = Math.max(targetW, Math.floor(dw * k)); dh = Math.max(targetH, Math.floor(dh * k));
   }
   var px = read(dw, dh);
-  return dw === targetW && dh === targetH ? new Uint8ClampedArray(px) : linearAreaDownscale(px, dw, dh, targetW, targetH);
-}
-
-/**
- * Apply a pre-downscale luminance unsharp mask to a source image/canvas.
- *
- * Works at a fixed "working resolution" of 8× the target grid dimensions
- * (capped at the source size) so the filter parameters (radius, threshold)
- * are image-size-independent — a 50×50 target sharpens at ≤400×400,
- * a 120×80 target at ≤960×640.  The sharpened canvas then goes through
- * gridPixels' light-correct area average like any other picture.
- *
- * Delegates pixel manipulation to applyUnsharpMask() in colour-utils.js.
- * DOM-only — cannot be called inside a Web Worker.
- *
- * @param {HTMLImageElement|HTMLCanvasElement} source
- * @param {number} targetW  Pattern grid width in stitches
- * @param {number} targetH  Pattern grid height in stitches
- * @param {object} [opts]   Forwarded verbatim to applyUnsharpMask
- *   @param {number} [opts.radius=2.0]    Gaussian sigma in working-res pixels
- *   @param {number} [opts.amount=0.5]    USM strength (0–2); 0.5 is conservative
- *   @param {number} [opts.threshold=8]   min |L − blur(L)| in Lab L units
- * @returns {HTMLCanvasElement}  canvas containing the sharpened image
- */
-function applyPreSharpenCanvas(source, targetW, targetH, opts) {
-  var srcW = (source.naturalWidth  || source.width)  | 0;
-  var srcH = (source.naturalHeight || source.height) | 0;
-  if (!srcW || !srcH) return source;
-  // Work at 8× the target dimensions (capped at source size so we never
-  // upscale — upscaling would invent detail that doesn't exist).
-  var wW = Math.min(srcW, targetW * 8);
-  var wH = Math.min(srcH, targetH * 8);
-  // Never go below the target size itself
-  if (wW < targetW) wW = Math.min(srcW, targetW);
-  if (wH < targetH) wH = Math.min(srcH, targetH);
-  var c = document.createElement('canvas');
-  c.width = wW; c.height = wH;
-  var cx = c.getContext('2d');
-  cx.imageSmoothingEnabled = true;
-  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-  cx.drawImage(source, 0, 0, wW, wH);
-  var id = cx.getImageData(0, 0, wW, wH);
-  applyUnsharpMask(id.data, wW, wH, opts);
-  cx.putImageData(id, 0, 0);
-  return c;
+  if (dw === targetW && dh === targetH) return new Uint8ClampedArray(px);
+  return crisp && typeof dominantAreaDownscale === "function" ? dominantAreaDownscale(px, dw, dh, targetW, targetH) : linearAreaDownscale(px, dw, dh, targetW, targetH);
 }
 
 // Reduce confetti's settings (sizes, the contrast guard, edge protection) live
@@ -159,16 +123,29 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
 
   // Work on a private copy: preview runs multiple passes over cached RGBA.
   raw = new Uint8ClampedArray(raw);
+  // The background is found in the picture's own colours, then Brightness,
+  // Contrast and Saturation apply to what is stitched (opts.bri, con, sat;
+  // `raw` comes from gridPixels without them). Mirrored in generate-worker.js.
   var coverageMask = prepareConversionPixels(raw, width, height, opts);
+  applyImageAdjustments(raw, opts.bri, opts.con, opts.sat);
   if (opts.preSmooth) applyBilateralFilter(raw, width, height);
   if (opts.smooth > 0) {
     if (opts.smoothType === "gaussian") applyGaussianBlur(raw, width, height, opts.smooth);
     else if (opts.smoothType === "bilateral") applyBilateralFilter(raw, width, height);
     else applyMedianFilter(raw, width, height, opts.smooth);
   }
+  // Sharpen details works on the stitches themselves (sharpenStitches,
+  // colour-utils.js). The threads are chosen from the stitches before it:
+  // sharpening is about edges, so it must not decide which threads the
+  // pattern uses. Mirrored in generate-worker.js.
+  var paletteSource = raw;
+  if (opts.preSharpen) { paletteSource = new Uint8ClampedArray(raw); sharpenStitches(raw, width, height, opts.preSharpenAmount); }
 
   // Physical blends work independently of spatial shading. Keep their components.
-  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends});
+  // Colours to keep (Convert): their threads are always in the palette and
+  // never folded away. Mirrored in generate-worker.js.
+  var keep = opts.keepIds && opts.keepIds.length ? new Set(opts.keepIds.map(String)) : null;
+  var p = quantizeConstrained(paletteSource, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
   // An all-transparent image is a valid empty pattern, not a quantiser error.
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
@@ -192,7 +169,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // foldRareColours (colour-utils.js) redraws each patch of a rare colour in
   // the closest colour it touches. Mirrored in generate-worker.js.
   // 1. The user's "minimum stitches per colour": every colour under it goes.
-  if (minSt > 0) foldRareColours(mapped, width, height, minSt);
+  if (minSt > 0) foldRareColours(mapped, width, height, minSt, { keep: keep });
   // 2. Automatic: colours covering under 0.5% of the stitches (capped at 15)
   //    are quantisation stragglers that would take a palette slot, unless they
   //    stand out from everything they touch (a catchlight, a pupil): the
@@ -201,7 +178,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     var _atTotal = 0;
     for (var _ati = 0; _ati < mapped.length; _ati++) { if (mapped[_ati].id !== '__skip__') _atTotal++; }
     var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
-    if (_autoThresh > minSt) foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE });
+    if (_autoThresh > minSt) foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE, keep: keep });
   }
 
   // ── Edge-blend fold (audit IMG-01) ───────────────────────────────────────
@@ -210,11 +187,16 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // Without dithering a thin in-between shade is anti-aliasing, so the fold
   // allows more (EDGE_BLEND_MAX_DE_NO_DITHER, colour-utils.js). Mirrored in
   // generate-worker.js.
-  if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === "function") {
+  // Graphics and pixel art only: stitchCleanup.foldEdgeShades is false for
+  // photos (PICTURE_PRESETS, useCreatorState.js), where nearly every colour
+  // looks like an edge shade and the fold changed 11% of the stitches
+  // (reports/photo-conversion-audit-2026-11.md). Unset, as in charts saved
+  // before it existed, it folds.
+  if (stitchCleanup && stitchCleanup.enabled && stitchCleanup.foldEdgeShades !== false && typeof mergeEdgeBlendColours === "function") {
     mergeEdgeBlendColours(mapped, width, height, {
       // Coverage is already decided. Colour cleanup must not create new holes.
       preserveCoverage: true,
-      bgLab: (!dith || dithAlgo === 'off') && opts.skipBg ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null,
+      keep: keep,
       // Undithered, an edge shade is also judged by the pixels it was drawn from.
       // (Dithered stitches all lie between their neighbours' colours, so not then.)
       source: (!dith || dithAlgo === "off") ? raw : null,
@@ -225,14 +207,15 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
-  var preCleanupIds = null;
+  var preCleanupIds = null, tidiedCells = null;
 
   // Reduce confetti (colour-utils.js runConfettiCleanup): runs when Stitch
   // Cleanup is on and the Reduce confetti level is above 0.
-  var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, opts.orphans);
+  var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, opts.orphans, keep);
   if (cleaned) {
     mapped = cleaned.mapped;
     preCleanupIds = cleaned.preCleanupIds;
+    tidiedCells = cleaned.tidiedCells;
     confettiClean = cleaned.confettiClean;
   }
 
@@ -259,27 +242,35 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // threads and redraws the rest in the closest of them. Here, not only in
   // runGenerationPipeline, so the preview on the page is the chart Generate
   // makes (generate-worker.js does the same).
-  var limited = enforceMaxColours(mapped, p, raw, maxC);
+  var limited = enforceMaxColours(mapped, p, raw, maxC, keep);
   limited = limitGeneratedBlends(mapped, raw, width, height, p, opts.maxBlends) || limited;
 
+  // The background is left out last. Everything before, the thread limit
+  // included, ran on the whole picture, so the threads, shading and cleanup
+  // are the same with the background in or out; only stitches at the
+  // background's edge change (blankUncovered, colour-utils.js). Mirrored in
+  // generate-worker.js.
+  var blanked = blankUncovered(mapped, coverageMask, raw, width, opts.skipBg && opts.bgCol ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null);
+  if (blanked && tidiedCells) for (var _ti = 0; _ti < mapped.length; _ti++) if (mapped[_ti].id === '__skip__') tidiedCells[_ti] = 0;
+
   // The finished chart's confetti. Measured again only when a stage after
-  // Reduce confetti changed stitches.
-  var confettiFinal = (disambigData && disambigData.swaps > 0) || limited
+  // Reduce confetti changed stitches (leaving the background out included).
+  var confettiFinal = (disambigData && disambigData.swaps > 0) || limited || blanked
     ? analyzeConfetti(mapped, width, height)
     : (confettiClean || confettiRaw);
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, confettiFinal: confettiFinal, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, disambigData: disambigData };
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, confettiFinal: confettiFinal, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, tidiedCells: tidiedCells, disambigData: disambigData };
 };
 
-// Keep at most maxC threads (a blend counts its two). Mutates mapped; true
-// when any stitch changed.
-function enforceMaxColours(mapped, p, raw, maxC) {
+// Keep at most maxC threads (a blend counts its two), the colours to keep
+// (a Set of ids, or null) first. Mutates mapped; true when any stitch changed.
+function enforceMaxColours(mapped, p, raw, maxC, keep) {
   var changed = false;
   for (var safe = 0; safe < 5; safe++) {
     var ids = collectPaletteIds(mapped);
     if (ids.size <= maxC) break;
     var tu = buildPaletteUsageMap(mapped);
-    var ks = findTopThreads(tu, maxC);
+    var ks = findTopThreads(tu, maxC, keep);
     var kp = p.filter(function(t) { return ks.has(t.id); });
     if (!kp.length) break;
     migrateNonKeptColors(mapped, ks, kp, raw);
@@ -313,9 +304,13 @@ function buildPaletteUsageMap(mapped) {
   return tu;
 }
 
-// Pick the top `maxC` thread ids by usage. Returns a Set of id strings.
-function findTopThreads(usageMap, maxC) {
-  var sorted = Object.entries(usageMap).sort(function(a, b) { return b[1] - a[1]; });
+// Pick the top `maxC` thread ids by usage, colours to keep first. Returns a
+// Set of id strings.
+function findTopThreads(usageMap, maxC, keep) {
+  var sorted = Object.entries(usageMap).sort(function(a, b) {
+    var ka = keep && keep.has(a[0]) ? 1 : 0, kb = keep && keep.has(b[0]) ? 1 : 0;
+    return (kb - ka) || (b[1] - a[1]);
+  });
   return new Set(sorted.slice(0, maxC).map(function(e) { return e[0]; }));
 }
 
@@ -354,14 +349,15 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   // caller can surface a friendly error.
   if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
-  var raw = gridPixels(img, sW, sH, { bri: bri, con: con, sat: sat, preSharpenOpts: opts.preSharpenOpts }).data;
+  var raw = gridPixels(img, sW, sH, { crisp: !!opts.crispEdges }).data;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
+    bri: bri, con: con, sat: sat, preSharpen: !!opts.preSharpen, preSharpenAmount: opts.preSharpenAmount,
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-    stitchCleanup: stitchCleanup, orphans: opts.orphans,
+    stitchCleanup: stitchCleanup, orphans: opts.orphans, keepIds: opts.keepIds || null,
     minSt: minSt, seed: opts.seed, smooth: smooth, smoothType: smoothType,
     preSmooth: opts.preSmooth, disambig: opts.disambig, disambigLevel: opts.disambigLevel,
   });

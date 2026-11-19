@@ -95,11 +95,9 @@ for (const kind of ['pixel-art','low-colour','sparse','blends','no-source']) {
 test('portrait conversion retains original, current chart and actual stitch preview', async ({page}) => {
   await page.setViewportSize({width:1440,height:1000});
   await page.goto('/home.html?tab=create');
-  // Reuse the repository's synthetic portrait fixture generator (eyes,
-  // eyebrows, nose, mouth and a skin gradient), not an external photograph.
-  const src=fs.readFileSync('scripts/bug-hunt-usm.js','utf8');
-  const start=src.indexOf('function makePortrait('),end=src.indexOf('\n}',start)+2;
-  const portrait=new Function('createCanvas',src.slice(start,end)+';return makePortrait(128,160);')(createCanvas);
+  // The repository's synthetic portrait (eyes, eyebrows, nose, mouth and a
+  // skin gradient), not an external photograph.
+  const portrait=require('../fixtures/portrait').makePortrait(128,160);
   await page.locator('input.home-create-file-input').setInputFiles({name:'portrait.png',mimeType:'image/png',buffer:portrait.toBuffer('image/png')});
   await page.waitForURL(/create\.html/);
   await continueFromFrame(page);

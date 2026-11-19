@@ -67,10 +67,12 @@ function confettiTier(pct) {
 }
 function ComparisonSlider({
   originalSrc,
+  originalPixelated = false,
   previewSrc,
   heatmapSrc,
   highlightSrc,
   tidiedSrc,
+  backgroundSrc,
   changedSrc,
   width,
   height,
@@ -257,9 +259,11 @@ function ComparisonSlider({
       left: 0,
       width: "100%",
       height: "100%",
-      objectFit: "fill"
+      objectFit: "fill",
+      imageRendering: originalPixelated ? "pixelated" : "auto"
     },
-    alt: "Original"
+    alt: leftLabel || "Original",
+    "data-testid": "cmp-original"
   }), /*#__PURE__*/React.createElement("div", {
     "data-testid": "cmp-preview-layer",
     style: {
@@ -299,6 +303,23 @@ function ComparisonSlider({
   }), !previewLoading && showHeatmap && heatmapSrc && /*#__PURE__*/React.createElement("img", {
     "data-testid": "cmp-heatmap",
     src: heatmapSrc,
+    style: {
+      clipPath: `inset(0 0 0 ${splitPos}%)`,
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      objectFit: "fill",
+      imageRendering: "pixelated",
+      pointerEvents: "none",
+      zIndex: 5
+    },
+    alt: "",
+    "aria-hidden": "true"
+  }), !previewLoading && backgroundSrc && /*#__PURE__*/React.createElement("img", {
+    "data-testid": "cmp-background",
+    src: backgroundSrc,
     style: {
       clipPath: `inset(0 0 0 ${splitPos}%)`,
       position: "absolute",
@@ -579,6 +600,24 @@ const PREVIEW_VIEWS = [{
   label: 'Before / after',
   title: 'Your picture and the chart either side of a slider'
 }];
+// What Before / after puts before the chart: the picture itself, or the
+// picture at stitch size (one colour per stitch, before threads are chosen).
+const COMPARE_BEFORE = [{
+  id: 'picture',
+  label: 'Your picture'
+}, {
+  id: 'sampled',
+  label: 'At stitch size'
+}];
+function loadCompareBefore() {
+  try {
+    const v = window.UserPrefs && window.UserPrefs.get('creator.convertCompareBefore');
+    if (COMPARE_BEFORE.some(function (x) {
+      return x.id === v;
+    })) return v;
+  } catch (_) {}
+  return 'picture';
+}
 function loadPreviewView() {
   try {
     const v = window.UserPrefs && window.UserPrefs.get('creator.convertPreviewView');
@@ -608,6 +647,13 @@ function ConvertPreview({
   onRetry
 }) {
   const [view, setViewRaw] = useState(loadPreviewView);
+  const [before, setBeforeRaw] = useState(loadCompareBefore);
+  function setBefore(v) {
+    setBeforeRaw(v);
+    try {
+      if (window.UserPrefs) window.UserPrefs.set('creator.convertCompareBefore', v);
+    } catch (_) {}
+  }
   const [closeUp, setCloseUp] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showChanged, setShowChanged] = useState(false);
@@ -673,16 +719,48 @@ function ConvertPreview({
     alt: "",
     "aria-hidden": "true"
   }) : null;
-  const overlays = !state.previewLoading && /*#__PURE__*/React.createElement(React.Fragment, null, showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap'), state.showTidied && overlay(state.previewTidied, 'cvp-tidied'), showChanged && overlay(state.previewChanged, 'cvp-changed'), overlay(state.previewHighlight, 'cvp-highlight'));
+  const overlays = !state.previewLoading && /*#__PURE__*/React.createElement(React.Fragment, null, showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap'), state.showTidied && overlay(state.previewTidied, 'cvp-tidied'), state.showBackground && overlay(state.previewBackground, 'cvp-background'), showChanged && overlay(state.previewChanged, 'cvp-changed'), overlay(state.previewHighlight, 'cvp-highlight'));
   let body;
-  if (view === 'compare') {
+  // At stitch size needs the preview's own picture; until it exists, the picture.
+  const sampledBefore = before === 'sampled' && !!state.previewSampled;
+  // Picking a colour to keep (Convert > Threads): the picture at stitch size,
+  // the colours the threads are matched to, across the whole preview, in any
+  // view. A click keeps the thread nearest the colour there.
+  const picking = state.pickKeep && !!state.previewSampled;
+  // Esc cancels picking, through the app's Esc stack (keyboard-utils.js), which
+  // takes Esc before any other key handler.
+  const cancelPickKeep = React.useCallback(function () {
+    state.setPickKeep(false);
+  }, [state.setPickKeep]);
+  if (window.useEscape) window.useEscape(state.pickKeep ? cancelPickKeep : null);
+  if (picking) {
+    body = /*#__PURE__*/React.createElement("div", {
+      className: "cvp-box cvp-pick",
+      "data-testid": "cvp-pick",
+      style: {
+        aspectRatio: pw + '/' + ph,
+        background: fabricBg
+      }
+    }, /*#__PURE__*/React.createElement("img", {
+      src: state.previewSampled,
+      alt: "Your picture at stitch size. Click the colour to keep.",
+      className: "cvp-flat",
+      onClick: function (e) {
+        const r = e.currentTarget.getBoundingClientRect();
+        state.addKeepColourAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+      }
+    }));
+  } else if (view === 'compare') {
     body = /*#__PURE__*/React.createElement(ComparisonSlider, {
-      originalSrc: state.img.src,
+      originalSrc: sampledBefore ? state.previewSampled : state.img.src,
+      originalPixelated: sampledBefore,
+      leftLabel: sampledBefore ? 'At stitch size' : 'Original',
       previewSrc: state.previewUrl,
       heatmapSrc: state.previewHeatmap,
       highlightSrc: state.previewHighlight,
       changedSrc: showChanged ? state.previewChanged : null,
       tidiedSrc: state.showTidied ? state.previewTidied : null,
+      backgroundSrc: state.showBackground ? state.previewBackground : null,
       width: state.sW,
       height: state.sH,
       previewPw: dims && dims.pw,
@@ -773,11 +851,23 @@ function ConvertPreview({
   }, /*#__PURE__*/React.createElement("span", {
     className: "cvp-note__icon",
     "aria-hidden": "true"
-  }, Icons.info()), /*#__PURE__*/React.createElement("span", null, chartState === 'changed' ? 'This preview shows your new settings. Your chart changes when you Regenerate.' : 'This preview shows these settings; your chart may differ. It changes only when you Regenerate.')), changeText && /*#__PURE__*/React.createElement("p", {
+  }, Icons.info()), /*#__PURE__*/React.createElement("span", null, chartState === 'changed' ? 'This preview shows your new settings. Your chart changes when you Regenerate.' : 'This preview shows these settings; your chart may differ. It changes only when you Regenerate.')), changeText && !picking && /*#__PURE__*/React.createElement("p", {
     className: "cvp-change",
     "data-preview-change": "",
     "aria-live": "polite"
-  }, /*#__PURE__*/React.createElement("strong", null, changeText.names, ":"), " ", changeText.detail, "."), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("strong", null, changeText.names, ":"), " ", changeText.detail, "."), picking && /*#__PURE__*/React.createElement("div", {
+    role: "status",
+    className: "cvp-note cvp-note--pick"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "cvp-note__icon",
+    "aria-hidden": "true"
+  }, Icons.eyedropper()), /*#__PURE__*/React.createElement("span", null, "Click the colour to keep in your picture. Its nearest thread will always be in the pattern."), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "cs-seltools__btn cvp-note__action",
+    onClick: function () {
+      state.setPickKeep(false);
+    }
+  }, "Cancel")), /*#__PURE__*/React.createElement("div", {
     className: "cvp-body",
     ref: bodyRef
   }, body), /*#__PURE__*/React.createElement("div", {
@@ -818,9 +908,38 @@ function ConvertPreview({
     onClick: function () {
       state.setShowTidied(!state.showTidied);
     }
-  }, Icons.eye(), /*#__PURE__*/React.createElement("span", null, "Show tidied stitches"))), view === 'stitched' && /*#__PURE__*/React.createElement("p", {
+  }, Icons.eye(), /*#__PURE__*/React.createElement("span", null, "Show tidied stitches")), state.previewBackground && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: 'cs-seltools__btn' + (state.showBackground ? ' cs-seltools__btn--on' : ''),
+    "aria-pressed": state.showBackground ? 'true' : 'false',
+    onClick: function () {
+      state.setShowBackground(!state.showBackground);
+    }
+  }, Icons.eye(), /*#__PURE__*/React.createElement("span", null, "Show unstitched background"))), view === 'stitched' && /*#__PURE__*/React.createElement("p", {
     className: "cvp-caption"
-  }, "Simulated stitches: 2 strands on ", window.fabricShortLabel(ct), " fabric in your fabric colour. Screens show thread colours only roughly."));
+  }, "Simulated stitches: 2 strands on ", window.fabricShortLabel(ct), " fabric in your fabric colour. Screens show thread colours only roughly."), view === 'compare' && /*#__PURE__*/React.createElement("div", {
+    className: "cvp-before"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "lp-segmented cvp-before__seg",
+    role: "radiogroup",
+    "aria-label": "Compare the chart with"
+  }, COMPARE_BEFORE.map(function (b) {
+    const on = before === b.id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: b.id,
+      type: "button",
+      role: "radio",
+      "aria-checked": on ? 'true' : 'false',
+      className: 'lp-seg' + (on ? ' lp-seg--on' : ''),
+      "data-compare-before": b.id,
+      onClick: function () {
+        setBefore(b.id);
+      }
+    }, b.label);
+  })), before === 'sampled' && /*#__PURE__*/React.createElement("p", {
+    className: "cvp-caption",
+    "data-compare-before-caption": ""
+  }, "At stitch size is your picture with one colour per stitch, before any thread is chosen. Detail already gone here is lost to the chart's size: crop tighter or make the chart bigger. Detail here but missing from the chart is lost in matching threads and tidying: try more threads or a step towards More detail.")));
 }
 window.ConvertPreview = ConvertPreview;
 function PatternEstimates({
@@ -1501,6 +1620,13 @@ function CreatorApp({
       setBgCol: state.setBgCol,
       pickBg: state.pickBg,
       setPickBg: state.setPickBg,
+      keepColours: state.keepColours,
+      pickKeep: state.pickKeep,
+      setPickKeep: state.setPickKeep,
+      removeKeepColour: state.removeKeepColour,
+      keepUnavailable: state.keepUnavailable,
+      addKeepColourById: state.addKeepColourById,
+      keepOverLimit: state.keepOverLimit,
       minSt: state.minSt,
       setMinSt: state.setMinSt,
       smooth: state.smooth,
@@ -1511,6 +1637,8 @@ function CreatorApp({
       setPreSharpen: state.setPreSharpen,
       preSharpenAmount: state.preSharpenAmount,
       setPreSharpenAmount: state.setPreSharpenAmount,
+      crispEdges: state.crispEdges,
+      setCrispEdges: state.setCrispEdges,
       orphans: state.orphans,
       setOrphans: state.setOrphans,
       disambig: state.disambig,
@@ -1586,7 +1714,7 @@ function CreatorApp({
       setConvertStage: state.setConvertStage,
       srcClick: stableSrcClick
     };
-  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.ownedThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.keepColours, state.pickKeep, state.keepUnavailable, state.keepOverLimit, state.addKeepColourById, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.crispEdges, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.ownedThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {
@@ -1620,6 +1748,9 @@ function CreatorApp({
       setShowTidied: state.setShowTidied,
       previewChange: state.previewChange,
       previewTidied: state.previewTidied,
+      showBackground: state.showBackground,
+      setShowBackground: state.setShowBackground,
+      previewBackground: state.previewBackground,
       splitPaneEnabled: state.splitPaneEnabled,
       setSplitPaneEnabled: state.setSplitPaneEnabled,
       splitPaneRatio: state.splitPaneRatio,
@@ -1728,7 +1859,7 @@ function CreatorApp({
       removeTracePicture: io.removeTracePicture,
       isActive: isActive
     };
-  }, [_sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [_sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied, state.showBackground, state.previewBackground, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {

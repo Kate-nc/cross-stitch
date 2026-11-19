@@ -78,18 +78,21 @@ describe('preset values', () => {
   test('the order is Graphic or logo, Photo, Pixel art', () => {
     expect(api.PICTURE_PRESET_ORDER.map((id) => api.PICTURE_PRESETS[id].label)).toEqual(['Graphic or logo', 'Photo', 'Pixel art']);
   });
-  test('Graphic: 8 threads, no shading, no blends, background skipped when the border is one colour', () => {
+  test('Graphic: 8 threads, no shading, no blends; the background stays in', () => {
     const v = api.picturePresetValues('graphic', api.analysePicture(logo));
-    // Detail and tidiness starts on Balanced: no shading for a graphic.
-    expect(v).toEqual({ maxC: 8, dithMode: 'off', cleanup: true, orphans: 2, protectDetails: true, allowBlends: false, skipBg: true, bgCol: [255, 255, 255] });
-    expect(api.picturePresetValues('graphic', api.analysePicture(photo)).skipBg).toBeUndefined();
+    // Detail and tidiness starts on Balanced: no shading for a graphic. A
+    // plain border is only offered (useProjectIO.offerBackground), so no
+    // preset leaves the background out.
+    expect(v).toEqual({ maxC: 8, dithMode: 'off', cleanup: true, orphans: 2, protectDetails: true, foldEdgeShades: true, allowBlends: false });
   });
   test('Photo: 24 threads, subtle shading, blends, Stitch Cleanup on', () => {
-    expect(api.picturePresetValues('photo', null)).toEqual({ maxC: 24, dithMode: 'weak', cleanup: true, orphans: 2, protectDetails: true, allowBlends: true });
+    // A photo never folds edge shades: in shading nearly every colour looks
+    // like one (reports/photo-conversion-audit-2026-11.md).
+    expect(api.picturePresetValues('photo', null)).toEqual({ maxC: 24, dithMode: 'weak', cleanup: true, orphans: 2, protectDetails: true, foldEdgeShades: false, allowBlends: true });
   });
   test('Pixel art: the picture\'s colours (at most 30) at its own size (up to 500)', () => {
     // More detail: Stitch Cleanup off, so every pixel is kept.
-    expect(api.picturePresetValues('pixel', api.analysePicture(pixel))).toEqual({ dithMode: 'off', cleanup: false, orphans: 0, protectDetails: true, allowBlends: false, maxC: 6, sW: 24, sH: 24 });
+    expect(api.picturePresetValues('pixel', api.analysePicture(pixel))).toEqual({ dithMode: 'off', cleanup: false, orphans: 0, protectDetails: true, foldEdgeShades: true, allowBlends: false, maxC: 6, sW: 24, sH: 24 });
     expect(api.picturePresetValues('pixel', { w: 64, h: 64, distinct: 300 }).maxC).toBe(30);
     expect(api.picturePresetValues('pixel', { w: 800, h: 600, distinct: 12 }).sW).toBeUndefined();
     expect(api.picturePresetValues('pixel', { w: 40, h: 40, distinct: 1 }).maxC).toBe(2);
@@ -162,13 +165,11 @@ describe('the hook', () => {
     expect(run({ id: 'pixel', values: pixelV }, Object.assign({}, p, { stitchCleanup: { enabled: true, strength: 'balanced' } }))).toBe('pixel');
     expect(run({ id: 'pixel', values: pixelV }, Object.assign({}, p, { maxC: 7 }))).toBe('custom');
 
-    // Graphic records the skipped background colour; picking another one is
-    // a change (compared by value, not by array identity).
+    // Graphic: the background switch isn't part of it.
     const graphicV = api.picturePresetValues('graphic', api.analysePicture(logo));
-    const g = { maxC: 8, dithMode: 'off', allowBlends: false, skipBg: true, sW: 80, sH: 80, stitchCleanup: { enabled: true, strength: 'gentle' }, bgCol: [255, 255, 255] };
+    const g = { maxC: 8, dithMode: 'off', allowBlends: false, skipBg: true, sW: 80, sH: 80, stitchCleanup: { enabled: true, strength: 'gentle' }, bgCol: [240, 240, 240] };
     expect(run({ id: 'graphic', values: graphicV }, g)).toBe('graphic');
-    expect(run({ id: 'graphic', values: graphicV }, Object.assign({}, g, { bgCol: [255, 255, 255, 255] }))).toBe('graphic');
-    expect(run({ id: 'graphic', values: graphicV }, Object.assign({}, g, { bgCol: [240, 240, 240] }))).toBe('custom');
+    expect(run({ id: 'graphic', values: graphicV }, Object.assign({}, g, { skipBg: false }))).toBe('graphic');
   });
 
   test('Preferences can turn the guess off, so its own defaults apply', () => {
