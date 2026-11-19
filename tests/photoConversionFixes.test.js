@@ -308,7 +308,7 @@ test('Colours to keep travel with projects, drafts, the preview and Generate', (
   const st = fs.readFileSync('creator/useCreatorState.js', 'utf8');
   expect(st.match(/keepIds: keepColoursPlan\(/g).length).toBeGreaterThanOrEqual(4);   // conversionSettings, Generate (worker, page) and gallery
   // A change to the kept colours alone is saved after generating.
-  expect(io).toMatch(/state\.keepColours, state\.stitchCleanup, state\.crispEdges,\n  \]\);/);
+  expect(io).toMatch(/state\.keepColours, state\.stitchCleanup, state\.crispEdges, state\.preSharpen, state\.preSharpenAmount,\n  \]\);/);
   expect(fs.readFileSync('creator/usePreview.js', 'utf8')).toMatch(/keepIds: settings\.keepIds \|\| null/);
   expect(fs.readFileSync('creator/CompareStrip.js', 'utf8')).toMatch(/keepIds: s\.keepIds \|\| null/);
   // A new picture starts with none.

@@ -191,3 +191,19 @@ describe('Sharpen details on the stitches (sharpenStitches)', () => {
     });
   });
 });
+
+test('Sharpen details is saved with the project and reopens as it was', () => {
+  const io = fs.readFileSync('creator/useProjectIO.js', 'utf8');
+  // All three project-save paths; Amount only while it is on.
+  expect(io.match(/preSharpen: state\.preSharpen \|\| undefined, preSharpenAmount: state\.preSharpen \? state\.preSharpenAmount : undefined,/g)).toHaveLength(3);
+  // Reopening: the saved choice, or off for a project saved before it was kept.
+  const restore = io.slice(io.indexOf('if (state.setPreSharpen) state.setPreSharpen'), io.indexOf('\n', io.indexOf('if (state.setPreSharpenAmount)')));
+  const run = (s) => {
+    const got = {};
+    new Function('state', 's', restore)({ setPreSharpen: (v) => { got.on = v; }, setPreSharpenAmount: (v) => { got.amount = v; } }, s);   // eslint-disable-line no-new-func
+    return got;
+  };
+  expect(run({ preSharpen: true, preSharpenAmount: 0.7 })).toEqual({ on: true, amount: 0.7 });
+  expect(run({})).toEqual({ on: false, amount: 0.5 });
+  expect(run({ preSharpen: true, preSharpenAmount: 2 })).toEqual({ on: true, amount: 1 });   // the old range went to 2
+});
