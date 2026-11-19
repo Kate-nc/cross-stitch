@@ -150,7 +150,7 @@ test.each(['off', 'atkinson', 'bayer', 'riemersma'])('actual preview hook and fi
   c.React = { useRef: value => ({ current: value }), useCallback: fn => fn, useEffect() {} };
   c.setTimeout = fn => { pending.push(fn); return pending.length; }; c.clearTimeout = () => {};
   const state = { img: image, conversionSettings: settings, previewTimerRef: { current: null } };
-  for (const field of ['PreviewUrl', 'PreviewStats', 'PreviewColors', 'PreviewMapped', 'PreviewDims', 'PreviewHeatmap']) state['set' + field] = value => { state[field] = value; };
+  for (const field of ['PreviewUrl', 'PreviewStats', 'PreviewColors', 'PreviewMapped', 'PreviewDims', 'PreviewHeatmap', 'PreviewSampled']) state['set' + field] = value => { state[field] = value; };
   vm.runInContext(fs.readFileSync('creator/usePreview.js', 'utf8'), c);
   const preview = c.usePreview(state);
   for (let pass = 0; pass < 2; pass++) {
@@ -160,6 +160,9 @@ test.each(['off', 'atkinson', 'bayer', 'riemersma'])('actual preview hook and fi
     expect(state.PreviewStats.stitchable).toBe(stitchCount(final.pat));
     expect(state.PreviewStats.uniqueColors).toBe(final.pal.length);
     expect(plain(state.PreviewDims)).toEqual({ pw: 8, ph: 4 });
+    // The picture at stitch size survives the quick first pass (shading on),
+    // for At stitch size and Colours to keep.
+    expect(state.PreviewSampled).toMatch(/^data:image\/png/);
   }
 });
 

@@ -204,7 +204,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
 
   // Reduce confetti (colour-utils.js runConfettiCleanup): runs when Stitch
   // Cleanup is on and the Reduce confetti level is above 0.
-  var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, opts.orphans);
+  var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, opts.orphans, keep);
   if (cleaned) {
     mapped = cleaned.mapped;
     preCleanupIds = cleaned.preCleanupIds;

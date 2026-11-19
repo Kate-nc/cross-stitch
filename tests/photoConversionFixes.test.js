@@ -183,6 +183,51 @@ describe('Colours to keep (keepIds)', () => {
     C.foldRareColours(m2, 10, 10, 5, { keep: new Set(['945']) });
     expect(m2[55].id).toBe('945');
   });
+
+  test('Reduce confetti never merges a kept colour away', () => {
+    const C = runtime();
+    const DMC = require('vm').runInContext('DMC', C);
+    const a = DMC.find((t) => t.id === '310'), b = DMC.find((t) => t.id === '3799');   // close to 310
+    const cells = () => Array.from({ length: 100 }, (_, i) => (i === 55 ? b : a));
+    const flat = new Uint8ClampedArray(400).fill(20);
+    const cleanup = { enabled: true, protectDetails: false };
+    expect(C.runConfettiCleanup(cells(), flat, 10, 10, null, null, cleanup, 2).mapped[55].id).toBe('310');
+    expect(C.runConfettiCleanup(cells(), flat, 10, 10, null, null, cleanup, 2, new Set(['3799'])).mapped[55].id).toBe('3799');
+  });
+});
+
+describe('which kept colours a conversion uses (keepColoursPlan)', () => {
+  const src = fs.readFileSync('creator/useCreatorState.js', 'utf8');
+  const fnSrc = src.slice(src.indexOf('function keepColoursPlan('), src.indexOf('if (typeof window !== "undefined") { window.keepColoursPlan'));
+  const { keepColoursPlan } = new Function(fnSrc + '; return { keepColoursPlan };')();   // eslint-disable-line no-new-func
+  const k = (id, brand) => ({ id, name: id, rgb: [0, 0, 0], brand });
+  const pool = [{ id: '310' }, { id: '945' }, { id: '798' }];
+
+  test('only those in the conversion\'s brand: DMC 310 is not Anchor 310', () => {
+    const plan = keepColoursPlan([k('310', 'dmc'), k('945', 'dmc')], 'anchor', null, 10);
+    expect(plan.ids).toEqual([]);
+    expect(plan.off).toEqual(['dmc:310', 'dmc:945']);
+    // Colours kept before brands were recorded are DMC.
+    expect(keepColoursPlan([k('310')], 'dmc', null, 10).ids).toEqual(['310']);
+  });
+
+  test('only threads the conversion may use, and no more than Threads (max)', () => {
+    const plan = keepColoursPlan([k('310', 'dmc'), k('B5200', 'dmc'), k('945', 'dmc'), k('798', 'dmc')], 'dmc', pool, 2);
+    expect(plan.ids).toEqual(['310', '945']);
+    expect(plan.off).toEqual(['dmc:B5200']);
+    expect(plan.over).toEqual(['dmc:798']);
+  });
+
+  test('every conversion uses the plan: Generate, the gallery and the preview settings', () => {
+    expect(src).toMatch(/keepIds: keepColoursPlan\(keepColours, genBrand, allowedPalette, effMaxC\)\.ids,\n\s*preSharpen/);   // worker
+    expect(src).toMatch(/keepIds: keepColoursPlan\(keepColours, genBrand, allowedPalette, effMaxC\)\.ids,\n\s*allowedPalette/);   // page
+    expect(src).toMatch(/keepIds: keepColoursPlan\(keepColours, convertBrand, slotSubset, effN\)\.ids,/);   // gallery
+    expect(src).toMatch(/keepIds: keepColoursPlan\(keepColours, convertBrand, stashConstrained \? stashInfo\.palette : /);   // conversionSettings
+    expect(src).not.toMatch(/keepIds: keepColours\.map/);
+    // A colour is kept in the brand it was picked in, and a reopened project keeps it.
+    expect(src).toMatch(/brand: convertBrand \|\| "dmc" \};/);
+    expect(fs.readFileSync('creator/useProjectIO.js', 'utf8')).toMatch(/brand: k\.brand === "anchor" \? "anchor" : "dmc" \}/);
+  });
 });
 
 test('Colours to keep travel with projects, drafts, the preview and Generate', () => {
@@ -192,8 +237,9 @@ test('Colours to keep travel with projects, drafts, the preview and Generate', (
   expect(io).toMatch(/state\.setKeepColours\(Array\.isArray\(s\.keepColours\)/);
   expect(io).toMatch(/'keepColours',\n\s*\/\/ The picture type chosen/);
   const st = fs.readFileSync('creator/useCreatorState.js', 'utf8');
-  expect(st).toMatch(/keepIds: keepColours\.map\(function \(k\) \{ return k\.id; \}\),\n\s*\/\/ Cleanup/);   // conversionSettings
-  expect(st.match(/keepIds: keepColours\.map\(function \(k\) \{ return k\.id; \}\)/g).length).toBeGreaterThanOrEqual(4);   // + Generate (worker, page) and gallery
+  expect(st.match(/keepIds: keepColoursPlan\(/g).length).toBeGreaterThanOrEqual(4);   // conversionSettings, Generate (worker, page) and gallery
+  // A change to the kept colours alone is saved after generating.
+  expect(io).toMatch(/state\.keepColours, state\.stitchCleanup,\n  \]\);/);
   expect(fs.readFileSync('creator/usePreview.js', 'utf8')).toMatch(/keepIds: settings\.keepIds \|\| null/);
   expect(fs.readFileSync('creator/CompareStrip.js', 'utf8')).toMatch(/keepIds: s\.keepIds \|\| null/);
   // A new picture starts with none.

@@ -184,7 +184,7 @@ self.onmessage = function(e) {
     // Reduce confetti: runs when Stitch Cleanup is on and the level is above 0
     // (mirrors runCleanupPipeline).
     if (confettiCleanupPlan(stitchCleanup, settings.orphans)) postProgress('cleanup', 'Cleaning up stitches…');
-    var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, settings.orphans);
+    var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, settings.orphans, keep);
     if (cleaned) {
       mapped = cleaned.mapped;
       preCleanupIds = cleaned.preCleanupIds;

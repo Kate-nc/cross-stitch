@@ -261,6 +261,27 @@ function stitchStyleValues(basis, step) {
 // Which step `cur` ({ dithMode, cleanup, orphans, protectDetails }) is, or
 // 'custom'. Settings that do nothing are not compared: with Stitch Cleanup off
 // the level and protection, and at level 0 the protection.
+// Colours to keep: which a conversion uses. A kept colour is a thread in the
+// brand it was picked in ({ id, name, rgb, brand }; no brand is DMC). Used:
+// those in the conversion's brand and among the threads it may use (`pool`,
+// null for the whole catalogue), at most `limit` of them, in the order they
+// were picked. `off`: another brand, or not among those threads. `over`:
+// beyond Threads (max). Convert names both.
+function keepColoursPlan(list, brand, pool, limit) {
+  var have = null;
+  if (pool) { have = {}; pool.forEach(function (t) { have[String(t.id)] = true; }); }
+  var ids = [], off = [], over = [];
+  (list || []).forEach(function (k) {
+    var key = keepColourKey(k);
+    if ((k.brand || "dmc") !== (brand || "dmc") || (have && !have[String(k.id)])) { off.push(key); return; }
+    if (limit != null && ids.length >= limit) { over.push(key); return; }
+    ids.push(String(k.id));
+  });
+  return { ids: ids, off: off, over: over };
+}
+function keepColourKey(k) { return (k.brand || "dmc") + ":" + k.id; }
+if (typeof window !== "undefined") { window.keepColoursPlan = keepColoursPlan; window.keepColourKey = keepColourKey; }
+
 function stitchStyleOf(basis, cur) {
   for (var i = 0; i < STITCH_STYLE_ORDER.length; i++) {
     var step = STITCH_STYLE_ORDER[i], t = stitchStyleValues(basis, step);
@@ -2285,7 +2306,7 @@ window.useCreatorState = function useCreatorState() {
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends, maxBlends: maxBlends,
-              keepIds: keepColours.map(function (k) { return k.id; }),
+              keepIds: keepColoursPlan(keepColours, genBrand, allowedPalette, effMaxC).ids,
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
               preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
@@ -2312,7 +2333,7 @@ window.useCreatorState = function useCreatorState() {
           stitchCleanup: stitchCleanup, orphans: orphans,
           disambig: disambig, disambigLevel: disambigLevel,
           allowedPalette: allowedPalette, seed: _seed,
-          keepIds: keepColours.map(function (k) { return k.id; }),
+          keepIds: keepColoursPlan(keepColours, genBrand, allowedPalette, effMaxC).ids,
           preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
         },
       }, [imageData.data.buffer]);
@@ -2427,7 +2448,7 @@ window.useCreatorState = function useCreatorState() {
           smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
-          keepIds: keepColours.map(function (k) { return k.id; }),
+          keepIds: keepColoursPlan(keepColours, convertBrand, slotSubset, effN).ids,
           preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -2681,8 +2702,8 @@ window.useCreatorState = function useCreatorState() {
       convertBrand: convertBrand,
       // Background
       skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-      // Colours to keep: their threads' ids
-      keepIds: keepColours.map(function (k) { return k.id; }),
+      // Colours to keep: the ids of those this conversion uses
+      keepIds: keepColoursPlan(keepColours, convertBrand, stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null), effMaxC).ids,
       // Cleanup
       minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
       disambig: disambig, disambigLevel: disambigLevel,
@@ -2728,28 +2749,48 @@ window.useCreatorState = function useCreatorState() {
     var t = findSolid(rgbToLab(rgb[0], rgb[1], rgb[2]), pool);
     if (!t || t.id === "__empty__") return null;
     var label = (window.formatThread ? window.formatThread(Object.assign({ brand: convertBrand }, t)) : (convertBrand === "anchor" ? "Anchor " : "DMC ") + t.id);
-    if (keepColours.some(function (k) { return String(k.id) === String(t.id); })) {
+    return keepThread(t, label) ? t : null;
+  }
+  // Add thread t to the kept colours, in the conversion's brand. False when
+  // the list is full; true when it is kept (already, or now).
+  function keepThread(t, label) {
+    var entry = { id: String(t.id), name: t.name, rgb: t.rgb.slice(), brand: convertBrand || "dmc" };
+    if (keepColours.some(function (k) { return keepColourKey(k) === keepColourKey(entry); })) {
       addToast(label + " is already kept.", { type: "info", duration: 3000 });
-      return t;
+      return true;
     }
     if (keepColours.length >= KEEP_COLOURS_MAX) {
       addToast("You can keep up to " + KEEP_COLOURS_MAX + " colours. Remove one to keep another.", { type: "info", duration: 4000 });
+      return false;
+    }
+    setKeepColours(keepColours.concat([entry]));
+    return true;
+  }
+  // Keep a thread by its number (the keyboard's way to add one; picking is by
+  // pointer): among the threads the conversion may use. Returns the thread, or
+  // null with a message saying why.
+  function addKeepColourById(text) {
+    var want = String(text || "").trim().replace(/^(dmc|anchor)\s+/i, "");
+    if (!want) return null;
+    var pool = conversionSettings.allowedPalette || (typeof DMC !== "undefined" ? DMC : []);
+    var t = (pool || []).find(function (x) { return String(x.id).toLowerCase() === want.toLowerCase(); });
+    var brandName = window.threadBrandLabel ? window.threadBrandLabel(convertBrand) : "DMC";
+    if (!t) {
+      addToast("There's no " + brandName + " " + want + " among the threads this pattern can use.", { type: "info", duration: 4000 });
       return null;
     }
-    setKeepColours(keepColours.concat([{ id: String(t.id), name: t.name, rgb: t.rgb.slice() }]));
-    return t;
+    var label = (window.formatThread ? window.formatThread(Object.assign({ brand: convertBrand }, t)) : brandName + " " + t.id);
+    return keepThread(t, label) ? t : null;
   }
-  // Kept threads the conversion can't use now (another brand, or not in the
-  // stash when stash-only): they are skipped, and Convert says so.
-  var keepPool = conversionSettings.allowedPalette;
-  var keepUnavailable = useMemo(function () {
-    if (!keepColours.length || !keepPool) return [];
-    var have = {};
-    keepPool.forEach(function (t) { have[String(t.id)] = true; });
-    return keepColours.filter(function (k) { return !have[String(k.id)]; }).map(function (k) { return k.id; });
-  }, [keepColours, keepPool]);
-  function removeKeepColour(id) {
-    setKeepColours(function (list) { return list.filter(function (k) { return String(k.id) !== String(id); }); });
+  // Kept colours the conversion can't use now (another brand, or not in the
+  // stash when stash-only), and those beyond Threads (max): skipped, and
+  // Convert says so.
+  var keepPlan = useMemo(function () {
+    return keepColoursPlan(keepColours, convertBrand, conversionSettings.allowedPalette, conversionSettings.maxC);
+  }, [keepColours, convertBrand, conversionSettings.allowedPalette, conversionSettings.maxC]);
+  var keepUnavailable = keepPlan.off, keepOverLimit = keepPlan.over;
+  function removeKeepColour(key) {
+    setKeepColours(function (list) { return list.filter(function (k) { return keepColourKey(k) !== key; }); });
   }
 
   // Capture editable values, including those masked by stash constraints.
@@ -2877,7 +2918,7 @@ window.useCreatorState = function useCreatorState() {
     previewTidied, setPreviewTidied, showTidied, setShowTidied,
     previewBackground, setPreviewBackground, showBackground, setShowBackground,
     previewSampled, setPreviewSampled, previewSampledRef,
-    keepColours, setKeepColours, pickKeep, setPickKeep, addKeepColourAt, removeKeepColour, keepUnavailable,
+    keepColours, setKeepColours, pickKeep, setPickKeep, addKeepColourAt, addKeepColourById, removeKeepColour, keepUnavailable, keepOverLimit,
     previewChange, setPreviewChange,
     previewChanged, setPreviewChanged, previewSnapshot, setPreviewSnapshot,
     pinnedPreview, setPinnedPreview, pinPreview, applyPinnedSettings, previewRestoreSettings,

@@ -264,15 +264,33 @@ describe('the counts come from the preview', () => {
     expect(all('[data-keep-id]').map((e) => e.getAttribute('data-keep-id'))).toEqual(['945', '3865']);
     expect(text()).toContain('Kept threads are always in the pattern and count towards Threads (max).');
     act(() => q('button[aria-label="Stop keeping DMC 945 Tawny"]').click());
-    expect(gen.removeKeepColour).toHaveBeenCalledWith('945');
+    expect(gen.removeKeepColour).toHaveBeenCalledWith('dmc:945');
     act(() => all('button').find((b) => b.textContent === 'Pick from picture').click());
     expect(gen.setPickKeep).toHaveBeenCalledWith(true);
     // While picking, it says where to click.
     gen.pickKeep = true; draw();
     expect(all('button').find((b) => b.textContent === 'Click a colour in the preview…').getAttribute('aria-pressed')).toBe('true');
     // A kept thread the pattern can't use (another brand, not in the stash) is named.
-    gen.pickKeep = false; gen.keepUnavailable = ['3865']; draw();
+    gen.pickKeep = false; gen.keepUnavailable = ['dmc:3865']; draw();
     expect(text()).toContain("DMC 3865 Winter White isn't among the threads this pattern can use, so it isn't kept.");
+    expect(q('[data-keep-id="3865"]').getAttribute('data-keep-used')).toBe('false');
+    // Each is named in the brand it was picked in, whatever the brand now.
+    gen.keepColours = [{ id: '310', name: 'Black', rgb: [0, 0, 0], brand: 'dmc' }, { id: '403', name: 'Black', rgb: [0, 0, 0], brand: 'anchor' }];
+    gen.keepUnavailable = []; draw();
+    expect(all('.cv-keep__name').map((e) => e.textContent)).toEqual(['DMC 310 Black', 'Anchor 403 Black']);
+    // Beyond Threads (max): named, and not used.
+    gen.maxC = 1; gen.keepOverLimit = ['anchor:403']; draw();
+    expect(text()).toContain("Threads (max) is 1, so Anchor 403 Black isn't kept. Raise Threads (max), or stop keeping another colour.");
+    expect(q('[data-keep-id="403"]').getAttribute('data-keep-used')).toBe('false');
+    gen.keepOverLimit = [];
+    // Without a pointer: keep a thread by its number.
+    gen.addKeepColourById = jest.fn(() => ({ id: '798' })); draw();
+    const input = q('.cv-keep__byid-input');
+    expect(input.closest('label').textContent).toContain('Or keep a thread by number');
+    input.value = '798';
+    act(() => q('.cv-keep__byid').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })));
+    expect(gen.addKeepColourById).toHaveBeenCalledWith('798');
+    expect(input.value).toBe('');
     // Exact pixel art keeps every pixel's own colour: no section.
     gen.exactPixelArt = true; draw();
     expect(headings()).not.toContain('Colours to keep');

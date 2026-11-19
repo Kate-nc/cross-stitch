@@ -56,5 +56,11 @@ test.describe('Colours to keep', function() {
     // Removing it empties the list.
     await section.getByRole('button', { name: /^Stop keeping DMC 3893/ }).click();
     await expect(section.locator('[data-keep-id]')).toHaveCount(0);
+
+    // Without a pointer: type the number and press Enter.
+    await section.getByLabel('Or keep a thread by number').fill('3893');
+    await page.keyboard.press('Enter');
+    await expect(section.locator('[data-keep-id="3893"]')).toBeVisible();
+    await expect(section.getByLabel('Or keep a thread by number')).toHaveValue('');
   });
 });

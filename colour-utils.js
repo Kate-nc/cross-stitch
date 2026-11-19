@@ -2776,7 +2776,7 @@ function labelConnectedComponents(mapped, w, h) {
  * @param {object}       [opts._statsOut]                 Optional mutable object; receives { iterations }
  *                                                         after the function returns (for testing).
  */
-function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0, deContrastGuard = 0, maxIterations = 1, _statsOut = null } = {}, precomputedLabels = null) {
+function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, saliencyMap = null, { saliencyMultiplier = 2.0, deTieBreakThreshold = 1.0, deContrastGuard = 0, maxIterations = 1, _statsOut = null, keep = null } = {}, precomputedLabels = null) {
   if (maxOrphanSize <= 0) return mapped;
 
   const len = mapped.length;
@@ -2815,6 +2815,8 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, salie
       for (const [, comp] of currentLabels.components) {
         if (comp.size > absoluteMaxSize) continue;
         const cells = comp.cells, compCount = cells.length, tid = comp.id;
+        // A colour to keep (Convert) is never merged away, however small.
+        if (keep && keep.has(String(tid))) continue;
 
         // ── Edge protection ────────────────────────────────────────────────────
         if (edgeMap) {
@@ -2945,12 +2947,14 @@ function confettiCleanupPlan(stitchCleanup, orphans) {
 // { mapped, preCleanupIds, tidiedCells, confettiClean } or null when it is off.
 // tidiedCells marks (1) the stitches Reduce confetti itself changed: not the
 // rare-colour or edge-shade folds before it, nor the stages after it.
-function runConfettiCleanup(mapped, raw, w, h, saliencyMap, preLabels, stitchCleanup, orphans) {
+function runConfettiCleanup(mapped, raw, w, h, saliencyMap, preLabels, stitchCleanup, orphans, keep) {
   var plan = confettiCleanupPlan(stitchCleanup, orphans);
   if (!plan) return null;
   var edgeMap = plan.protectEdges ? generateEdgeMap(raw, w, h, { edgeDilation: ORPHAN_EDGE_DILATION }) : null;
   var preCleanupIds = mapped.map(function (m) { return m.id; });
-  var out = removeOrphanStitches(mapped, w, h, plan.maxOrphanSize, edgeMap, saliencyMap, plan.options, preLabels);
+  // Colours to keep (a Set of thread ids) are never merged away.
+  var options = keep ? Object.assign({}, plan.options, { keep: keep }) : plan.options;
+  var out = removeOrphanStitches(mapped, w, h, plan.maxOrphanSize, edgeMap, saliencyMap, options, preLabels);
   var tidiedCells = new Uint8Array(out.length);
   for (var i = 0; i < out.length; i++) if (preCleanupIds[i] !== '__skip__' && preCleanupIds[i] !== out[i].id) tidiedCells[i] = 1;
   return { mapped: out, preCleanupIds: preCleanupIds, tidiedCells: tidiedCells, confettiClean: analyzeConfetti(out, w, h, labelConnectedComponents(out, w, h)) };

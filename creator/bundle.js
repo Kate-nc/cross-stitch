@@ -995,7 +995,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
 
   // Reduce confetti (colour-utils.js runConfettiCleanup): runs when Stitch
   // Cleanup is on and the Reduce confetti level is above 0.
-  var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, opts.orphans);
+  var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, opts.orphans, keep);
   if (cleaned) {
     mapped = cleaned.mapped;
     preCleanupIds = cleaned.preCleanupIds;
@@ -6785,6 +6785,27 @@ function stitchStyleValues(basis, step) {
 // Which step `cur` ({ dithMode, cleanup, orphans, protectDetails }) is, or
 // 'custom'. Settings that do nothing are not compared: with Stitch Cleanup off
 // the level and protection, and at level 0 the protection.
+// Colours to keep: which a conversion uses. A kept colour is a thread in the
+// brand it was picked in ({ id, name, rgb, brand }; no brand is DMC). Used:
+// those in the conversion's brand and among the threads it may use (`pool`,
+// null for the whole catalogue), at most `limit` of them, in the order they
+// were picked. `off`: another brand, or not among those threads. `over`:
+// beyond Threads (max). Convert names both.
+function keepColoursPlan(list, brand, pool, limit) {
+  var have = null;
+  if (pool) { have = {}; pool.forEach(function (t) { have[String(t.id)] = true; }); }
+  var ids = [], off = [], over = [];
+  (list || []).forEach(function (k) {
+    var key = keepColourKey(k);
+    if ((k.brand || "dmc") !== (brand || "dmc") || (have && !have[String(k.id)])) { off.push(key); return; }
+    if (limit != null && ids.length >= limit) { over.push(key); return; }
+    ids.push(String(k.id));
+  });
+  return { ids: ids, off: off, over: over };
+}
+function keepColourKey(k) { return (k.brand || "dmc") + ":" + k.id; }
+if (typeof window !== "undefined") { window.keepColoursPlan = keepColoursPlan; window.keepColourKey = keepColourKey; }
+
 function stitchStyleOf(basis, cur) {
   for (var i = 0; i < STITCH_STYLE_ORDER.length; i++) {
     var step = STITCH_STYLE_ORDER[i], t = stitchStyleValues(basis, step);
@@ -8809,7 +8830,7 @@ window.useCreatorState = function useCreatorState() {
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends, maxBlends: maxBlends,
-              keepIds: keepColours.map(function (k) { return k.id; }),
+              keepIds: keepColoursPlan(keepColours, genBrand, allowedPalette, effMaxC).ids,
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
               preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
@@ -8836,7 +8857,7 @@ window.useCreatorState = function useCreatorState() {
           stitchCleanup: stitchCleanup, orphans: orphans,
           disambig: disambig, disambigLevel: disambigLevel,
           allowedPalette: allowedPalette, seed: _seed,
-          keepIds: keepColours.map(function (k) { return k.id; }),
+          keepIds: keepColoursPlan(keepColours, genBrand, allowedPalette, effMaxC).ids,
           preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
         },
       }, [imageData.data.buffer]);
@@ -8951,7 +8972,7 @@ window.useCreatorState = function useCreatorState() {
           smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
-          keepIds: keepColours.map(function (k) { return k.id; }),
+          keepIds: keepColoursPlan(keepColours, convertBrand, slotSubset, effN).ids,
           preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -9205,8 +9226,8 @@ window.useCreatorState = function useCreatorState() {
       convertBrand: convertBrand,
       // Background
       skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-      // Colours to keep: their threads' ids
-      keepIds: keepColours.map(function (k) { return k.id; }),
+      // Colours to keep: the ids of those this conversion uses
+      keepIds: keepColoursPlan(keepColours, convertBrand, stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null), effMaxC).ids,
       // Cleanup
       minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
       disambig: disambig, disambigLevel: disambigLevel,
@@ -9252,28 +9273,48 @@ window.useCreatorState = function useCreatorState() {
     var t = findSolid(rgbToLab(rgb[0], rgb[1], rgb[2]), pool);
     if (!t || t.id === "__empty__") return null;
     var label = (window.formatThread ? window.formatThread(Object.assign({ brand: convertBrand }, t)) : (convertBrand === "anchor" ? "Anchor " : "DMC ") + t.id);
-    if (keepColours.some(function (k) { return String(k.id) === String(t.id); })) {
+    return keepThread(t, label) ? t : null;
+  }
+  // Add thread t to the kept colours, in the conversion's brand. False when
+  // the list is full; true when it is kept (already, or now).
+  function keepThread(t, label) {
+    var entry = { id: String(t.id), name: t.name, rgb: t.rgb.slice(), brand: convertBrand || "dmc" };
+    if (keepColours.some(function (k) { return keepColourKey(k) === keepColourKey(entry); })) {
       addToast(label + " is already kept.", { type: "info", duration: 3000 });
-      return t;
+      return true;
     }
     if (keepColours.length >= KEEP_COLOURS_MAX) {
       addToast("You can keep up to " + KEEP_COLOURS_MAX + " colours. Remove one to keep another.", { type: "info", duration: 4000 });
+      return false;
+    }
+    setKeepColours(keepColours.concat([entry]));
+    return true;
+  }
+  // Keep a thread by its number (the keyboard's way to add one; picking is by
+  // pointer): among the threads the conversion may use. Returns the thread, or
+  // null with a message saying why.
+  function addKeepColourById(text) {
+    var want = String(text || "").trim().replace(/^(dmc|anchor)\s+/i, "");
+    if (!want) return null;
+    var pool = conversionSettings.allowedPalette || (typeof DMC !== "undefined" ? DMC : []);
+    var t = (pool || []).find(function (x) { return String(x.id).toLowerCase() === want.toLowerCase(); });
+    var brandName = window.threadBrandLabel ? window.threadBrandLabel(convertBrand) : "DMC";
+    if (!t) {
+      addToast("There's no " + brandName + " " + want + " among the threads this pattern can use.", { type: "info", duration: 4000 });
       return null;
     }
-    setKeepColours(keepColours.concat([{ id: String(t.id), name: t.name, rgb: t.rgb.slice() }]));
-    return t;
+    var label = (window.formatThread ? window.formatThread(Object.assign({ brand: convertBrand }, t)) : brandName + " " + t.id);
+    return keepThread(t, label) ? t : null;
   }
-  // Kept threads the conversion can't use now (another brand, or not in the
-  // stash when stash-only): they are skipped, and Convert says so.
-  var keepPool = conversionSettings.allowedPalette;
-  var keepUnavailable = useMemo(function () {
-    if (!keepColours.length || !keepPool) return [];
-    var have = {};
-    keepPool.forEach(function (t) { have[String(t.id)] = true; });
-    return keepColours.filter(function (k) { return !have[String(k.id)]; }).map(function (k) { return k.id; });
-  }, [keepColours, keepPool]);
-  function removeKeepColour(id) {
-    setKeepColours(function (list) { return list.filter(function (k) { return String(k.id) !== String(id); }); });
+  // Kept colours the conversion can't use now (another brand, or not in the
+  // stash when stash-only), and those beyond Threads (max): skipped, and
+  // Convert says so.
+  var keepPlan = useMemo(function () {
+    return keepColoursPlan(keepColours, convertBrand, conversionSettings.allowedPalette, conversionSettings.maxC);
+  }, [keepColours, convertBrand, conversionSettings.allowedPalette, conversionSettings.maxC]);
+  var keepUnavailable = keepPlan.off, keepOverLimit = keepPlan.over;
+  function removeKeepColour(key) {
+    setKeepColours(function (list) { return list.filter(function (k) { return keepColourKey(k) !== key; }); });
   }
 
   // Capture editable values, including those masked by stash constraints.
@@ -9401,7 +9442,7 @@ window.useCreatorState = function useCreatorState() {
     previewTidied, setPreviewTidied, showTidied, setShowTidied,
     previewBackground, setPreviewBackground, showBackground, setShowBackground,
     previewSampled, setPreviewSampled, previewSampledRef,
-    keepColours, setKeepColours, pickKeep, setPickKeep, addKeepColourAt, removeKeepColour, keepUnavailable,
+    keepColours, setKeepColours, pickKeep, setPickKeep, addKeepColourAt, addKeepColourById, removeKeepColour, keepUnavailable, keepOverLimit,
     previewChange, setPreviewChange,
     previewChanged, setPreviewChanged, previewSnapshot, setPreviewSnapshot,
     pinnedPreview, setPinnedPreview, pinPreview, applyPinnedSettings, previewRestoreSettings,
@@ -13971,7 +14012,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       });
     }
     // Colours to keep ([{ id, name, rgb }]); older projects have none.
-    if (state.setKeepColours) state.setKeepColours(Array.isArray(s.keepColours) ? s.keepColours.filter(function (k) { return k && k.id != null; }).map(function (k) { return { id: String(k.id), name: k.name, rgb: Array.isArray(k.rgb) ? k.rgb.slice(0, 3) : [128, 128, 128] }; }) : []);
+    if (state.setKeepColours) state.setKeepColours(Array.isArray(s.keepColours) ? s.keepColours.filter(function (k) { return k && k.id != null; }).map(function (k) { return { id: String(k.id), name: k.name, rgb: Array.isArray(k.rgb) ? k.rgb.slice(0, 3) : [128, 128, 128], brand: k.brand === "anchor" ? "anchor" : "dmc" }; }) : []);
     if (s.fabricCt) state.setFabricCt(s.fabricCt);
     // The pattern's own fabric colour (audit COMMON-08); older projects take
     // the default for new patterns.
@@ -14932,6 +14973,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.threadOwned, state.img, state.partialStitches, state.specialtyStitches, state.knots, state.projectName, state.allowBlends, state.maxBlends,
     state.projectDesigner, state.projectDescription, state.namePromptShown, state.nameAutoGenerated,
     state.symbolOverrides, state.fabricColour, state.overlayOpacity, state.showOverlay, state.isActive,
+    state.keepColours, state.stitchCleanup,
   ]);
 
   // Per-pattern view state periodic save
@@ -15192,8 +15234,11 @@ window.usePreview = function usePreview(state) {
     busyRef.current = false;
   }
 
-  function clearDetails() {
+  // keepSampled: the picture at stitch size was just made for these settings
+  // (the fast pass), so At stitch size and Colours to keep go on using it.
+  function clearDetails(keepSampled) {
     ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Background', 'Sampled', 'Changed', 'Snapshot'].forEach(function(key) {
+      if (keepSampled && key === 'Sampled') return;
       if (state['setPreview' + key]) state['setPreview' + key](null);
     });
   }
@@ -15363,7 +15408,7 @@ window.usePreview = function usePreview(state) {
           // The size travels with the picture: the slider shapes itself from
           // previewDims, so a new-size frame must not be paired with old dims.
           var fastUrl = renderUrl(fastResult.mapped);
-          clearDetails();
+          clearDetails(true);
           state.setPreviewDims({ pw: pw, ph: ph });
           state.setPreviewUrl(fastUrl);
         }
@@ -19584,15 +19629,16 @@ window.framePictureFilter = function framePictureFilter(bri, con, sat) {
 };
 
 // Which stitches Generate leaves unstitched as background, on the grid of
-// sW × sH stitches: the same grid (gridPixels, with brightness, contrast and
-// saturation; Sharpen details comes after the mask, on the stitches) and the
-// same test (prepareConversionPixels:
+// sW × sH stitches: the same grid (gridPixels) and the same test
+// (prepareConversionPixels:
 // matching colours joined to the edge, or the clear parts of a picture that
 // has them) as Generate (useCreatorState generate, creator/generate.js).
 // Returns { mask (1 = left out), count, w, h, img } or null.
 window.frameBackgroundMask = function frameBackgroundMask(img, sW, sH, opts) {
   if (!img || !sW || !sH || typeof gridPixels !== "function" || typeof prepareConversionPixels !== "function") return null;
-  var grid = gridPixels(img, sW, sH, { bri: opts.bri, con: opts.con, sat: opts.sat });
+  // The picture's own colours: Generate finds the background before
+  // Brightness, Contrast, Saturation and Sharpen details, so they don't move it.
+  var grid = gridPixels(img, sW, sH);
   var data = new Uint8ClampedArray(grid.data);
   var cover = prepareConversionPixels(data, sW, sH, { skipBg: !!opts.skipBg, bgCol: opts.bgCol, bgTh: opts.bgTh });
   var n = sW * sH, mask = new Uint8Array(n), count = 0;
@@ -19719,13 +19765,12 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     var t = setTimeout(function () {
       var info = null;
       try {
-        info = window.frameBackgroundMask(gen.img, sW, sH, { bri: gen.bri, con: gen.con, sat: gen.sat,
-          skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
+        info = window.frameBackgroundMask(gen.img, sW, sH, { skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
       } catch (e) { info = null; }
       setBgInfo(info);
     }, 120);
     return function () { clearTimeout(t); };
-  }, [bgActive, gen.img, sW, sH, gen.bri, gen.con, gen.sat, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bgActive, gen.img, sW, sH, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
   // Stripes for another picture or size (just cropped, turned or resized)
   // are not shown: the row says the background is being found until the new
   // ones are ready. A change of colour or match keeps the last stripes until
@@ -22199,18 +22244,24 @@ window.CreatorSidebar = function CreatorSidebar() {
     // Colours to keep: threads picked from the picture that are always in the
     // pattern (useCreatorState addKeepColourAt; quantizeConstrained's reserved).
     var kept = gen.keepColours || [];
-    var keptOff = gen.keepUnavailable || [];
-    var keptLabel = function (k) { return brandLabel + " " + k.id + (k.name ? " " + k.name : ""); };
+    var keptOff = gen.keepUnavailable || [], keptOver = gen.keepOverLimit || [];
+    var keyOf = window.keepColourKey || function (k) { return (k.brand || "dmc") + ":" + k.id; };
+    // Each in the brand it was picked in.
+    var keptLabel = function (k) {
+      var b = window.threadBrandLabel ? window.threadBrandLabel(k.brand || "dmc") : (k.brand === "anchor" ? "Anchor" : "DMC");
+      return b + " " + k.id + (k.name ? " " + k.name : "");
+    };
+    var keptIn = function (keys) { return kept.filter(function (k) { return keys.indexOf(keyOf(k)) >= 0; }).map(keptLabel); };
     var keepSec = gen.setPickKeep && !gen.exactPixelArt ? sec("keep", "Colours to keep",
       "Makes sure a colour gets a thread of its own, such as skin, eyes or a logo's colour. Threads go to the biggest areas of the picture first, so a small face can come out in the background's colours.",
       h("div", { className: "cv-keep" },
         kept.map(function (k) {
-          var off = keptOff.indexOf(k.id) >= 0;
-          return h("span", { key: k.id, className: "cv-keep__chip" + (off ? " cv-keep__chip--off" : ""), "data-keep-id": k.id },
+          var off = keptOff.indexOf(keyOf(k)) >= 0 || keptOver.indexOf(keyOf(k)) >= 0;
+          return h("span", { key: keyOf(k), className: "cv-keep__chip" + (off ? " cv-keep__chip--off" : ""), "data-keep-id": k.id, "data-keep-used": off ? "false" : "true" },
             h("span", { className: "cv-keep__swatch", style: { background: "rgb(" + k.rgb.join(",") + ")" }, "aria-hidden": "true" }),
             h("span", { className: "cv-keep__name" }, keptLabel(k)),
             h("button", { type: "button", className: "cv-keep__remove", "aria-label": "Stop keeping " + keptLabel(k), title: "Stop keeping",
-              onClick: function () { gen.removeKeepColour(k.id); } }, Icons.x()));
+              onClick: function () { gen.removeKeepColour(keyOf(k)); } }, Icons.x()));
         }),
         h("button", { type: "button", className: "cs-seltools__btn" + (gen.pickKeep ? " cs-seltools__btn--on" : ""), "aria-pressed": gen.pickKeep ? "true" : "false",
           onClick: function () {
@@ -22231,11 +22282,24 @@ window.CreatorSidebar = function CreatorSidebar() {
           } },
           Icons.eyedropper(), h("span", null, gen.pickKeep ? "Click a colour in the preview…" : "Pick from picture"))
       ),
+      // Or by its number: the way to keep a thread without a pointer.
+      gen.addKeepColourById && h("form", { className: "cv-keep__byid",
+        onSubmit: function (e) {
+          e.preventDefault();
+          var input = e.currentTarget.querySelector("input");
+          if (input && gen.addKeepColourById(input.value)) input.value = "";
+        } },
+        h("label", { className: "cv-keep__byid-label" }, "Or keep a thread by number",
+          h("input", { type: "text", className: "cv-keep__byid-input", inputMode: "text", autoComplete: "off", spellCheck: false,
+            placeholder: brandLabel + " number" })),
+        h("button", { type: "submit", className: "cs-seltools__btn" }, "Keep")),
       hint(gen.pickKeep
         ? "The preview shows your picture at stitch size. Click the colour to keep; Esc cancels."
         : kept.length ? "Kept threads are always in the pattern and count towards Threads (max)." : "None yet: the threads follow the picture's biggest areas."),
-      keptOff.length ? note("info", kept.filter(function (k) { return keptOff.indexOf(k.id) >= 0; }).map(keptLabel).join(", ") +
-        (keptOff.length === 1 ? " isn't" : " aren't") + " among the threads this pattern can use, so " + (keptOff.length === 1 ? "it isn't" : "they aren't") + " kept. Pick again to keep the nearest available thread.") : null
+      keptOff.length ? note("info", keptIn(keptOff).join(", ") +
+        (keptOff.length === 1 ? " isn't" : " aren't") + " among the threads this pattern can use, so " + (keptOff.length === 1 ? "it isn't" : "they aren't") + " kept. Pick again to keep the nearest available thread.") : null,
+      keptOver.length ? note("info", "Threads (max) is " + gen.maxC + ", so " + keptIn(keptOver).join(", ") +
+        (keptOver.length === 1 ? " isn't" : " aren't") + " kept. Raise Threads (max), or stop keeping another colour.") : null
     ) : null;
 
     var blendSec = sec("blends", "Blends", null,

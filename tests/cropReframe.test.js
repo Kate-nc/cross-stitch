@@ -97,7 +97,7 @@ describe('the background stripes in Frame', () => {
     return global.window;
   }
 
-  test('are worked out on Generate\'s grid, before Sharpen details, and say which picture and size they are for', () => {
+  test('are worked out on Generate\'s grid, in the picture\'s own colours, and say which picture and size they are for', () => {
     const calls = [];
     const w = loadFrameView({
       gridPixels: (img, sw, sh, opts) => { calls.push(opts); return { data: new Uint8ClampedArray(sw * sh * 4) }; },
@@ -106,8 +106,9 @@ describe('the background stripes in Frame', () => {
     });
     const img = { naturalWidth: 40, naturalHeight: 30 };
     const info = w.frameBackgroundMask(img, 4, 3, { bri: 5, con: 0, sat: 0, preSharpen: true, preSharpenAmount: 1.5, skipBg: true, bgCol: [255, 255, 255], bgTh: 15 });
-    // Sharpen details comes after the mask, on the stitches, so it isn't asked for.
-    expect(calls[0]).toEqual({ bri: 5, con: 0, sat: 0 });
+    // Brightness, Contrast, Saturation and Sharpen details come after the
+    // mask in Generate, so none is asked for.
+    expect(calls[0]).toBeUndefined();
     expect(info.count).toBe(2);
     expect(Array.from(info.mask)).toEqual([1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect([info.w, info.h, info.img]).toEqual([4, 3, img]);

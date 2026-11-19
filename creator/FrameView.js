@@ -63,15 +63,16 @@ window.framePictureFilter = function framePictureFilter(bri, con, sat) {
 };
 
 // Which stitches Generate leaves unstitched as background, on the grid of
-// sW × sH stitches: the same grid (gridPixels, with brightness, contrast and
-// saturation; Sharpen details comes after the mask, on the stitches) and the
-// same test (prepareConversionPixels:
+// sW × sH stitches: the same grid (gridPixels) and the same test
+// (prepareConversionPixels:
 // matching colours joined to the edge, or the clear parts of a picture that
 // has them) as Generate (useCreatorState generate, creator/generate.js).
 // Returns { mask (1 = left out), count, w, h, img } or null.
 window.frameBackgroundMask = function frameBackgroundMask(img, sW, sH, opts) {
   if (!img || !sW || !sH || typeof gridPixels !== "function" || typeof prepareConversionPixels !== "function") return null;
-  var grid = gridPixels(img, sW, sH, { bri: opts.bri, con: opts.con, sat: opts.sat });
+  // The picture's own colours: Generate finds the background before
+  // Brightness, Contrast, Saturation and Sharpen details, so they don't move it.
+  var grid = gridPixels(img, sW, sH);
   var data = new Uint8ClampedArray(grid.data);
   var cover = prepareConversionPixels(data, sW, sH, { skipBg: !!opts.skipBg, bgCol: opts.bgCol, bgTh: opts.bgTh });
   var n = sW * sH, mask = new Uint8Array(n), count = 0;
@@ -198,13 +199,12 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     var t = setTimeout(function () {
       var info = null;
       try {
-        info = window.frameBackgroundMask(gen.img, sW, sH, { bri: gen.bri, con: gen.con, sat: gen.sat,
-          skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
+        info = window.frameBackgroundMask(gen.img, sW, sH, { skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
       } catch (e) { info = null; }
       setBgInfo(info);
     }, 120);
     return function () { clearTimeout(t); };
-  }, [bgActive, gen.img, sW, sH, gen.bri, gen.con, gen.sat, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bgActive, gen.img, sW, sH, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
   // Stripes for another picture or size (just cropped, turned or resized)
   // are not shown: the row says the background is being found until the new
   // ones are ready. A change of colour or match keeps the last stripes until

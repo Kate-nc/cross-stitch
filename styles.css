@@ -9127,6 +9127,12 @@ body.creator-compact .ready-bar__actions .btn { white-space: nowrap; }
 .cv-keep__remove { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; padding: 0; border: 0; background: none; color: var(--text-secondary); cursor: pointer; border-radius: var(--radius-sm); }
 .cv-keep__remove:hover { color: var(--text-primary); background: var(--surface-tertiary); }
 .cv-keep__remove svg { width: 14px; height: 14px; }
+.cv-keep__byid { display: flex; align-items: flex-end; gap: var(--s-2); margin: 0 0 var(--s-2); }
+.cv-keep__byid .cs-seltools__btn { width: auto; }
+.cv-keep__byid-label { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-xs); color: var(--text-secondary); }
+.cv-keep__byid-input { width: 9em; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); font: inherit; font-size: var(--text-sm); }
+/* 16px on touch screens: smaller text makes iOS zoom in on focus. */
+@media (pointer: coarse) { .cv-keep__byid-input { font-size: 16px; min-height: 44px; } }
 .cvp-pick { cursor: crosshair; }
 .cv-reset { margin-top: var(--s-2); }
 .cv-field { display: flex; flex-direction: column; gap: 4px; margin-top: var(--s-2); }

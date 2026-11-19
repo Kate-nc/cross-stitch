@@ -124,8 +124,11 @@ window.usePreview = function usePreview(state) {
     busyRef.current = false;
   }
 
-  function clearDetails() {
+  // keepSampled: the picture at stitch size was just made for these settings
+  // (the fast pass), so At stitch size and Colours to keep go on using it.
+  function clearDetails(keepSampled) {
     ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Background', 'Sampled', 'Changed', 'Snapshot'].forEach(function(key) {
+      if (keepSampled && key === 'Sampled') return;
       if (state['setPreview' + key]) state['setPreview' + key](null);
     });
   }
@@ -295,7 +298,7 @@ window.usePreview = function usePreview(state) {
           // The size travels with the picture: the slider shapes itself from
           // previewDims, so a new-size frame must not be paired with old dims.
           var fastUrl = renderUrl(fastResult.mapped);
-          clearDetails();
+          clearDetails(true);
           state.setPreviewDims({ pw: pw, ph: ph });
           state.setPreviewUrl(fastUrl);
         }

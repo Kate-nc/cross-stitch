@@ -361,18 +361,24 @@
     // Colours to keep: threads picked from the picture that are always in the
     // pattern (useCreatorState addKeepColourAt; quantizeConstrained's reserved).
     var kept = gen.keepColours || [];
-    var keptOff = gen.keepUnavailable || [];
-    var keptLabel = function (k) { return brandLabel + " " + k.id + (k.name ? " " + k.name : ""); };
+    var keptOff = gen.keepUnavailable || [], keptOver = gen.keepOverLimit || [];
+    var keyOf = window.keepColourKey || function (k) { return (k.brand || "dmc") + ":" + k.id; };
+    // Each in the brand it was picked in.
+    var keptLabel = function (k) {
+      var b = window.threadBrandLabel ? window.threadBrandLabel(k.brand || "dmc") : (k.brand === "anchor" ? "Anchor" : "DMC");
+      return b + " " + k.id + (k.name ? " " + k.name : "");
+    };
+    var keptIn = function (keys) { return kept.filter(function (k) { return keys.indexOf(keyOf(k)) >= 0; }).map(keptLabel); };
     var keepSec = gen.setPickKeep && !gen.exactPixelArt ? sec("keep", "Colours to keep",
       "Makes sure a colour gets a thread of its own, such as skin, eyes or a logo's colour. Threads go to the biggest areas of the picture first, so a small face can come out in the background's colours.",
       h("div", { className: "cv-keep" },
         kept.map(function (k) {
-          var off = keptOff.indexOf(k.id) >= 0;
-          return h("span", { key: k.id, className: "cv-keep__chip" + (off ? " cv-keep__chip--off" : ""), "data-keep-id": k.id },
+          var off = keptOff.indexOf(keyOf(k)) >= 0 || keptOver.indexOf(keyOf(k)) >= 0;
+          return h("span", { key: keyOf(k), className: "cv-keep__chip" + (off ? " cv-keep__chip--off" : ""), "data-keep-id": k.id, "data-keep-used": off ? "false" : "true" },
             h("span", { className: "cv-keep__swatch", style: { background: "rgb(" + k.rgb.join(",") + ")" }, "aria-hidden": "true" }),
             h("span", { className: "cv-keep__name" }, keptLabel(k)),
             h("button", { type: "button", className: "cv-keep__remove", "aria-label": "Stop keeping " + keptLabel(k), title: "Stop keeping",
-              onClick: function () { gen.removeKeepColour(k.id); } }, Icons.x()));
+              onClick: function () { gen.removeKeepColour(keyOf(k)); } }, Icons.x()));
         }),
         h("button", { type: "button", className: "cs-seltools__btn" + (gen.pickKeep ? " cs-seltools__btn--on" : ""), "aria-pressed": gen.pickKeep ? "true" : "false",
           onClick: function () {
@@ -393,11 +399,24 @@
           } },
           Icons.eyedropper(), h("span", null, gen.pickKeep ? "Click a colour in the preview…" : "Pick from picture"))
       ),
+      // Or by its number: the way to keep a thread without a pointer.
+      gen.addKeepColourById && h("form", { className: "cv-keep__byid",
+        onSubmit: function (e) {
+          e.preventDefault();
+          var input = e.currentTarget.querySelector("input");
+          if (input && gen.addKeepColourById(input.value)) input.value = "";
+        } },
+        h("label", { className: "cv-keep__byid-label" }, "Or keep a thread by number",
+          h("input", { type: "text", className: "cv-keep__byid-input", inputMode: "text", autoComplete: "off", spellCheck: false,
+            placeholder: brandLabel + " number" })),
+        h("button", { type: "submit", className: "cs-seltools__btn" }, "Keep")),
       hint(gen.pickKeep
         ? "The preview shows your picture at stitch size. Click the colour to keep; Esc cancels."
         : kept.length ? "Kept threads are always in the pattern and count towards Threads (max)." : "None yet: the threads follow the picture's biggest areas."),
-      keptOff.length ? note("info", kept.filter(function (k) { return keptOff.indexOf(k.id) >= 0; }).map(keptLabel).join(", ") +
-        (keptOff.length === 1 ? " isn't" : " aren't") + " among the threads this pattern can use, so " + (keptOff.length === 1 ? "it isn't" : "they aren't") + " kept. Pick again to keep the nearest available thread.") : null
+      keptOff.length ? note("info", keptIn(keptOff).join(", ") +
+        (keptOff.length === 1 ? " isn't" : " aren't") + " among the threads this pattern can use, so " + (keptOff.length === 1 ? "it isn't" : "they aren't") + " kept. Pick again to keep the nearest available thread.") : null,
+      keptOver.length ? note("info", "Threads (max) is " + gen.maxC + ", so " + keptIn(keptOver).join(", ") +
+        (keptOver.length === 1 ? " isn't" : " aren't") + " kept. Raise Threads (max), or stop keeping another colour.") : null
     ) : null;
 
     var blendSec = sec("blends", "Blends", null,
