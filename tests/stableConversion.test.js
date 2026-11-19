@@ -3,8 +3,10 @@
 //   1. the background is left out after the whole picture is converted
 //      (blankUncovered), so leaving it out changes only stitches at its edge;
 //   2. threads are chosen from a fixed start (no seed: the same settings give
-//      the same pattern), and with Sharpen details from the picture before
-//      sharpening (paletteSourcePixels, settings.paletteRaw).
+//      the same pattern), and with Sharpen details from the stitches before
+//      sharpening;
+//   3. Sharpen details works on the stitches (sharpenStitches): an edge stitch
+//      takes the colour of the nearer side, so no colour is new.
 const fs = require('fs'), vm = require('vm');
 const { runtime, runWorker } = require('../scripts/conversion-accuracy/harness');
 
@@ -110,22 +112,82 @@ describe('a steady choice of threads', () => {
     expect([ids(1), ids(2), ids(3)].some((x) => x !== ids(null))).toBe(true);
   });
 
-  test('with paletteRaw the threads are chosen from that picture', () => {
-    const W = runtime();
-    const sharp = picture(N, N, (x, y) => subject(x, y).map((v) => (v > 128 ? Math.min(255, v + 25) : Math.max(0, v - 25))));
-    // Without paletteRaw it is the picture itself.
-    expect(W.paletteSourcePixels(sharp, N, N, settings({}))).toBe(sharp);
-    const src = W.paletteSourcePixels(sharp, N, N, settings({ paletteRaw: data.buffer.slice(0) }));
-    expect(Array.from(src)).toEqual(Array.from(data));
-    // So a sharpened picture gets the unsharpened picture's threads.
-    const chosen = (raw, s) => {
+  test('with Sharpen details the threads are chosen from the stitches before it', () => {
+    const chosen = (s) => {
       const Wq = runtime(); let pal = null;
       const real = Wq.quantizeConstrained;
       Wq.quantizeConstrained = function () { pal = real.apply(this, arguments); return pal; };
-      runWorker(raw, N, N, s, Wq);
+      runWorker(data, N, N, s, Wq);
       return pal.map((p) => p.id).sort();
     };
-    expect(chosen(sharp, settings({ paletteRaw: data.buffer.slice(0) }))).toEqual(chosen(data, settings({})));
-    expect(chosen(sharp, settings({}))).not.toEqual(chosen(data, settings({})));
+    expect(chosen(settings({ preSharpen: true, preSharpenAmount: 1 }))).toEqual(chosen(settings({})));
+  });
+});
+
+describe('Sharpen details on the stitches (sharpenStitches)', () => {
+  const W = runtime();
+  const lab = (c) => W.rgbToLab(c[0], c[1], c[2]);
+  // A blurred edge: navy | one stitch between navy and cream | cream. Rows repeat.
+  const NAVY = [20, 40, 110], CREAM = [235, 225, 200];
+  const mix = (t) => NAVY.map((v, i) => Math.round(v + (CREAM[i] - v) * t));
+  const edge = (t) => picture(3, 3, (x) => [NAVY, mix(t), CREAM][x]);
+
+  test('an edge stitch takes the colour of the nearer side: never a new colour', () => {
+    const toNavy = edge(0.2), toCream = edge(0.8);
+    expect(W.sharpenStitches(toNavy, 3, 3, 0.5)).toBe(3);
+    expect(W.sharpenStitches(toCream, 3, 3, 0.5)).toBe(3);
+    for (let y = 0; y < 3; y++) {
+      expect(Array.from(toNavy.slice((y * 3 + 1) * 4, (y * 3 + 1) * 4 + 3))).toEqual(NAVY);
+      expect(Array.from(toCream.slice((y * 3 + 1) * 4, (y * 3 + 1) * 4 + 3))).toEqual(CREAM);
+    }
+  });
+
+  test('Amount sets how close to halfway a stitch may be and still take a side', () => {
+    const near = () => picture(3, 3, (x) => [NAVY, mix(0.4), CREAM][x]);
+    const low = near(), high = near();
+    expect(W.sharpenStitches(low, 3, 3, 0.5)).toBe(0);    // 0.1 from the middle: kept at 0.5
+    expect(W.sharpenStitches(high, 3, 3, 1)).toBe(3);     // and taken at 1
+    expect(Array.from(high.slice(4, 7))).toEqual(NAVY);
+  });
+
+  test('flat areas, gentle shading and details of their own colour are left alone', () => {
+    const flat = picture(5, 5, () => [120, 140, 160]);
+    expect(W.sharpenStitches(flat, 5, 5, 1)).toBe(0);
+    // A smooth ramp: each stitch is halfway between its neighbours.
+    const ramp = picture(9, 3, (x) => mix(x / 8));
+    expect(W.sharpenStitches(ramp, 9, 3, 0.5)).toBe(0);
+    // A red dot between navy and cream is not between them: it stays red.
+    const dot = picture(3, 3, (x, y) => (x === 1 && y === 1 ? [200, 30, 30] : x === 0 ? NAVY : CREAM));
+    W.sharpenStitches(dot, 3, 3, 1);
+    expect(Array.from(dot.slice(16, 19))).toEqual([200, 30, 30]);
+  });
+
+  test('see-through stitches neither change nor count as a side', () => {
+    // With the cream side see-through there is no edge to sharpen.
+    const d = picture(3, 1, (x) => [NAVY, mix(0.2), [255, 255, 255, 0]][x]);
+    expect(W.sharpenStitches(d, 3, 1, 1)).toBe(0);
+    // A see-through stitch keeps its alpha and colour.
+    const e = edge(0.8);
+    e[2 * 4 + 3] = 0;
+    W.sharpenStitches(e, 3, 3, 1);
+    expect(Array.from(e.slice(8, 12))).toEqual(CREAM.concat([0]));
+  });
+
+  test('the same in the worker and on the page, and only the edges change', () => {
+    const s = settings({ preSharpen: true, preSharpenAmount: 0.5, dith: false, dithAlgo: 'off', stitchCleanup: { enabled: false }, orphans: 0 });
+    const data = picture(N, N, subject);
+    const Wp = runtime();
+    vm.runInContext(fs.readFileSync('creator/generate.js', 'utf8'), Wp);
+    const page = Wp.runCleanupPipeline(new Uint8ClampedArray(data), N, N, s).mapped.map((m) => m.id);
+    const worker = runWorker(data, N, N, s, W).mapped.map((m) => m.id);
+    expect(page).toEqual(worker);
+    const plain = runWorker(data, N, N, Object.assign({}, s, { preSharpen: false }), W).mapped.map((m) => m.id);
+    const sharp = new Uint8ClampedArray(data);
+    W.sharpenStitches(sharp, N, N, 0.5);
+    worker.forEach((id, i) => {
+      if (id === plain[i]) return;
+      // A changed stitch is one sharpening changed.
+      expect(Array.from(sharp.slice(i * 4, i * 4 + 3))).not.toEqual(Array.from(data.slice(i * 4, i * 4 + 3)));
+    });
   });
 });

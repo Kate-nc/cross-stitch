@@ -102,6 +102,10 @@ self.onmessage = function(e) {
         applyMedianFilter(raw, width, height, settings.smooth);
       }
     }
+    // Sharpen details, on the stitches; the threads come from them before it
+    // (mirrors runCleanupPipeline).
+    var paletteSource = raw;
+    if (settings.preSharpen) { paletteSource = new Uint8ClampedArray(raw); sharpenStitches(raw, width, height, settings.preSharpenAmount); }
 
     // ── 2. Core pipeline (mirrors runCleanupPipeline in creator/generate.js) ─
     var maxC         = settings.maxC;
@@ -117,8 +121,7 @@ self.onmessage = function(e) {
     // Physical blends work with or without spatial shading, as in the fallback.
     // Colours to keep (mirrors runCleanupPipeline).
     var keep = settings.keepIds && settings.keepIds.length ? new Set(settings.keepIds.map(String)) : null;
-    // Threads come from the picture before Sharpen details (mirrors runCleanupPipeline).
-    var p = quantizeConstrained(paletteSourcePixels(raw, width, height, settings), width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!allowBlends, reserved: settings.keepIds || null});
+    var p = quantizeConstrained(paletteSource, width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!allowBlends, reserved: settings.keepIds || null});
     if (!p.length && coverageMask.some(function(v) { return v !== 0; })) {
       self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;

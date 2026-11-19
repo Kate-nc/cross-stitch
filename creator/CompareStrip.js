@@ -38,7 +38,7 @@
   // creator/generate.js). Brightness, Contrast and Saturation are applied by
   // the pipeline, after the background mask (pipelineSettings).
   function picturePixels(img, pw, ph, s) {
-    return gridPixels(img, pw, ph, { preSharpenOpts: s.preSharpen ? { amount: s.preSharpenAmount } : null });
+    return gridPixels(img, pw, ph);
   }
 
   function pipelineSettings(s, values, paletteFor) {
@@ -51,6 +51,7 @@
       allowBlends: values.allowBlends != null ? values.allowBlends : s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
       seed: s.seed, minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
+      preSharpen: !!s.preSharpen, preSharpenAmount: s.preSharpenAmount,
       stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed, keepIds: s.keepIds || null,
       disambig: s.disambig, disambigLevel: s.disambigLevel
     };
@@ -129,8 +130,6 @@
         var dims = job.dims;
         var px = picturePixels(props.img, dims.pw, dims.ph, s);
         var settings = pipelineSettings(s, job.values, props.paletteFor);
-        // With Sharpen details, the threads are chosen from the picture before it.
-        if (s.preSharpen) settings.paletteRaw = gridPixels(props.img, dims.pw, dims.ph, {}).data;
         var w = getWorker();
         if (!w) {
           // No workers: run on the page, after the current frame.

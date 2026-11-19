@@ -77,9 +77,9 @@ describe('gridPixels', () => {
         return c;
       },
     };
-    const fn = new Function('document', 'linearAreaDownscale', 'applyPreSharpenCanvas', '_applyImageFilters', 'LINEAR_SHRINK_MAX_SOURCE_AREA',
-      genSrc.slice(genSrc.indexOf('// The averaged picture for each picture element'), genSrc.indexOf('/**\n * Apply a pre-downscale luminance unsharp mask')) + '\nreturn { gridPixels, GRID_PIXELS_CACHE_SIZES };');
-    return Object.assign(fn(document, linearAreaDownscale, (s) => s, (id, b, c, s) => applied.push([id.width, b, c, s]), LINEAR_SHRINK_MAX_SOURCE_AREA), { LINEAR_SHRINK_MAX_SOURCE_AREA });
+    const fn = new Function('document', 'linearAreaDownscale', '_applyImageFilters', 'LINEAR_SHRINK_MAX_SOURCE_AREA',
+      genSrc.slice(genSrc.indexOf('// The averaged picture for each picture element'), genSrc.indexOf("// Reduce confetti's settings")) + '\nreturn { gridPixels, GRID_PIXELS_CACHE_SIZES };');
+    return Object.assign(fn(document, linearAreaDownscale, (id, b, c, s) => applied.push([id.width, b, c, s]), LINEAR_SHRINK_MAX_SOURCE_AREA), { LINEAR_SHRINK_MAX_SOURCE_AREA });
   }
   const checker = () => ({ width: 2, height: 2, pixels: px([0, 0, 0], [255, 255, 255], [255, 255, 255], [0, 0, 0]) });
 
@@ -173,27 +173,30 @@ describe('gridPixels', () => {
 
 describe('every picture-to-stitches path uses gridPixels', () => {
   test.each([
-    ['creator/generate.js', /gridPixels\(img, sW, sH, \{ preSharpenOpts: opts\.preSharpenOpts \}\)/],
-    ['creator/useCreatorState.js', /imageData = gridPixels\(img, sW, sH,/],
-    ['creator/useCreatorState.js', /_gcxImgData = gridPixels\(img, gw, gh,/],
-    ['creator/usePreview.js', /gridPixels\(img, pw, ph,/],
-    ['creator/CompareStrip.js', /gridPixels\(img, pw, ph,/],
+    ['creator/generate.js', /var raw = gridPixels\(img, sW, sH\)\.data;/],
+    ['creator/useCreatorState.js', /imageData = gridPixels\(img, sW, sH\)/],
+    ['creator/useCreatorState.js', /_gcxImgData = gridPixels\(img, gw, gh\)/],
+    ['creator/usePreview.js', /gridPixels\(img, pw, ph\)/],
+    ['creator/CompareStrip.js', /gridPixels\(img, pw, ph\)/],
   ])('%s', (file, re) => {
     expect(loadSource(file)).toMatch(re);
   });
 
   // The background mask is found in the picture's own colours: every path
   // hands Brightness, Contrast and Saturation to the pipeline instead of
-  // gridPixels (reports/photo-conversion-audit-2026-11.md).
+  // gridPixels (reports/photo-conversion-audit-2026-11.md). Sharpen details
+  // goes to the pipeline too, which sharpens the stitches (sharpenStitches).
   test.each([
-    ['creator/generate.js', /var raw = gridPixels\(img, sW, sH, \{ preSharpenOpts/, /bri: bri, con: con, sat: sat, paletteRaw: paletteRaw,\n    maxC: maxC/],
-    ['creator/useCreatorState.js', /imageData = gridPixels\(img, sW, sH, \{ preSharpenOpts/, /settings: \{\n          bri: bri, con: con, sat: sat,/],
-    ['creator/useCreatorState.js', /_gcxImgData = gridPixels\(img, gw, gh, \{ preSharpenOpts/, /runCleanupPipeline\(rawPx, gw, gh, \{\n          bri: bri, con: con, sat: sat,/],
-    ['creator/usePreview.js', /gridPixels\(img, pw, ph, \{ preSharpenOpts/, /var o = \{\n          bri: bri, con: con, sat: sat,/],
-  ])('%s adjusts in the pipeline, after the mask', (file, pixels, settings) => {
+    ['creator/generate.js', /var raw = gridPixels\(img, sW, sH\)\.data;/, /bri: bri, con: con, sat: sat, preSharpen: !!opts\.preSharpen, preSharpenAmount: opts\.preSharpenAmount,\n    maxC: maxC/],
+    ['creator/useCreatorState.js', /imageData = gridPixels\(img, sW, sH\);/, /settings: \{\n          bri: bri, con: con, sat: sat,[\s\S]*?preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,\n        \}/],
+    ['creator/useCreatorState.js', /_gcxImgData = gridPixels\(img, gw, gh\);/, /runCleanupPipeline\(rawPx, gw, gh, \{\n          bri: bri, con: con, sat: sat,[\s\S]*?preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,/],
+    ['creator/usePreview.js', /gridPixels\(img, pw, ph\);/, /var o = \{\n          bri: bri, con: con, sat: sat,[\s\S]*?preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,/],
+    ['creator/CompareStrip.js', /return gridPixels\(img, pw, ph\);/, /preSharpen: !!s\.preSharpen, preSharpenAmount: s\.preSharpenAmount,/],
+  ])('%s adjusts and sharpens in the pipeline, after the mask', (file, pixels, settings) => {
     const src = loadSource(file);
     expect(src).toMatch(pixels);
     expect(src).toMatch(settings);
+    expect(src).not.toMatch(/preSharpenOpts|paletteRaw/);
   });
 
   test('the gamma-space halving chain is gone', () => {

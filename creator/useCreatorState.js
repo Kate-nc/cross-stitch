@@ -2263,9 +2263,8 @@ window.useCreatorState = function useCreatorState() {
       try {
         // Brightness, Contrast and Saturation are applied in the worker,
         // after the background mask (runCleanupPipeline).
-        imageData = gridPixels(img, sW, sH, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
-        // With Sharpen details, the threads are chosen from the picture before it.
-        var paletteImage = preSharpen ? gridPixels(img, sW, sH, {}) : null;
+        // Sharpen details too: the pipeline sharpens the stitches.
+        imageData = gridPixels(img, sW, sH);
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -2289,7 +2288,7 @@ window.useCreatorState = function useCreatorState() {
               keepIds: keepColours.map(function (k) { return k.id; }),
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
-              preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null,
+              preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
             });
             if (!result) { setBusy(false); return; }
             applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds, disambigData: result.disambigData });
@@ -2314,7 +2313,7 @@ window.useCreatorState = function useCreatorState() {
           disambig: disambig, disambigLevel: disambigLevel,
           allowedPalette: allowedPalette, seed: _seed,
           keepIds: keepColours.map(function (k) { return k.id; }),
-          paletteRaw: paletteImage ? paletteImage.data : null,
+          preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
         },
       }, [imageData.data.buffer]);
     };
@@ -2415,8 +2414,7 @@ window.useCreatorState = function useCreatorState() {
         // thumbnail matches the chart it makes.
         var _gcxImgData;
         try {
-          _gcxImgData = gridPixels(img, gw, gh, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
-          var _gcxPalette = preSharpen ? gridPixels(img, gw, gh, {}).data : null;
+          _gcxImgData = gridPixels(img, gw, gh);
         } catch (_) {
           // SecurityError: skip this gallery slot silently — generation will
           // still use the main canvas which already showed an error toast.
@@ -2430,7 +2428,7 @@ window.useCreatorState = function useCreatorState() {
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
           keepIds: keepColours.map(function (k) { return k.id; }),
-          paletteRaw: _gcxPalette,
+          preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
           allowedPalette: slotSubset, seed: slotSeed,
         });
         var slotUrl = null, usedCt = 0;

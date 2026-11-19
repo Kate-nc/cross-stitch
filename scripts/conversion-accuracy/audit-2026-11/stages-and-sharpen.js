@@ -1,3 +1,5 @@
+// Measures Sharpen details as it was before it moved to the stitches
+// (applyUnsharpMask, removed since): run it at commit 405fe04 to reproduce.
 'use strict';
 const path=require('path'),fs=require('fs');const REPO=process.cwd();
 const M=require('./measure.js');const {H,W,v,run}=M;

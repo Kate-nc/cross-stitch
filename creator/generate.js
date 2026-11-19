@@ -6,7 +6,7 @@
                  removeOrphanStitches, runConfettiCleanup, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                  disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA,
-                 applyUnsharpMask; _applyImageFilters (useCreatorState.js)
+                 sharpenStitches; _applyImageFilters (useCreatorState.js)
    (all defined in colour-utils.js / constants.js). */
 
 // The averaged picture for each picture element, for the last few grid sizes
@@ -33,8 +33,9 @@ var GRID_PIXELS_CACHE_SIZES = 6;
  * @param {HTMLImageElement|HTMLCanvasElement} source
  * @param {number} targetW  Grid width in stitches
  * @param {number} targetH  Grid height in stitches
- * @param {object} [opts]   { bri, con, sat (each -100..100, 0 = unchanged),
- *                            preSharpenOpts (applyUnsharpMask options or null) }
+ * @param {object} [opts]   { bri, con, sat (each -100..100, 0 = unchanged) }
+ *   Sharpen details is not applied here: the pipeline sharpens the stitches
+ *   (sharpenStitches, colour-utils.js).
  * @returns {ImageData}
  */
 function gridPixels(source, targetW, targetH, opts) {
@@ -44,12 +45,12 @@ function gridPixels(source, targetW, targetH, opts) {
   // reused for another picture (the app makes a new one each time). Not its
   // src: reading a data URL of a few megabytes takes about 20 ms each time.
   var srcSize = source ? (source.naturalWidth || source.width) + "x" + (source.naturalHeight || source.height) : "";
-  var key = targetW + "x" + targetH + "|" + (opts.preSharpenOpts ? JSON.stringify(opts.preSharpenOpts) : "") + "|" + srcSize;
+  var key = targetW + "x" + targetH + "|" + srcSize;
   var cacheable = !!(_gridPixelsCache && source && typeof source === "object" && typeof source.getContext !== "function");
   var sizes = cacheable ? _gridPixelsCache.get(source) : null;
   var averaged = sizes ? sizes.get(key) : null;
   if (!averaged) {
-    averaged = _averagedGridPixels(source, targetW, targetH, opts.preSharpenOpts);
+    averaged = _averagedGridPixels(source, targetW, targetH);
     if (cacheable) {
       if (!sizes) { sizes = new Map(); _gridPixelsCache.set(source, sizes); }
       sizes.set(key, averaged);
@@ -64,8 +65,8 @@ function gridPixels(source, targetW, targetH, opts) {
 }
 
 // gridPixels before the adjustments: a new Uint8ClampedArray (w * h * 4).
-function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
-  var src = preSharpenOpts ? applyPreSharpenCanvas(source, targetW, targetH, preSharpenOpts) : source;
+function _averagedGridPixels(source, targetW, targetH) {
+  var src = source;
   var sw = (src.naturalWidth || src.width) | 0, sh = (src.naturalHeight || src.height) | 0;
   function read(w, h) {
     var c = document.createElement("canvas");
@@ -86,50 +87,6 @@ function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
   }
   var px = read(dw, dh);
   return dw === targetW && dh === targetH ? new Uint8ClampedArray(px) : linearAreaDownscale(px, dw, dh, targetW, targetH);
-}
-
-/**
- * Apply a pre-downscale luminance unsharp mask to a source image/canvas.
- *
- * Works at a fixed "working resolution" of 8× the target grid dimensions
- * (capped at the source size) so the filter parameters (radius, threshold)
- * are image-size-independent — a 50×50 target sharpens at ≤400×400,
- * a 120×80 target at ≤960×640.  The sharpened canvas then goes through
- * gridPixels' light-correct area average like any other picture.
- *
- * Delegates pixel manipulation to applyUnsharpMask() in colour-utils.js.
- * DOM-only — cannot be called inside a Web Worker.
- *
- * @param {HTMLImageElement|HTMLCanvasElement} source
- * @param {number} targetW  Pattern grid width in stitches
- * @param {number} targetH  Pattern grid height in stitches
- * @param {object} [opts]   Forwarded verbatim to applyUnsharpMask
- *   @param {number} [opts.radius=2.0]    Gaussian sigma in working-res pixels
- *   @param {number} [opts.amount=0.5]    USM strength (0–2); 0.5 is conservative
- *   @param {number} [opts.threshold=8]   min |L − blur(L)| in Lab L units
- * @returns {HTMLCanvasElement}  canvas containing the sharpened image
- */
-function applyPreSharpenCanvas(source, targetW, targetH, opts) {
-  var srcW = (source.naturalWidth  || source.width)  | 0;
-  var srcH = (source.naturalHeight || source.height) | 0;
-  if (!srcW || !srcH) return source;
-  // Work at 8× the target dimensions (capped at source size so we never
-  // upscale — upscaling would invent detail that doesn't exist).
-  var wW = Math.min(srcW, targetW * 8);
-  var wH = Math.min(srcH, targetH * 8);
-  // Never go below the target size itself
-  if (wW < targetW) wW = Math.min(srcW, targetW);
-  if (wH < targetH) wH = Math.min(srcH, targetH);
-  var c = document.createElement('canvas');
-  c.width = wW; c.height = wH;
-  var cx = c.getContext('2d');
-  cx.imageSmoothingEnabled = true;
-  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-  cx.drawImage(source, 0, 0, wW, wH);
-  var id = cx.getImageData(0, 0, wW, wH);
-  applyUnsharpMask(id.data, wW, wH, opts);
-  cx.putImageData(id, 0, 0);
-  return c;
 }
 
 // Reduce confetti's settings (sizes, the contrast guard, edge protection) live
@@ -170,13 +127,18 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     else if (opts.smoothType === "bilateral") applyBilateralFilter(raw, width, height);
     else applyMedianFilter(raw, width, height, opts.smooth);
   }
+  // Sharpen details works on the stitches themselves (sharpenStitches,
+  // colour-utils.js). The threads are chosen from the stitches before it:
+  // sharpening is about edges, so it must not decide which threads the
+  // pattern uses. Mirrored in generate-worker.js.
+  var paletteSource = raw;
+  if (opts.preSharpen) { paletteSource = new Uint8ClampedArray(raw); sharpenStitches(raw, width, height, opts.preSharpenAmount); }
 
   // Physical blends work independently of spatial shading. Keep their components.
   // Colours to keep (Convert): their threads are always in the palette and
   // never folded away. Mirrored in generate-worker.js.
   var keep = opts.keepIds && opts.keepIds.length ? new Set(opts.keepIds.map(String)) : null;
-  // Threads come from the picture before Sharpen details (paletteSourcePixels).
-  var p = quantizeConstrained(paletteSourcePixels(raw, width, height, opts), width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
+  var p = quantizeConstrained(paletteSource, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
   // An all-transparent image is a valid empty pattern, not a quantiser error.
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
@@ -380,12 +342,10 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   // caller can surface a friendly error.
   if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
-  var raw = gridPixels(img, sW, sH, { preSharpenOpts: opts.preSharpenOpts }).data;
-  // With Sharpen details, the threads are chosen from the picture before it.
-  var paletteRaw = opts.preSharpenOpts ? gridPixels(img, sW, sH, {}).data : null;
+  var raw = gridPixels(img, sW, sH).data;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
-    bri: bri, con: con, sat: sat, paletteRaw: paletteRaw,
+    bri: bri, con: con, sat: sat, preSharpen: !!opts.preSharpen, preSharpenAmount: opts.preSharpenAmount,
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,

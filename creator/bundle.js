@@ -797,7 +797,7 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
                  removeOrphanStitches, runConfettiCleanup, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                  disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA,
-                 applyUnsharpMask; _applyImageFilters (useCreatorState.js)
+                 sharpenStitches; _applyImageFilters (useCreatorState.js)
    (all defined in colour-utils.js / constants.js). */
 
 // The averaged picture for each picture element, for the last few grid sizes
@@ -824,8 +824,9 @@ var GRID_PIXELS_CACHE_SIZES = 6;
  * @param {HTMLImageElement|HTMLCanvasElement} source
  * @param {number} targetW  Grid width in stitches
  * @param {number} targetH  Grid height in stitches
- * @param {object} [opts]   { bri, con, sat (each -100..100, 0 = unchanged),
- *                            preSharpenOpts (applyUnsharpMask options or null) }
+ * @param {object} [opts]   { bri, con, sat (each -100..100, 0 = unchanged) }
+ *   Sharpen details is not applied here: the pipeline sharpens the stitches
+ *   (sharpenStitches, colour-utils.js).
  * @returns {ImageData}
  */
 function gridPixels(source, targetW, targetH, opts) {
@@ -835,12 +836,12 @@ function gridPixels(source, targetW, targetH, opts) {
   // reused for another picture (the app makes a new one each time). Not its
   // src: reading a data URL of a few megabytes takes about 20 ms each time.
   var srcSize = source ? (source.naturalWidth || source.width) + "x" + (source.naturalHeight || source.height) : "";
-  var key = targetW + "x" + targetH + "|" + (opts.preSharpenOpts ? JSON.stringify(opts.preSharpenOpts) : "") + "|" + srcSize;
+  var key = targetW + "x" + targetH + "|" + srcSize;
   var cacheable = !!(_gridPixelsCache && source && typeof source === "object" && typeof source.getContext !== "function");
   var sizes = cacheable ? _gridPixelsCache.get(source) : null;
   var averaged = sizes ? sizes.get(key) : null;
   if (!averaged) {
-    averaged = _averagedGridPixels(source, targetW, targetH, opts.preSharpenOpts);
+    averaged = _averagedGridPixels(source, targetW, targetH);
     if (cacheable) {
       if (!sizes) { sizes = new Map(); _gridPixelsCache.set(source, sizes); }
       sizes.set(key, averaged);
@@ -855,8 +856,8 @@ function gridPixels(source, targetW, targetH, opts) {
 }
 
 // gridPixels before the adjustments: a new Uint8ClampedArray (w * h * 4).
-function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
-  var src = preSharpenOpts ? applyPreSharpenCanvas(source, targetW, targetH, preSharpenOpts) : source;
+function _averagedGridPixels(source, targetW, targetH) {
+  var src = source;
   var sw = (src.naturalWidth || src.width) | 0, sh = (src.naturalHeight || src.height) | 0;
   function read(w, h) {
     var c = document.createElement("canvas");
@@ -877,50 +878,6 @@ function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
   }
   var px = read(dw, dh);
   return dw === targetW && dh === targetH ? new Uint8ClampedArray(px) : linearAreaDownscale(px, dw, dh, targetW, targetH);
-}
-
-/**
- * Apply a pre-downscale luminance unsharp mask to a source image/canvas.
- *
- * Works at a fixed "working resolution" of 8× the target grid dimensions
- * (capped at the source size) so the filter parameters (radius, threshold)
- * are image-size-independent — a 50×50 target sharpens at ≤400×400,
- * a 120×80 target at ≤960×640.  The sharpened canvas then goes through
- * gridPixels' light-correct area average like any other picture.
- *
- * Delegates pixel manipulation to applyUnsharpMask() in colour-utils.js.
- * DOM-only — cannot be called inside a Web Worker.
- *
- * @param {HTMLImageElement|HTMLCanvasElement} source
- * @param {number} targetW  Pattern grid width in stitches
- * @param {number} targetH  Pattern grid height in stitches
- * @param {object} [opts]   Forwarded verbatim to applyUnsharpMask
- *   @param {number} [opts.radius=2.0]    Gaussian sigma in working-res pixels
- *   @param {number} [opts.amount=0.5]    USM strength (0–2); 0.5 is conservative
- *   @param {number} [opts.threshold=8]   min |L − blur(L)| in Lab L units
- * @returns {HTMLCanvasElement}  canvas containing the sharpened image
- */
-function applyPreSharpenCanvas(source, targetW, targetH, opts) {
-  var srcW = (source.naturalWidth  || source.width)  | 0;
-  var srcH = (source.naturalHeight || source.height) | 0;
-  if (!srcW || !srcH) return source;
-  // Work at 8× the target dimensions (capped at source size so we never
-  // upscale — upscaling would invent detail that doesn't exist).
-  var wW = Math.min(srcW, targetW * 8);
-  var wH = Math.min(srcH, targetH * 8);
-  // Never go below the target size itself
-  if (wW < targetW) wW = Math.min(srcW, targetW);
-  if (wH < targetH) wH = Math.min(srcH, targetH);
-  var c = document.createElement('canvas');
-  c.width = wW; c.height = wH;
-  var cx = c.getContext('2d');
-  cx.imageSmoothingEnabled = true;
-  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-  cx.drawImage(source, 0, 0, wW, wH);
-  var id = cx.getImageData(0, 0, wW, wH);
-  applyUnsharpMask(id.data, wW, wH, opts);
-  cx.putImageData(id, 0, 0);
-  return c;
 }
 
 // Reduce confetti's settings (sizes, the contrast guard, edge protection) live
@@ -961,13 +918,18 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     else if (opts.smoothType === "bilateral") applyBilateralFilter(raw, width, height);
     else applyMedianFilter(raw, width, height, opts.smooth);
   }
+  // Sharpen details works on the stitches themselves (sharpenStitches,
+  // colour-utils.js). The threads are chosen from the stitches before it:
+  // sharpening is about edges, so it must not decide which threads the
+  // pattern uses. Mirrored in generate-worker.js.
+  var paletteSource = raw;
+  if (opts.preSharpen) { paletteSource = new Uint8ClampedArray(raw); sharpenStitches(raw, width, height, opts.preSharpenAmount); }
 
   // Physical blends work independently of spatial shading. Keep their components.
   // Colours to keep (Convert): their threads are always in the palette and
   // never folded away. Mirrored in generate-worker.js.
   var keep = opts.keepIds && opts.keepIds.length ? new Set(opts.keepIds.map(String)) : null;
-  // Threads come from the picture before Sharpen details (paletteSourcePixels).
-  var p = quantizeConstrained(paletteSourcePixels(raw, width, height, opts), width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
+  var p = quantizeConstrained(paletteSource, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends, reserved: opts.keepIds || null});
   // An all-transparent image is a valid empty pattern, not a quantiser error.
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
@@ -1171,12 +1133,10 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   // caller can surface a friendly error.
   if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
-  var raw = gridPixels(img, sW, sH, { preSharpenOpts: opts.preSharpenOpts }).data;
-  // With Sharpen details, the threads are chosen from the picture before it.
-  var paletteRaw = opts.preSharpenOpts ? gridPixels(img, sW, sH, {}).data : null;
+  var raw = gridPixels(img, sW, sH).data;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
-    bri: bri, con: con, sat: sat, paletteRaw: paletteRaw,
+    bri: bri, con: con, sat: sat, preSharpen: !!opts.preSharpen, preSharpenAmount: opts.preSharpenAmount,
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
     allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,
@@ -8827,9 +8787,8 @@ window.useCreatorState = function useCreatorState() {
       try {
         // Brightness, Contrast and Saturation are applied in the worker,
         // after the background mask (runCleanupPipeline).
-        imageData = gridPixels(img, sW, sH, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
-        // With Sharpen details, the threads are chosen from the picture before it.
-        var paletteImage = preSharpen ? gridPixels(img, sW, sH, {}) : null;
+        // Sharpen details too: the pipeline sharpens the stitches.
+        imageData = gridPixels(img, sW, sH);
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -8853,7 +8812,7 @@ window.useCreatorState = function useCreatorState() {
               keepIds: keepColours.map(function (k) { return k.id; }),
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
-              preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null,
+              preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
             });
             if (!result) { setBusy(false); return; }
             applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds, disambigData: result.disambigData });
@@ -8878,7 +8837,7 @@ window.useCreatorState = function useCreatorState() {
           disambig: disambig, disambigLevel: disambigLevel,
           allowedPalette: allowedPalette, seed: _seed,
           keepIds: keepColours.map(function (k) { return k.id; }),
-          paletteRaw: paletteImage ? paletteImage.data : null,
+          preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
         },
       }, [imageData.data.buffer]);
     };
@@ -8979,8 +8938,7 @@ window.useCreatorState = function useCreatorState() {
         // thumbnail matches the chart it makes.
         var _gcxImgData;
         try {
-          _gcxImgData = gridPixels(img, gw, gh, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
-          var _gcxPalette = preSharpen ? gridPixels(img, gw, gh, {}).data : null;
+          _gcxImgData = gridPixels(img, gw, gh);
         } catch (_) {
           // SecurityError: skip this gallery slot silently — generation will
           // still use the main canvas which already showed an error toast.
@@ -8994,7 +8952,7 @@ window.useCreatorState = function useCreatorState() {
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
           keepIds: keepColours.map(function (k) { return k.id; }),
-          paletteRaw: _gcxPalette,
+          preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
           allowedPalette: slotSubset, seed: slotSeed,
         });
         var slotUrl = null, usedCt = 0;
@@ -15294,19 +15252,15 @@ window.usePreview = function usePreview(state) {
       }
       // Brightness, Contrast and Saturation are not part of it: the pipeline
       // applies them after the background mask (pipelineOpts below).
-      var geoSig = img.src + '|' + pw + '|' + ph + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
+      var geoSig = img.src + '|' + pw + '|' + ph;
       if (exactResult) { pw = exactResult.width; ph = exactResult.height;
       } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
         raw = rawCacheRef.current.raw;
       } else {
-        var previewImageData = gridPixels(img, pw, ph, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
+        var previewImageData = gridPixels(img, pw, ph);
         raw = previewImageData.data;
         rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
       }
-
-      // With Sharpen details, the threads are chosen from the picture before
-      // it (paletteSourcePixels); gridPixels caches it.
-      var paletteRaw = !exactResult && preSharpen ? gridPixels(img, pw, ph, {}).data : null;
 
       // Pipeline options come straight from the canonical settings bundle. The
       // ONLY caller-side overrides are the geometric step we already did above
@@ -15319,7 +15273,7 @@ window.usePreview = function usePreview(state) {
           allowBlends: settings.allowBlends, maxBlends: settings.maxBlends, allowedPalette: settings.allowedPalette,
           skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
           stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
-          keepIds: settings.keepIds || null, paletteRaw: paletteRaw,
+          keepIds: settings.keepIds || null, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
           minSt: settings.minSt, seed: settings.seed,
           smooth: smooth, smoothType: smoothType,
           disambig: settings.disambig, disambigLevel: settings.disambigLevel,
@@ -15862,7 +15816,7 @@ window.usePreview = function usePreview(state) {
   // creator/generate.js). Brightness, Contrast and Saturation are applied by
   // the pipeline, after the background mask (pipelineSettings).
   function picturePixels(img, pw, ph, s) {
-    return gridPixels(img, pw, ph, { preSharpenOpts: s.preSharpen ? { amount: s.preSharpenAmount } : null });
+    return gridPixels(img, pw, ph);
   }
 
   function pipelineSettings(s, values, paletteFor) {
@@ -15875,6 +15829,7 @@ window.usePreview = function usePreview(state) {
       allowBlends: values.allowBlends != null ? values.allowBlends : s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
       seed: s.seed, minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
+      preSharpen: !!s.preSharpen, preSharpenAmount: s.preSharpenAmount,
       stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed, keepIds: s.keepIds || null,
       disambig: s.disambig, disambigLevel: s.disambigLevel
     };
@@ -15953,8 +15908,6 @@ window.usePreview = function usePreview(state) {
         var dims = job.dims;
         var px = picturePixels(props.img, dims.pw, dims.ph, s);
         var settings = pipelineSettings(s, job.values, props.paletteFor);
-        // With Sharpen details, the threads are chosen from the picture before it.
-        if (s.preSharpen) settings.paletteRaw = gridPixels(props.img, dims.pw, dims.ph, {}).data;
         var w = getWorker();
         if (!w) {
           // No workers: run on the page, after the current frame.
@@ -19631,15 +19584,15 @@ window.framePictureFilter = function framePictureFilter(bri, con, sat) {
 };
 
 // Which stitches Generate leaves unstitched as background, on the grid of
-// sW × sH stitches: the same grid (gridPixels, with brightness, contrast,
-// saturation and Sharpen details) and the same test (prepareConversionPixels:
+// sW × sH stitches: the same grid (gridPixels, with brightness, contrast and
+// saturation; Sharpen details comes after the mask, on the stitches) and the
+// same test (prepareConversionPixels:
 // matching colours joined to the edge, or the clear parts of a picture that
 // has them) as Generate (useCreatorState generate, creator/generate.js).
 // Returns { mask (1 = left out), count, w, h, img } or null.
 window.frameBackgroundMask = function frameBackgroundMask(img, sW, sH, opts) {
   if (!img || !sW || !sH || typeof gridPixels !== "function" || typeof prepareConversionPixels !== "function") return null;
-  var grid = gridPixels(img, sW, sH, { bri: opts.bri, con: opts.con, sat: opts.sat,
-    preSharpenOpts: opts.preSharpen ? { amount: opts.preSharpenAmount } : null });
+  var grid = gridPixels(img, sW, sH, { bri: opts.bri, con: opts.con, sat: opts.sat });
   var data = new Uint8ClampedArray(grid.data);
   var cover = prepareConversionPixels(data, sW, sH, { skipBg: !!opts.skipBg, bgCol: opts.bgCol, bgTh: opts.bgTh });
   var n = sW * sH, mask = new Uint8Array(n), count = 0;
@@ -19767,12 +19720,12 @@ window.CreatorFrameView = function CreatorFrameView(props) {
       var info = null;
       try {
         info = window.frameBackgroundMask(gen.img, sW, sH, { bri: gen.bri, con: gen.con, sat: gen.sat,
-          preSharpen: gen.preSharpen, preSharpenAmount: gen.preSharpenAmount, skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
+          skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
       } catch (e) { info = null; }
       setBgInfo(info);
     }, 120);
     return function () { clearTimeout(t); };
-  }, [bgActive, gen.img, sW, sH, gen.bri, gen.con, gen.sat, gen.preSharpen, gen.preSharpenAmount, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bgActive, gen.img, sW, sH, gen.bri, gen.con, gen.sat, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
   // Stripes for another picture or size (just cropped, turned or resized)
   // are not shown: the row says the background is being found until the new
   // ones are ready. A change of colour or match keeps the last stripes until
@@ -22099,11 +22052,11 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(SliderRow, { label: "Saturation", value: gen.sat, min: -50, max: 50, onChange: gen.setSat, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
         helpText: "Makes the colours more vivid, or more muted, before threads are chosen." }),
       check({ checked: gen.preSharpen, label: "Sharpen details", onChange: function (v) { gen.setPreSharpen(v); },
-        info: "Sharpens the picture before it is shrunk to stitches, so eyes, faces and fine edges survive. Colours are left as they are. Leave off for pictures that are already sharp or very grainy." }),
-      gen.preSharpen && h(SliderRow, { label: "Amount", value: gen.preSharpenAmount != null ? gen.preSharpenAmount : 0.5, min: 0.1, max: 2.0, step: 0.1,
-        onChange: gen.setPreSharpenAmount, format: function (v) { return v.toFixed(1) + "x"; },
-        helpText: "Sharpening strength. 0.5 is conservative; increase to 1.0 for visibly soft portraits.",
-        inlineHint: "0.5 is a safe default. Above 1.0 watch for halos on hard edges.", helpTopic: "image" }),
+        info: "Shrinking a picture to stitches blurs its edges: a stitch on an edge comes out between the colours either side. Sharpen details gives that stitch the colour of the side it is closer to, so outlines, eyes and lettering are crisper. It only uses colours already beside each stitch, and the threads are chosen before it sharpens." }),
+      gen.preSharpen && h(SliderRow, { label: "Amount", value: Math.min(1, gen.preSharpenAmount != null ? gen.preSharpenAmount : 0.5), min: 0.1, max: 1, step: 0.1,
+        onChange: gen.setPreSharpenAmount, format: function (v) { return Math.round(v * 100) + "%"; },
+        helpText: "How readily an edge stitch takes a side. Low: only stitches that are nearly one colour already. High: almost every stitch on an edge.",
+        inlineHint: "50% suits most pictures. Higher gives crisper edges, but can make soft shading steppy.", helpTopic: "image" }),
       h(SliderRow, { label: "Soften grainy photos", value: gen.smooth, min: 0, max: 4, step: 0.1, onChange: gen.setSmooth,
         format: function (v) { return v === 0 ? "Off" : v.toFixed(1); },
         helpText: "Blurs the picture slightly before threads are chosen: fewer speckled stitches, but softer edges and outlines. Most photos look best at Off.",

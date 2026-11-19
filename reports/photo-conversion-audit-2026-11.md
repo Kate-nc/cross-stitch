@@ -57,9 +57,24 @@ Earlier work: [photo-conversion-accuracy-review.md](photo-conversion-accuracy-re
     colours (greedy over OKLab bins), so the same settings always give the same pattern;
     centres move freely before snapping to threads. Colour error on the ten photos is
     unchanged (4.71 to 4.75). This replaces recommendation 9's best-of-several starts.
-  - *Sharpen details:* the threads are chosen from the picture before sharpening
-    (`settings.paletteRaw`, `paletteSourcePixels`). On a 200-pixel picture Sharpen changed
-    the thread of 28.5% of the stitches; it now changes 8.0%, along the edges it sharpens.
+  - *Sharpen details:* the threads are chosen from the stitches before sharpening. With the
+    old Sharpen, on a 200-pixel picture, that cut the stitches it changed from 28.5% to 8.0%.
+  - *Sharpen details at stitch size* (`sharpenStitches`, colour-utils.js), replacing the
+    unsharp mask on the full picture. A stitch on a blurred edge (between its two most
+    different neighbours, off-centre) takes the colour of the nearer side. On the ten photos
+    at 100 stitches, Amount 50%:
+
+    | | Old Sharpen, 200-pixel picture | Old, full-size picture | Stitch-level, either |
+    |---|---|---|---|
+    | Edge contrast (none: 18.7) | 20.7 | 19.3 | 20.5 to 20.8 (shading on or off, either size) |
+    | Stitches with a colour not beside them | 5.2% | 1.9% | 0% |
+
+    It sharpens a big photo as much as a small one; the old one was averaged away. It
+    changes 9% of the stitches without shading (95% of them beside a stitch it sharpened)
+    and 14% with shading (84%: shading carries some changes further). Colour error against
+    the unsharpened picture rises 4.74 to 4.90, as any sharpening must; on average one
+    thread of the final pattern differs, a rarely used one dropping out. The background
+    mask no longer depends on it: sharpening comes after.
   - Global changes such as Brightness +3 still change many stitches (52% before, 47% now;
     13 to 19% even with the palette held fixed), because they really do change the colours.
 
@@ -324,7 +339,8 @@ Three causes, in order:
    preview itself is not the cause.
 3. **The fold makes edges blocky (A):** see finding 2.
 
-*Sharpen details* and *Soften* do not help:
+*Sharpen details* and *Soften* do not help (Sharpen as it was then; it now works at
+stitch size, see Status):
 
 | | Colour error | Viewed error | Boundary error |
 |---|---|---|---|

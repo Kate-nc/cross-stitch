@@ -152,13 +152,14 @@ test.describe('Convert preview fidelity', function() {
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await openConvert(page);
     // The conversion runs in a worker; the step on the page (the picture
-    // shrunk to stitches) is where a failure can be injected. Sharpen details
-    // makes the preview shrink the picture again (Brightness no longer does:
-    // it is applied in the worker, after the background mask).
+    // shrunk to stitches) is where a failure can be injected. A new size
+    // makes the preview shrink the picture again (Brightness and Sharpen
+    // details no longer do: the worker applies them to the stitches).
     await page.evaluate(() => {
       window.__savedGridPixels = window.gridPixels;
       window.gridPixels = () => { throw new Error('injected preview failure'); };
-      window.__previewState.setPreSharpen(true);
+      const s = window.__previewState;
+      s.setSW(s.sW + 6); s.setSH(s.sH + 6);
     });
     await expect(page.getByRole('alert').filter({hasText:'Could not update the preview'})).toBeVisible();
     await expect(page.getByRole('status', {name:'Updating preview'})).toHaveCount(0);

@@ -184,19 +184,15 @@ window.usePreview = function usePreview(state) {
       }
       // Brightness, Contrast and Saturation are not part of it: the pipeline
       // applies them after the background mask (pipelineOpts below).
-      var geoSig = img.src + '|' + pw + '|' + ph + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
+      var geoSig = img.src + '|' + pw + '|' + ph;
       if (exactResult) { pw = exactResult.width; ph = exactResult.height;
       } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
         raw = rawCacheRef.current.raw;
       } else {
-        var previewImageData = gridPixels(img, pw, ph, { preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
+        var previewImageData = gridPixels(img, pw, ph);
         raw = previewImageData.data;
         rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
       }
-
-      // With Sharpen details, the threads are chosen from the picture before
-      // it (paletteSourcePixels); gridPixels caches it.
-      var paletteRaw = !exactResult && preSharpen ? gridPixels(img, pw, ph, {}).data : null;
 
       // Pipeline options come straight from the canonical settings bundle. The
       // ONLY caller-side overrides are the geometric step we already did above
@@ -209,7 +205,7 @@ window.usePreview = function usePreview(state) {
           allowBlends: settings.allowBlends, maxBlends: settings.maxBlends, allowedPalette: settings.allowedPalette,
           skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
           stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
-          keepIds: settings.keepIds || null, paletteRaw: paletteRaw,
+          keepIds: settings.keepIds || null, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
           minSt: settings.minSt, seed: settings.seed,
           smooth: smooth, smoothType: smoothType,
           disambig: settings.disambig, disambigLevel: settings.disambigLevel,

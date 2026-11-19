@@ -307,29 +307,62 @@ function prepareConversionPixels(data, w, h, opts) {
   return mask;
 }
 
-// The pixels the palette is chosen from. With Sharpen details, the picture
-// before sharpening (opts.paletteRaw, gridPixels without it), prepared the
-// way the pipeline prepares the stitches' pixels: sharpening is about edges,
-// so it must not decide which threads the pattern uses. Choosing threads from
-// the sharpened picture changed 28.5% of the stitches on ten test photos, most
-// in flat areas; from the picture before sharpening, 8.0%, at the edges
-// (reports/photo-conversion-audit-2026-11.md). Otherwise `raw` itself.
-function paletteSourcePixels(raw, w, h, opts) {
-  var src = opts && opts.paletteRaw;
-  // An ArrayBuffer (as posted to the worker), tested without instanceof so
-  // one from another realm counts too.
-  if (src && !ArrayBuffer.isView(src) && typeof src.byteLength === "number") src = new Uint8ClampedArray(src);
-  if (!src || src.length !== raw.length) return raw;
-  var d = new Uint8ClampedArray(src);
-  prepareConversionPixels(d, w, h, opts);
-  applyImageAdjustments(d, opts.bri, opts.con, opts.sat);
-  if (opts.preSmooth) applyBilateralFilter(d, w, h);
-  if (opts.smooth > 0) {
-    if (opts.smoothType === "gaussian") applyGaussianBlur(d, w, h, opts.smooth);
-    else if (opts.smoothType === "bilateral") applyBilateralFilter(d, w, h);
-    else applyMedianFilter(d, w, h, opts.smooth);
+// Sharpen details, at the size of the stitches (the pipeline's `raw`, after
+// the background mask, the adjustments and softening). Shrinking a picture
+// to stitches blurs every edge: a stitch on an edge gets a colour between the
+// colours either side. Sharpening gives that stitch the colour of the side it
+// is closer to, so edges are crisper and no colour appears that isn't already
+// beside it (an unsharp mask on the full picture, as before, made lighter and
+// darker halos, new colours on 5% of the stitches of a small picture, and did
+// almost nothing on a big one because the shrink averaged it away).
+//
+// For each stitch, its two most different neighbours (of 8) mark the edge,
+// if they differ by SHARPEN_MIN_EDGE_DE or more. A stitch between them (within
+// SHARPEN_MAX_OFF_DE of the line from one to the other) takes the colour of
+// the nearer one, unless it is close to halfway: `amount` (0.1 to 1; the
+// Amount slider) sets how close. At 0.5 a stitch must be at least a quarter
+// of the way from the middle; at 1 almost every in-between stitch takes a
+// side. Read from a copy, so the result doesn't depend on the order. Mutates
+// data (RGBA); returns how many stitches changed. Only stitches with alpha
+// 128 or more take part.
+var SHARPEN_MIN_EDGE_DE = 12, SHARPEN_MAX_OFF_DE = 8;
+function sharpenStitches(data, w, h, amount) {
+  var a = typeof amount === "number" && isFinite(amount) ? amount : 0.5;
+  a = Math.max(0.1, Math.min(1, a));
+  var middle = Math.max(0.02, 0.5 - a / 2);
+  var n = w * h, src = new Uint8ClampedArray(data), lab = new Array(n), i;
+  for (i = 0; i < n; i++) if (src[i * 4 + 3] >= 128) lab[i] = rgbToLab(src[i * 4], src[i * 4 + 1], src[i * 4 + 2]);
+  function d2(p, q) { var x = p[0] - q[0], y = p[1] - q[1], z = p[2] - q[2]; return x * x + y * y + z * z; }
+  var minEdge2 = SHARPEN_MIN_EDGE_DE * SHARPEN_MIN_EDGE_DE, changed = 0, nb = [];
+  for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+    i = y * w + x;
+    var p = lab[i];
+    if (!p) continue;
+    nb.length = 0;
+    for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      var xx = x + dx, yy = y + dy;
+      if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+      if (lab[yy * w + xx]) nb.push(yy * w + xx);
+    }
+    var A = -1, B = -1, best = minEdge2;
+    for (var u = 0; u < nb.length; u++) for (var v = u + 1; v < nb.length; v++) {
+      var d = d2(lab[nb[u]], lab[nb[v]]);
+      if (d > best) { best = d; A = nb[u]; B = nb[v]; }
+    }
+    if (A < 0) continue;
+    var la = lab[A], lb = lab[B];
+    var vx = lb[0] - la[0], vy = lb[1] - la[1], vz = lb[2] - la[2];
+    var t = ((p[0] - la[0]) * vx + (p[1] - la[1]) * vy + (p[2] - la[2]) * vz) / best;
+    if (t < 0 || t > 1 || Math.abs(t - 0.5) < middle) continue;
+    var ox = p[0] - (la[0] + t * vx), oy = p[1] - (la[1] + t * vy), oz = p[2] - (la[2] + t * vz);
+    if (ox * ox + oy * oy + oz * oz > SHARPEN_MAX_OFF_DE * SHARPEN_MAX_OFF_DE) continue;
+    var T = t < 0.5 ? A : B;
+    if (src[T * 4] === src[i * 4] && src[T * 4 + 1] === src[i * 4 + 1] && src[T * 4 + 2] === src[i * 4 + 2]) continue;
+    data[i * 4] = src[T * 4]; data[i * 4 + 1] = src[T * 4 + 1]; data[i * 4 + 2] = src[T * 4 + 2];
+    changed++;
   }
-  return d;
+  return changed;
 }
 
 // Leave out the stitches the coverage mask (prepareConversionPixels) leaves
@@ -2122,74 +2155,6 @@ function labToRgb(L, a, b) {
   ];
 }
 
-/**
- * Luminance-channel (Lab L*) unsharp mask — applied to RGBA pixel data
- * before the area-average downscale to preserve edges and focal features.
- *
- * Sharpens L* only; a* and b* (chroma) are left unchanged so the filter
- * cannot produce colour fringing at high-contrast edges.  Only pixels where
- * the local luminance contrast exceeds `threshold` are sharpened — flat
- * regions (sky, fur, noisy backgrounds) are left untouched.
- *
- * Ordering: call applyPreSharpenCanvas() (creator/generate.js) before
- * prescaleForGrid() so the enhanced edges survive the area-average chain.
- *
- * @param {Uint8ClampedArray} data       RGBA pixels, mutated in-place
- * @param {number}            w          image width in pixels
- * @param {number}            h          image height in pixels
- * @param {object}            [opts]
- * @param {number}            [opts.radius=2.0]    Gaussian sigma (working-res pixels)
- * @param {number}            [opts.amount=0.5]    USM strength multiplier (0–2)
- * @param {number}            [opts.threshold=8]   min |L - blur(L)| in Lab L units
- * @returns {Uint8ClampedArray}  the same `data` reference
- */
-function applyUnsharpMask(data, w, h, opts) {
-  var radius    = (opts && opts.radius    != null) ? opts.radius    : 2.0;
-  var amount    = (opts && opts.amount    != null) ? opts.amount    : 0.5;
-  var threshold = (opts && opts.threshold != null) ? opts.threshold : 8;
-  if (amount <= 0 || radius <= 0) return data;
-
-  var n = w * h;
-
-  // Extract L* channel (0–100) together with a* and b* for reconstruction.
-  // rgbToLab is defined in dmc-data.js and available as a global.
-  var lCh = new Float32Array(n);
-  var aCh = new Float32Array(n);
-  var bCh = new Float32Array(n);
-  for (var i = 0; i < n; i++) {
-    var lab = rgbToLab(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
-    lCh[i] = lab[0]; aCh[i] = lab[1]; bCh[i] = lab[2];
-  }
-
-  // Gaussian-blur the L channel with a separable 1-D kernel.
-  // _gaussianBlur1 is defined further down in this file (Stage 1 saliency).
-  var lBlur = new Float32Array(n);
-  var coverage = new Float32Array(n);
-  for (var j = 0; j < n; j++) {
-    coverage[j] = data[j * 4 + 3] / 255;
-    lBlur[j] = lCh[j] * coverage[j];
-  }
-  _gaussianBlur1(lBlur, w, h, radius);
-  _gaussianBlur1(coverage, w, h, radius);
-  for (var j = 0; j < n; j++) lBlur[j] = coverage[j] ? lBlur[j] / coverage[j] : lCh[j];
-
-  // Apply thresholded unsharp mask and convert back to RGB.
-  for (var i = 0; i < n; i++) {
-    if (!data[i * 4 + 3]) continue;
-    var diff = lCh[i] - lBlur[i];
-    if (Math.abs(diff) > threshold) {
-      var lNew = lCh[i] + amount * diff;
-      if (lNew < 0) lNew = 0; else if (lNew > 100) lNew = 100;
-      var rgb = labToRgb(lNew, aCh[i], bCh[i]);
-      data[i * 4]     = rgb[0];
-      data[i * 4 + 1] = rgb[1];
-      data[i * 4 + 2] = rgb[2];
-      // data[i * 4 + 3] (alpha) left unchanged
-    }
-  }
-  return data;
-}
-
 // ---------------------------------------------------------------------------
 // Image processing primitives (Gaussian blur, Sobel, Canny).
 // These are defined as function declarations in embroidery.js for embroidery
@@ -3749,4 +3714,4 @@ _colourUtilsGlobal.RARE_COLOUR_CONTRAST_GUARD_DE = RARE_COLOUR_CONTRAST_GUARD_DE
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, applyImageAdjustments, prepareConversionPixels, blankUncovered, paletteSourcePixels, blendThreadRgb, legacyBlendRgb, makeThreadBlend, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, applyImageAdjustments, prepareConversionPixels, blankUncovered, sharpenStitches, blendThreadRgb, legacyBlendRgb, makeThreadBlend, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }
