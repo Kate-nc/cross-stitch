@@ -57,7 +57,7 @@
     "creator.drawMode": null,               // Retired (UX-009): the Creator now always opens in Navigate, so this is no longer read or written. Kept so older backups still restore.
     "creator.magnifier": null,              // P1-3: touch loupe while drawing; null = on for touch screens
     "creator.precisionCursor": false,       // P1-3: crosshair 40px above the finger, placed on lift
-    "creator.desktopRail": false,            // Stage 2: tool rail on the left and one options bar above the chart (mouse only). Off = the toolbar pill.
+    "creator.desktopRail": true,             // Stage 2: tool rail on the left and one options bar above the chart (mouse only); on by default from Stage 2 D. Off = the old toolbar pill, kept for one release.
     "creator.pdfWorkshopTheme": false,       // UX-12 PR #14: opt-in Workshop print theme (terracotta + linen). OFF = bit-identical PK output.
 
     // ─── Pattern Creator generation defaults (read by Sidebar on init) ──

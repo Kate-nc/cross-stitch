@@ -4,7 +4,7 @@ const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 
-const { device, openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
+const { device, openConvertWithLogo, clickGenerate, waitForEdit, railPref } = require('./creator-helpers');
 const pixel5 = device('Pixel 5');
 const openConvert = (page) => openConvertWithLogo(page);
 async function generate(page) { await clickGenerate(page); await waitForEdit(page); }
@@ -31,6 +31,8 @@ test.describe('Desktop keeps keyboard hints', function() {
   test.use(device('desktop'));
 
   test('the shortcuts hint still shows', async function({ page }) {
+    // The toolbar layout; the tool rail names each shortcut in its tooltips instead.
+    await railPref(page, false);
     await openConvert(page);
     await generate(page);
     // It waits while "Your pattern is ready" shows, then comes back.

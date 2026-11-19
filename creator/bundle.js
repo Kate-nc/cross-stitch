@@ -18279,8 +18279,9 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
 
   function compactQuery() { return window.CREATOR_COMPACT_QUERY || "(max-width: 899px)"; }
 
+  // On by default (Stage 2 D); Preferences turns it off for one release.
   function prefOn() {
-    try { return !!(window.UserPrefs && window.UserPrefs.get("creator.desktopRail")); } catch (_) { return false; }
+    try { return !window.UserPrefs || window.UserPrefs.get("creator.desktopRail") !== false; } catch (_) { return true; }
   }
   function finePointer() {
     try {
@@ -18725,9 +18726,11 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
       } else if (!cv.hasSelection) {
         parts.push(hint("Choose a tool on the left."));
       }
+      // A selection's controls come first, so they stay in view when the
+      // tool's own options need more room than the bar has.
       if (cv.hasSelection) {
-        if (parts.length) parts.push(sep("s-sel"));
-        parts.push(selectionGroup());
+        if (parts.length) parts.unshift(sep("s-sel"));
+        parts.unshift(selectionGroup());
       }
     }
 

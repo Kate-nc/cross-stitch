@@ -3,7 +3,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, generateLogo, undoButton } = require('./creator-helpers');
+const { device, generateLogo, undoButton, isRailLayout } = require('./creator-helpers');
 
 // Mark the first `n` stitches of the saved project as done, as the Tracker would, then reopen it.
 // The Creator saves its own in-memory copy (done: null) when the page unloads, so the marks are
@@ -58,7 +58,8 @@ test.describe('Editing a stitched pattern (desktop)', function() {
     // Fill that cell's colour region with another palette colour. The status bar's X / Y readout
     // tells where each cell is on the canvas, so click by cell rather than by guessing pixels.
     await page.getByRole('button', { name: 'Fill tool' }).click();
-    const swatches = page.locator('.swatch-scroll-inner button');
+    // The swatch strip, or with the tool rail the Palette rows.
+    const swatches = page.locator((await isRailLayout(page)) ? '.pal-rows .pal-row' : '.swatch-scroll-inner button');
     await swatches.last().click();
     const box = await page.locator('.cs-chart-scroll canvas').first().boundingBox();
     async function cellAt(px, py) {

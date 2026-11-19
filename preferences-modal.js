@@ -288,7 +288,7 @@
     var refOpac = usePref("creatorReferenceOpacity", 35);
     var embroidery = usePref("experimental.embroideryTool", false);
     var threadSheen = usePref("creatorCanvasTexture", false);
-    var desktopRail = usePref("creator.desktopRail", false);
+    var desktopRail = usePref("creator.desktopRail", true);
     var penNav = usePref("creator.penNavigation", false);
     var magnifier = usePref("creator.magnifier", null);
     var precision = usePref("creator.precisionCursor", false);
@@ -371,7 +371,7 @@
       ),
 
       h(Section, { title: "Editing layout" },
-        h(Row, { last: true, label: "Tool rail on the left", desc: "With a mouse, Edit shows every drawing tool down the left of the chart and one row of the chosen tool's options above it, so the chart gets more of the window. Turn off for the toolbar above the chart. Touch screens keep their own layout." },
+        h(Row, { last: true, label: "Tool rail on the left", desc: "With a mouse, Edit shows every drawing tool down the left of the chart and one row of the chosen tool's options above it, so the chart gets more of the window. Turn off for the toolbar above the chart, as it was before; that layout stays for one more release. Touch screens keep their own layout." },
           h(Switch, { "aria-label": "Tool rail on the left", checked: !!desktopRail[0], onChange: desktopRail[1] })
         )
       ),

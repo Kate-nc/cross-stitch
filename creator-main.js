@@ -706,7 +706,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return ()=>{ document.body.classList.remove('creator-compact'); };
   },[_compact,isActive]);
   const _railTools = !!(_desktopRail && isActive && state.appMode==='edit' && state.tab==='pattern' && state.pat && state.pal);
-  React.useEffect(()=>{
+  // A layout effect, so the classes (and the chart box's size) are in place
+  // before Fit measures the box after a generate or a load.
+  React.useLayoutEffect(()=>{
     document.body.classList.toggle('creator-drail-layout', !!(_desktopRail && isActive));
     document.body.classList.toggle('creator-drail-tools', _railTools);
     return ()=>{ document.body.classList.remove('creator-drail-layout'); document.body.classList.remove('creator-drail-tools'); };

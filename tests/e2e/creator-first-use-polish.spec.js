@@ -5,7 +5,7 @@
 const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
-const { device, quietOnboarding, openConvertWithLogo, continueFromFrame, clickGenerate, waitForEdit, convertStep } = require('./creator-helpers');
+const { device, quietOnboarding, openConvertWithLogo, continueFromFrame, clickGenerate, waitForEdit, convertStep, isRailLayout } = require('./creator-helpers');
 
 const PIXEL = path.join(__dirname, '..', 'fixtures', 'pixel-art-crisp.png');   // 9 × 7
 
@@ -67,18 +67,22 @@ test.describe('First use on desktop', function() {
     const bar = page.getByRole('region', { name: 'Your pattern is ready' });
     const hint = page.getByText('for keyboard shortcuts');
     const review = page.locator('.ready-review-note');
-    const tip = page.getByText('Tools and View are now unlocked');
+    // With the tool rail the tip points at the rail, and there is no
+    // keyboard hint row (each rail button's tooltip names its shortcut).
+    const rail = await isRailLayout(page);
+    const tip = page.getByText(rail ? 'Every tool is on the left' : 'Tools and View are now unlocked');
     await expect(bar).toBeVisible();
     await expect(tip).toHaveCount(0);
     await bar.getByRole('button', { name: 'Close: keep editing' }).click();
     // The tip, on its own.
     await expect(tip).toBeVisible();
-    await expect(page.getByText('Palette and View are beside it.')).toBeVisible();
+    await expect(page.getByText(rail ? 'The row above the chart shows' : 'Palette and View are beside it.')).toBeVisible();
     await expect(hint).toHaveCount(0);
     await expect(review).toHaveCount(0);
     // Once the tips are dismissed, the keyboard hint comes back (the duplicate review note was removed).
     await page.getByRole('button', { name: 'Skip tips' }).click();
-    await expect(hint).toBeVisible();
+    if (rail) await expect(hint).toHaveCount(0);
+    else await expect(hint).toBeVisible();
     await expect(review).toHaveCount(0);
   });
 
