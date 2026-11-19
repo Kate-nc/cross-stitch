@@ -38,7 +38,7 @@
   // creator/generate.js). Brightness, Contrast and Saturation are applied by
   // the pipeline, after the background mask (pipelineSettings).
   function picturePixels(img, pw, ph, s) {
-    return gridPixels(img, pw, ph);
+    return gridPixels(img, pw, ph, { crisp: !!s.crispEdges });
   }
 
   function pipelineSettings(s, values, paletteFor) {

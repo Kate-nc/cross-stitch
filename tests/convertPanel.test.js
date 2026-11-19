@@ -224,6 +224,23 @@ describe('the counts come from the preview', () => {
     expect(q('[data-threads-used]').textContent).toBe('In the preview: 18 threads and 30 chart symbols; 12 blends, 25% of stitches. ');
   });
 
+  test('Detail has Crisp edges, off by default, and says what each choice does', () => {
+    app.convertTab = 'detail';
+    gen.crispEdges = false; gen.setCrispEdges = jest.fn();
+    draw();
+    expect(headings()).toContain('Edges');
+    expect(text()).toContain('Off: each stitch is the blend of everything under it, so outlines are soft but true to the picture.');
+    const box = all('input[type="checkbox"]').find((b) => b.closest('label').textContent === 'Crisp edges');
+    expect(box.checked).toBe(false);
+    act(() => box.click());
+    expect(gen.setCrispEdges).toHaveBeenCalledWith(true);
+    gen.crispEdges = true; draw();
+    expect(text()).toContain('Each stitch that is mostly one colour (at least 60% of it) takes that colour, so outlines are sharp.');
+    // Exact pixel art: the pixels are the stitches, so no section.
+    gen.exactPixelArt = true; draw();
+    expect(headings()).not.toContain('Edges');
+  });
+
   test('Detail says how many stitches Reduce confetti changed and can show them', () => {
     app.convertTab = 'detail';
     app.previewStats = { stitchable: 2000, tidiedStitches: 50, confettiFinalSingles: 20 };

@@ -138,7 +138,7 @@ describe('Convert panel order', () => {
     // Frame the picture: type, background, and fixes folded away.
     expect(cp).toMatch(/return h\(React\.Fragment, null, pictureType, background,\s*h\("details", \{ className: "cv-fix"/);
     expect(cp).toMatch(/else if \(tab === "threads"\) content = \[stashSec, countSec, keepSec, blendSec, brandSec, stashToolsSec\];/);
-    expect(cp).toMatch(/else content = \[stepsSec, shadingSec, tidySec, rareSec, lookSec\];/);
+    expect(cp).toMatch(/else content = \[stepsSec, shadingSec, edgesSec, tidySec, rareSec, lookSec\];/);
     expect(cp).not.toMatch(/projectSec/);
   });
 

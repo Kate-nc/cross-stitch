@@ -107,8 +107,8 @@ describe('the background stripes in Frame', () => {
     const img = { naturalWidth: 40, naturalHeight: 30 };
     const info = w.frameBackgroundMask(img, 4, 3, { bri: 5, con: 0, sat: 0, preSharpen: true, preSharpenAmount: 1.5, skipBg: true, bgCol: [255, 255, 255], bgTh: 15 });
     // Brightness, Contrast, Saturation and Sharpen details come after the
-    // mask in Generate, so none is asked for.
-    expect(calls[0]).toBeUndefined();
+    // mask in Generate, so none is asked for; Crisp edges is part of the grid.
+    expect(calls[0]).toEqual({ crisp: false });
     expect(info.count).toBe(2);
     expect(Array.from(info.mask)).toEqual([1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect([info.w, info.h, info.img]).toEqual([4, 3, img]);

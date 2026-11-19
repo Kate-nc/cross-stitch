@@ -2144,6 +2144,101 @@ function linearAreaDownscale(src, sw, sh, dw, dh) {
   return out;
 }
 
+// Crisp edges: shrink src (sw × sh RGBA) to dw × dh stitches like
+// linearAreaDownscale, except that a stitch whose pixels are two clearly
+// different colours takes the colour of the larger part instead of a blend of
+// both. Averaging is right to the light, but every outline gains a one-stitch
+// band of in-between colour, which reads as soft. Here the pixels under each
+// stitch (by their centres) are split into two groups (2-means in linear
+// light, from the pixel furthest from the stitch's average). When the groups
+// differ by more than CRISP_MIN_DE (ΔE2000) and the larger has at least
+// CRISP_MIN_SHARE of the pixels, the stitch is the larger group's light
+// average. Otherwise, and for a stitch with any see-through pixel or fewer than
+// 4 pixels, it is the plain average. Whole-picture passes, not per-stitch
+// lists, so a 16-megapixel picture stays quick; a stitch whose pixels are all
+// close to its average is decided in the first pass.
+// (reports/photo-conversion-audit-2026-11.md, finding 4.)
+// gridPixels reads at most CRISP_MAX_SOURCE_AREA pixels (and 16 per stitch each
+// way) for it: plenty to find the parts, and a 500-stitch chart from a
+// 12-megapixel photo takes about a quarter of the time.
+var CRISP_MIN_DE = 12, CRISP_MIN_SHARE = 0.6, CRISP_MAX_SOURCE_AREA = 2048 * 2048;
+function dominantAreaDownscale(src, sw, sh, dw, dh) {
+  var out = linearAreaDownscale(src, sw, sh, dw, dh);
+  if (sw < dw * 2 || sh < dh * 2) return out;   // too few pixels per stitch to have parts
+  var LIN = _SRGB8_TO_LINEAR, n = dw * dh, i, x, y, c, p;
+  var colOf = new Int32Array(sw), rowOf = new Int32Array(sh);
+  for (x = 0; x < sw; x++) colOf[x] = Math.min(dw - 1, Math.floor((x + 0.5) * dw / sw));
+  for (y = 0; y < sh; y++) rowOf[y] = Math.min(dh - 1, Math.floor((y + 0.5) * dh / sh));
+  // The stitch's average in linear light, and the pixel furthest from it.
+  var mean = new Float32Array(n * 3), far = new Int32Array(n).fill(-1), farD = new Float32Array(n), count = new Int32Array(n), clear = new Uint8Array(n);
+  for (i = 0; i < n; i++) for (c = 0; c < 3; c++) mean[i * 3 + c] = LIN[out[i * 4 + c]];
+  for (y = 0; y < sh; y++) {
+    var rowBase = rowOf[y] * dw;
+    for (x = 0; x < sw; x++) {
+      p = (y * sw + x) * 4; i = rowBase + colOf[x];
+      count[i]++;
+      if (src[p + 3] < 255) { clear[i] = 1; continue; }
+      var dr = LIN[src[p]] - mean[i * 3], dg = LIN[src[p + 1]] - mean[i * 3 + 1], db = LIN[src[p + 2]] - mean[i * 3 + 2];
+      var d = dr * dr + dg * dg + db * db;
+      if (d > farD[i]) { farD[i] = d; far[i] = p; }
+    }
+  }
+  // Only stitches with a pixel clearly different from their average can have
+  // two parts that differ by CRISP_MIN_DE. A quick test first (Lab distance,
+  // which is almost always at least the ΔE2000); the exact ΔE2000 test is for
+  // the stitches that pass it.
+  var cand = new Uint8Array(n), any = false, half = CRISP_MIN_DE / 2;
+  for (i = 0; i < n; i++) {
+    if (clear[i] || count[i] < 4 || far[i] < 0 || farD[i] < 1e-5) continue;
+    var fp = far[i], fl = rgbToLab(src[fp], src[fp + 1], src[fp + 2]), ml = rgbToLab(out[i * 4], out[i * 4 + 1], out[i * 4 + 2]);
+    var e0 = fl[0] - ml[0], e1 = fl[1] - ml[1], e2 = fl[2] - ml[2];
+    if (e0 * e0 + e1 * e1 + e2 * e2 >= half * half) { cand[i] = 1; any = true; }
+  }
+  if (!any) return out;
+  // 2-means per candidate stitch: centre A from the furthest pixel, B its mirror.
+  var A = new Float32Array(n * 3), B = new Float32Array(n * 3);
+  for (i = 0; i < n; i++) if (cand[i]) for (c = 0; c < 3; c++) {
+    A[i * 3 + c] = LIN[src[far[i] + c]];
+    B[i * 3 + c] = Math.max(0, 2 * mean[i * 3 + c] - A[i * 3 + c]);
+  }
+  var sumA = new Float32Array(n * 3), sumB = new Float32Array(n * 3), nA = new Int32Array(n), nB = new Int32Array(n);
+  for (var it = 0; it < 3; it++) {
+    sumA.fill(0); sumB.fill(0); nA.fill(0); nB.fill(0);
+    for (y = 0; y < sh; y++) {
+      var rb = rowOf[y] * dw;
+      for (x = 0; x < sw; x++) {
+        i = rb + colOf[x];
+        if (!cand[i]) continue;
+        p = (y * sw + x) * 4;
+        var r = LIN[src[p]], g = LIN[src[p + 1]], b = LIN[src[p + 2]], k = i * 3;
+        var da = (r - A[k]) * (r - A[k]) + (g - A[k + 1]) * (g - A[k + 1]) + (b - A[k + 2]) * (b - A[k + 2]);
+        var dbb = (r - B[k]) * (r - B[k]) + (g - B[k + 1]) * (g - B[k + 1]) + (b - B[k + 2]) * (b - B[k + 2]);
+        if (da < dbb) { nA[i]++; sumA[k] += r; sumA[k + 1] += g; sumA[k + 2] += b; }
+        else { nB[i]++; sumB[k] += r; sumB[k + 1] += g; sumB[k + 2] += b; }
+      }
+    }
+    for (i = 0; i < n; i++) {
+      if (!cand[i]) continue;
+      if (!nA[i] || !nB[i]) { cand[i] = 0; continue; }
+      for (c = 0; c < 3; c++) { A[i * 3 + c] = sumA[i * 3 + c] / nA[i]; B[i * 3 + c] = sumB[i * 3 + c] / nB[i]; }
+    }
+  }
+  for (i = 0; i < n; i++) {
+    if (!cand[i]) continue;
+    var big = nA[i] >= nB[i] ? A : B, share = Math.max(nA[i], nB[i]) / (nA[i] + nB[i]);
+    if (share < CRISP_MIN_SHARE) continue;
+    var ra = [_linearToSrgb8(A[i * 3]), _linearToSrgb8(A[i * 3 + 1]), _linearToSrgb8(A[i * 3 + 2])];
+    var rbb = [_linearToSrgb8(B[i * 3]), _linearToSrgb8(B[i * 3 + 1]), _linearToSrgb8(B[i * 3 + 2])];
+    var la = rgbToLab(ra[0], ra[1], ra[2]), lb = rgbToLab(rbb[0], rbb[1], rbb[2]);
+    var g0 = la[0] - lb[0], g1 = la[1] - lb[1], g2 = la[2] - lb[2];
+    if (g0 * g0 + g1 * g1 + g2 * g2 <= CRISP_MIN_DE * CRISP_MIN_DE) continue;   // quick: close even by Lab distance
+    if (_dE2000Core(la[0], la[1], la[2], lb[0], lb[1], lb[2]) <= CRISP_MIN_DE) continue;
+    var w = big === A ? ra : rbb;
+    out[i * 4] = w[0]; out[i * 4 + 1] = w[1]; out[i * 4 + 2] = w[2];
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Pre-downscale detail enhancement: Lab-L unsharp mask
 // ---------------------------------------------------------------------------
@@ -3745,4 +3840,4 @@ _colourUtilsGlobal.RARE_COLOUR_CONTRAST_GUARD_DE = RARE_COLOUR_CONTRAST_GUARD_DE
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, applyImageAdjustments, prepareConversionPixels, BG_TOLERANCE_DEFAULT, bgToleranceFromDE76, blankUncovered, sharpenStitches, blendThreadRgb, legacyBlendRgb, makeThreadBlend, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, applyImageAdjustments, prepareConversionPixels, BG_TOLERANCE_DEFAULT, bgToleranceFromDE76, blankUncovered, sharpenStitches, blendThreadRgb, legacyBlendRgb, makeThreadBlend, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, dominantAreaDownscale, CRISP_MAX_SOURCE_AREA, LINEAR_SHRINK_MAX_SOURCE_AREA }; }

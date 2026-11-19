@@ -33,7 +33,8 @@ var GRID_PIXELS_CACHE_SIZES = 6;
  * @param {HTMLImageElement|HTMLCanvasElement} source
  * @param {number} targetW  Grid width in stitches
  * @param {number} targetH  Grid height in stitches
- * @param {object} [opts]   { bri, con, sat (each -100..100, 0 = unchanged) }
+ * @param {object} [opts]   { bri, con, sat (each -100..100, 0 = unchanged),
+ *                            crisp (Crisp edges: dominantAreaDownscale) }
  *   Sharpen details is not applied here: the pipeline sharpens the stitches
  *   (sharpenStitches, colour-utils.js).
  * @returns {ImageData}
@@ -45,12 +46,13 @@ function gridPixels(source, targetW, targetH, opts) {
   // reused for another picture (the app makes a new one each time). Not its
   // src: reading a data URL of a few megabytes takes about 20 ms each time.
   var srcSize = source ? (source.naturalWidth || source.width) + "x" + (source.naturalHeight || source.height) : "";
-  var key = targetW + "x" + targetH + "|" + srcSize;
+  var crisp = !!opts.crisp;
+  var key = targetW + "x" + targetH + "|" + srcSize + (crisp ? "|crisp" : "");
   var cacheable = !!(_gridPixelsCache && source && typeof source === "object" && typeof source.getContext !== "function");
   var sizes = cacheable ? _gridPixelsCache.get(source) : null;
   var averaged = sizes ? sizes.get(key) : null;
   if (!averaged) {
-    averaged = _averagedGridPixels(source, targetW, targetH);
+    averaged = _averagedGridPixels(source, targetW, targetH, crisp);
     if (cacheable) {
       if (!sizes) { sizes = new Map(); _gridPixelsCache.set(source, sizes); }
       sizes.set(key, averaged);
@@ -65,7 +67,7 @@ function gridPixels(source, targetW, targetH, opts) {
 }
 
 // gridPixels before the adjustments: a new Uint8ClampedArray (w * h * 4).
-function _averagedGridPixels(source, targetW, targetH) {
+function _averagedGridPixels(source, targetW, targetH, crisp) {
   var src = source;
   var sw = (src.naturalWidth || src.width) | 0, sh = (src.naturalHeight || src.height) | 0;
   function read(w, h) {
@@ -81,12 +83,17 @@ function _averagedGridPixels(source, targetW, targetH) {
   // Each axis at the picture's own size where it shrinks (to be averaged),
   // at the grid's size where it enlarges.
   var dw = Math.max(targetW, sw), dh = Math.max(targetH, sh);
-  if (dw * dh > LINEAR_SHRINK_MAX_SOURCE_AREA) {
-    var k = Math.sqrt(LINEAR_SHRINK_MAX_SOURCE_AREA / (dw * dh));
+  // Crisp edges reads fewer pixels: 16 per stitch each way at most, and
+  // CRISP_MAX_SOURCE_AREA in all (colour-utils.js).
+  if (crisp) { dw = Math.min(dw, targetW * 16); dh = Math.min(dh, targetH * 16); }
+  var maxArea = crisp && typeof CRISP_MAX_SOURCE_AREA === "number" ? CRISP_MAX_SOURCE_AREA : LINEAR_SHRINK_MAX_SOURCE_AREA;
+  if (dw * dh > maxArea) {
+    var k = Math.sqrt(maxArea / (dw * dh));
     dw = Math.max(targetW, Math.floor(dw * k)); dh = Math.max(targetH, Math.floor(dh * k));
   }
   var px = read(dw, dh);
-  return dw === targetW && dh === targetH ? new Uint8ClampedArray(px) : linearAreaDownscale(px, dw, dh, targetW, targetH);
+  if (dw === targetW && dh === targetH) return new Uint8ClampedArray(px);
+  return crisp && typeof dominantAreaDownscale === "function" ? dominantAreaDownscale(px, dw, dh, targetW, targetH) : linearAreaDownscale(px, dw, dh, targetW, targetH);
 }
 
 // Reduce confetti's settings (sizes, the contrast guard, edge protection) live
@@ -342,7 +349,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   // caller can surface a friendly error.
   if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
-  var raw = gridPixels(img, sW, sH).data;
+  var raw = gridPixels(img, sW, sH, { crisp: !!opts.crispEdges }).data;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     bri: bri, con: con, sat: sat, preSharpen: !!opts.preSharpen, preSharpenAmount: opts.preSharpenAmount,

@@ -63,7 +63,7 @@ window.framePictureFilter = function framePictureFilter(bri, con, sat) {
 };
 
 // Which stitches Generate leaves unstitched as background, on the grid of
-// sW × sH stitches: the same grid (gridPixels) and the same test
+// sW × sH stitches: the same grid (gridPixels, with Crisp edges) and the same test
 // (prepareConversionPixels:
 // matching colours joined to the edge, or the clear parts of a picture that
 // has them) as Generate (useCreatorState generate, creator/generate.js).
@@ -72,7 +72,7 @@ window.frameBackgroundMask = function frameBackgroundMask(img, sW, sH, opts) {
   if (!img || !sW || !sH || typeof gridPixels !== "function" || typeof prepareConversionPixels !== "function") return null;
   // The picture's own colours: Generate finds the background before
   // Brightness, Contrast, Saturation and Sharpen details, so they don't move it.
-  var grid = gridPixels(img, sW, sH);
+  var grid = gridPixels(img, sW, sH, { crisp: !!opts.crisp });
   var data = new Uint8ClampedArray(grid.data);
   var cover = prepareConversionPixels(data, sW, sH, { skipBg: !!opts.skipBg, bgCol: opts.bgCol, bgTh: opts.bgTh });
   var n = sW * sH, mask = new Uint8Array(n), count = 0;
@@ -199,12 +199,12 @@ window.CreatorFrameView = function CreatorFrameView(props) {
     var t = setTimeout(function () {
       var info = null;
       try {
-        info = window.frameBackgroundMask(gen.img, sW, sH, { skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
+        info = window.frameBackgroundMask(gen.img, sW, sH, { skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh, crisp: gen.crispEdges });
       } catch (e) { info = null; }
       setBgInfo(info);
     }, 120);
     return function () { clearTimeout(t); };
-  }, [bgActive, gen.img, sW, sH, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bgActive, gen.img, sW, sH, gen.bgCol, gen.bgTh, gen.crispEdges]); // eslint-disable-line react-hooks/exhaustive-deps
   // Stripes for another picture or size (just cropped, turned or resized)
   // are not shown: the row says the background is being found until the new
   // ones are ready. A change of colour or match keeps the last stripes until

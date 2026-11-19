@@ -597,6 +597,17 @@
         h("p", null, "Smooth shading is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Regular pattern is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.")) // terminology-lint-allow
     );
 
+    // Crisp edges: how each stitch takes its colour from the picture
+    // (dominantAreaDownscale, colour-utils.js). Not for exact pixel art,
+    // whose pixels are the stitches.
+    var edgesSec = gen.setCrispEdges && !gen.exactPixelArt ? sec("edges", "Edges",
+      "A stitch on an edge covers part of each side. Normally it takes the blend of everything under it, which is true to the picture but gives every outline a soft band of in-between colour. With Crisp edges, a stitch that is mostly one colour takes that colour instead.",
+      check({ checked: !!gen.crispEdges, label: "Crisp edges", onChange: function (v) { gen.setCrispEdges(v); } }),
+      hint(gen.crispEdges
+        ? "Each stitch that is mostly one colour (at least 60% of it) takes that colour, so outlines are sharp. A detail thinner than a stitch can come out thinner or go."
+        : "Off: each stitch is the blend of everything under it, so outlines are soft but true to the picture.")
+    ) : null;
+
     var tidied = ps && ps.tidiedStitches != null ? ps.tidiedStitches : null;
     var orphanDesc = null;
     if (sc2.enabled && gen.orphans > 0) {
@@ -657,7 +668,7 @@
     var content;
     if (tab === "size") content = [sizeSec, fabricSec];
     else if (tab === "threads") content = [stashSec, countSec, keepSec, blendSec, brandSec, stashToolsSec];
-    else content = [stepsSec, shadingSec, tidySec, rareSec, lookSec];
+    else content = [stepsSec, shadingSec, edgesSec, tidySec, rareSec, lookSec];
 
     // ── Tab strip (the Edit panel's) ────────────────────────────────────────
     var tabBar = h("div", { role: "tablist", "aria-label": "Convert steps", className: "cv-tabs" },

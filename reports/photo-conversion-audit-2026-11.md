@@ -87,6 +87,17 @@ Earlier work: [photo-conversion-accuracy-review.md](photo-conversion-accuracy-re
   and darker), so what a lighter or darker shade left out before it leaves out now. The
   stripe fixtures (240 border) behave as before at the default: 225, 215 and 205 go
   (ΔE2000 3.2, 5.5, 7.9), 195 stays (10.3).
+- **Crisp edges** (Convert > Detail > Edges; `dominantAreaDownscale`, `gridPixels` with
+  `crisp`): recommendation 11, from A's prototype. The pixels under each stitch are split in
+  two (2-means in linear light); when the parts differ by more than ΔE2000 12 and one has at
+  least 60%, the stitch takes that part's colour. Off by default. On the ten photos at 100
+  stitches: 17% of stitches take a side (the prototype: 16%); edge contrast 18.8 to 19.6
+  with or without shading; confetti 4.8% to 4.7% without shading, 5.0% either way with it;
+  thread counts within half a thread. It takes 0.08 s per photo on average (0.14 s at most).
+  It reads at most 2048 × 2048 pixels (16 per stitch each way): a 500-stitch chart from a
+  12-megapixel photo takes 0.7 s, once per size (gridPixels caches it). Crisp edges acts on
+  the picture before the stitches are matched; Sharpen details acts after, on the
+  stitches.
   - Global changes such as Brightness +3 still change many stitches (52% before, 47% now;
     13 to 19% even with the palette held fixed), because they really do change the colours.
 
@@ -557,7 +568,7 @@ Combined and ordered as B suggests: trust first, then diagnosis, then accuracy c
 | **Improve accuracy** |
 | 9 | Best of three to five palette starts | 10 | Small | About 0.1 lower colour error | Generation time |
 | 10 | *Keep this colour* / pinned threads | 12 | Medium | Faces, logos and key colours get their thread | UI design |
-| 11 | *Crisp edges* option | 4 | Medium | Sharper outlines | Needs stitchers to compare |
+| 11 | *Crisp edges* option (done, off by default) | 4 | Medium | Sharper outlines | Needs stitchers to compare |
 | 12 | Route the Tracker's import through the shared pipeline | 7 | Medium | Same chart from either tool | Changes another tool's output |
 | 13 | *Leave fabric-coloured areas unstitched* | 13 | Medium | Truer look on coloured fabric | Opt-in |
 | 14 | Recalibrate or remove the detail map | 11 | Medium | Two features start working | Measure after 1 |

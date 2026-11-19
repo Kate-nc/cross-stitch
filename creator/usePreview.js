@@ -25,7 +25,7 @@ var PREVIEW_PAGE_MAX_AREA = 40000;
 var PREVIEW_CHANGE_LABELS = [
   [['sW', 'sH'], 'Size'], [['fabricCt'], 'Fabric count'], [['exactPixelArt'], 'Exact pixel-art import'],
   [['bri'], 'Brightness'], [['con'], 'Contrast'], [['sat'], 'Saturation'],
-  [['smooth', 'smoothType'], 'Soften grainy photos'], [['preSharpen', 'preSharpenAmount'], 'Sharpen details'],
+  [['smooth', 'smoothType'], 'Soften grainy photos'], [['preSharpen', 'preSharpenAmount'], 'Sharpen details'], [['crispEdges'], 'Crisp edges'],
   [['maxC'], 'Threads (max)'], [['dith', 'dithMode', 'dithStrength', 'dithAlgo', 'dithBayerSize'], 'Shading'],
   [['allowBlends', 'maxBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
   [['skipBg', 'bgCol', 'bgTh'], 'Background'], [['stitchCleanup', 'orphans'], 'Tidying'],
@@ -187,12 +187,13 @@ window.usePreview = function usePreview(state) {
       }
       // Brightness, Contrast and Saturation are not part of it: the pipeline
       // applies them after the background mask (pipelineOpts below).
-      var geoSig = img.src + '|' + pw + '|' + ph;
+      var crisp = !!settings.crispEdges;
+      var geoSig = img.src + '|' + pw + '|' + ph + (crisp ? '|crisp' : '');
       if (exactResult) { pw = exactResult.width; ph = exactResult.height;
       } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
         raw = rawCacheRef.current.raw;
       } else {
-        var previewImageData = gridPixels(img, pw, ph);
+        var previewImageData = gridPixels(img, pw, ph, { crisp: crisp });
         raw = previewImageData.data;
         rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
       }

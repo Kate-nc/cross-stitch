@@ -84,6 +84,22 @@ test.describe('Convert steps and preview on desktop', function() {
     await expect(page.locator('[data-threads-used]')).toContainText(/In the preview: [1-3] threads?/);
   });
 
+  test('Crisp edges changes the preview, and Generate makes what it shows', async function({ page }) {
+    await openConvertWithLogo(page);
+    await settled(page);
+    await convertStep(page, 'detail');
+    const crisp = page.getByRole('checkbox', { name: 'Crisp edges' });
+    await expect(crisp).not.toBeChecked();
+    await crisp.check();
+    await settled(page);
+    await expect(page.locator('[data-preview-change]')).toContainText('Crisp edges:');
+    const preview = await page.evaluate(() => window.__cs && window.__cs.previewMapped ? window.__cs.previewMapped.map((m) => m.id).join() : null);
+    await clickGenerate(page);
+    await waitForEdit(page);
+    expect(preview).not.toBeNull();
+    expect(await page.evaluate(() => window.__cs.pat.map((m) => m.id).join())).toBe(preview);
+  });
+
   test('once a chart exists, Convert still shows the live preview and says when it differs', async function({ page }) {
     await openConvertWithLogo(page);
     await clickGenerate(page);

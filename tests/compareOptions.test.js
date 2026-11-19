@@ -116,7 +116,7 @@ describe('wiring', () => {
     expect(strip).toMatch(/disambig: s\.disambig, disambigLevel: s\.disambigLevel/);
     // Brightness, Contrast and Saturation go to the pipeline (after the
     // background mask), not to gridPixels.
-    expect(strip).toMatch(/return gridPixels\(img, pw, ph\);/);
+    expect(strip).toMatch(/return gridPixels\(img, pw, ph, \{ crisp: !!s\.crispEdges \}\);/);
     expect(strip).toMatch(/preSharpen: !!s\.preSharpen, preSharpenAmount: s\.preSharpenAmount,/);
     expect(strip).toMatch(/bri: s\.bri, con: s\.con, sat: s\.sat,/);
     expect(strip).toMatch(/fmtHours\(window\.compareHours\(r\.stats\.stitches, props\.stitchSpeed\)\)/);

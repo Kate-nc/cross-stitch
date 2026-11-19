@@ -162,7 +162,7 @@ function _applyImageFilters(imageData, bri, con, sat) {
 // Manifest of state-variable keys that contribute to the conversion output.
 // Used by the preview-coverage tests.
 var CONVERSION_STATE_KEYS = [
-  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
+  'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount', 'crispEdges',
   'maxC', 'dithMode', 'allowBlends', 'maxBlends', 'minSt',
   'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans', // terminology-lint-allow (a state key, not UI text)
   'stashConstrained', 'globalStash', 'convertBrand',
@@ -647,6 +647,8 @@ window.useCreatorState = function useCreatorState() {
   var _sType  = useState("median");   var smoothType = _sType[0], setSmoothType = _sType[1];
   var _preSharpen = useState(false);  var preSharpen = _preSharpen[0], setPreSharpen = _preSharpen[1];
   var _preSharpenAmount = useState(0.5); var preSharpenAmount = _preSharpenAmount[0], setPreSharpenAmount = _preSharpenAmount[1];
+  // Crisp edges: each stitch takes the main colour under it (gridPixels crisp).
+  var _crispEdges = useState(false); var crispEdges = _crispEdges[0], setCrispEdges = _crispEdges[1];
   var _orphans= useState(function () { var v = loadUserPref("creatorOrphanRemovalStrength", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
   var orphans = _orphans[0], setOrphans = _orphans[1];
   var _disambig = useState(false);
@@ -2286,7 +2288,7 @@ window.useCreatorState = function useCreatorState() {
         // Brightness, Contrast and Saturation are applied in the worker,
         // after the background mask (runCleanupPipeline).
         // Sharpen details too: the pipeline sharpens the stitches.
-        imageData = gridPixels(img, sW, sH);
+        imageData = gridPixels(img, sW, sH, { crisp: crispEdges });
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -2310,7 +2312,7 @@ window.useCreatorState = function useCreatorState() {
               keepIds: keepColoursPlan(keepColours, genBrand, allowedPalette, effMaxC).ids,
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
-              preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
+              preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, crispEdges: crispEdges,
             });
             if (!result) { setBusy(false); return; }
             applyResultRef.current({ reqId: reqId, mapped: result.pat, pal: result.pal, cmap: result.cmap, confettiData: result.confettiData, preCleanupIds: result.preCleanupIds, disambigData: result.disambigData });
@@ -2345,7 +2347,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, keepColours, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, disambig, disambigLevel, keepColours, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -2436,7 +2438,7 @@ window.useCreatorState = function useCreatorState() {
         // thumbnail matches the chart it makes.
         var _gcxImgData;
         try {
-          _gcxImgData = gridPixels(img, gw, gh);
+          _gcxImgData = gridPixels(img, gw, gh, { crisp: crispEdges });
         } catch (_) {
           // SecurityError: skip this gallery slot silently — generation will
           // still use the main canvas which already showed an error toast.
@@ -2476,7 +2478,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, keepColours]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, keepColours]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -2693,7 +2695,7 @@ window.useCreatorState = function useCreatorState() {
       // Image adjustments
       bri: bri, con: con, sat: sat,
       smooth: smooth, smoothType: smoothType,
-      preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
+      preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, crispEdges: crispEdges,
       // Quantisation
       maxC: effMaxC,
       dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
@@ -2717,7 +2719,7 @@ window.useCreatorState = function useCreatorState() {
       stashCount: stashInfo.count,
     });
   }, [
-    exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
+    exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges,
     maxC, dith, dithMode, dithStrength, allowBlends, maxBlends,
     skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
     disambig, disambigLevel, keepColours,
@@ -2795,7 +2797,7 @@ window.useCreatorState = function useCreatorState() {
   }
 
   // Capture editable values, including those masked by stash constraints.
-  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied, keepColours: keepColours};
+  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, crispEdges: crispEdges, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied, keepColours: keepColours};
   function pinPreview() {
     if (!previewLoading && previewSnapshot) setPinnedPreview(previewSnapshot);
   }
@@ -2811,6 +2813,7 @@ window.useCreatorState = function useCreatorState() {
     setSmoothType(values.smoothType);
     setPreSharpen(values.preSharpen);
     setPreSharpenAmount(values.preSharpenAmount);
+    setCrispEdges(!!values.crispEdges);
     setMaxC(values.maxC);
     setDithMode(values.dithMode);
     setAllowBlends(values.allowBlends);
@@ -2846,7 +2849,7 @@ window.useCreatorState = function useCreatorState() {
     stitchStyle, stitchStyleBasis, applyStitchStyle,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
-    preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
+    preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount, crispEdges, setCrispEdges,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, maxBlends, setAllowBlends, setMaxBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, readyBarOpen, setReadyBarOpen, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
     origW, setOrigW, origH, setOrigH,

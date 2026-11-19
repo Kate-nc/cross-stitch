@@ -127,6 +127,8 @@ A blend stitches two threads together in one needle (one strand of each) and get
 
 Photos keep their shading up to **Tidier**; graphics and pixel art are never shaded. The individual controls are below the steps; changing one shows **Custom**.
 
+**Crisp edges** (under **Edges**) — a stitch that is mostly one colour (at least 60%) takes that colour instead of the blend of everything under it, so outlines are sharp rather than soft. Off by default; a detail thinner than a stitch can come out thinner, so compare the preview with it on and off.
+
 **Shading** — mixes neighbouring threads to suggest in-between colours.
 
 | Setting | Effect | When to use |

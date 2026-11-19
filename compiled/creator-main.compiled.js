@@ -1637,6 +1637,8 @@ function CreatorApp({
       setPreSharpen: state.setPreSharpen,
       preSharpenAmount: state.preSharpenAmount,
       setPreSharpenAmount: state.setPreSharpenAmount,
+      crispEdges: state.crispEdges,
+      setCrispEdges: state.setCrispEdges,
       orphans: state.orphans,
       setOrphans: state.setOrphans,
       disambig: state.disambig,
@@ -1712,7 +1714,7 @@ function CreatorApp({
       setConvertStage: state.setConvertStage,
       srcClick: stableSrcClick
     };
-  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.keepColours, state.pickKeep, state.keepUnavailable, state.keepOverLimit, state.addKeepColourById, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.ownedThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.keepColours, state.pickKeep, state.keepUnavailable, state.keepOverLimit, state.addKeepColourById, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.crispEdges, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.ownedThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {
