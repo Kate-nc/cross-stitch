@@ -318,21 +318,23 @@
 
     var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
     var ps = app.previewStats;
+    var cw = gen.convertW != null ? gen.convertW : ctx.sW;
+    var ch = gen.convertH != null ? gen.convertH : ctx.sH;
 
     // ═══ Size ══════════════════════════════════════════════════════════════
     var sizeSec = sec("size", null, null,
       window.CreatorSizeField ? h(window.CreatorSizeField, {
-        sW: ctx.sW, sH: ctx.sH, chgW: ctx.chgW, chgH: ctx.chgH, arLock: ctx.arLock, setArLock: ctx.setArLock, ar: ctx.ar,
+        sW: cw, sH: ch, chgW: ctx.chgW, chgH: ctx.chgH, arLock: ctx.arLock, setArLock: ctx.setArLock, ar: ctx.ar,
         fabricCt: ctx.fabricCt, origW: gen.origW, origH: gen.origH
       }) : null,
       hint("Between 10 and 500 stitches each way."),
-      (ctx.sW > 250 || ctx.sH > 250) && note("info", "Large pattern: 15 to 25 threads keep generation fast and the result clean.")
+      (cw > 250 || ch > 250) && note("info", "Large pattern: 15 to 25 threads keep generation fast and the result clean.")
     );
     var fabricSec = sec("fabric", null, null,
       h(window.CreatorFabricBlock, {
         fabricCt: ctx.fabricCt, setFabricCt: ctx.setFabricCt,
         fabricColour: app.fabricColour, setFabricColour: app.setFabricColour,
-        sW: ctx.sW, sH: ctx.sH
+        sW: cw, sH: ch
       }),
       hint("Skein estimates assume 2 strands and 8 m per skein.")
     );
@@ -554,7 +556,7 @@
     // The finished chart's count (after look-alike separation and the thread limit).
     var confettiNow = ps ? (ps.confettiFinalSingles != null ? ps.confettiFinalSingles
       : ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
-    var warning = sc2.enabled ? cleanupWarning(ctx.sW, ctx.sH, gen.orphans, ps) : null;
+    var warning = sc2.enabled ? cleanupWarning(cw, ch, gen.orphans, ps) : null;
     var stepsSec = sec("style", "Detail and tidiness",
       "More detail keeps every shade and small shape, with the most confetti stitches (single stitches of a colour on their own; slow to stitch). Balanced merges most of them and keeps outlines. Tidier merges nearly all. Easiest to stitch gives big blocks of colour.",
       seg({ label: "Detail and tidiness", attr: "data-stitch-style", className: "cv-seg--grid stitch-style__seg", value: styleNow,
@@ -712,7 +714,7 @@
     var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : null;
     var summary = gen.exactPixelArt
       ? "Exact pixel art · one stitch per pixel"
-      : [typeLabel || "Your defaults", ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
+      : [typeLabel || "Your defaults", cw + " × " + ch + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
          window.STITCH_STYLE_LABELS && window.STITCH_STYLE_LABELS[styleNow] ? window.STITCH_STYLE_LABELS[styleNow] : "Custom detail"].join(" · ");
     var editCount = (cv.editHistory && cv.editHistory.length) || 0;
     var chartState = ctx.pat ? app.convertChartState : null;

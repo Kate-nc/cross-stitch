@@ -76,10 +76,10 @@ test.describe('First use on desktop', function() {
     await expect(page.getByText('Palette and View are beside it.')).toBeVisible();
     await expect(hint).toHaveCount(0);
     await expect(review).toHaveCount(0);
-    // Once the tips are dismissed, the standing notes come back.
+    // Once the tips are dismissed, the keyboard hint comes back (the duplicate review note was removed).
     await page.getByRole('button', { name: 'Skip tips' }).click();
     await expect(hint).toBeVisible();
-    await expect(review).toBeVisible();
+    await expect(review).toHaveCount(0);
   });
 
   test('with an empty stash, Use only stash threads says so instead of letting Generate stop', async function({ page }) {
@@ -175,7 +175,7 @@ test.describe('First use on a phone', function() {
     const words = await page.evaluate(function() {
       const W = window.WelcomeWizard; return JSON.stringify(W.CREATOR_TOURS.convert(W.creatorDeviceWords(true, true)));
     });
-    expect(words).toContain('Help is in the More menu at the top.');
+    expect(words).toContain('Help is in the Project menu at the top.');
     expect(words).not.toContain('Press ?');
   });
 
@@ -186,7 +186,7 @@ test.describe('First use on a phone', function() {
     await clickGenerate(page);
     await waitForEdit(page);
     await expect(page.locator('.ready-bar')).toBeVisible();
-    await page.locator('.creator-rail button', { hasText: 'Colour' }).first().tap();
+    await page.locator('.creator-rail button:has(.creator-rail__swatch)').first().tap();
     await expect(page.locator('.rpanel--open')).toHaveCount(1);
     const top = await page.locator('.ready-bar').evaluate(function(bar) {
       const r = bar.getBoundingClientRect();

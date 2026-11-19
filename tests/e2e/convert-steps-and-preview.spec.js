@@ -133,9 +133,10 @@ test.describe('Convert steps and preview on desktop', function() {
     await clickGenerate(page);
     await waitForEdit(page);
     await page.evaluate(() => { window.__patBefore = window.__cs.pat; window.__cs.setEditHistory([{ type: 'test-edit' }]); });
-    // Regenerate is in Convert's top bar; going back with edits asks first.
+    // Going to Convert loses nothing, so there is no confirmation dialog;
+    // Regenerate itself guards replacing the edited chart.
     await page.getByRole('button', { name: 'Back to Convert' }).click();
-    await page.getByRole('button', { name: 'Go to Convert' }).click();
+    await expect(page.getByRole('dialog', { name: 'Switch to Convert?' })).toHaveCount(0);
     await expect(page.locator('.cv-footer__state')).toContainText('then edited');
     await clickGenerate(page);
     const dialog = page.getByRole('dialog').filter({ hasText: 'Replace your chart?' });

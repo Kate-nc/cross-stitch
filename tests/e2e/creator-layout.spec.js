@@ -227,3 +227,30 @@ test.describe('Scratch grid on Pixel 5', function() {
     await expect(undo).toBeEnabled();
   });
 });
+
+test.describe('Chart centring (B4)', function() {
+  test.use(device('desktop'));
+
+  test('at 1440 x 900 after Generate, left and right gaps differ by 2 px or less', async function({ page }) {
+    await openConvertWithLogo(page, { leaveBackgroundOut: true });
+    await clickGenerate(page);
+    await waitForEdit(page);
+    const gaps = await page.evaluate(() => {
+      const box = document.querySelector('.cs-chart-scroll').getBoundingClientRect();
+      const canvas = document.querySelector('.cs-chart-scroll canvas').getBoundingClientRect();
+      return {
+        left: canvas.left - box.left,
+        right: box.right - canvas.right,
+        top: canvas.top - box.top,
+        bottom: box.bottom - canvas.bottom,
+        boxW: box.width,
+        canvasW: canvas.width,
+      };
+    });
+    expect(gaps.canvasW).toBeLessThan(gaps.boxW);
+    expect(Math.abs(gaps.left - gaps.right)).toBeLessThanOrEqual(2);
+    if (gaps.top >= 0 && gaps.bottom >= 0) {
+      expect(Math.abs(gaps.top - gaps.bottom)).toBeLessThanOrEqual(2);
+    }
+  });
+});

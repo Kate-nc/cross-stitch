@@ -108,7 +108,7 @@ describe('gridPixels with Crisp edges', () => {
 test('Crisp edges travels with every conversion and is saved with the project', () => {
   const st = loadSource('creator/useCreatorState.js'), io = loadSource('creator/useProjectIO.js');
   expect(st).toMatch(/'preSharpenAmount', 'crispEdges',/);   // CONVERSION_STATE_KEYS
-  expect(st).toMatch(/imageData = gridPixels\(img, sW, sH, \{ crisp: crispEdges \}\);/);   // Generate (worker)
+  expect(st).toMatch(/imageData = gridPixels\(img, convertW, convertH, \{ crisp: crispEdges \}\);/);   // Generate (worker)
   expect(st).toMatch(/preSharpenAmount: preSharpenAmount, crispEdges: crispEdges,\n\s*\}\);/);   // Generate (page)
   expect(st).toMatch(/_gcxImgData = gridPixels\(img, gw, gh, \{ crisp: crispEdges \}\);/);   // gallery
   expect(st).toMatch(/setCrispEdges\(!!values\.crispEdges\);/);   // pinned preview

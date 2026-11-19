@@ -68,9 +68,9 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
    *   - schedule(saveFn): mark pending and arm the debounce; saveFn must
    *                       return a Promise that resolves with the saved
    *                       project id (or any truthy value) on success.
-   *   - flush():           run any pending save immediately, returns Promise
+   *   - flush():           bypass debounce, waiting for any in-flight write first
    *   - cancel():          cancel any pending debounce/fade timers
-   *   - isPending():       true when a debounce timer is armed
+   *   - isPending():       true when a save is queued
    *   - isInFlight():      true when a save is currently running
    */
   function createSaveController(callbacks, opts) {
@@ -91,7 +91,8 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
     var debounceTimer = null;
     var fadeTimer     = null;
     var pendingSaveFn = null;
-    var inFlight      = false;
+    var inFlight      = null;
+    var revision      = 0;
     var firstSaveDone = false;
 
     function clearDebounce() {
@@ -103,13 +104,17 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
       fadeTimer = null;
     }
 
+    function startQueuedSave() {
+      if (pendingSaveFn && debounceTimer === null) runNow();
+    }
+
     function runNow() {
       clearDebounce();
+      if (inFlight || !pendingSaveFn) return inFlight || Promise.resolve();
       clearFade();
       var saveFn = pendingSaveFn;
+      var saveRevision = revision;
       pendingSaveFn = null;
-      if (typeof saveFn !== 'function') { return Promise.resolve(); }
-      inFlight = true;
       onStatus('saving');
       var p;
       try {
@@ -118,41 +123,46 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
       } catch (err) {
         p = Promise.reject(err);
       }
-      return p.then(function (result) {
-        inFlight = false;
-        onError(null);
-        onSavedAt(now());
-        onStatus('saved');
+      inFlight = p.then(function (result) {
+        inFlight = null;
+        if (saveRevision === revision) {
+          onError(null);
+          onSavedAt(now());
+          onStatus('saved');
+          if (setT && savedHoldMs > 0) {
+            fadeTimer = setT(function () {
+              fadeTimer = null;
+              if (saveRevision === revision) onStatus('idle');
+            }, savedHoldMs);
+          }
+        }
         var wasFirst = !firstSaveDone;
         firstSaveDone = true;
         if (wasFirst) {
           try { onFirstSaveSuccess(result); } catch (_) {}
         }
-        // Fade 'saved' → 'idle' after the hold window so the badge doesn't
-        // permanently shout success after a single edit.
-        if (setT && savedHoldMs > 0) {
-          fadeTimer = setT(function () {
-            fadeTimer = null;
-            // Only fade if no fresh edit has come in meanwhile.
-            if (!debounceTimer && !inFlight) { onStatus('idle'); }
-          }, savedHoldMs);
-        }
+        startQueuedSave();
         return result;
       }, function (err) {
-        inFlight = false;
-        onError(err || new Error('Unknown save error'));
-        onStatus('error');
+        inFlight = null;
+        if (saveRevision === revision) {
+          onError(err || new Error('Unknown save error'));
+          onStatus('error');
+        }
         // Surface to the console so devtools users can see the stack.
         if (typeof console !== 'undefined' && console.error) {
           console.error('Auto-save failed:', err);
         }
+        startQueuedSave();
         // Don't re-throw — the controller has already reported the error
         // through the callbacks; throwing would create an unhandled
         // rejection in production.
       });
+      return inFlight;
     }
 
     function schedule(saveFn) {
+      revision++;
       pendingSaveFn = saveFn;
       onStatus('pending');
       // A new edit cancels any lingering 'saved' fade so we don't briefly
@@ -168,8 +178,9 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
     }
 
     function flush() {
-      if (!debounceTimer && !pendingSaveFn) { return Promise.resolve(); }
-      return runNow();
+      if (!inFlight) return runNow();
+      clearDebounce();
+      return inFlight.then(function (result) { return inFlight || result; });
     }
 
     function cancel() {
@@ -182,8 +193,8 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
       schedule: schedule,
       flush:    flush,
       cancel:   cancel,
-      isPending:  function () { return debounceTimer !== null; },
-      isInFlight: function () { return inFlight; },
+      isPending:  function () { return !!pendingSaveFn; },
+      isInFlight: function () { return !!inFlight; },
       hasFirstSaveCompleted: function () { return firstSaveDone; }
     };
   }
@@ -7133,8 +7144,15 @@ window.useCreatorState = function useCreatorState() {
   var _img    = useState(null);       var img    = _img[0],    setImg    = _img[1];
   var _upload = useState(false);      var isUploading = _upload[0], setIsUploading = _upload[1];
   var _drag   = useState(false);      var isDragging  = _drag[0],   setIsDragging  = _drag[1];
-  var _sW     = useState(80);         var sW     = _sW[0],     setSW     = _sW[1];
-  var _sH     = useState(80);         var sH     = _sH[0],     setSH     = _sH[1];
+  var _sW     = useState(80);         var sW     = _sW[0],     _setSWRaw = _sW[1];
+  var _sH     = useState(80);         var sH     = _sH[0],     _setSHRaw = _sH[1];
+  // Convert's own target size, kept separate from the generated chart's sW/sH
+  // so changing width or height in Convert without Regenerating never alters
+  // the existing chart.
+  var _convertW = useState(80);       var convertW = _convertW[0], setConvertW = _convertW[1];
+  var _convertH = useState(80);       var convertH = _convertH[0], setConvertH = _convertH[1];
+  var setSW = useCallback(function(v) { _setSWRaw(v); setConvertW(v); }, []);
+  var setSH = useCallback(function(v) { _setSHRaw(v); setConvertH(v); }, []);
   var _arLock = useState(true);       var arLock = _arLock[0], setArLock = _arLock[1];
   var _ar     = useState(1);          var ar     = _ar[0],     setAr     = _ar[1];
 
@@ -7458,12 +7476,21 @@ window.useCreatorState = function useCreatorState() {
   // (reports/create-from-image-workflow, Phase B). presetUntouched says
   // whether every value the type set is still as it set it.
   var _exactPixel = useState(false), exactPixelArt = _exactPixel[0], setExactPixelArt = _exactPixel[1];
+  var patRef = useRef(null); patRef.current = pat;
+  var setConvertDims = useCallback(function(w, h) {
+    if (w != null) setConvertW(w);
+    if (h != null) setConvertH(h);
+    if (!patRef.current || isScratchModeRef.current) {
+      if (w != null) _setSWRaw(w);
+      if (h != null) _setSHRaw(h);
+    }
+  }, []);
   useEffect(function() {
     if (!exactPixelArt || !img || appMode !== "create") return;
     var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
     if (w > 500 || h > 500) { setExactPixelArt(false); return; }
-    setSW(w); setSH(h);
-  }, [exactPixelArt, img, sW, sH, appMode]);
+    setConvertDims(w, h);
+  }, [exactPixelArt, img, convertW, convertH, appMode, setConvertDims]);
   var _picInfo = useState(null);     var pictureInfo = _picInfo[0], setPictureInfo = _picInfo[1];
   var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
   var pictureInfoRef = useRef(null);
@@ -7478,14 +7505,16 @@ window.useCreatorState = function useCreatorState() {
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
     if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails, foldEdgeShades: v.foldEdgeShades }); });
     if (v.orphans != null) setOrphans(v.orphans);
-    if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
+    if (v.sW && v.sH) { setConvertDims(v.sW, v.sH); }
     setPresetApplied(opts && opts.guessed ? { id: id, values: v, guessed: true } : { id: id, values: v });
-  }, []);
+  }, [setConvertDims]);
   // The Detail and tidiness step is its own choice: changing it keeps the
   // picture type, so its keys are not compared here.
   var presetUntouched = (function () {
     if (!presetApplied) return false;
-    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: sW, sH: sH };
+    var cw = typeof convertW !== "undefined" ? convertW : sW;
+    var ch = typeof convertH !== "undefined" ? convertH : sH;
+    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: cw, sH: ch };
     for (var k in v) {
       if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
       if (cur[k] !== v[k]) return false;
@@ -7892,6 +7921,10 @@ window.useCreatorState = function useCreatorState() {
     toastsRef.current = toastsRef.current.filter(function(t) { return t.id !== id; });
     setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
   }, []);
+  var clearToasts = useCallback(function() {
+    toastsRef.current = [];
+    setToasts([]);
+  }, []);
 
   // Refs
   var pcRef      = useRef(null);
@@ -7916,6 +7949,7 @@ window.useCreatorState = function useCreatorState() {
   var workerRef      = useRef(null); // null | Worker | 'unavailable'
   var applyResultRef = useRef(null); // updated each render, captures fresh state
   var genBrandRef = useRef(null);    // { reqId, brand }: the brand a generation chose from
+  var genDimsRef  = useRef(null);    // { reqId, w, h }: the dimensions a generation ran at
   var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
 
   var G = 28;
@@ -8184,13 +8218,13 @@ window.useCreatorState = function useCreatorState() {
 
   function chgW(v) {
     var w = Math.max(10, Math.min(500, parseInt(v) || 10));
-    setSW(w);
-    if (arLock) setSH(Math.max(10, Math.min(500, Math.round(w / ar))));
+    var nextH = arLock ? Math.max(10, Math.min(500, Math.round(w / ar))) : null;
+    setConvertDims(w, nextH);
   }
   function chgH(v) {
     var h = Math.max(10, Math.min(500, parseInt(v) || 10));
-    setSH(h);
-    if (arLock) setSW(Math.max(10, Math.min(500, Math.round(h * ar))));
+    var nextW = arLock ? Math.max(10, Math.min(500, Math.round(h * ar))) : null;
+    setConvertDims(nextW, h);
   }
   function slRsz(v) { chgW(v); }
 
@@ -8242,6 +8276,31 @@ window.useCreatorState = function useCreatorState() {
     if (t) setDrawMode(true);
     selectStitchType(t);
   }
+  // One meaning for choosing a thread anywhere (Palette row or swatch strip):
+  // always sets the working colour (choosing the selected thread again keeps it
+  // selected). With a mouse it also selects Paint and switches to Draw (keeping
+  // an already-active drawing tool like Fill/Backstitch/Shapes if in Draw);
+  // on touch it only sets the working colour and leaves Navigate on.
+  var chooseThread = useCallback(function(id) {
+    if (!id) return;
+    setSelectedColorId(id);
+    var coarse = (typeof window !== "undefined" && window.Platform && typeof window.Platform.isCoarsePointer === "function")
+      ? window.Platform.isCoarsePointer()
+      : !isFinePointerNow();
+    if (!coarse) {
+      var curTool = activeToolRef.current;
+      var curPs = partialStitchToolRef.current;
+      var keepDrawTool = drawModeRef.current && (
+        curTool === "paint" || curTool === "fill" || curTool === "backstitch" || curTool === "knot" ||
+        curTool === "line" || curTool === "rect" || curTool === "ellipse" ||
+        (curPs && curPs !== "erase")
+      );
+      if (!keepDrawTool) {
+        setBrushAndActivate("paint");
+      }
+      setDrawMode(true);
+    }
+  }, [setDrawMode]);
   function chooseBrush(mode) {
     setDrawMode(true);
     setBrushAndActivate(mode);
@@ -8540,7 +8599,11 @@ window.useCreatorState = function useCreatorState() {
   applyResultRef.current = function(result) {
     // Discard results from a superseded generation or a mismatched grid size
     if (result.reqId !== genReqIdRef.current) { setBusy(false); return; }
-    if (result.mapped && result.mapped.length !== sW * sH) { setBusy(false); return; }
+    var genW = genDimsRef.current && genDimsRef.current.reqId === result.reqId ? genDimsRef.current.w : convertW;
+    var genH = genDimsRef.current && genDimsRef.current.reqId === result.reqId ? genDimsRef.current.h : convertH;
+    if (result.mapped && result.mapped.length !== genW * genH) { setBusy(false); return; }
+    // Commit Convert's target dimensions to the chart now that Generate succeeded.
+    _setSWRaw(genW); _setSHRaw(genH);
     // The brand this generation chose from (P4-5): its cells and palette
     // carry it, and the pattern is saved in it.
     var resBrand = genBrandRef.current && genBrandRef.current.reqId === result.reqId ? genBrandRef.current.brand : "dmc";
@@ -8599,9 +8662,12 @@ window.useCreatorState = function useCreatorState() {
     setAppMode("edit");
     setSidebarTab("palette");
     // Fallback zoom now; the real fit runs once the Edit view has mounted.
-    setZoom(creatorFitZoom(sW, sH, null, null, G));
+    setZoom(creatorFitZoom(genW, genH, null, null, G));
     pendingFitRef.current = true;
     setBusy(false);
+    // Dismiss Convert's toasts (such as the plain-background offer) so nothing
+    // covers the Ready bar when Generate finishes.
+    clearToasts();
     // One "Your pattern is ready" bar above the chart says what was made
     // (threads and chart symbols, not "colours": audit IMG-02) and offers
     // Print PDF, Open in Tracker and Threads to buy, instead of a toast
@@ -8764,6 +8830,7 @@ window.useCreatorState = function useCreatorState() {
     }
     var reqId = ++genReqIdRef.current;
     genBrandRef.current = { reqId: reqId, brand: convertBrand };
+    genDimsRef.current  = { reqId: reqId, w: convertW, h: convertH };
 
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
     var _subset = (overrides && overrides.subset !== undefined) ? overrides.subset : variationSubset;
@@ -8808,7 +8875,7 @@ window.useCreatorState = function useCreatorState() {
         setGenerateCancellable(false);
         try {
           var exact = runExactPixelPipeline(img, { allowedPalette: allowedPalette });
-          if (exact.width !== sW || exact.height !== sH) throw new Error("Wait for the source pixel dimensions to update before generating.");
+          if (exact.width !== convertW || exact.height !== convertH) throw new Error("Wait for the source pixel dimensions to update before generating.");
           applyResultRef.current({ reqId: reqId, mapped: exact.pat, pal: exact.pal, cmap: exact.cmap, confettiData: exact.confettiData });
         } catch (err) { addToast(err.message, { type: "error" }); setBusy(false); }
         return;
@@ -8819,7 +8886,7 @@ window.useCreatorState = function useCreatorState() {
         // Brightness, Contrast and Saturation are applied in the worker,
         // after the background mask (runCleanupPipeline).
         // Sharpen details too: the pipeline sharpens the stitches.
-        imageData = gridPixels(img, sW, sH, { crisp: crispEdges });
+        imageData = gridPixels(img, convertW, convertH, { crisp: crispEdges });
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -8836,7 +8903,7 @@ window.useCreatorState = function useCreatorState() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
             var result = runGenerationPipeline(img, {
-              sW: sW, sH: sH, exactPixelArt: exactPixelArt, maxC: effMaxC, bri: bri, con: con, sat: sat,
+              sW: convertW, sH: convertH, exactPixelArt: exactPixelArt, maxC: effMaxC, bri: bri, con: con, sat: sat,
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends, maxBlends: maxBlends,
@@ -8857,8 +8924,8 @@ window.useCreatorState = function useCreatorState() {
         type: 'generate',
         reqId: reqId,
         pixels: imageData.data.buffer,
-        width: sW,
-        height: sH,
+        width: convertW,
+        height: convertH,
         settings: {
           bri: bri, con: con, sat: sat,
           maxC: effMaxC, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: effAllowBlends, maxBlends: maxBlends,
@@ -8878,7 +8945,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, disambig, disambigLevel, keepColours, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
+  }, [exactPixelArt, img, convertW, convertH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, disambig, disambigLevel, keepColours, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -8963,7 +9030,7 @@ window.useCreatorState = function useCreatorState() {
       setTimeout(function() {
         var slotSubset = useRoulette ? _buildRoulette(pool, rouletteN, slotSeed) : pool;
         var MAX_GAL = 2500;
-        var gw = sW, gh = sH;
+        var gw = convertW, gh = convertH;
         if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
         // The same picture-to-stitches step as Generate (gridPixels), so a
         // thumbnail matches the chart it makes.
@@ -9009,7 +9076,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, keepColours]);
+  }, [exactPixelArt, img, convertW, convertH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, keepColours]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -9222,7 +9289,7 @@ window.useCreatorState = function useCreatorState() {
       : allowBlends;
     return Object.freeze({
       // Geometry
-      sW: sW, sH: sH, exactPixelArt: exactPixelArt,
+      sW: convertW, sH: convertH, exactPixelArt: exactPixelArt,
       // Image adjustments
       bri: bri, con: con, sat: sat,
       smooth: smooth, smoothType: smoothType,
@@ -9250,7 +9317,7 @@ window.useCreatorState = function useCreatorState() {
       stashCount: stashInfo.count,
     });
   }, [
-    exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges,
+    exactPixelArt, convertW, convertH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges,
     maxC, dith, dithMode, dithStrength, allowBlends, maxBlends,
     skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
     disambig, disambigLevel, keepColours,
@@ -9328,15 +9395,14 @@ window.useCreatorState = function useCreatorState() {
   }
 
   // Capture editable values, including those masked by stash constraints.
-  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, crispEdges: crispEdges, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied, keepColours: keepColours};
+  var previewRestoreSettings = {sW: convertW, sH: convertH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, crispEdges: crispEdges, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied, keepColours: keepColours};
   function pinPreview() {
     if (!previewLoading && previewSnapshot) setPinnedPreview(previewSnapshot);
   }
   function applyPinnedSettings() {
     if (!pinnedPreview) return;
     var values = pinnedPreview.restore;
-    setSW(values.sW);
-    setSH(values.sH);
+    setConvertDims(values.sW, values.sH);
     setBri(values.bri);
     setCon(values.con);
     setSat(values.sat);
@@ -9373,7 +9439,7 @@ window.useCreatorState = function useCreatorState() {
   // ─── Return everything ───────────────────────────────────────────────────────
   return {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
-    sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
+    sW, setSW, sH, setSH, convertW, setConvertW, convertH, setConvertH, setConvertDims, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     exactPixelArt, setExactPixelArt,
     pictureInfo, setPictureInfo, pictureType, presetUntouched, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
@@ -9414,7 +9480,7 @@ window.useCreatorState = function useCreatorState() {
     bsLines, setBsLines, bsStart, setBsStart,
     specialtyStitches, setSpecialtyStitches, specialtySelected,setSpecialtySelected,
     knots, setKnots,
-    bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
+    bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId, chooseThread,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
@@ -9570,7 +9636,7 @@ window.useCreatorState = function useCreatorState() {
     // Context menu
     contextMenu, setContextMenu,
     // Toast notifications
-    toasts, addToast, dismissToast,
+    toasts, addToast, dismissToast, clearToasts,
     // Selection modifier key state (null | "add" | "subtract" | "intersect")
     selectionModifier, setSelectionModifier,
     // PaletteSwap
@@ -11679,14 +11745,16 @@ window.nudgeCropRect = nudgeCropRect;
    point that was under the starting midpoint under the current midpoint,
    after scaling by `ratio` (current zoom / starting zoom). With ratio 1 this
    is a plain pan: the chart follows the fingers. */
-window.computePinchScroll = function computePinchScroll(pinch, midX, midY, ratio) {
+window.computePinchScroll = function computePinchScroll(pinch, midX, midY, ratio, nextPad) {
   var originX = pinch.originX || 0, originY = pinch.originY || 0;
   var padX = pinch.padX || 0, padY = pinch.padY || 0;
+  var outPadX = nextPad && nextPad.padX != null ? nextPad.padX : padX;
+  var outPadY = nextPad && nextPad.padY != null ? nextPad.padY : padY;
   var focalX = pinch.startScrollLeft + (pinch.startMidX - originX) - padX;
   var focalY = pinch.startScrollTop + (pinch.startMidY - originY) - padY;
   return {
-    scrollLeft: Math.max(0, focalX * ratio + padX - (midX - originX)),
-    scrollTop: Math.max(0, focalY * ratio + padY - (midY - originY)),
+    scrollLeft: Math.max(0, focalX * ratio + outPadX - (midX - originX)),
+    scrollTop: Math.max(0, focalY * ratio + outPadY - (midY - originY)),
   };
 };
 
@@ -12042,10 +12110,20 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var canvas = state.pcRef.current, scrollRef = state.scrollRef;
     pinch.previewing = false;
     var zoom = pinch.pendingZoom;
-    var next = window.computePinchScroll(pinch, pinch.lastMidX, pinch.lastMidY, zoom / pinch.startZoom);
     function settle() {
       if (canvas) { canvas.style.transform = ""; canvas.style.transformOrigin = ""; canvas.style.willChange = ""; }
-      if (scrollRef.current) { scrollRef.current.scrollLeft = next.scrollLeft; scrollRef.current.scrollTop = next.scrollTop; }
+      var sc = scrollRef.current;
+      var nextPad = null;
+      if (sc && canvas && sc.getBoundingClientRect && canvas.getBoundingClientRect) {
+        var cRect = sc.getBoundingClientRect();
+        var pRect = canvas.getBoundingClientRect();
+        nextPad = {
+          padX: pRect.left - cRect.left + sc.scrollLeft,
+          padY: pRect.top - cRect.top + sc.scrollTop,
+        };
+      }
+      var next = window.computePinchScroll(pinch, pinch.lastMidX, pinch.lastMidY, zoom / pinch.startZoom, nextPad);
+      if (sc) { sc.scrollLeft = next.scrollLeft; sc.scrollTop = next.scrollTop; }
     }
     if (zoom === state.zoom) { settle(); return; }
     // Settle once PatternCanvas has resized the canvas for the new zoom (in
@@ -13216,7 +13294,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     state.setOrigH(hh);
     var newAr = w / hh;
     state.setAr(newAr);
-    if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
+    var curW = state.convertW != null ? state.convertW : state.sW;
+    if (state.arLock) {
+      var nextH = Math.max(10, Math.round(curW / newAr));
+      if (state.setConvertDims) state.setConvertDims(null, nextH);
+      else state.setSH(nextH);
+    }
     state.setCropRect(null);
     var examine = state.pictureExaminerRef && state.pictureExaminerRef.current;
     if (typeof examine === "function") examine(newImg, { reframed: true });
@@ -13602,7 +13685,12 @@ var DRAFT_SETTING_KEYS = [
 ];
 function creatorDraftSettings(state) {
   var o = {};
-  DRAFT_SETTING_KEYS.forEach(function(k) { if (state[k] !== undefined) o[k] = state[k]; });
+  DRAFT_SETTING_KEYS.forEach(function(k) {
+    var v = k === 'sW' && state.convertW != null ? state.convertW
+      : k === 'sH' && state.convertH != null ? state.convertH
+      : state[k];
+    if (v !== undefined) o[k] = v;
+  });
   if (o.bgTh !== undefined) o.bgThUnit = 'de2000';
   return o;
 }
@@ -17548,7 +17636,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         onClick: function () { if (appMode !== "create" && typeof props.onOpenCanvas === "function") props.onOpenCanvas(); } } : null,
       { id: "edit", label: "Edit", icon: Icons.pencil, active: appMode === "edit" && tab === "pattern", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("pattern"); } },
-      { id: "materials", label: "Materials", icon: Icons.layers, active: tab === "materials", disabled: !hasPat,
+      { id: "materials", label: "Materials", icon: Icons.layers, active: appMode === "edit" && tab === "materials", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("materials"); } }
     ].filter(Boolean);
     var modeSwitch = h("div", { className: "cc-modes", role: "tablist", "aria-label": "Creator section" },
@@ -17579,14 +17667,16 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       hasPat ? h("span", {
         className: "cc-save cc-save--" + status.tone, role: "status", "aria-label": status.label, title: status.label
       }, status.icon) : null,
-      // Frame the picture: Continue to the settings, the same as the button
-      // under Frame's settings (creator/FrameView.js listens for it).
-      appMode === "create" && props.hasImage && props.framing ? h("button", {
+      // Keep the section switcher while reframing an existing chart's picture.
+      // Frame has its own Continue button below the picture controls.
+      appMode === "create" && props.hasImage && props.framing && !hasPat ? h("button", {
         type: "button", className: "cc-continue", onClick: props.onContinue, "data-onboard": "frame-continue",
         "aria-label": "Continue", title: "Continue to size, threads and detail"
       }, h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null) :
-      // Convert: Generate stays one tap away (it is also in the settings drawer).
-      appMode === "create" && props.hasImage && sourceTab === "convert" ? h("button", {
+      // Convert (before a chart exists): Generate stays one tap away. Once a
+      // chart exists, keep the Convert / Edit / Materials switcher visible so
+      // the user can always return to Edit or Materials without regenerating.
+      appMode === "create" && props.hasImage && sourceTab === "convert" && !hasPat ? h("button", {
         type: "button", className: "cc-generate",
         "data-onboard": "creator-generate",
         disabled: !!props.generatingPattern,
@@ -17596,18 +17686,20 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       }, props.generatingPattern ? (Icons.spinner ? Icons.spinner() : null) : (Icons.refresh ? Icons.refresh() : null),
         h("span", null, props.generatingPattern ? "Generating\u2026" : hasPat ? "Regenerate" : "Generate")) : modeSwitch,
       h("button", {
-        ref: moreBtnRef, type: "button", className: "cc-btn cc-more",
+        ref: moreBtnRef, type: "button", className: "cc-btn cc-mode cc-more",
         "aria-haspopup": "dialog", "aria-expanded": sheetOpen ? "true" : "false",
-        "aria-label": "More actions", title: "More actions",
+        "aria-label": "Project", title: "Project",
         onClick: function () { setSheetOpen(!sheetOpen); }
-      }, Icons.more ? Icons.more() : Icons.menu())
+      }, Icons.more ? Icons.more() : Icons.menu(), h("span", { className: "cc-mode__label" }, "Project"))
     );
 
     var sheet = sheetOpen ? h(React.Fragment, null,
       h("div", { className: "cc-sheet-backdrop", onClick: close }),
       h("div", { className: "cc-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Pattern actions" },
         h("div", { className: "cc-sheet__handle", "aria-hidden": "true" }),
-        hasStitches ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onPrintPdf) },
+        hasStitches && props.pictureFromTracker ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onTrackPattern) },
+          Icons.pointing ? Icons.pointing() : Icons.chevronRight(), h("span", null, "Open in Tracker")) : null,
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item" + (props.pictureFromTracker ? "" : " cc-sheet__item--primary"), onClick: run(props.onPrintPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")) : null,
         hasStitches ? h("button", {
           type: "button", className: "cc-sheet__item", "aria-expanded": exportOpen ? "true" : "false",
@@ -17620,14 +17712,14 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onMoreExports) },
             Icons.archive ? Icons.archive() : null, h("span", null, "More export options…"))
         ) : null,
-        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
+        hasStitches && !props.pictureFromTracker ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
           Icons.chevronRight ? Icons.chevronRight() : null, h("span", null, "Open in Tracker")) : null,
         hasPat ? h("button", {
           ref: infoBtnRef, type: "button", className: "cc-sheet__item",
           onClick: function () { close(); setInfoOpen(true); }
         }, Icons.info ? Icons.info() : null, h("span", null, "Pattern info"),
           hasStitches && props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
-        hasPat ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
         h("div", { className: "cc-sheet__sep", role: "separator" }),
         h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { if (window.HelpDrawer) window.HelpDrawer.open({ tab: "help" }); }) },
           Icons.help ? Icons.help() : null, h("span", null, "Help")),
@@ -18305,12 +18397,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:"tb-btn"+(paintOn?" tb-btn--on":""),
         onClick:function(){ pickBrush("paint", paintOn); },
         title:"Paint (P)", "aria-label":"Paint tool", "aria-pressed":paintOn
-      }, "Paint"),
+      }, window.Icons && window.Icons.brush ? window.Icons.brush() : null, "Paint"),
       h("button", {
         className:"tb-btn"+(fillOn?" tb-btn--on":""),
         onClick:function(){ pickBrush("fill", fillOn); },
         title:"Fill (F)", "aria-label":"Fill tool", "aria-pressed":fillOn
-      }, "Fill"),
+      }, window.Icons && window.Icons.bucketPour ? window.Icons.bucketPour() : null, "Fill"),
       h("button", {
         className:"tb-btn"+(eraseOn?" tb-btn--red":""),
         onClick:function(){ if (coarsePointer && eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); },
@@ -18351,9 +18443,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             // A long-press shows the tooltip; it doesn't also change the colour.
             var press = swatchPressRef.current;
             if (press && press.fired && press.id === p.id) { swatchPressRef.current = null; return; }
-            // Choosing a colour is choosing to edit: leave Navigate (UX-009).
-            if (cv.selectedColorId !== p.id && cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
-            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
+            if (cv.chooseThread) cv.chooseThread(p.id);
+            else cv.setSelectedColorId(p.id);
           },
           onPointerDown: function(e) { swatchPressStart(e, p); },
           onPointerUp: swatchPressEnd,
@@ -18803,7 +18894,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           title: selCol ? formatThread(selCol, {variant: "title"}) : "Choose a colour",
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
         }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}}),
-          h("span", {className:"creator-rail__label"}, "Colour")),
+          h("span", {className:"creator-rail__label"}, selCol ? selCol.id : "Colour")),
         railBtn("undo", "Undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
         morePanelWrap
       )
@@ -19747,8 +19838,7 @@ window.CreatorReframeButton = function CreatorReframeButton() {
 window.CreatorFrameView = function CreatorFrameView(props) {
   var gen = window.useGeneration();
   var pd = window.usePatternData ? window.usePatternData() : null;
-  // On phones the tour points at the top bar's Continue (CompactBar), the one
-  // on screen; this one is at the foot of the page.
+  // Before Generate on phones, the tour points at Continue in the top bar.
   var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
   var h = React.createElement;
   var Icons = window.Icons || {};
@@ -19786,7 +19876,8 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   // The background Generate will leave out, striped on the picture while
   // Leave background unstitched is on. Worked out a moment after the last
   // change, so dragging the match slider stays smooth.
-  var sW = pd && pd.sW, sH = pd && pd.sH;
+  var sW = (gen && gen.convertW != null) ? gen.convertW : (pd && pd.sW);
+  var sH = (gen && gen.convertH != null) ? gen.convertH : (pd && pd.sH);
   var bgActive = !!(gen.skipBg && !gen.exactPixelArt && gen.img && gen.img.src && sW && sH);
   var _bgInfo = React.useState(null); var bgInfo = _bgInfo[0], setBgInfo = _bgInfo[1];
   var _showBg = React.useState(true); var showBg = _showBg[0], setShowBg = _showBg[1];
@@ -19995,7 +20086,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
       h("div", { className: "fr-panel__body" },
         window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
       h("footer", { className: "fr-footer" },
-        h("button", Object.assign(compact ? {} : { "data-onboard": "frame-continue" }, { type: "button", className: "fr-continue", onClick: next }),
+        h("button", { "data-onboard": compact && !hasChart ? undefined : "frame-continue", type: "button", className: "fr-continue", onClick: next },
           h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null),
         h("p", { className: "cs-toolsec__hint fr-footer__note" }, "Reframe, beside your picture, brings you back here."))));
 };
@@ -20621,7 +20712,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     }
 
     var chips = displayPal.map(function(p) {
-      var ips = isPaintMode && cv.selectedColorId === p.id;
+      var isSelected = cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
       var isUnused = app.appMode === "edit" && p.count === 0;
       var stashStatus = stashStatusForChip(p);
@@ -20636,20 +20727,20 @@ window.CreatorSidebar = function CreatorSidebar() {
       // The one thread label and the strands and skeins this symbol takes (UX-013, UX-014).
       var keyRow = window.threadKeyRow ? window.threadKeyRow(p, { fabricCount: fabricCtForStash }) : null;
       function choose() {
-        if (isPaintMode) {
-          cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
-        } else {
-          cv.setHiId(cv.hiId === p.id ? null : p.id);
-        }
+        if (cv.chooseThread) cv.chooseThread(p.id);
+        else cv.setSelectedColorId(p.id);
       }
+      var withTip = function(tipText, el) {
+        return typeof Tooltip !== "undefined" ? h(Tooltip, { text: tipText, width: 170 }, el) : el;
+      };
       return h("div", {
         key: p.id,
         role: "button",
         tabIndex: 0,
-        "aria-pressed": ips || ihs,
+        "aria-pressed": isSelected,
         "aria-label": (window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p)) + (keyRow && keyRow.usageTitle ? ". " + keyRow.usageTitle : ""),
         title: keyRow ? keyRow.title : undefined,
-        className: "pal-row" + (ips ? " pal-row--selected" : ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
+        className: "pal-row" + (isSelected ? " pal-row--selected" : "") + (ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
         "data-colour-id": p.id,
         onClick: choose,
         onKeyDown: function(e) {
@@ -20672,16 +20763,27 @@ window.CreatorSidebar = function CreatorSidebar() {
           "aria-label": "Stash status: " + stashStatus,
           style: { background: STASH_DOT[stashStatus] }
         }),
-        app.appMode === "edit" && h("button", {
+        app.appMode === "edit" && withTip(ihs ? "Stop showing on chart" : "Show on chart", h("button", {
+          type: "button",
+          className: "pal-row__btn pal-row__btn--hi" + (ihs ? " pal-row__btn--on" : ""),
+          title: ihs ? "Stop showing on chart" : "Show on chart",
+          "aria-label": "Show on chart \u2014 " + formatThread(p),
+          "aria-pressed": ihs ? "true" : "false",
+          onClick: function(e) {
+            e.stopPropagation();
+            cv.setHiId(cv.hiId === p.id ? null : p.id);
+          }
+        }, Icons.eye ? Icons.eye() : null)),
+        app.appMode === "edit" && withTip("Change symbol", h("button", {
           type: "button",
           className: "pal-row__btn",
           title: "Change symbol",
           "aria-label": "Change symbol for " + formatThread(p),
           "aria-expanded": symbolPickerFor === p.id ? "true" : "false",
           onClick: function(e) { e.stopPropagation(); setSymbolPickerFor(symbolPickerFor === p.id ? null : p.id); }
-        }, Icons.symbols ? Icons.symbols() : null),
+        }, Icons.symbols ? Icons.symbols() : null)),
         // Colour swap button
-        app.appMode === "edit" && h("button", {
+        app.appMode === "edit" && withTip("Replace colour", h("button", {
           key: "swap-" + p.id,
           type: "button",
           className: "pal-row__btn pal-chip-swap",
@@ -20691,7 +20793,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             e.stopPropagation();
             cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
           }
-        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null),
+        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)),
         isUnused && h("button", {
           type: "button",
           className: "pal-row__btn",
@@ -20709,7 +20811,12 @@ window.CreatorSidebar = function CreatorSidebar() {
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("span", {"aria-hidden":"true",style:{color:"var(--text-tertiary)",display:"inline-flex",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, Icons.chevronRight()),
-          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "In this pattern")
+          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "In this pattern"),
+          app.appMode === "edit" && typeof InfoIcon !== "undefined" && h(InfoIcon, {
+            label: "Palette",
+            width: 260,
+            text: "Use Change symbol beside a thread to choose a different chart symbol. Strands and skeins are for each symbol on its own; Materials adds up the threads that several symbols share."
+          })
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           app.appMode === "edit" && unusedCount > 0 && h("button", {
@@ -20726,10 +20833,10 @@ window.CreatorSidebar = function CreatorSidebar() {
               cv.selectAll();
               cv.setWandPanel("reduce");
             },
-            title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
+            title: "Select all stitches and open Simplify colours to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
+          window.creatorThreadCounts(displayPal).threads > 0 && h("span", {className:"palette-counts", title:"Threads used in stitches", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
           symbolLimitMsg && h("span", {
             className: "palette-counts-warn", role: "img",
             title: symbolLimitMsg,
@@ -20739,9 +20846,6 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
-      app.appMode === "edit" && h("p", {className:"convert-first-use"}, "Use Change symbol beside a thread to choose a different chart symbol."),
-      // What the strands and skeins on each row mean, and what a blend is (UX-013, UX-014).
-      displayPal.length > 0 && h("p", {className:"convert-first-use pal-key-note"}, "Strands and skeins are for each symbol on its own. Materials adds up the threads that several symbols share."),
       window.BlendHelpNote && window.creatorThreadCounts(displayPal).blends > 0 && h(window.BlendHelpNote, null),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
@@ -21801,13 +21905,11 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   var subHeaderStyle = {padding:"10px 12px 2px",fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5};
   var viewContent = h(React.Fragment, null,
-    h("div", {style:subHeaderStyle}, "View"),
     viewToggle,
     highlightControls
   );
 
   var displayContent = h(React.Fragment, null,
-    h("div", {style:subHeaderStyle}, "View"),
     viewToggle,
     highlightControls,
     h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),
@@ -22231,21 +22333,23 @@ window.CreatorSidebar = function CreatorSidebar() {
 
     var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
     var ps = app.previewStats;
+    var cw = gen.convertW != null ? gen.convertW : ctx.sW;
+    var ch = gen.convertH != null ? gen.convertH : ctx.sH;
 
     // ═══ Size ══════════════════════════════════════════════════════════════
     var sizeSec = sec("size", null, null,
       window.CreatorSizeField ? h(window.CreatorSizeField, {
-        sW: ctx.sW, sH: ctx.sH, chgW: ctx.chgW, chgH: ctx.chgH, arLock: ctx.arLock, setArLock: ctx.setArLock, ar: ctx.ar,
+        sW: cw, sH: ch, chgW: ctx.chgW, chgH: ctx.chgH, arLock: ctx.arLock, setArLock: ctx.setArLock, ar: ctx.ar,
         fabricCt: ctx.fabricCt, origW: gen.origW, origH: gen.origH
       }) : null,
       hint("Between 10 and 500 stitches each way."),
-      (ctx.sW > 250 || ctx.sH > 250) && note("info", "Large pattern: 15 to 25 threads keep generation fast and the result clean.")
+      (cw > 250 || ch > 250) && note("info", "Large pattern: 15 to 25 threads keep generation fast and the result clean.")
     );
     var fabricSec = sec("fabric", null, null,
       h(window.CreatorFabricBlock, {
         fabricCt: ctx.fabricCt, setFabricCt: ctx.setFabricCt,
         fabricColour: app.fabricColour, setFabricColour: app.setFabricColour,
-        sW: ctx.sW, sH: ctx.sH
+        sW: cw, sH: ch
       }),
       hint("Skein estimates assume 2 strands and 8 m per skein.")
     );
@@ -22467,7 +22571,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // The finished chart's count (after look-alike separation and the thread limit).
     var confettiNow = ps ? (ps.confettiFinalSingles != null ? ps.confettiFinalSingles
       : ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
-    var warning = sc2.enabled ? cleanupWarning(ctx.sW, ctx.sH, gen.orphans, ps) : null;
+    var warning = sc2.enabled ? cleanupWarning(cw, ch, gen.orphans, ps) : null;
     var stepsSec = sec("style", "Detail and tidiness",
       "More detail keeps every shade and small shape, with the most confetti stitches (single stitches of a colour on their own; slow to stitch). Balanced merges most of them and keeps outlines. Tidier merges nearly all. Easiest to stitch gives big blocks of colour.",
       seg({ label: "Detail and tidiness", attr: "data-stitch-style", className: "cv-seg--grid stitch-style__seg", value: styleNow,
@@ -22625,7 +22729,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : null;
     var summary = gen.exactPixelArt
       ? "Exact pixel art · one stitch per pixel"
-      : [typeLabel || "Your defaults", ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
+      : [typeLabel || "Your defaults", cw + " × " + ch + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
          window.STITCH_STYLE_LABELS && window.STITCH_STYLE_LABELS[styleNow] ? window.STITCH_STYLE_LABELS[styleNow] : "Custom detail"].join(" · ");
     var editCount = (cv.editHistory && cv.editHistory.length) || 0;
     var chartState = ctx.pat ? app.convertChartState : null;
@@ -23102,7 +23206,8 @@ window.CreatorContextMenu = function CreatorContextMenu() {
    editing tips then appear one at a time as before.
 
    Reads AppContext (readyBarOpen, setReadyBarOpen, printPdf,
-   handleOpenInTracker, setTab, setMaterialsTab) and PatternDataContext.
+   handleOpenInTracker, navigateToTab, setMaterialsTab), PatternDataContext and
+   CanvasContext.
    Concatenated into creator/bundle.js before PatternTab.js, which renders it. */
 
 (function () {
@@ -23120,36 +23225,96 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   }
   window.creatorReadySummary = readySummary;
 
+  function readySaveState(saveStatus, savedAt) {
+    if (saveStatus === "error" || saveStatus === "conflict") {
+      return { state: "error", text: "Couldn't save on this device" };
+    }
+    if (saveStatus === "pending" || saveStatus === "saving") {
+      return { state: "saving", text: "Saving on this device\u2026" };
+    }
+    if (saveStatus === "saved" || (saveStatus === "idle" && savedAt)) {
+      return { state: "saved", text: "Saved on this device" };
+    }
+    if (!saveStatus && savedAt) {
+      return { state: "saved", text: "Saved on this device" };
+    }
+    return { state: "saving", text: "Saving on this device\u2026" };
+  }
+  window.creatorReadySaveState = readySaveState;
+
   window.CreatorReadyBar = function CreatorReadyBar() {
     var app = window.useApp();
     var ctx = window.usePatternData();
+    var cv = window.useCanvas();
     if (!app.readyBarOpen || !ctx.pat || !ctx.pal) return null;
     var Icons = window.Icons || {};
+    var compact = app.compact;
+    var coarse = !!(window.Platform && typeof window.Platform.isCoarsePointer === "function" && window.Platform.isCoarsePointer());
+    var canPaint = cv.drawMode && cv.activeTool === "paint" && cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
+    var nextStep = canPaint
+      ? (coarse ? "Tap a square to change it." : "Click a square to change it.")
+      : "Choose a thread, then select Paint.";
     var s = readySummary(ctx.sW, ctx.sH, ctx.pal, ctx.totalSkeins);
+    var save = readySaveState(app.saveStatus, app.savedAt);
+    var isError = save.state === "error";
     function close() { app.setReadyBarOpen(false); }
     function then(fn) { return function () { close(); fn(); }; }
+    function openPaletteAndFocus() {
+      if (app.setSidebarTab) app.setSidebarTab("palette");
+      if (app.setPanelOpen) app.setPanelOpen(true);
+      var focusFirst = function () {
+        var row = document.querySelector(".pal-rows .pal-row");
+        if (row && typeof row.focus === "function") row.focus();
+      };
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(function () { setTimeout(focusFirst, 0); });
+      } else {
+        setTimeout(focusFirst, 0);
+      }
+    }
     var fromTracker = !!app.pictureFromTracker;
     function trackBtn(primary) {
       return app.handleOpenInTracker ? h("button", { key: "track", type: "button", className: "btn btn-sm" + (primary ? " btn-primary" : ""), onClick: then(app.handleOpenInTracker) },
         Icons.pointing ? Icons.pointing() : null, h("span", null, "Open in Tracker")) : null;
     }
-    return h("section", { className: "ready-bar", role: "region", "aria-label": "Your pattern is ready" },
-      h("span", { className: "ready-bar__icon", "aria-hidden": "true" }, Icons.check ? Icons.check() : null),
+    var chooseThreadBtn = h("button", {
+      key: "choose-thread",
+      type: "button",
+      className: "btn btn-sm" + (!compact && !fromTracker ? " btn-primary" : ""),
+      onClick: openPaletteAndFocus
+    }, Icons.palette ? Icons.palette() : (Icons.thread ? Icons.thread() : null), h("span", null, "Choose a thread"));
+    var saveLine = save.state === "saved"
+      ? (save.text + (fromTracker ? "; Open in Tracker to start stitching it." : "."))
+      : (save.state === "saving" ? save.text : save.text + ".");
+    return h("section", { className: "ready-bar" + (isError ? " ready-bar--error" : ""), role: "region", "aria-label": "Your pattern is ready" },
+      h("span", { className: "ready-bar__icon", "aria-hidden": "true" },
+        isError ? (Icons.warning ? Icons.warning() : null) : (Icons.check ? Icons.check() : null)),
       h("div", { className: "ready-bar__text" },
         h("strong", { className: "ready-bar__title" }, "Your pattern is ready"),
-        h("span", { className: "ready-bar__summary", "data-ready-summary": "" }, s.text + ". It is saved in your library" + (fromTracker ? "; Open in Tracker to start stitching it." : ".")),
+        h("span", { className: "ready-bar__summary", "data-ready-summary": "" },
+          s.text + ". ",
+          h("span", { className: "ready-bar__save-status", "data-ready-save-status": save.state, role: isError ? "alert" : "status" }, saveLine)),
+        h("span", { className: "ready-bar__next", "data-ready-next": "" }, nextStep),
+        isError && h("span", { className: "ready-bar__save-actions" },
+          app.retryAutoSave ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.retryAutoSave(); } },
+            Icons.refresh ? Icons.refresh() : null, h("span", null, "Retry")) : null,
+          app.saveProject ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.saveProject(); } },
+            Icons.save ? Icons.save() : null, h("span", null, "Download project (.json)")) : null),
         h("span", { className: "ready-bar__links" },
-          h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
+          (Number(ctx.totalStitchable) || 0) > 0 && h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.navigateToTab("materials"); }) }, "Ready to stitch review"),
           s.blends > 0 && window.openBlendHelp && window.BLEND_HELP
             ? h("button", { type: "button", className: "ready-bar__link", onClick: function () { window.openBlendHelp(); } }, window.BLEND_HELP.title)
             : null)),
       h("div", { className: "ready-bar__actions" },
-        // A picture sent from the Tracker goes back there to be stitched.
-        fromTracker && trackBtn(true),
-        app.printPdf && h("button", { type: "button", className: "btn btn-sm" + (fromTracker ? "" : " btn-primary"), onClick: then(app.printPdf) },
+        // On desktop, Print PDF and Open in Tracker live in the ActionBar only;
+        // on phones (no ActionBar) the Ready bar keeps them. Pictures from the
+        // Tracker keep Open in Tracker first and primary everywhere.
+        compact && fromTracker && trackBtn(true),
+        chooseThreadBtn,
+        compact && app.printPdf && h("button", { key: "print", type: "button", className: "btn btn-sm" + (fromTracker ? "" : " btn-primary"), onClick: then(app.printPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")),
-        !fromTracker && trackBtn(false),
-        h("button", { type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.setTab("materials"); }) },
+        compact && !fromTracker && trackBtn(false),
+        h("button", { key: "threads", type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.navigateToTab("materials"); }) },
           Icons.thread ? Icons.thread() : null, h("span", null, "Threads to buy"))),
       h("button", { type: "button", className: "ready-bar__close", onClick: close, "aria-label": "Close: keep editing", title: "Close" },
         Icons.x ? Icons.x() : null));
@@ -23221,7 +23386,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     // Navigate (audit DRAW-01) — same wording as the Tracker's Navigate mode.
     statusText = coarse
       ? "Drag to pan \u00B7 Tap a stitch to see its thread \u00B7 Press and hold for more options \u00B7 Choose Draw to edit"
-      : "Navigate \u2014 drag to pan the chart. Right-click a stitch for its menu. Press H or choose Draw to edit.";
+      : "Drag to pan. Choose Paint, Fill or Erase (P, F, 5) to change stitches.";
   } else if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "text") {
@@ -23279,9 +23444,33 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:6,background:"var(--surface-tertiary)",padding:"6px 10px",borderRadius:'var(--radius-md)'}
     }, "To see symbols, you may need to zoom in."),
 
-    ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',textAlign:"center"}
-    }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
+    ctx.isScratchMode && (Number(ctx.totalStitchable) || 0) === 0 && (function() {
+      var hasThreads = !!(ctx.displayPal && ctx.displayPal.length > 0);
+      var activeThread = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
+      var threadName = activeThread
+        ? (typeof formatThread === "function" ? formatThread(activeThread) : (activeThread.name ? activeThread.id + " " + activeThread.name : activeThread.id))
+        : "";
+      return h("div", {
+        className: "scratch-empty-hint",
+        style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-2)',flexWrap:"wrap"}
+      },
+        activeThread
+          ? h("span", null, cv.drawMode && cv.activeTool === "paint"
+              ? (coarse ? "Tap a square to stitch with " : "Click a square to stitch with ") + threadName
+              : "Select Paint to stitch with " + threadName)
+          : h(React.Fragment, null,
+              h("span", null, hasThreads ? "Choose a working thread" : "Choose your first thread"),
+              h("button", {
+                type: "button",
+                className: "btn btn-sm",
+                onClick: function() {
+                  if (app.setSidebarTab) app.setSidebarTab("palette");
+                  if (app.setPanelOpen) app.setPanelOpen(true);
+                }
+              }, "Open Palette")
+            )
+      );
+    })(),
 
     window.CreatorReadyBar && h(window.CreatorReadyBar, null),
 
@@ -23333,10 +23522,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     ),
 
     h(window.MagicWandPanel, null),
-
-    ctx.pat && !app.readyBarOpen && !app.coachTipActive && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
-      h("button", {type:"button", className:"btn btn-sm", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
-      h("span", {style:{marginLeft:"var(--s-2)",color:"var(--text-secondary)"}}, "Compare the current chart, stitch preview, size and material assumptions before buying.")),
 
     gen.disambig && (function() {
       var hasResult = gen.disambigData != null;
@@ -25641,7 +25826,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   });
   tabs.push({
     id: "materials", label: "Materials", icon: Icons.layers,
-    active: currentTab === "materials",
+    active: appMode === "edit" && currentTab === "materials",
     disabled: !hasPat,
     title: hasPat ? "Materials \u2014 thread count, export options" : "Generate a pattern first",
     onClick: !hasPat ? undefined : function() {
@@ -25704,7 +25889,31 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     })
   );
 
-  var trackBtn = hasStitches && (typeof props.onTrackPattern === "function") ? h("button", {
+  var fromTracker = !!props.pictureFromTracker;
+  var printBtn = hasStitches ? h("button", {
+      key: "print",
+      type: "button",
+      className: "creator-actionbar__btn " + (fromTracker ? "creator-actionbar__btn--ghost" : "creator-actionbar__btn--primary"),
+      onClick: props.onPrintPdf,
+      title: "Print to PDF"
+    },
+    Icons.printer ? Icons.printer() : null,
+    h("span", null, "Print PDF")
+  ) : null;
+
+  var trackPrimaryBtn = hasStitches && fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
+      key: "track-primary",
+      type: "button",
+      className: "creator-actionbar__btn creator-actionbar__btn--primary",
+      onClick: props.onTrackPattern,
+      title: "Open this pattern in the Stitch Tracker",
+      "aria-label": "Open in Tracker"
+    },
+    Icons.pointing ? Icons.pointing() : null,
+    h("span", null, "Open in Tracker")
+  ) : null;
+
+  var trackBtn = hasStitches && !fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -25772,15 +25981,8 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
     hasStitches ? h("div", { className: "creator-actionbar__primary" },
-      h("button", {
-          type: "button",
-          className: "creator-actionbar__btn creator-actionbar__btn--primary",
-          onClick: props.onPrintPdf,
-          title: "Print to PDF"
-        },
-        Icons.printer ? Icons.printer() : null,
-        h("span", null, "Print PDF")
-      ),
+      trackPrimaryBtn,
+      printBtn,
       h("div", { className: "creator-actionbar__menu-wrap" },
         h("button", {
             ref: btnRef,

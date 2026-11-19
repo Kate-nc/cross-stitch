@@ -65,7 +65,7 @@ test.describe('Desktop', function() {
   test('opens in Navigate like touch does; choosing Paint switches to Draw (UX-009)', async function({ page }) {
     await generateLogo(page);
     await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.locator('.tb-status')).toContainText('Navigate');
+    await expect(page.locator('.tb-status')).toContainText('Drag to pan. Choose Paint, Fill or Erase (P, F, 5) to change stitches.');
     await expect(page.locator('.tb-mode-toggle')).toHaveCount(0);
     await page.locator('.creator-sidebar-tab[data-tab-id="tools"]').click();
     await expect(page.getByRole('group', { name: 'Chart mode' }).locator('[data-mode="navigate"]')).toHaveAttribute('aria-pressed', 'true');

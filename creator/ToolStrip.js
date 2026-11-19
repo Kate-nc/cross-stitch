@@ -597,12 +597,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:"tb-btn"+(paintOn?" tb-btn--on":""),
         onClick:function(){ pickBrush("paint", paintOn); },
         title:"Paint (P)", "aria-label":"Paint tool", "aria-pressed":paintOn
-      }, "Paint"),
+      }, window.Icons && window.Icons.brush ? window.Icons.brush() : null, "Paint"),
       h("button", {
         className:"tb-btn"+(fillOn?" tb-btn--on":""),
         onClick:function(){ pickBrush("fill", fillOn); },
         title:"Fill (F)", "aria-label":"Fill tool", "aria-pressed":fillOn
-      }, "Fill"),
+      }, window.Icons && window.Icons.bucketPour ? window.Icons.bucketPour() : null, "Fill"),
       h("button", {
         className:"tb-btn"+(eraseOn?" tb-btn--red":""),
         onClick:function(){ if (coarsePointer && eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); },
@@ -643,9 +643,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             // A long-press shows the tooltip; it doesn't also change the colour.
             var press = swatchPressRef.current;
             if (press && press.fired && press.id === p.id) { swatchPressRef.current = null; return; }
-            // Choosing a colour is choosing to edit: leave Navigate (UX-009).
-            if (cv.selectedColorId !== p.id && cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
-            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
+            if (cv.chooseThread) cv.chooseThread(p.id);
+            else cv.setSelectedColorId(p.id);
           },
           onPointerDown: function(e) { swatchPressStart(e, p); },
           onPointerUp: swatchPressEnd,
@@ -1095,7 +1094,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           title: selCol ? formatThread(selCol, {variant: "title"}) : "Choose a colour",
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
         }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}}),
-          h("span", {className:"creator-rail__label"}, "Colour")),
+          h("span", {className:"creator-rail__label"}, selCol ? selCol.id : "Colour")),
         railBtn("undo", "Undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
         morePanelWrap
       )

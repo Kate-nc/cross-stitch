@@ -55,12 +55,12 @@
       coarse: coarse, compact: compact,
       Tap: coarse ? "Tap" : "Click", tap: coarse ? "tap" : "click",
       settings: compact ? "the Settings sheet" : "the panel on the right",
-      actions: compact ? "the More menu at the top" : "the bar at the top",
+      actions: compact ? "the Project menu at the top" : "the bar at the top",
       // The compact bar's button is labelled Generate; on wider screens the
       // button at the foot of the Convert panel reads Generate Pattern.
       generate: compact ? "Generate" : "Generate Pattern",
-      // Phones have no keyboard for "?"; Help is in the top bar's More menu.
-      help: compact ? "Help is in the More menu at the top." : "Press ? at any time for help."
+      // Phones have no keyboard for "?"; Help is in the top bar's Project menu.
+      help: compact ? "Help is in the Project menu at the top." : "Press ? at any time for help."
     };
   }
 

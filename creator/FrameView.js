@@ -151,8 +151,7 @@ window.CreatorReframeButton = function CreatorReframeButton() {
 window.CreatorFrameView = function CreatorFrameView(props) {
   var gen = window.useGeneration();
   var pd = window.usePatternData ? window.usePatternData() : null;
-  // On phones the tour points at the top bar's Continue (CompactBar), the one
-  // on screen; this one is at the foot of the page.
+  // Before Generate on phones, the tour points at Continue in the top bar.
   var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
   var h = React.createElement;
   var Icons = window.Icons || {};
@@ -190,7 +189,8 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   // The background Generate will leave out, striped on the picture while
   // Leave background unstitched is on. Worked out a moment after the last
   // change, so dragging the match slider stays smooth.
-  var sW = pd && pd.sW, sH = pd && pd.sH;
+  var sW = (gen && gen.convertW != null) ? gen.convertW : (pd && pd.sW);
+  var sH = (gen && gen.convertH != null) ? gen.convertH : (pd && pd.sH);
   var bgActive = !!(gen.skipBg && !gen.exactPixelArt && gen.img && gen.img.src && sW && sH);
   var _bgInfo = React.useState(null); var bgInfo = _bgInfo[0], setBgInfo = _bgInfo[1];
   var _showBg = React.useState(true); var showBg = _showBg[0], setShowBg = _showBg[1];
@@ -399,7 +399,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
       h("div", { className: "fr-panel__body" },
         window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
       h("footer", { className: "fr-footer" },
-        h("button", Object.assign(compact ? {} : { "data-onboard": "frame-continue" }, { type: "button", className: "fr-continue", onClick: next }),
+        h("button", { "data-onboard": compact && !hasChart ? undefined : "frame-continue", type: "button", className: "fr-continue", onClick: next },
           h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null),
         h("p", { className: "cs-toolsec__hint fr-footer__note" }, "Reframe, beside your picture, brings you back here."))));
 };

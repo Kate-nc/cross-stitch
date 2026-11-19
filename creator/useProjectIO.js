@@ -32,7 +32,12 @@ var DRAFT_SETTING_KEYS = [
 ];
 function creatorDraftSettings(state) {
   var o = {};
-  DRAFT_SETTING_KEYS.forEach(function(k) { if (state[k] !== undefined) o[k] = state[k]; });
+  DRAFT_SETTING_KEYS.forEach(function(k) {
+    var v = k === 'sW' && state.convertW != null ? state.convertW
+      : k === 'sH' && state.convertH != null ? state.convertH
+      : state[k];
+    if (v !== undefined) o[k] = v;
+  });
   if (o.bgTh !== undefined) o.bgThUnit = 'de2000';
   return o;
 }

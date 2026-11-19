@@ -77,6 +77,52 @@ describe('SaveStatus.createSaveController', () => {
     expect(fresh).toHaveBeenCalledTimes(1);
   });
 
+  test('a completed write leaves a newer debounced revision pending', async () => {
+    const { calls, callbacks } = makeRecorder();
+    const ctrl = SaveStatus.createSaveController(callbacks);
+    let finishOld;
+    ctrl.schedule(() => new Promise(resolve => { finishOld = resolve; }));
+    const old = ctrl.flush();
+    const latest = jest.fn().mockResolvedValue('latest');
+    ctrl.schedule(latest);
+
+    finishOld('old');
+    await old;
+    expect(latest).not.toHaveBeenCalled();
+    expect(calls.status).toEqual(['pending', 'saving', 'pending']);
+    expect(calls.savedAt).toHaveLength(0);
+
+    jest.advanceTimersByTime(1000);
+    await ctrl.flush();
+    expect(calls.status).toEqual(['pending', 'saving', 'pending', 'saving', 'saved']);
+    expect(calls.savedAt).toHaveLength(1);
+  });
+
+  test('flush waits for an in-flight write and starts the latest queued revision', async () => {
+    const { calls, callbacks } = makeRecorder();
+    const ctrl = SaveStatus.createSaveController(callbacks);
+    let finishOld;
+    let finishLatest;
+    ctrl.schedule(() => new Promise(resolve => { finishOld = resolve; }));
+    const old = ctrl.flush();
+    const latest = jest.fn(() => new Promise(resolve => { finishLatest = resolve; }));
+    ctrl.schedule(latest);
+
+    jest.advanceTimersByTime(1000);
+    expect(ctrl.isPending()).toBe(true);
+    const flushed = ctrl.flush();
+    expect(latest).not.toHaveBeenCalled();
+
+    finishOld('old');
+    await old;
+    expect(latest).toHaveBeenCalledTimes(1);
+    expect(calls.status.at(-1)).toBe('saving');
+
+    finishLatest('latest');
+    await expect(flushed).resolves.toBe('latest');
+    expect(calls.status.at(-1)).toBe('saved');
+  });
+
   test('error path: rejected save sets status=error and reports the error', async () => {
     const { calls, callbacks } = makeRecorder();
     const ctrl = SaveStatus.createSaveController(callbacks, { debounceMs: 1000 });

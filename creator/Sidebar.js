@@ -132,7 +132,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     }
 
     var chips = displayPal.map(function(p) {
-      var ips = isPaintMode && cv.selectedColorId === p.id;
+      var isSelected = cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
       var isUnused = app.appMode === "edit" && p.count === 0;
       var stashStatus = stashStatusForChip(p);
@@ -147,20 +147,20 @@ window.CreatorSidebar = function CreatorSidebar() {
       // The one thread label and the strands and skeins this symbol takes (UX-013, UX-014).
       var keyRow = window.threadKeyRow ? window.threadKeyRow(p, { fabricCount: fabricCtForStash }) : null;
       function choose() {
-        if (isPaintMode) {
-          cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
-        } else {
-          cv.setHiId(cv.hiId === p.id ? null : p.id);
-        }
+        if (cv.chooseThread) cv.chooseThread(p.id);
+        else cv.setSelectedColorId(p.id);
       }
+      var withTip = function(tipText, el) {
+        return typeof Tooltip !== "undefined" ? h(Tooltip, { text: tipText, width: 170 }, el) : el;
+      };
       return h("div", {
         key: p.id,
         role: "button",
         tabIndex: 0,
-        "aria-pressed": ips || ihs,
+        "aria-pressed": isSelected,
         "aria-label": (window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p)) + (keyRow && keyRow.usageTitle ? ". " + keyRow.usageTitle : ""),
         title: keyRow ? keyRow.title : undefined,
-        className: "pal-row" + (ips ? " pal-row--selected" : ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
+        className: "pal-row" + (isSelected ? " pal-row--selected" : "") + (ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
         "data-colour-id": p.id,
         onClick: choose,
         onKeyDown: function(e) {
@@ -183,16 +183,27 @@ window.CreatorSidebar = function CreatorSidebar() {
           "aria-label": "Stash status: " + stashStatus,
           style: { background: STASH_DOT[stashStatus] }
         }),
-        app.appMode === "edit" && h("button", {
+        app.appMode === "edit" && withTip(ihs ? "Stop showing on chart" : "Show on chart", h("button", {
+          type: "button",
+          className: "pal-row__btn pal-row__btn--hi" + (ihs ? " pal-row__btn--on" : ""),
+          title: ihs ? "Stop showing on chart" : "Show on chart",
+          "aria-label": "Show on chart \u2014 " + formatThread(p),
+          "aria-pressed": ihs ? "true" : "false",
+          onClick: function(e) {
+            e.stopPropagation();
+            cv.setHiId(cv.hiId === p.id ? null : p.id);
+          }
+        }, Icons.eye ? Icons.eye() : null)),
+        app.appMode === "edit" && withTip("Change symbol", h("button", {
           type: "button",
           className: "pal-row__btn",
           title: "Change symbol",
           "aria-label": "Change symbol for " + formatThread(p),
           "aria-expanded": symbolPickerFor === p.id ? "true" : "false",
           onClick: function(e) { e.stopPropagation(); setSymbolPickerFor(symbolPickerFor === p.id ? null : p.id); }
-        }, Icons.symbols ? Icons.symbols() : null),
+        }, Icons.symbols ? Icons.symbols() : null)),
         // Colour swap button
-        app.appMode === "edit" && h("button", {
+        app.appMode === "edit" && withTip("Replace colour", h("button", {
           key: "swap-" + p.id,
           type: "button",
           className: "pal-row__btn pal-chip-swap",
@@ -202,7 +213,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             e.stopPropagation();
             cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
           }
-        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null),
+        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)),
         isUnused && h("button", {
           type: "button",
           className: "pal-row__btn",
@@ -220,7 +231,12 @@ window.CreatorSidebar = function CreatorSidebar() {
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("span", {"aria-hidden":"true",style:{color:"var(--text-tertiary)",display:"inline-flex",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, Icons.chevronRight()),
-          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "In this pattern")
+          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "In this pattern"),
+          app.appMode === "edit" && typeof InfoIcon !== "undefined" && h(InfoIcon, {
+            label: "Palette",
+            width: 260,
+            text: "Use Change symbol beside a thread to choose a different chart symbol. Strands and skeins are for each symbol on its own; Materials adds up the threads that several symbols share."
+          })
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           app.appMode === "edit" && unusedCount > 0 && h("button", {
@@ -237,10 +253,10 @@ window.CreatorSidebar = function CreatorSidebar() {
               cv.selectAll();
               cv.setWandPanel("reduce");
             },
-            title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
+            title: "Select all stitches and open Simplify colours to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
+          window.creatorThreadCounts(displayPal).threads > 0 && h("span", {className:"palette-counts", title:"Threads used in stitches", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
           symbolLimitMsg && h("span", {
             className: "palette-counts-warn", role: "img",
             title: symbolLimitMsg,
@@ -250,9 +266,6 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
-      app.appMode === "edit" && h("p", {className:"convert-first-use"}, "Use Change symbol beside a thread to choose a different chart symbol."),
-      // What the strands and skeins on each row mean, and what a blend is (UX-013, UX-014).
-      displayPal.length > 0 && h("p", {className:"convert-first-use pal-key-note"}, "Strands and skeins are for each symbol on its own. Materials adds up the threads that several symbols share."),
       window.BlendHelpNote && window.creatorThreadCounts(displayPal).blends > 0 && h(window.BlendHelpNote, null),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
@@ -1312,13 +1325,11 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   var subHeaderStyle = {padding:"10px 12px 2px",fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5};
   var viewContent = h(React.Fragment, null,
-    h("div", {style:subHeaderStyle}, "View"),
     viewToggle,
     highlightControls
   );
 
   var displayContent = h(React.Fragment, null,
-    h("div", {style:subHeaderStyle}, "View"),
     viewToggle,
     highlightControls,
     h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),

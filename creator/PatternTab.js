@@ -61,7 +61,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     // Navigate (audit DRAW-01) — same wording as the Tracker's Navigate mode.
     statusText = coarse
       ? "Drag to pan \u00B7 Tap a stitch to see its thread \u00B7 Press and hold for more options \u00B7 Choose Draw to edit"
-      : "Navigate \u2014 drag to pan the chart. Right-click a stitch for its menu. Press H or choose Draw to edit.";
+      : "Drag to pan. Choose Paint, Fill or Erase (P, F, 5) to change stitches.";
   } else if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "text") {
@@ -119,9 +119,33 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:6,background:"var(--surface-tertiary)",padding:"6px 10px",borderRadius:'var(--radius-md)'}
     }, "To see symbols, you may need to zoom in."),
 
-    ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',textAlign:"center"}
-    }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
+    ctx.isScratchMode && (Number(ctx.totalStitchable) || 0) === 0 && (function() {
+      var hasThreads = !!(ctx.displayPal && ctx.displayPal.length > 0);
+      var activeThread = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
+      var threadName = activeThread
+        ? (typeof formatThread === "function" ? formatThread(activeThread) : (activeThread.name ? activeThread.id + " " + activeThread.name : activeThread.id))
+        : "";
+      return h("div", {
+        className: "scratch-empty-hint",
+        style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-2)',flexWrap:"wrap"}
+      },
+        activeThread
+          ? h("span", null, cv.drawMode && cv.activeTool === "paint"
+              ? (coarse ? "Tap a square to stitch with " : "Click a square to stitch with ") + threadName
+              : "Select Paint to stitch with " + threadName)
+          : h(React.Fragment, null,
+              h("span", null, hasThreads ? "Choose a working thread" : "Choose your first thread"),
+              h("button", {
+                type: "button",
+                className: "btn btn-sm",
+                onClick: function() {
+                  if (app.setSidebarTab) app.setSidebarTab("palette");
+                  if (app.setPanelOpen) app.setPanelOpen(true);
+                }
+              }, "Open Palette")
+            )
+      );
+    })(),
 
     window.CreatorReadyBar && h(window.CreatorReadyBar, null),
 
@@ -173,10 +197,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     ),
 
     h(window.MagicWandPanel, null),
-
-    ctx.pat && !app.readyBarOpen && !app.coachTipActive && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
-      h("button", {type:"button", className:"btn btn-sm", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
-      h("span", {style:{marginLeft:"var(--s-2)",color:"var(--text-secondary)"}}, "Compare the current chart, stitch preview, size and material assumptions before buying.")),
 
     gen.disambig && (function() {
       var hasResult = gen.disambigData != null;

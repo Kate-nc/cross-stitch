@@ -717,6 +717,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
 
   const stableSaveProject         = React.useCallback(function()  {_ioRef.current.saveProject();},         []);
   const stableDoSaveProject       = React.useCallback(function(n) {_ioRef.current.doSaveProject(n);},      []);
+  const stableRetryAutoSave       = React.useCallback(function()  {if(_ioRef.current&&_ioRef.current.retryAutoSave)_ioRef.current.retryAutoSave();}, []);
   const stableHandleFile          = React.useCallback(function(e) {_ioRef.current.handleFile(e);},         []);
   const stableLoadProject         = React.useCallback(function(e) {_ioRef.current.loadProject(e);},        []);
   const stableHandleOpenInTracker = React.useCallback(function()  {_nameNudgeRef.current('track');}, []);
@@ -834,18 +835,48 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   };
   const stableCropToStitches = useCallback(function(){ cropToStitchesRef.current(); }, []);
 
-  const handleRequestBackToConvert = React.useCallback(function() {
-    if (state.editHistory && state.editHistory.length > 0) {
-      state.setConfirmBackToConvert(true);
-    } else {
-      state.setAppMode("create");
-      state.setTab("pattern");
+  const savedChartScrollRef = React.useRef(null);
+  React.useEffect(function() {
+    savedChartScrollRef.current = null;
+  }, [state.lastGenSnapshot]);
+  React.useEffect(function() {
+    if (state.appMode !== "edit" || state.tab !== "pattern" || !state.pat) return;
+    var pos = savedChartScrollRef.current;
+    if (!pos) return;
+    savedChartScrollRef.current = null;
+    function apply() {
+      var el = state.scrollRef && state.scrollRef.current;
+      if (!el) return;
+      el.scrollLeft = pos.left;
+      el.scrollTop = pos.top;
     }
-  }, [state.editHistory, state.setConfirmBackToConvert, state.setAppMode, state.setTab]);
+    apply();
+    var raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame(apply) : null;
+    return function() { if (raf != null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(raf); };
+  }, [state.appMode, state.tab, state.pat, state.scrollRef]);
+
+  const handleRequestBackToConvert = React.useCallback(function() {
+    if (state.appMode === "edit" && state.tab === "pattern" && state.scrollRef && state.scrollRef.current) {
+      savedChartScrollRef.current = { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop };
+    }
+    state.setAppMode("create");
+    state.setTab("pattern");
+  }, [state.appMode, state.tab, state.setAppMode, state.setTab, state.scrollRef]);
+
+  const handleTabChange = React.useCallback(function(t) {
+    if (state.appMode === "edit" && state.tab === "pattern" && t !== "pattern" && state.scrollRef && state.scrollRef.current) {
+      savedChartScrollRef.current = { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop };
+    }
+    if (state.pat && state.pal && state.appMode !== "edit") {
+      state.setAppMode("edit");
+    }
+    state.setTab(t);
+  }, [state.appMode, state.tab, state.pat, state.pal, state.setAppMode, state.setTab, state.scrollRef]);
 
   // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
   const genCtx = useMemo(function() { return {
     img: state.img, setImg: state.setImg,
+    convertW: state.convertW, convertH: state.convertH,
     isUploading: state.isUploading, setIsUploading: state.setIsUploading,
     isDragging: state.isDragging, setIsDragging: state.setIsDragging,
     maxC: state.maxC, setMaxC: state.setMaxC,
@@ -915,7 +946,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     convertStage: state.convertStage, setConvertStage: state.setConvertStage,
     srcClick: stableSrcClick,
   }; }, [
-    state.img, state.isUploading, state.isDragging,
+    state.img, state.convertW, state.convertH, state.isUploading, state.isDragging,
     state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
     state.keepColours, state.pickKeep, state.keepUnavailable, state.keepOverLimit, state.addKeepColourById,
@@ -940,7 +971,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     requestBackToConvert: handleRequestBackToConvert,
     sidebarTab: state.sidebarTab, setSidebarTab: state.setSidebarTab,
     lastGenSnapshot: state.lastGenSnapshot, convertChartState: convertChartState,
-    tab: state.tab, setTab: state.setTab,
+    tab: state.tab, setTab: state.setTab, navigateToTab: handleTabChange,
     materialsTab: state.materialsTab, setMaterialsTab: state.setMaterialsTab,
     modal: state.modal, setModal: state.setModal,
     sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
@@ -994,10 +1025,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     previewHighlight: state.previewHighlight, setPreviewHighlight: state.setPreviewHighlight,
     previewTimerRef: state.previewTimerRef,
     saveProject: stableSaveProject, doSaveProject: stableDoSaveProject,
+    saveStatus: state.saveStatus, savedAt: state.savedAt, saveError: state.saveError,
+    retryAutoSave: stableRetryAutoSave,
     handleFile: stableHandleFile, loadProject: stableLoadProject,
     handleOpenInTracker: stableHandleOpenInTracker, printPdf: stablePrintPdf,
     pictureFromTracker: !!window.__creatorPictureFromTracker,
-    readyBarOpen: state.readyBarOpen, setReadyBarOpen: state.setReadyBarOpen, coachTipActive: coachTipActive,
+    readyBarOpen: state.readyBarOpen, setReadyBarOpen: state.setReadyBarOpen, coachTipActive: coachTipActive, compact: _compact,
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
     cropToStitches: stableCropToStitches,
     isScratchMode: state.isScratchMode,
@@ -1005,7 +1038,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     setTracePicture: io.setTracePicture, removeTracePicture: io.removeTracePicture,
     isActive: isActive,
   }; }, [
-    _sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive,
+    _sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, _compact, handleTabChange,
+    state.saveStatus, state.savedAt, state.saveError,
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot, convertChartState,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
@@ -1040,6 +1074,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     brushMode: state.brushMode, setBrushMode: state.setBrushMode, brushModeRef: state.brushModeRef,
     brushSize: state.brushSize, setBrushSize: state.setBrushSize,
     selectedColorId: state.selectedColorId, setSelectedColorId: state.setSelectedColorId,
+    chooseThread: state.chooseThread,
     view: state.view, setView: state.setView,
     zoom: state.zoom, setZoom: state.setZoom,
     hiId: state.hiId, setHiId: state.setHiId,
@@ -1164,7 +1199,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   }; }, [
     state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet,
     state.activeTool, state.drawMode, state.penNavigation, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize,
-    state.selectedColorId, state.view, state.zoom,
+    state.selectedColorId, state.chooseThread, state.view, state.zoom,
     state.hiId, state.showCtr, state.showOverlay, state.showStitched, state.overlayOpacity,
     state.highlightMode, state.bgDimOpacity, state.hiAdvanced,
     state.bgDimDesaturation, state.dimFraction, state.dimHiId,
@@ -1423,7 +1458,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         }
         io.loadProject(e);
       }} style={{display:"none"}}/>
-      <Header page={state.appMode==='edit'?'editor':'creator'} tab={state.tab} onPageChange={state.setTab}
+      <Header page={state.appMode==='edit'?'editor':'creator'} tab={state.tab} onPageChange={handleTabChange}
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?stableHandleOpenInTracker:null}
@@ -1555,10 +1590,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         canRename={!!(state.pat&&state.pal)||!!_convertName}
         saveStatus={state.saveStatus}
         savedAt={state.savedAt}
-        onTabChange={function(t){state.setTab(t);}}
+        onTabChange={handleTabChange}
         onRequestBackToConvert={handleRequestBackToConvert}
         onPrintPdf={printPdfWithNameNudge}
         onTrackPattern={stableHandleOpenInTracker}
+        pictureFromTracker={!!window.__creatorPictureFromTracker}
         onSaveJson={io.saveProject}
         onMoreExports={()=>_nameNudgeRef.current('exports')}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
@@ -1587,10 +1623,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         appMode={state.appMode}
         tab={state.tab}
         pat={!!(state.pat&&state.pal)}
-        onTabChange={function(t){state.setTab(t);}}
+        onTabChange={handleTabChange}
         onRequestBackToConvert={handleRequestBackToConvert}
         onPrintPdf={printPdfWithNameNudge}
         onTrackPattern={stableHandleOpenInTracker}
+        pictureFromTracker={!!window.__creatorPictureFromTracker}
         onSaveJson={io.saveProject}
         onMoreExports={()=>_nameNudgeRef.current('exports')}
         hasImage={!!(state.img&&state.img.src)&&!state.isScratchMode}
@@ -1686,7 +1723,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     counts, side by side; choosing one applies it. */}
                 {state.previewUrl&&window.CreatorCompareStrip&&<window.CreatorCompareStrip
                   img={state.img} settings={state.conversionSettings}
-                  sW={state.sW} sH={state.sH} maxC={state.maxC} arLock={state.arLock} ar={state.ar}
+                  sW={state.convertW} sH={state.convertH} maxC={state.maxC} arLock={state.arLock} ar={state.ar}
                   stitchSpeed={state.stitchSpeed} compact={_compact}
                   paletteFor={state.convertPaletteFor}
                   onApply={function(v){
@@ -1711,19 +1748,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         {state.modal==="help"&&<SharedModals.Help defaultTab="creator" onClose={()=>state.setModal(null)} />}
         {state.modal==="about"&&<SharedModals.About onClose={()=>state.setModal(null)} />}
         {state.modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>state.setModal(null)} />}
-        {/* ── Edit → Convert warning modal ── */}
-        {state.confirmBackToConvert&&<div role="dialog" aria-modal="true" aria-label="Switch to Convert?" style={{position:"fixed",inset:0,zIndex:1900,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-          <div style={{background:"var(--surface)",borderRadius:"var(--radius-md)",padding:24,maxWidth:400,width:"100%",boxShadow:"0 8px 32px rgba(0,0,0,0.18)"}}>
-            <div style={{fontSize:"var(--text-md,14px)",fontWeight:700,color:"var(--text-primary)",marginBottom:8}}>Switch to Convert?</div>
-            <div style={{fontSize:"var(--text-sm,13px)",color:"var(--text-secondary)",marginBottom:20,lineHeight:1.5}}>
-              {"Your "+(state.editHistory?state.editHistory.length:0)+" manual "+(state.editHistory&&state.editHistory.length===1?"edit is":"edits are")+" already saved to this project. Going to Convert clears the undo history, and running Generate again will replace the current pattern."}
-            </div>
-            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button onClick={()=>state.setConfirmBackToConvert(false)} style={{padding:"7px 14px",fontSize:13,fontWeight:500,border:"1px solid var(--line)",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontFamily:"inherit"}}>Stay in Edit</button>
-              <button onClick={()=>{state.setConfirmBackToConvert(false);state.setAppMode("create");state.setTab("pattern");}} style={{padding:"7px 14px",fontSize:13,fontWeight:600,border:"none",borderRadius:"var(--radius-sm)",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontFamily:"inherit"}}>Go to Convert</button>
-            </div>
-          </div>
-        </div>}
       </div>
       {/* Generating: the stage, a progress bar and Cancel (audit IMG-07). */}
       {state.busy&&window.CreatorGenerateProgress&&<window.CreatorGenerateProgress stage={state.progressStage} onCancel={state.cancelGenerate} cancellable={state.generateCancellable}/>}

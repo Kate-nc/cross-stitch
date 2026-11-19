@@ -50,8 +50,10 @@ describe('Navigate hides the tool from the rest of the Creator', () => {
   test('the mode is not saved: every visit starts in Navigate', () => {
     expect(stateSrc).not.toMatch(/UserPrefs\.set\("creator\.drawMode"/);
   });
-  test('picking a colour swatch in the tool strip switches to Draw', () => {
-    expect(loadSource('creator/ToolStrip.js')).toMatch(/cv\.selectedColorId !== p\.id && cv\.setDrawMode && !cv\.drawMode\) cv\.setDrawMode\(true\);/);
+  test('picking a colour swatch in the tool strip delegates to chooseThread (mouse switches to Draw, touch stays in Navigate)', () => {
+    expect(loadSource('creator/ToolStrip.js')).toMatch(/cv\.chooseThread\(p\.id\)/);
+    expect(stateSrc).toMatch(/var chooseThread = useCallback\(function\(id\)/);
+    expect(stateSrc).toMatch(/if \(!coarse\) \{[\s\S]{0,600}setDrawMode\(true\);/);
   });
 });
 

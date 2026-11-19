@@ -174,7 +174,7 @@ describe('gridPixels', () => {
 describe('every picture-to-stitches path uses gridPixels', () => {
   test.each([
     ['creator/generate.js', /var raw = gridPixels\(img, sW, sH, \{ crisp: !!opts\.crispEdges \}\)\.data;/],
-    ['creator/useCreatorState.js', /imageData = gridPixels\(img, sW, sH, \{ crisp: crispEdges \}\)/],
+    ['creator/useCreatorState.js', /imageData = gridPixels\(img, convertW, convertH, \{ crisp: crispEdges \}\)/],
     ['creator/useCreatorState.js', /_gcxImgData = gridPixels\(img, gw, gh, \{ crisp: crispEdges \}\)/],
     ['creator/usePreview.js', /gridPixels\(img, pw, ph, \{ crisp: crisp \}\)/],
     ['creator/CompareStrip.js', /gridPixels\(img, pw, ph, \{ crisp: !!s\.crispEdges \}\)/],
@@ -188,7 +188,7 @@ describe('every picture-to-stitches path uses gridPixels', () => {
   // goes to the pipeline too, which sharpens the stitches (sharpenStitches).
   test.each([
     ['creator/generate.js', /var raw = gridPixels\(img, sW, sH, \{ crisp: !!opts\.crispEdges \}\)\.data;/, /bri: bri, con: con, sat: sat, preSharpen: !!opts\.preSharpen, preSharpenAmount: opts\.preSharpenAmount,\n    maxC: maxC/],
-    ['creator/useCreatorState.js', /imageData = gridPixels\(img, sW, sH, \{ crisp: crispEdges \}\);/, /settings: \{\n          bri: bri, con: con, sat: sat,[\s\S]*?preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,\n        \}/],
+    ['creator/useCreatorState.js', /imageData = gridPixels\(img, convertW, convertH, \{ crisp: crispEdges \}\);/, /settings: \{\n          bri: bri, con: con, sat: sat,[\s\S]*?preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,\n        \}/],
     ['creator/useCreatorState.js', /_gcxImgData = gridPixels\(img, gw, gh, \{ crisp: crispEdges \}\);/, /runCleanupPipeline\(rawPx, gw, gh, \{\n          bri: bri, con: con, sat: sat,[\s\S]*?preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,/],
     ['creator/usePreview.js', /gridPixels\(img, pw, ph, \{ crisp: crisp \}\);/, /var o = \{\n          bri: bri, con: con, sat: sat,[\s\S]*?preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,/],
     ['creator/CompareStrip.js', /return gridPixels\(img, pw, ph, \{ crisp: !!s\.crispEdges \}\);/, /preSharpen: !!s\.preSharpen, preSharpenAmount: s\.preSharpenAmount,/],

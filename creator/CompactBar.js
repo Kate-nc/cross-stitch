@@ -91,7 +91,7 @@
         onClick: function () { if (appMode !== "create" && typeof props.onOpenCanvas === "function") props.onOpenCanvas(); } } : null,
       { id: "edit", label: "Edit", icon: Icons.pencil, active: appMode === "edit" && tab === "pattern", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("pattern"); } },
-      { id: "materials", label: "Materials", icon: Icons.layers, active: tab === "materials", disabled: !hasPat,
+      { id: "materials", label: "Materials", icon: Icons.layers, active: appMode === "edit" && tab === "materials", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("materials"); } }
     ].filter(Boolean);
     var modeSwitch = h("div", { className: "cc-modes", role: "tablist", "aria-label": "Creator section" },
@@ -122,14 +122,16 @@
       hasPat ? h("span", {
         className: "cc-save cc-save--" + status.tone, role: "status", "aria-label": status.label, title: status.label
       }, status.icon) : null,
-      // Frame the picture: Continue to the settings, the same as the button
-      // under Frame's settings (creator/FrameView.js listens for it).
-      appMode === "create" && props.hasImage && props.framing ? h("button", {
+      // Keep the section switcher while reframing an existing chart's picture.
+      // Frame has its own Continue button below the picture controls.
+      appMode === "create" && props.hasImage && props.framing && !hasPat ? h("button", {
         type: "button", className: "cc-continue", onClick: props.onContinue, "data-onboard": "frame-continue",
         "aria-label": "Continue", title: "Continue to size, threads and detail"
       }, h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null) :
-      // Convert: Generate stays one tap away (it is also in the settings drawer).
-      appMode === "create" && props.hasImage && sourceTab === "convert" ? h("button", {
+      // Convert (before a chart exists): Generate stays one tap away. Once a
+      // chart exists, keep the Convert / Edit / Materials switcher visible so
+      // the user can always return to Edit or Materials without regenerating.
+      appMode === "create" && props.hasImage && sourceTab === "convert" && !hasPat ? h("button", {
         type: "button", className: "cc-generate",
         "data-onboard": "creator-generate",
         disabled: !!props.generatingPattern,
@@ -139,18 +141,20 @@
       }, props.generatingPattern ? (Icons.spinner ? Icons.spinner() : null) : (Icons.refresh ? Icons.refresh() : null),
         h("span", null, props.generatingPattern ? "Generating\u2026" : hasPat ? "Regenerate" : "Generate")) : modeSwitch,
       h("button", {
-        ref: moreBtnRef, type: "button", className: "cc-btn cc-more",
+        ref: moreBtnRef, type: "button", className: "cc-btn cc-mode cc-more",
         "aria-haspopup": "dialog", "aria-expanded": sheetOpen ? "true" : "false",
-        "aria-label": "More actions", title: "More actions",
+        "aria-label": "Project", title: "Project",
         onClick: function () { setSheetOpen(!sheetOpen); }
-      }, Icons.more ? Icons.more() : Icons.menu())
+      }, Icons.more ? Icons.more() : Icons.menu(), h("span", { className: "cc-mode__label" }, "Project"))
     );
 
     var sheet = sheetOpen ? h(React.Fragment, null,
       h("div", { className: "cc-sheet-backdrop", onClick: close }),
       h("div", { className: "cc-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Pattern actions" },
         h("div", { className: "cc-sheet__handle", "aria-hidden": "true" }),
-        hasStitches ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onPrintPdf) },
+        hasStitches && props.pictureFromTracker ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onTrackPattern) },
+          Icons.pointing ? Icons.pointing() : Icons.chevronRight(), h("span", null, "Open in Tracker")) : null,
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item" + (props.pictureFromTracker ? "" : " cc-sheet__item--primary"), onClick: run(props.onPrintPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")) : null,
         hasStitches ? h("button", {
           type: "button", className: "cc-sheet__item", "aria-expanded": exportOpen ? "true" : "false",
@@ -163,14 +167,14 @@
           h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onMoreExports) },
             Icons.archive ? Icons.archive() : null, h("span", null, "More export options…"))
         ) : null,
-        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
+        hasStitches && !props.pictureFromTracker ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
           Icons.chevronRight ? Icons.chevronRight() : null, h("span", null, "Open in Tracker")) : null,
         hasPat ? h("button", {
           ref: infoBtnRef, type: "button", className: "cc-sheet__item",
           onClick: function () { close(); setInfoOpen(true); }
         }, Icons.info ? Icons.info() : null, h("span", null, "Pattern info"),
           hasStitches && props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
-        hasPat ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
         h("div", { className: "cc-sheet__sep", role: "separator" }),
         h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { if (window.HelpDrawer) window.HelpDrawer.open({ tab: "help" }); }) },
           Icons.help ? Icons.help() : null, h("span", null, "Help")),
