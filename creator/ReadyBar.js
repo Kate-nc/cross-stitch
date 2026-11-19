@@ -99,7 +99,7 @@
           app.saveProject ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.saveProject(); } },
             Icons.save ? Icons.save() : null, h("span", null, "Download project (.json)")) : null),
         h("span", { className: "ready-bar__links" },
-          h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
+          (Number(ctx.totalStitchable) || 0) > 0 && h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
           s.blends > 0 && window.openBlendHelp && window.BLEND_HELP
             ? h("button", { type: "button", className: "ready-bar__link", onClick: function () { window.openBlendHelp(); } }, window.BLEND_HELP.title)
             : null)),

@@ -17696,7 +17696,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           onClick: function () { close(); setInfoOpen(true); }
         }, Icons.info ? Icons.info() : null, h("span", null, "Pattern info"),
           hasStitches && props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
-        hasPat ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
         h("div", { className: "cc-sheet__sep", role: "separator" }),
         h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { if (window.HelpDrawer) window.HelpDrawer.open({ tab: "help" }); }) },
           Icons.help ? Icons.help() : null, h("span", null, "Help")),
@@ -20803,10 +20803,10 @@ window.CreatorSidebar = function CreatorSidebar() {
               cv.selectAll();
               cv.setWandPanel("reduce");
             },
-            title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
+            title: "Select all stitches and open Simplify colours to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
+          window.creatorThreadCounts(displayPal).threads > 0 && h("span", {className:"palette-counts", title:"Threads used in stitches", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
           symbolLimitMsg && h("span", {
             className: "palette-counts-warn", role: "img",
             title: symbolLimitMsg,
@@ -23271,7 +23271,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
           app.saveProject ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.saveProject(); } },
             Icons.save ? Icons.save() : null, h("span", null, "Download project (.json)")) : null),
         h("span", { className: "ready-bar__links" },
-          h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
+          (Number(ctx.totalStitchable) || 0) > 0 && h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
           s.blends > 0 && window.openBlendHelp && window.BLEND_HELP
             ? h("button", { type: "button", className: "ready-bar__link", onClick: function () { window.openBlendHelp(); } }, window.BLEND_HELP.title)
             : null)),
@@ -23356,7 +23356,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     // Navigate (audit DRAW-01) — same wording as the Tracker's Navigate mode.
     statusText = coarse
       ? "Drag to pan \u00B7 Tap a stitch to see its thread \u00B7 Press and hold for more options \u00B7 Choose Draw to edit"
-      : "Navigate \u2014 drag to pan the chart. Right-click a stitch for its menu. Press H or choose Draw to edit.";
+      : "Drag to pan. Choose Paint, Fill or Erase (P, F, 5) to change stitches.";
   } else if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "text") {
@@ -23414,9 +23414,33 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:6,background:"var(--surface-tertiary)",padding:"6px 10px",borderRadius:'var(--radius-md)'}
     }, "To see symbols, you may need to zoom in."),
 
-    ctx.isScratchMode && (!ctx.displayPal || ctx.displayPal.length === 0) && h("div", {
-      style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',textAlign:"center"}
-    }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
+    ctx.isScratchMode && (Number(ctx.totalStitchable) || 0) === 0 && (function() {
+      var hasThreads = !!(ctx.displayPal && ctx.displayPal.length > 0);
+      var activeThread = hasThreads
+        ? ((cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId]) || ctx.displayPal[0])
+        : null;
+      var threadName = activeThread
+        ? (typeof formatThread === "function" ? formatThread(activeThread) : (activeThread.name ? activeThread.id + " " + activeThread.name : activeThread.id))
+        : "";
+      return h("div", {
+        className: "scratch-empty-hint",
+        style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-2)',flexWrap:"wrap"}
+      },
+        hasThreads
+          ? h("span", null, (coarse ? "Tap a square to stitch with " : "Click a square to stitch with ") + threadName)
+          : h(React.Fragment, null,
+              h("span", null, "Choose your first thread"),
+              h("button", {
+                type: "button",
+                className: "btn btn-sm",
+                onClick: function() {
+                  if (app.setSidebarTab) app.setSidebarTab("palette");
+                  if (app.setPanelOpen) app.setPanelOpen(true);
+                }
+              }, "Open Palette")
+            )
+      );
+    })(),
 
     window.CreatorReadyBar && h(window.CreatorReadyBar, null),
 

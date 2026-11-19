@@ -245,10 +245,10 @@ window.CreatorSidebar = function CreatorSidebar() {
               cv.selectAll();
               cv.setWandPanel("reduce");
             },
-            title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
+            title: "Select all stitches and open Simplify colours to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
+          window.creatorThreadCounts(displayPal).threads > 0 && h("span", {className:"palette-counts", title:"Threads used in stitches", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
           symbolLimitMsg && h("span", {
             className: "palette-counts-warn", role: "img",
             title: symbolLimitMsg,

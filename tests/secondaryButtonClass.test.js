@@ -7,9 +7,9 @@ const path = require('path');
 function read(rel) { return fs.readFileSync(path.join(__dirname, '..', rel), 'utf8'); }
 
 describe('secondary buttons use the standard .btn class (UX-023)', () => {
-  test('Creator "Ready to stitch review" banner button', () => {
+  test('Creator blank-grid "Open Palette" button uses .btn', () => {
     const src = read('creator/PatternTab.js');
-    expect(src).toMatch(/className:"btn btn-sm", onClick:function\(\)\{app\.setMaterialsTab\("review"\);app\.setTab\("materials"\);\}\}, "Ready to stitch review"/);
+    expect(src).toMatch(/className: "btn btn-sm"[\s\S]*?"Open Palette"/);
   });
 
   test('Tracker "Thread consumption history" button', () => {

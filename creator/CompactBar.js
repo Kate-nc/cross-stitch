@@ -174,7 +174,7 @@
           onClick: function () { close(); setInfoOpen(true); }
         }, Icons.info ? Icons.info() : null, h("span", null, "Pattern info"),
           hasStitches && props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
-        hasPat ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
         h("div", { className: "cc-sheet__sep", role: "separator" }),
         h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { if (window.HelpDrawer) window.HelpDrawer.open({ tab: "help" }); }) },
           Icons.help ? Icons.help() : null, h("span", null, "Help")),
