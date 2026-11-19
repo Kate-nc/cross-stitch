@@ -851,6 +851,9 @@ window.useCreatorState = function useCreatorState() {
   // (the preview and the Size, Threads and Detail steps). A new picture opens
   // on Frame unless Preferences > Pattern Creator turns it off.
   var _convertStage = useState("make"); var convertStage = _convertStage[0], setConvertStage = _convertStage[1];
+  // The Convert steps opened since this picture came in ({ size, threads,
+  // detail }), ticked in the step bar (ConvertPanel.js CreatorConvertProgress).
+  var _convertSeen = useState({}); var convertSeen = _convertSeen[0], setConvertSeen = _convertSeen[1];
   function setConvertTab(v) {
     var ok = (window.CONVERT_TABS || []).some(function (t) { return t.id === v; });
     if (ok || !window.CONVERT_TABS) _setConvertTabRaw(v);
@@ -1688,6 +1691,15 @@ window.useCreatorState = function useCreatorState() {
     }).catch(function() {});
   }
 
+  // A step counts as seen once it is open in Convert.
+  useEffect(function () {
+    if (convertStage !== "make" || !img) return;
+    setConvertSeen(function (s) {
+      if (s[convertTab]) return s;
+      var n = Object.assign({}, s); n[convertTab] = true; return n;
+    });
+  }, [convertStage, convertTab, img]);
+
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
     setBsLines([]); setKnots([]); setSpecialtyStitches([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
@@ -1695,7 +1707,7 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null); setReadyBarOpen(false);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    _setConvertTabRaw("size"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    _setConvertTabRaw("size"); setConvertSeen({}); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
     setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
@@ -2724,7 +2736,7 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    convertTab, setConvertTab, convertStage, setConvertStage,
+    convertTab, setConvertTab, convertStage, setConvertStage, convertSeen,
     stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef, cropRatioRef, pictureExaminerRef,

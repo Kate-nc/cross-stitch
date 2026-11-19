@@ -7386,6 +7386,9 @@ window.useCreatorState = function useCreatorState() {
   // (the preview and the Size, Threads and Detail steps). A new picture opens
   // on Frame unless Preferences > Pattern Creator turns it off.
   var _convertStage = useState("make"); var convertStage = _convertStage[0], setConvertStage = _convertStage[1];
+  // The Convert steps opened since this picture came in ({ size, threads,
+  // detail }), ticked in the step bar (ConvertPanel.js CreatorConvertProgress).
+  var _convertSeen = useState({}); var convertSeen = _convertSeen[0], setConvertSeen = _convertSeen[1];
   function setConvertTab(v) {
     var ok = (window.CONVERT_TABS || []).some(function (t) { return t.id === v; });
     if (ok || !window.CONVERT_TABS) _setConvertTabRaw(v);
@@ -8223,6 +8226,15 @@ window.useCreatorState = function useCreatorState() {
     }).catch(function() {});
   }
 
+  // A step counts as seen once it is open in Convert.
+  useEffect(function () {
+    if (convertStage !== "make" || !img) return;
+    setConvertSeen(function (s) {
+      if (s[convertTab]) return s;
+      var n = Object.assign({}, s); n[convertTab] = true; return n;
+    });
+  }, [convertStage, convertTab, img]);
+
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
     setBsLines([]); setKnots([]); setSpecialtyStitches([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
@@ -8230,7 +8242,7 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null); setReadyBarOpen(false);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    _setConvertTabRaw("size"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    _setConvertTabRaw("size"); setConvertSeen({}); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
     setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
@@ -9259,7 +9271,7 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    convertTab, setConvertTab, convertStage, setConvertStage,
+    convertTab, setConvertTab, convertStage, setConvertStage, convertSeen,
     stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef, cropRatioRef, pictureExaminerRef,
@@ -11467,6 +11479,64 @@ function centredCropRect(bounds, ratio) {
 }
 window.centredCropRect = centredCropRect;
 
+// `rect` moved by (dx, dy), kept whole inside the picture.
+function moveCropRect(rect, dx, dy, bounds) {
+  return {
+    x: Math.max(0, Math.min(bounds.w - rect.w, rect.x + dx)),
+    y: Math.max(0, Math.min(bounds.h - rect.h, rect.y + dy)),
+    w: rect.w, h: rect.h
+  };
+}
+window.moveCropRect = moveCropRect;
+
+// The handles on a crop rectangle: four corners, and four edges for a free
+// shape. A corner keeps the opposite corner where it is; an edge moves only
+// its own side.
+var CROP_CORNERS = ["nw", "ne", "sw", "se"];
+var CROP_EDGES = ["n", "e", "s", "w"];
+window.CROP_HANDLES = { corners: CROP_CORNERS, edges: CROP_EDGES };
+
+// `rect` with handle `handle` dragged to the pointer at (px, py), kept to
+// `ratio` and inside the picture. With a shape, an edge acts as the corner
+// clockwise from it, so the shape is kept.
+function resizeCropRect(rect, handle, px, py, ratio, bounds) {
+  if (ratio && CROP_EDGES.indexOf(handle) >= 0) handle = { n: "ne", e: "se", s: "sw", w: "nw" }[handle];
+  var x0 = rect.x, y0 = rect.y, x1 = rect.x + rect.w, y1 = rect.y + rect.h;
+  if (CROP_CORNERS.indexOf(handle) >= 0) {
+    var anchor = { x: handle.indexOf("w") >= 0 ? x1 : x0, y: handle.indexOf("n") >= 0 ? y1 : y0 };
+    return constrainCropRect(anchor, px, py, ratio, bounds);
+  }
+  var cx = Math.max(0, Math.min(bounds.w, px)), cy = Math.max(0, Math.min(bounds.h, py));
+  if (handle === "e") x1 = cx; else if (handle === "w") x0 = cx;
+  else if (handle === "s") y1 = cy; else if (handle === "n") y0 = cy;
+  return { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+}
+window.resizeCropRect = resizeCropRect;
+
+// The crop rectangle after an arrow key on it: the key moves it by `step`;
+// with `resize` it grows (right, down) or shrinks (left, up) from its top
+// left corner instead, kept to `ratio`. Never smaller than `min`.
+function nudgeCropRect(rect, key, step, resize, ratio, bounds, min) {
+  var dx = key === "ArrowRight" ? step : key === "ArrowLeft" ? -step : 0;
+  var dy = key === "ArrowDown" ? step : key === "ArrowUp" ? -step : 0;
+  if (!dx && !dy) return rect;
+  if (!resize) return moveCropRect(rect, dx, dy, bounds);
+  min = min || 10;
+  var w, h;
+  if (ratio) {
+    var d = dx || dy;
+    w = rect.w + d; h = w / ratio;
+    if (w < min || h < min) { h = Math.max(min, min / ratio); w = Math.max(min, h * ratio); h = w / ratio; }
+    if (rect.x + w > bounds.w) { w = bounds.w - rect.x; h = w / ratio; }
+    if (rect.y + h > bounds.h) { h = bounds.h - rect.y; w = h * ratio; }
+  } else {
+    w = Math.max(min, Math.min(bounds.w - rect.x, rect.w + dx));
+    h = Math.max(min, Math.min(bounds.h - rect.y, rect.h + dy));
+  }
+  return { x: rect.x, y: rect.y, w: w, h: h };
+}
+window.nudgeCropRect = nudgeCropRect;
+
 /* computePinchScroll — pure maths for the two-finger gesture. `pinch` holds
    the scroll position and finger midpoint captured when the gesture began,
    plus the scroll container's viewport origin and the canvas's offset inside
@@ -11741,10 +11811,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
   }
   function interruptAll() {
-    if (state.cropStartRef && state.cropStartRef.current) {
-      state.cropStartRef.current = null;
-      state.setCropRect(null);
-    }
+    if (state.cropStartRef && state.cropStartRef.current) abandonCropDrag();
     cropPointersRef.current.forEach(function(target, id) {
       cropPointersRef.current.delete(id);
       try { target.releasePointerCapture(id); } catch (_) {}
@@ -12912,22 +12979,51 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   // ─── Crop handlers ───────────────────────────────────────────────────────────
+  // A drag on the picture draws a new rectangle; on a rectangle already
+  // drawn it moves it, and on one of its handles (data-crop-handle) it
+  // resizes it. cropStartRef holds { mode, ... } while dragging.
   function handleCropMouseDown(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
     if (!isCropping || !cropRef.current) return;
     if (!isPrimaryButton(e)) return;
     e.preventDefault();
     var r = cropRef.current.getBoundingClientRect();
-    cropStartRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
-    state.setCropRect({ x: cropStartRef.current.x, y: cropStartRef.current.y, w: 0, h: 0 });
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    var rect = state.cropRect;
+    if (rect && rect.w >= 10 && rect.h >= 10) {
+      var handleEl = e.target && e.target.closest ? e.target.closest("[data-crop-handle]") : null;
+      if (handleEl) {
+        cropStartRef.current = { mode: "resize", handle: handleEl.getAttribute("data-crop-handle"), rect: rect };
+        return;
+      }
+      if (px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h) {
+        cropStartRef.current = { mode: "move", px: px, py: py, rect: rect };
+        return;
+      }
+    }
+    cropStartRef.current = { mode: "draw", x: px, y: py };
+    state.setCropRect({ x: px, y: py, w: 0, h: 0 });
   }
 
   function handleCropMouseMove(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
-    if (!isCropping || !cropStartRef.current || !cropRef.current) return;
+    var s = cropStartRef.current;
+    if (!isCropping || !s || !cropRef.current) return;
     var r = cropRef.current.getBoundingClientRect();
+    var bounds = { w: r.width, h: r.height };
+    var px = e.clientX - r.left, py = e.clientY - r.top;
     var ratio = state.cropRatioRef ? state.cropRatioRef.current : null;
-    state.setCropRect(constrainCropRect(cropStartRef.current, e.clientX - r.left, e.clientY - r.top, ratio, { w: r.width, h: r.height }));
+    if (s.mode === "move") state.setCropRect(moveCropRect(s.rect, px - s.px, py - s.py, bounds));
+    else if (s.mode === "resize") state.setCropRect(resizeCropRect(s.rect, s.handle, px, py, ratio, bounds));
+    else state.setCropRect(constrainCropRect(s, px, py, ratio, bounds));
+  }
+
+  // A drag stopped part way (a second finger, a cancelled pointer): a move
+  // or resize puts the rectangle back as it was; a new one is dropped.
+  function abandonCropDrag() {
+    var s = state.cropStartRef.current;
+    state.cropStartRef.current = null;
+    state.setCropRect(s && s.rect ? s.rect : null);
   }
 
   function handleCropMouseUp(e) {
@@ -12942,9 +13038,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (target && target.setPointerCapture) {
       try { target.setPointerCapture(e.pointerId); } catch (_) {}
     }
-    if (cropPointersRef.current.size > 1) {
-      state.cropStartRef.current = null; state.setCropRect(null); return;
-    }
+    if (cropPointersRef.current.size > 1) { abandonCropDrag(); return; }
     handleCropMouseDown(e);
   }
 
@@ -12967,8 +13061,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handleCropPointerCancel(e) {
     if (!cropPointersRef.current.has(e.pointerId)) return;
+    var s = state.cropStartRef.current;
     handleCropPointerUp(e);
-    state.setCropRect(null);
+    state.setCropRect(s && s.rect ? s.rect : null);
   }
 
   // Puts a new picture in place of the current one (a crop, a turn, or
@@ -19268,9 +19363,15 @@ window.BulkAddModal = (function () {
    picture there, comes back. Preferences > Pattern Creator > Start with
    Frame the picture turns off opening here.
 
+   The crop rectangle can be moved by dragging it, resized by its handles
+   (corners keep a chosen shape; a free shape also has edges), and moved or
+   resized with the arrow keys. With Leave background unstitched on, the
+   stitches Generate will leave out are striped on the picture
+   (FrameBackgroundOverlay), worked out exactly as Generate does.
+
    Reuses the crop pointer handlers, applyCrop and replacePicture from
    useCanvasInteraction (GenerationContext). Exposes window.CreatorFrameView,
-   plus CROP_RATIOS and rotatePictureCanvas. */
+   plus CROP_RATIOS, rotatePictureCanvas and frameBackgroundMask. */
 
 // The crop shapes, as width / height (null: any shape).
 window.CROP_RATIOS = [
@@ -19311,6 +19412,62 @@ window.framePictureFilter = function framePictureFilter(bri, con, sat) {
   if (!bri && !con && !sat) return "none";
   return "brightness(" + (100 + (bri || 0)) + "%) contrast(" + (100 + (con || 0)) + "%) saturate(" + (100 + (sat || 0)) + "%)";
 };
+
+// Which stitches Generate leaves unstitched as background, on the grid of
+// sW × sH stitches: the same grid (gridPixels, with brightness, contrast and
+// saturation) and the same test (prepareConversionPixels: matching colours
+// joined to the edge, or the clear parts of a picture that has them) as
+// Generate. Returns { mask (1 = left out), count } or null.
+window.frameBackgroundMask = function frameBackgroundMask(img, sW, sH, opts) {
+  if (!img || !sW || !sH || typeof gridPixels !== "function" || typeof prepareConversionPixels !== "function") return null;
+  var grid = gridPixels(img, sW, sH, { bri: opts.bri, con: opts.con, sat: opts.sat });
+  var data = new Uint8ClampedArray(grid.data);
+  var cover = prepareConversionPixels(data, sW, sH, { skipBg: !!opts.skipBg, bgCol: opts.bgCol, bgTh: opts.bgTh });
+  var n = sW * sH, mask = new Uint8Array(n), count = 0;
+  for (var i = 0; i < n; i++) if (!cover[i]) { mask[i] = 1; count++; }
+  return { mask: mask, count: count };
+};
+
+// Stripes over the stitches left unstitched, drawn at the size the picture
+// is shown. Decorative: the count beside the picture says it in words.
+function FrameBackgroundOverlay(props) {
+  var canvasRef = React.useRef(null);
+  var info = props.info, w = props.sW, hh = props.sH;
+  React.useEffect(function () {
+    var c = canvasRef.current;
+    if (!c) return;
+    var box = c.parentNode && c.parentNode.getBoundingClientRect ? c.parentNode.getBoundingClientRect() : null;
+    var dpr = window.devicePixelRatio || 1;
+    var cw = Math.max(1, Math.round((box && box.width || w) * dpr)), ch = Math.max(1, Math.round((box && box.height || hh) * dpr));
+    c.width = cw; c.height = ch;
+    var cx = c.getContext("2d");
+    if (!cx) return;
+    cx.clearRect(0, 0, cw, ch);
+    if (!info || !info.count) return;
+    // The left-out stitches, one pixel each, enlarged with hard edges.
+    var m = document.createElement("canvas"); m.width = w; m.height = hh;
+    var mx = m.getContext("2d"), id = mx.createImageData(w, hh);
+    for (var i = 0; i < info.mask.length; i++) if (info.mask[i]) id.data[i * 4 + 3] = 255;
+    mx.putImageData(id, 0, 0);
+    var css = getComputedStyle(c);
+    var accent = css.getPropertyValue("--accent").trim() || "currentColor";
+    var light = css.getPropertyValue("--surface").trim() || "transparent";
+    // Diagonal stripes in the accent on a pale wash, readable on dark and
+    // light pictures alike.
+    var step = Math.max(6, Math.round(8 * dpr));
+    cx.globalAlpha = 0.45; cx.fillStyle = light; cx.fillRect(0, 0, cw, ch);
+    cx.globalAlpha = 0.85; cx.strokeStyle = accent; cx.lineWidth = Math.max(1.5, 2 * dpr);
+    cx.beginPath();
+    for (var d = -ch; d < cw + ch; d += step) { cx.moveTo(d, 0); cx.lineTo(d + ch, ch); }
+    cx.stroke();
+    cx.globalAlpha = 1;
+    cx.globalCompositeOperation = "destination-in";
+    cx.imageSmoothingEnabled = false;
+    cx.drawImage(m, 0, 0, cw, ch);
+    cx.globalCompositeOperation = "source-over";
+  }, [info, w, hh, props.layoutKey]);
+  return React.createElement("canvas", { ref: canvasRef, className: "fr-picture__bg", "aria-hidden": "true", "data-bg-overlay": "" });
+}
 
 // Reframe, beside the picture in Convert: back to Frame the picture.
 window.CreatorReframeButton = function CreatorReframeButton() {
@@ -19360,6 +19517,44 @@ window.CreatorFrameView = function CreatorFrameView(props) {
 
   var rect = gen.cropRect;
   var cropReady = !!(rect && rect.w >= 10 && rect.h >= 10);
+
+  // The background Generate will leave out, striped on the picture while
+  // Leave background unstitched is on. Worked out a moment after the last
+  // change, so dragging the match slider stays smooth.
+  var sW = pd && pd.sW, sH = pd && pd.sH;
+  var bgActive = !!(gen.skipBg && !gen.exactPixelArt && gen.img && gen.img.src && sW && sH);
+  var _bgInfo = React.useState(null); var bgInfo = _bgInfo[0], setBgInfo = _bgInfo[1];
+  var _showBg = React.useState(true); var showBg = _showBg[0], setShowBg = _showBg[1];
+  var _layout = React.useState(0); var layoutKey = _layout[0], setLayoutKey = _layout[1];
+  React.useEffect(function () {
+    if (!bgActive) { setBgInfo(null); return undefined; }
+    var t = setTimeout(function () {
+      var info = null;
+      try {
+        info = window.frameBackgroundMask(gen.img, sW, sH, { bri: gen.bri, con: gen.con, sat: gen.sat, skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
+      } catch (e) { info = null; }
+      setBgInfo(info);
+    }, 120);
+    return function () { clearTimeout(t); };
+  }, [bgActive, gen.img, sW, sH, gen.bri, gen.con, gen.sat, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The stripes are drawn at the size the picture is shown.
+  React.useEffect(function () {
+    function onResize() { setLayoutKey(function (k) { return k + 1; }); }
+    window.addEventListener("resize", onResize);
+    return function () { window.removeEventListener("resize", onResize); };
+  }, []);
+
+  // Arrow keys on the crop box move it (Shift: further); with Alt they
+  // resize it from its top left corner, keeping a chosen shape.
+  function onRectKey(e) {
+    if (!rect || e.key.indexOf("Arrow") !== 0) return;
+    var el = gen.cropRef && gen.cropRef.current;
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    e.preventDefault(); e.stopPropagation();
+    gen.setCropRect(window.nudgeCropRect(rect, e.key, e.shiftKey ? 10 : 2, e.altKey,
+      gen.cropRatioRef ? gen.cropRatioRef.current : null, { w: r.width, h: r.height }, 10));
+  }
 
   function ratioOf(id) {
     var r = window.CROP_RATIOS.filter(function (x) { return x.id === id; })[0];
@@ -19452,7 +19647,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   var small = Math.max(w, hh) < window.FRAME_SMALL_PICTURE_PX;
 
   var hint = gen.pickBg ? "Click the background in the picture to choose its colour."
-    : cropReady ? "Apply the crop, or drag again. Escape clears it."
+    : cropReady ? "Drag the box or its handles to adjust it, then Apply crop. Escape clears it."
     : shape !== "free" ? "Drag on the picture to draw a new " + (shape === "square" ? "square" : shape) + " area."
     : "Drag on the picture to crop it to the part you want to stitch.";
 
@@ -19489,11 +19684,35 @@ window.CreatorFrameView = function CreatorFrameView(props) {
         src: gen.img.src, alt: "Your picture", draggable: false,
         onDragStart: function (e) { e.preventDefault(); },
         onClick: gen.pickBg ? gen.srcClick : undefined,
+        onLoad: function () { setLayoutKey(function (k) { return k + 1; }); },
         className: "fr-picture__img" + (small ? " fr-picture__img--small" : ""),
         style: Object.assign({ filter: window.framePictureFilter(gen.bri, gen.con, gen.sat) }, window.framePictureMinSize(w, hh))
       }),
-      rect && h("div", { className: "fr-picture__rect", "data-crop-rect": "",
-        style: { left: rect.x, top: rect.y, width: rect.w, height: rect.h } })));
+      bgActive && showBg && bgInfo && h(FrameBackgroundOverlay, { info: bgInfo, sW: sW, sH: sH, layoutKey: layoutKey }),
+      rect && h("div", {
+        className: "fr-picture__rect" + (cropReady && !gen.pickBg ? " fr-picture__rect--live" : ""), "data-crop-rect": "",
+        tabIndex: cropReady && !gen.pickBg ? 0 : undefined,
+        role: cropReady ? "group" : undefined,
+        "aria-label": cropReady ? "Crop area. Drag it or use the arrow keys to move it; drag a handle, or Alt and the arrow keys, to resize it." : undefined,
+        onKeyDown: cropReady && !gen.pickBg ? onRectKey : undefined,
+        style: { left: rect.x, top: rect.y, width: rect.w, height: rect.h }
+      }, cropReady && !gen.pickBg && window.CROP_HANDLES.corners.concat(shape === "free" ? window.CROP_HANDLES.edges : []).map(function (id) {
+        return h("span", { key: id, className: "fr-picture__handle fr-picture__handle--" + id, "data-crop-handle": id, "aria-hidden": "true" });
+      }))));
+
+  // What the stripes mean, in words, and a way to hide them.
+  // The row is there from the moment the option is on, so the picture does
+  // not move while the count is worked out.
+  var bgKey = !bgActive ? null : !bgInfo ? h("div", { className: "fr-bgkey", "data-bg-key": "", "aria-busy": "true" },
+    h("span", { className: "fr-bgkey__swatch", "aria-hidden": "true" }),
+    h("span", { className: "fr-bgkey__text" }, "Finding the background\u2026")) : h("div", { className: "fr-bgkey", "data-bg-key": "" },
+    h("span", { className: "fr-bgkey__swatch", "aria-hidden": "true" }),
+    h("span", { className: "fr-bgkey__text", "data-bg-count": bgInfo.count },
+      bgInfo.count
+        ? (showBg ? "Striped: " : "") + bgInfo.count.toLocaleString() + " of " + (sW * sH).toLocaleString() + " stitches left unstitched as background."
+        : "Nothing at the edges matches the background colour, so every stitch is kept. Pick the colour again, or allow a looser match."),
+    bgInfo.count > 0 && h("button", { type: "button", className: "cs-seltools__btn", "aria-pressed": showBg ? "true" : "false",
+      onClick: function () { setShowBg(!showBg); } }, showBg ? "Hide stripes" : "Show stripes"));
 
   var cropBar = h("div", { className: "fr-cropbar" },
     h("span", { className: "fr-cropbar__hint", role: "status" }, hint),
@@ -19503,7 +19722,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
       Icons.crop ? Icons.crop() : null, h("span", null, "Apply crop")));
 
   return h("div", { className: "fr-layout", "data-frame-view": "" },
-    h("div", { className: "fr-stage" }, tools, picture, cropBar),
+    h("div", { className: "fr-stage" }, tools, picture, cropBar, bgKey),
     h("aside", { className: "fr-panel", "aria-labelledby": "fr-title" },
       h("div", { className: "fr-panel__head" },
         h("h2", { id: "fr-title", className: "fr-panel__title" }, "Frame your picture"),
@@ -21628,7 +21847,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             Icons.eyedropper(), h("span", null, gen.pickBg ? "Click the picture…" : "Pick from picture"))),
         h(SliderRow, { label: "How close a match", value: gen.bgTh, min: 3, max: 50, onChange: gen.setBgTh,
           helpText: "How closely a pixel must match the background colour to be left unstitched. Higher leaves out more." }),
-        hint("Only plain areas that touch the picture's edge are left unstitched.")
+        hint(gen.convertStage === "frame"
+          ? "Only plain areas that touch the picture's edge are left unstitched. They are striped on the picture, so you can see what will be left out."
+          : "Only plain areas that touch the picture's edge are left unstitched.")
       ) : hint("Off: every pixel is stitched, background included.")
     );
 
@@ -21670,6 +21891,58 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("details", { className: "cv-fix", open: adjustOpen, "data-cv-fix": "" },
         h("summary", null, "Fix the picture", adjusted ? h("span", { className: "cv-fix__on" }, " (changed)") : null),
         adjust));
+  };
+
+  // The way from a picture to a pattern, as numbered steps across the top of
+  // Frame and Convert: Frame, then Convert's Size, Threads and Detail, then
+  // Generate. The step on screen is marked, steps already opened are ticked,
+  // and each one (but Generate) opens that step. On phones a Convert step
+  // opens the settings sheet on it.
+  window.CreatorConvertProgress = function CreatorConvertProgress() {
+    var app = window.useApp();
+    var gen = window.useGeneration();
+    var h = React.createElement;
+    var Icons = window.Icons || {};
+    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
+    if (!gen.img || !gen.img.src) return null;
+    var framing = gen.convertStage === "frame";
+    var seen = app.convertSeen || {};
+    var tab = app.convertTab;
+    var steps = [{ id: "frame", label: "Frame" }].concat(CONVERT_TABS.map(function (t) { return { id: t.id, label: t.label }; }))
+      .concat([{ id: "generate", label: gen.hasGenerated ? "Regenerate" : "Generate" }]);
+    function stateOf(id) {
+      if (id === "frame") return framing ? "current" : "done";
+      if (id === "generate") return gen.hasGenerated ? "done" : "todo";
+      if (!framing && id === tab) return "current";
+      return seen[id] ? "done" : "todo";
+    }
+    function open(id) {
+      if (id === "frame") { gen.setConvertStage("frame"); return; }
+      // From Frame: Continue (which applies a crop still drawn), then the step.
+      if (framing) window.dispatchEvent(new CustomEvent("cs:frameContinue"));
+      if (app.setConvertTab) app.setConvertTab(id);
+      if (compact && app.setPanelOpen) app.setPanelOpen(true);
+    }
+    var currentIndex = 0;
+    steps.forEach(function (s, i) { if (stateOf(s.id) === "current") currentIndex = i; });
+    return h("nav", { className: "cv-progress", "aria-label": "Steps to your pattern", "data-convert-progress": "" },
+      h("ol", { className: "cv-progress__list" },
+        steps.map(function (s, i) {
+          var st = stateOf(s.id);
+          var mark = st === "done" && Icons.check ? Icons.check() : h("span", null, i + 1);
+          var inner = h(React.Fragment, null,
+            h("span", { className: "cv-progress__mark", "aria-hidden": "true" }, mark),
+            h("span", { className: "cv-progress__label" }, s.label),
+            st === "done" ? h("span", { className: "tracker-sr-only" }, " (done)") : null);
+          var clickable = s.id !== "generate" && st !== "current";
+          return h("li", { key: s.id, className: "cv-progress__step cv-progress__step--" + st, "data-step": s.id, "data-step-state": st },
+            clickable
+              ? h("button", { type: "button", className: "cv-progress__btn", onClick: function () { open(s.id); },
+                  title: s.id === "frame" ? "Back to Frame the picture" : "Open " + s.label }, inner)
+              : h("span", { className: "cv-progress__btn", "aria-current": st === "current" ? "step" : undefined,
+                  title: s.id === "generate" ? (gen.hasGenerated ? "Your pattern is made; Regenerate makes it again with new settings" : "Generate makes the pattern, at the foot of the settings") : undefined }, inner));
+        })),
+      h("span", { className: "cv-progress__count" }, "Step " + (currentIndex + 1) + " of " + steps.length));
   };
 
   window.CreatorConvertPanel = function CreatorConvertPanel(props) {

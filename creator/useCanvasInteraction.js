@@ -54,6 +54,64 @@ function centredCropRect(bounds, ratio) {
 }
 window.centredCropRect = centredCropRect;
 
+// `rect` moved by (dx, dy), kept whole inside the picture.
+function moveCropRect(rect, dx, dy, bounds) {
+  return {
+    x: Math.max(0, Math.min(bounds.w - rect.w, rect.x + dx)),
+    y: Math.max(0, Math.min(bounds.h - rect.h, rect.y + dy)),
+    w: rect.w, h: rect.h
+  };
+}
+window.moveCropRect = moveCropRect;
+
+// The handles on a crop rectangle: four corners, and four edges for a free
+// shape. A corner keeps the opposite corner where it is; an edge moves only
+// its own side.
+var CROP_CORNERS = ["nw", "ne", "sw", "se"];
+var CROP_EDGES = ["n", "e", "s", "w"];
+window.CROP_HANDLES = { corners: CROP_CORNERS, edges: CROP_EDGES };
+
+// `rect` with handle `handle` dragged to the pointer at (px, py), kept to
+// `ratio` and inside the picture. With a shape, an edge acts as the corner
+// clockwise from it, so the shape is kept.
+function resizeCropRect(rect, handle, px, py, ratio, bounds) {
+  if (ratio && CROP_EDGES.indexOf(handle) >= 0) handle = { n: "ne", e: "se", s: "sw", w: "nw" }[handle];
+  var x0 = rect.x, y0 = rect.y, x1 = rect.x + rect.w, y1 = rect.y + rect.h;
+  if (CROP_CORNERS.indexOf(handle) >= 0) {
+    var anchor = { x: handle.indexOf("w") >= 0 ? x1 : x0, y: handle.indexOf("n") >= 0 ? y1 : y0 };
+    return constrainCropRect(anchor, px, py, ratio, bounds);
+  }
+  var cx = Math.max(0, Math.min(bounds.w, px)), cy = Math.max(0, Math.min(bounds.h, py));
+  if (handle === "e") x1 = cx; else if (handle === "w") x0 = cx;
+  else if (handle === "s") y1 = cy; else if (handle === "n") y0 = cy;
+  return { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+}
+window.resizeCropRect = resizeCropRect;
+
+// The crop rectangle after an arrow key on it: the key moves it by `step`;
+// with `resize` it grows (right, down) or shrinks (left, up) from its top
+// left corner instead, kept to `ratio`. Never smaller than `min`.
+function nudgeCropRect(rect, key, step, resize, ratio, bounds, min) {
+  var dx = key === "ArrowRight" ? step : key === "ArrowLeft" ? -step : 0;
+  var dy = key === "ArrowDown" ? step : key === "ArrowUp" ? -step : 0;
+  if (!dx && !dy) return rect;
+  if (!resize) return moveCropRect(rect, dx, dy, bounds);
+  min = min || 10;
+  var w, h;
+  if (ratio) {
+    var d = dx || dy;
+    w = rect.w + d; h = w / ratio;
+    if (w < min || h < min) { h = Math.max(min, min / ratio); w = Math.max(min, h * ratio); h = w / ratio; }
+    if (rect.x + w > bounds.w) { w = bounds.w - rect.x; h = w / ratio; }
+    if (rect.y + h > bounds.h) { h = bounds.h - rect.y; w = h * ratio; }
+  } else {
+    w = Math.max(min, Math.min(bounds.w - rect.x, rect.w + dx));
+    h = Math.max(min, Math.min(bounds.h - rect.y, rect.h + dy));
+  }
+  return { x: rect.x, y: rect.y, w: w, h: h };
+}
+window.nudgeCropRect = nudgeCropRect;
+
 /* computePinchScroll — pure maths for the two-finger gesture. `pinch` holds
    the scroll position and finger midpoint captured when the gesture began,
    plus the scroll container's viewport origin and the canvas's offset inside
@@ -328,10 +386,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
   }
   function interruptAll() {
-    if (state.cropStartRef && state.cropStartRef.current) {
-      state.cropStartRef.current = null;
-      state.setCropRect(null);
-    }
+    if (state.cropStartRef && state.cropStartRef.current) abandonCropDrag();
     cropPointersRef.current.forEach(function(target, id) {
       cropPointersRef.current.delete(id);
       try { target.releasePointerCapture(id); } catch (_) {}
@@ -1499,22 +1554,51 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   // ─── Crop handlers ───────────────────────────────────────────────────────────
+  // A drag on the picture draws a new rectangle; on a rectangle already
+  // drawn it moves it, and on one of its handles (data-crop-handle) it
+  // resizes it. cropStartRef holds { mode, ... } while dragging.
   function handleCropMouseDown(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
     if (!isCropping || !cropRef.current) return;
     if (!isPrimaryButton(e)) return;
     e.preventDefault();
     var r = cropRef.current.getBoundingClientRect();
-    cropStartRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
-    state.setCropRect({ x: cropStartRef.current.x, y: cropStartRef.current.y, w: 0, h: 0 });
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    var rect = state.cropRect;
+    if (rect && rect.w >= 10 && rect.h >= 10) {
+      var handleEl = e.target && e.target.closest ? e.target.closest("[data-crop-handle]") : null;
+      if (handleEl) {
+        cropStartRef.current = { mode: "resize", handle: handleEl.getAttribute("data-crop-handle"), rect: rect };
+        return;
+      }
+      if (px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h) {
+        cropStartRef.current = { mode: "move", px: px, py: py, rect: rect };
+        return;
+      }
+    }
+    cropStartRef.current = { mode: "draw", x: px, y: py };
+    state.setCropRect({ x: px, y: py, w: 0, h: 0 });
   }
 
   function handleCropMouseMove(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
-    if (!isCropping || !cropStartRef.current || !cropRef.current) return;
+    var s = cropStartRef.current;
+    if (!isCropping || !s || !cropRef.current) return;
     var r = cropRef.current.getBoundingClientRect();
+    var bounds = { w: r.width, h: r.height };
+    var px = e.clientX - r.left, py = e.clientY - r.top;
     var ratio = state.cropRatioRef ? state.cropRatioRef.current : null;
-    state.setCropRect(constrainCropRect(cropStartRef.current, e.clientX - r.left, e.clientY - r.top, ratio, { w: r.width, h: r.height }));
+    if (s.mode === "move") state.setCropRect(moveCropRect(s.rect, px - s.px, py - s.py, bounds));
+    else if (s.mode === "resize") state.setCropRect(resizeCropRect(s.rect, s.handle, px, py, ratio, bounds));
+    else state.setCropRect(constrainCropRect(s, px, py, ratio, bounds));
+  }
+
+  // A drag stopped part way (a second finger, a cancelled pointer): a move
+  // or resize puts the rectangle back as it was; a new one is dropped.
+  function abandonCropDrag() {
+    var s = state.cropStartRef.current;
+    state.cropStartRef.current = null;
+    state.setCropRect(s && s.rect ? s.rect : null);
   }
 
   function handleCropMouseUp(e) {
@@ -1529,9 +1613,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (target && target.setPointerCapture) {
       try { target.setPointerCapture(e.pointerId); } catch (_) {}
     }
-    if (cropPointersRef.current.size > 1) {
-      state.cropStartRef.current = null; state.setCropRect(null); return;
-    }
+    if (cropPointersRef.current.size > 1) { abandonCropDrag(); return; }
     handleCropMouseDown(e);
   }
 
@@ -1554,8 +1636,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handleCropPointerCancel(e) {
     if (!cropPointersRef.current.has(e.pointerId)) return;
+    var s = state.cropStartRef.current;
     handleCropPointerUp(e);
-    state.setCropRect(null);
+    state.setCropRect(s && s.rect ? s.rect : null);
   }
 
   // Puts a new picture in place of the current one (a crop, a turn, or

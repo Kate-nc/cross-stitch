@@ -1615,6 +1615,7 @@ function CreatorApp({
       copyText: state.copyText,
       convertTab: state.convertTab,
       setConvertTab: state.setConvertTab,
+      convertSeen: state.convertSeen,
       showTidied: state.showTidied,
       setShowTidied: state.setShowTidied,
       previewChange: state.previewChange,
@@ -1727,7 +1728,7 @@ function CreatorApp({
       removeTracePicture: io.removeTracePicture,
       isActive: isActive
     };
-  }, [_sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [_sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {
@@ -2554,7 +2555,7 @@ function CreatorApp({
       fontSize: "var(--text-md)",
       color: "var(--text-secondary)"
     }
-  }, extrasFailed ? "Materials & Output couldn't be loaded. Check your connection, then open it again." : "Loading Materials & Output…")), showConvertView && _framing && window.CreatorFrameView && /*#__PURE__*/React.createElement(window.CreatorFrameView, {
+  }, extrasFailed ? "Materials & Output couldn't be loaded. Check your connection, then open it again." : "Loading Materials & Output…")), showConvertView && window.CreatorConvertProgress && /*#__PURE__*/React.createElement(window.CreatorConvertProgress, null), showConvertView && _framing && window.CreatorFrameView && /*#__PURE__*/React.createElement(window.CreatorFrameView, {
     onChangePicture: () => state.fRef.current && state.fRef.current.click()
   }), showConvertView && !_framing && /*#__PURE__*/React.createElement("div", {
     className: "cvp-layout",

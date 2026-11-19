@@ -29,7 +29,10 @@ You can also open a picture inside the Creator with **File > Open…**, or in th
 
 A picture you add opens on **Frame the picture**, full width: the decisions about the picture itself come before any pattern setting.
 
-- **Crop** — drag on the picture, or choose a shape: **Free**, **Square**, **4:3** or **3:4**. A shape starts from the largest area of that shape, centred, and any area you drag keeps the shape. **Apply crop** (or Enter) crops; **Clear** (or Escape) removes the rectangle.
+A step bar across the top of Frame the picture and Convert shows the way to a pattern: **Frame**, **Size**, **Threads**, **Detail** and **Generate**. It marks the step on screen, ticks the steps you have opened and says *Step 1 of 5* and so on. Click a step to go to it; on a phone, tapping a step opens the settings sheet on it.
+
+- **Crop** — drag on the picture, or choose a shape: **Free**, **Square**, **4:3** or **3:4**. A shape starts from the largest area of that shape, centred, and any area you drag keeps the shape. Once a box is drawn, drag inside it to move it, or drag a handle to resize it: the corners keep a chosen shape, and a **Free** box also has a handle on each side. With the box selected (Tab to it), the arrow keys move it (Shift moves it further) and Alt with the arrow keys resizes it. **Apply crop** (or Enter) crops; **Clear** (or Escape) removes the rectangle.
+- **Background** — with **Leave background unstitched** on, the stitches it will leave out are striped on the picture, with a count under it, worked out exactly as Generate does. Change the colour or **How close a match** and the stripes follow. **Hide stripes** turns them off.
 - **Turn left / Turn right** — turn the picture a quarter at a time.
 - **Undo** — puts back the picture before the last crop or turn. **Change picture** chooses another, which starts with nothing to undo.
 - Small pictures, such as pixel art, are shown larger with sharp pixels so you can see and crop them.
@@ -77,7 +80,7 @@ The rest of Frame's settings (the adjustments are folded under **Fix the picture
 - **Brightness / Contrast / Saturation** — tune the image before conversion; the picture in Frame shows them as you change them. **Reset adjustments** puts them back.
 - **Soften grainy photos** — blurs the picture at stitch size before the threads are chosen: fewer speckled stitches, softer edges. Shrinking a photo to stitches already smooths away grain, so most photos look best with it Off. The method is under **Advanced**.
 - **Sharpen details** — keeps fine lines crisp.
-- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Leave background unstitched** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Leave background unstitched**, press **Pick from picture**, click the background colour, then adjust **How close a match**. Only matching regions connected to the outside edge are removed; enclosed matching details remain.
+- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Leave background unstitched** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Leave background unstitched**, press **Pick from picture**, click the background colour, then adjust **How close a match**. Only matching regions connected to the outside edge are removed; enclosed matching details remain. In Frame the picture, the stitches that will be removed are striped on the picture.
 
 ### Size
 

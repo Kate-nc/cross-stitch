@@ -20,6 +20,73 @@ function loadCanvasInteraction() {
   return global.window;
 }
 
+describe('moving and resizing the crop box', () => {
+  const w = loadCanvasInteraction();
+  const bounds = { w: 400, h: 300 };
+  const rect = { x: 100, y: 50, w: 120, h: 90 };
+
+  test('a drag inside moves the box, never past the picture\'s edge', () => {
+    expect(w.moveCropRect(rect, 30, -20, bounds)).toEqual({ x: 130, y: 30, w: 120, h: 90 });
+    expect(w.moveCropRect(rect, 1000, 1000, bounds)).toEqual({ x: 280, y: 210, w: 120, h: 90 });
+    expect(w.moveCropRect(rect, -1000, -1000, bounds)).toEqual({ x: 0, y: 0, w: 120, h: 90 });
+  });
+
+  test('a corner resizes from the opposite corner; an edge moves only its side', () => {
+    // South-east to (300, 200): north-west corner stays at (100, 50).
+    expect(w.resizeCropRect(rect, 'se', 300, 200, null, bounds)).toEqual({ x: 100, y: 50, w: 200, h: 150 });
+    // North-west to (60, 20): south-east corner stays at (220, 140).
+    expect(w.resizeCropRect(rect, 'nw', 60, 20, null, bounds)).toEqual({ x: 60, y: 20, w: 160, h: 120 });
+    expect(w.resizeCropRect(rect, 'e', 380, 999, null, bounds)).toEqual({ x: 100, y: 50, w: 280, h: 90 });
+    expect(w.resizeCropRect(rect, 'n', 0, 10, null, bounds)).toEqual({ x: 100, y: 10, w: 120, h: 130 });
+    // Dragged past the opposite side, the box turns over rather than vanishing.
+    expect(w.resizeCropRect(rect, 'e', 60, 0, null, bounds)).toEqual({ x: 60, y: 50, w: 40, h: 90 });
+  });
+
+  test('with a shape, resizing keeps it and stays inside the picture', () => {
+    const sq = { x: 100, y: 50, w: 100, h: 100 };
+    const r = w.resizeCropRect(sq, 'se', 260, 180, 1, bounds);
+    expect(r.w).toBeCloseTo(r.h, 6);
+    expect(r).toEqual({ x: 100, y: 50, w: 160, h: 160 });
+    // An edge acts as a corner, so the shape is kept.
+    const e = w.resizeCropRect(sq, 'e', 250, 0, 1, bounds);
+    expect(e.w).toBeCloseTo(e.h, 6);
+    // Too big for the picture: the largest square that fits.
+    const big = w.resizeCropRect(sq, 'se', 999, 999, 1, bounds);
+    expect(big).toEqual({ x: 100, y: 50, w: 250, h: 250 });
+  });
+
+  test('arrow keys move the box; with resize they grow or shrink it, keeping a shape', () => {
+    expect(w.nudgeCropRect(rect, 'ArrowRight', 2, false, null, bounds)).toEqual({ x: 102, y: 50, w: 120, h: 90 });
+    expect(w.nudgeCropRect(rect, 'ArrowUp', 10, false, null, bounds)).toEqual({ x: 100, y: 40, w: 120, h: 90 });
+    expect(w.nudgeCropRect(rect, 'ArrowRight', 10, true, null, bounds)).toEqual({ x: 100, y: 50, w: 130, h: 90 });
+    expect(w.nudgeCropRect(rect, 'ArrowUp', 10, true, null, bounds)).toEqual({ x: 100, y: 50, w: 120, h: 80 });
+    // Never smaller than 10 px.
+    expect(w.nudgeCropRect({ x: 0, y: 0, w: 12, h: 12 }, 'ArrowLeft', 10, true, null, bounds, 10)).toEqual({ x: 0, y: 0, w: 10, h: 12 });
+    const sq = w.nudgeCropRect({ x: 0, y: 0, w: 100, h: 75 }, 'ArrowDown', 10, true, 4 / 3, bounds, 10);
+    expect(sq.w / sq.h).toBeCloseTo(4 / 3, 6);
+    expect(sq.w).toBe(110);
+    // Other keys change nothing.
+    expect(w.nudgeCropRect(rect, 'Enter', 10, false, null, bounds)).toBe(rect);
+  });
+
+  test('handles: four corners, plus four edges for a free shape (FrameView)', () => {
+    expect(w.CROP_HANDLES.corners.sort()).toEqual(['ne', 'nw', 'se', 'sw']);
+    expect(w.CROP_HANDLES.edges.sort()).toEqual(['e', 'n', 's', 'w']);
+    const src = read('creator/FrameView.js');
+    expect(src).toMatch(/CROP_HANDLES\.corners\.concat\(shape === "free" \? window\.CROP_HANDLES\.edges : \[\]\)/);
+  });
+
+  test('a drag on the box moves it, on a handle resizes it, elsewhere draws a new one', () => {
+    const src = read('creator/useCanvasInteraction.js');
+    expect(src).toMatch(/closest\("\[data-crop-handle\]"\)/);
+    expect(src).toMatch(/mode: "resize"/);
+    expect(src).toMatch(/mode: "move"/);
+    expect(src).toMatch(/mode: "draw"/);
+    // A second finger or a cancelled pointer puts a moved box back.
+    expect(src).toMatch(/function abandonCropDrag\(\)[\s\S]{0,200}s && s\.rect \? s\.rect : null/);
+  });
+});
+
 describe('crop shapes', () => {
   const w = loadCanvasInteraction();
   const bounds = { w: 400, h: 300 };

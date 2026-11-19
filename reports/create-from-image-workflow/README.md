@@ -438,8 +438,9 @@ missing small-print style.
   control on top of the picture. Each crop or turn applies straight away,
   with Undo (up to ten steps), so the type and background update as you go.
   A rectangle still drawn is applied by Continue.
-- The background is not yet shown as a highlight on the picture. It is still
-  a checkbox and a colour picker, now in Frame. Brightness, contrast and
+- The background was not at first shown as a highlight on the picture. It
+  was a checkbox and a colour picker, now in Frame. The stripes came in the
+  follow-ups below. Brightness, contrast and
   saturation do show on the picture as they change.
 - Stage 2's steps keep their names: Size, Threads, Detail. They were not
   renamed to Size, Colours, Style, because "threads" is the app's word
@@ -541,8 +542,28 @@ tours on, on desktop and phone. All are fixed:
   describe Frame the picture, the Size, Threads and Detail steps, Your
   pattern is ready, and opening pictures from the Tracker.
 
-**Still open (follow-up):**
+**Follow-ups, done:**
 
-- a progress indicator through Frame and the settings
-- a crop box that can be moved and resized
-- a background highlight on the picture
+- **A crop box that can be moved and resized.** Dragging inside a drawn box
+  moves it, and its handles resize it. The corners keep a chosen shape, and a
+  Free box also has edge handles. The handles are larger on touch screens.
+  Arrow keys move the focused box, and Alt with the arrows resizes it. A
+  second finger or a cancelled pointer puts a moved box back. The geometry is
+  in `moveCropRect`, `resizeCropRect` and `nudgeCropRect`
+  (`creator/useCanvasInteraction.js`).
+- **A background highlight on the picture.** While Leave background
+  unstitched is on, Frame stripes the stitches Generate will leave out. It
+  uses the same grid (`gridPixels`) and the same test
+  (`prepareConversionPixels`) as Generate, so the count under the picture is
+  exactly what Generate leaves out. It updates with the colour and How close
+  a match. Hide stripes turns it off. If nothing at the edges matches, it says
+  every stitch is kept.
+- **A progress indicator.** A step bar across the top of Frame and Convert
+  reads Frame, Size, Threads, Detail, Generate. It marks the step on screen,
+  ticks the steps opened since the picture came in, says "Step N of 5", and
+  opens any step clicked. From Frame it continues first, applying a box still
+  drawn. On a phone it opens the settings sheet on that step, and only the
+  step on screen is named.
+
+Tests: `tests/cropReframe.test.js` (geometry) and
+`tests/e2e/frame-crop-background-steps.spec.js`.

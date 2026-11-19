@@ -197,7 +197,9 @@
             Icons.eyedropper(), h("span", null, gen.pickBg ? "Click the picture…" : "Pick from picture"))),
         h(SliderRow, { label: "How close a match", value: gen.bgTh, min: 3, max: 50, onChange: gen.setBgTh,
           helpText: "How closely a pixel must match the background colour to be left unstitched. Higher leaves out more." }),
-        hint("Only plain areas that touch the picture's edge are left unstitched.")
+        hint(gen.convertStage === "frame"
+          ? "Only plain areas that touch the picture's edge are left unstitched. They are striped on the picture, so you can see what will be left out."
+          : "Only plain areas that touch the picture's edge are left unstitched.")
       ) : hint("Off: every pixel is stitched, background included.")
     );
 
@@ -239,6 +241,58 @@
       h("details", { className: "cv-fix", open: adjustOpen, "data-cv-fix": "" },
         h("summary", null, "Fix the picture", adjusted ? h("span", { className: "cv-fix__on" }, " (changed)") : null),
         adjust));
+  };
+
+  // The way from a picture to a pattern, as numbered steps across the top of
+  // Frame and Convert: Frame, then Convert's Size, Threads and Detail, then
+  // Generate. The step on screen is marked, steps already opened are ticked,
+  // and each one (but Generate) opens that step. On phones a Convert step
+  // opens the settings sheet on it.
+  window.CreatorConvertProgress = function CreatorConvertProgress() {
+    var app = window.useApp();
+    var gen = window.useGeneration();
+    var h = React.createElement;
+    var Icons = window.Icons || {};
+    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
+    if (!gen.img || !gen.img.src) return null;
+    var framing = gen.convertStage === "frame";
+    var seen = app.convertSeen || {};
+    var tab = app.convertTab;
+    var steps = [{ id: "frame", label: "Frame" }].concat(CONVERT_TABS.map(function (t) { return { id: t.id, label: t.label }; }))
+      .concat([{ id: "generate", label: gen.hasGenerated ? "Regenerate" : "Generate" }]);
+    function stateOf(id) {
+      if (id === "frame") return framing ? "current" : "done";
+      if (id === "generate") return gen.hasGenerated ? "done" : "todo";
+      if (!framing && id === tab) return "current";
+      return seen[id] ? "done" : "todo";
+    }
+    function open(id) {
+      if (id === "frame") { gen.setConvertStage("frame"); return; }
+      // From Frame: Continue (which applies a crop still drawn), then the step.
+      if (framing) window.dispatchEvent(new CustomEvent("cs:frameContinue"));
+      if (app.setConvertTab) app.setConvertTab(id);
+      if (compact && app.setPanelOpen) app.setPanelOpen(true);
+    }
+    var currentIndex = 0;
+    steps.forEach(function (s, i) { if (stateOf(s.id) === "current") currentIndex = i; });
+    return h("nav", { className: "cv-progress", "aria-label": "Steps to your pattern", "data-convert-progress": "" },
+      h("ol", { className: "cv-progress__list" },
+        steps.map(function (s, i) {
+          var st = stateOf(s.id);
+          var mark = st === "done" && Icons.check ? Icons.check() : h("span", null, i + 1);
+          var inner = h(React.Fragment, null,
+            h("span", { className: "cv-progress__mark", "aria-hidden": "true" }, mark),
+            h("span", { className: "cv-progress__label" }, s.label),
+            st === "done" ? h("span", { className: "tracker-sr-only" }, " (done)") : null);
+          var clickable = s.id !== "generate" && st !== "current";
+          return h("li", { key: s.id, className: "cv-progress__step cv-progress__step--" + st, "data-step": s.id, "data-step-state": st },
+            clickable
+              ? h("button", { type: "button", className: "cv-progress__btn", onClick: function () { open(s.id); },
+                  title: s.id === "frame" ? "Back to Frame the picture" : "Open " + s.label }, inner)
+              : h("span", { className: "cv-progress__btn", "aria-current": st === "current" ? "step" : undefined,
+                  title: s.id === "generate" ? (gen.hasGenerated ? "Your pattern is made; Regenerate makes it again with new settings" : "Generate makes the pattern, at the foot of the settings") : undefined }, inner));
+        })),
+      h("span", { className: "cv-progress__count" }, "Step " + (currentIndex + 1) + " of " + steps.length));
   };
 
   window.CreatorConvertPanel = function CreatorConvertPanel(props) {

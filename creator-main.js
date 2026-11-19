@@ -886,7 +886,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
     loadError: state.loadError, setLoadError: state.setLoadError,
     copied: state.copied, setCopied: state.setCopied, copyText: state.copyText,
-    convertTab: state.convertTab, setConvertTab: state.setConvertTab,
+    convertTab: state.convertTab, setConvertTab: state.setConvertTab, convertSeen: state.convertSeen,
     showTidied: state.showTidied, setShowTidied: state.setShowTidied,
     previewChange: state.previewChange, previewTidied: state.previewTidied,
     splitPaneEnabled: state.splitPaneEnabled, setSplitPaneEnabled: state.setSplitPaneEnabled,
@@ -948,7 +948,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot, convertChartState,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
-    state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied,
+    state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied,
     state.splitPaneEnabled, state.splitPaneRatio,
     state.splitPaneSyncEnabled, state.rightPaneMode,
     state.exportPage, state.pageMode,
@@ -1592,6 +1592,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   {extrasFailed?"Materials & Output couldn't be loaded. Check your connection, then open it again.":"Loading Materials & Output…"}
                 </p>}
             </div>}
+            {showConvertView&&window.CreatorConvertProgress&&<window.CreatorConvertProgress/>}
             {showConvertView&&_framing&&window.CreatorFrameView&&<window.CreatorFrameView onChangePicture={()=>state.fRef.current&&state.fRef.current.click()}/>}
             {showConvertView&&!_framing&&<div className="cvp-layout" style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
               {/* Left: source image with crop / change controls */}
