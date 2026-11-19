@@ -226,6 +226,13 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () {
         state.setView(function (v) { return v === "color" ? "symbol" : v === "symbol" ? "both" : "color"; });
       } },
+    { id: "creator.stitchedView", keys: "s", scope: "creator.design",
+      description: "Switch between the chart and the stitched view",
+      when: function () { return !!state.pat && state.appMode !== "create"; },
+      run: function () {
+        if (state.previewActive) state.setPreviewActive(false);
+        state.setChartView(function (v) { return v === "stitched" ? "chart" : "stitched"; });
+      } },
     { id: "creator.split", keys: "\\", scope: "creator.design",
       description: "Toggle split-pane preview",
       when: function () { return !!state.pat; },
@@ -259,6 +266,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
+      state.previewActive, state.appMode,
       state.moveActive, state.nudgeMove, state.cancelMove,
       state.floatActive, state.revertFloat, state.deleteSelection,
       state.clip, state.clipFloatActive,

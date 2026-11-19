@@ -7425,6 +7425,10 @@ window.useCreatorState = function useCreatorState() {
   // null = auto (derived from fabricCt + strand count); float 0–1 = manual override
   var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
+  // Edit's Chart / Stitched switch (creator/ChartStitchedView.js). Each
+  // visit starts on the chart, where painting works.
+  var _chartView = useState("chart"); var chartView = _chartView[0], setChartView = _chartView[1];
+
   // Split-pane state — loaded from UserPrefs on init
   var _spEn = useState(function() { return loadUserPref("splitPaneEnabled", false); });
   var splitPaneEnabled = _spEn[0], setSplitPaneEnabled = _spEn[1];
@@ -9485,6 +9489,7 @@ window.useCreatorState = function useCreatorState() {
     previewMode, setPreviewMode, realisticLevel, setRealisticLevel, coverageOverride, setCoverageOverride,
     fabricColour, setFabricColour, canvasTexture,
     threadBrand, setThreadBrand,
+    chartView, setChartView,
     splitPaneEnabled, setSplitPaneEnabled, splitPaneRatio, setSplitPaneRatio,
     splitPaneSyncEnabled, setSplitPaneSyncEnabled, rightPaneMode, setRightPaneMode,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
@@ -13687,6 +13692,13 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () {
         state.setView(function (v) { return v === "color" ? "symbol" : v === "symbol" ? "both" : "color"; });
       } },
+    { id: "creator.stitchedView", keys: "s", scope: "creator.design",
+      description: "Switch between the chart and the stitched view",
+      when: function () { return !!state.pat && state.appMode !== "create"; },
+      run: function () {
+        if (state.previewActive) state.setPreviewActive(false);
+        state.setChartView(function (v) { return v === "stitched" ? "chart" : "stitched"; });
+      } },
     { id: "creator.split", keys: "\\", scope: "creator.design",
       description: "Toggle split-pane preview",
       when: function () { return !!state.pat; },
@@ -13720,6 +13732,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
+      state.previewActive, state.appMode,
       state.moveActive, state.nudgeMove, state.cancelMove,
       state.floatActive, state.revertFloat, state.deleteSelection,
       state.clip, state.clipFloatActive,
@@ -23616,6 +23629,103 @@ window.CreatorSidebar = function CreatorSidebar() {
 })();
 
 
+/* ─── ChartStitchedView.js ─── */
+/* creator/ChartStitchedView.js — Edit's Chart / Stitched switch (Stage 3).
+
+   The switch sits in the corner of the chart. Stitched shows the pattern as
+   Convert's Stitched preview draws it (creator/StitchedPreview.js,
+   CreatorStitchedPreview): crosses of thread on the project's fabric.
+
+   The stitched picture is laid over the chart's grid, at the chart's own cell
+   size, inside the same scroll box, and the chart stays underneath. So
+   switching keeps the same stitch in the middle of the screen and the same
+   zoom, and the rulers keep showing row and column numbers. The overlay takes
+   every click and touch, so nothing paints while it is showing: a mouse drag
+   moves the chart, a finger scrolls it, and zoom works as on the chart.
+
+   window.CreatorChartViewSwitch()    the Chart / Stitched control
+   window.CreatorStitchedOverlay()    the stitched picture over the grid
+   window.CREATOR_CHART_VIEWS         [{ id, label, title }]
+   Reads the Creator contexts (context.js). Concatenated into creator/bundle.js. */
+
+(function () {
+  var h = React.createElement;
+
+  var VIEWS = [
+    { id: "chart", label: "Chart", title: "The chart you edit: symbols and colours on a grid (S)" },
+    { id: "stitched", label: "Stitched", title: "How it will look stitched: crosses of thread on your fabric. Painting is off (S)" }
+  ];
+  window.CREATOR_CHART_VIEWS = VIEWS;
+
+  window.CreatorChartViewSwitch = function CreatorChartViewSwitch() {
+    var app = window.useApp();
+    var value = app.chartView === "stitched" ? "stitched" : "chart";
+    function choose(id) {
+      if (app.previewActive && app.setPreviewActive) app.setPreviewActive(false);
+      if (app.setChartView) app.setChartView(id);
+    }
+    return h("div", { className: "lp-segmented cv-seg chart-view-switch", role: "radiogroup", "aria-label": "Chart or stitched view", "data-chart-view": value },
+      VIEWS.map(function (v, i) {
+        var on = v.id === value && !app.previewActive;
+        return h("button", {
+          key: v.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false",
+          tabIndex: on || (app.previewActive && i === 0) ? 0 : -1,
+          className: "lp-seg" + (on ? " lp-seg--on" : ""), title: v.title, "data-view": v.id,
+          onClick: function () { choose(v.id); },
+          onKeyDown: function (e) {
+            var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+            if (!step) return;
+            e.preventDefault();
+            var next = VIEWS[(i + step + VIEWS.length) % VIEWS.length];
+            choose(next.id);
+            var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-view="' + next.id + '"]');
+            if (sib) sib.focus();
+          }
+        }, v.label);
+      }));
+  };
+
+  window.CreatorStitchedOverlay = function CreatorStitchedOverlay() {
+    var ctx = window.usePatternData();
+    var cv = window.useCanvas();
+    var app = window.useApp();
+    var drag = React.useRef(null);
+    var G = app.G || 0, cs = cv.cs || 1;
+    if (!ctx.pat || !ctx.sW || !ctx.sH || !window.CreatorStitchedPreview) return null;
+
+    // A mouse or pen drag moves the chart; a finger scrolls it natively.
+    function down(e) {
+      e.stopPropagation();
+      if (e.pointerType === "touch" || e.button !== 0) return;
+      var box = app.scrollRef && app.scrollRef.current;
+      if (!box) return;
+      drag.current = { x: e.clientX, y: e.clientY, left: box.scrollLeft, top: box.scrollTop };
+      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    function move(e) {
+      var d = drag.current, box = app.scrollRef && app.scrollRef.current;
+      if (!d || !box) return;
+      box.scrollLeft = d.left - (e.clientX - d.x);
+      box.scrollTop = d.top - (e.clientY - d.y);
+    }
+    function up() { drag.current = null; }
+
+    return h("div", {
+      className: "chart-stitched", "data-chart-stitched": "",
+      style: { left: G, top: G, width: ctx.sW * cs, height: ctx.sH * cs },
+      onPointerDown: down, onPointerMove: move, onPointerUp: up, onPointerCancel: up,
+      onClick: function (e) { e.stopPropagation(); },
+      onContextMenu: function (e) { e.preventDefault(); e.stopPropagation(); }
+    },
+      h(window.CreatorStitchedPreview, {
+        cells: ctx.pat, width: ctx.sW, height: ctx.sH,
+        fabricColour: app.fabricColour, fabricCt: ctx.fabricCt || 14,
+        displayWidth: ctx.sW * cs
+      }));
+  };
+})();
+
+
 /* ─── Toast.js ─── */
 /* creator/Toast.js — Toast notification overlay.
    Reads from AppContext. Shows temporary messages that auto-dismiss.
@@ -24122,6 +24232,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     statusText = "Select a colour in the panel on the right, then choose a stitch type above.";
   }
 
+  var stitchedOn = app.chartView === "stitched" && !app.previewActive && !app.splitPaneEnabled;
+
   return h("div", null,
     cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {className:"pt-note"},
       "To see symbols, you may need to zoom in."),
@@ -24226,7 +24338,13 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)
-      : h("div", {
+      : h("div", {className:"cs-chart-frame"},
+        // Chart / Stitched (Stage 3), with a note while painting is off.
+        h("div", {className:"chart-view-bar"},
+          stitchedOn && h("p", {className:"chart-stitched-hint", role:"status"}, Icons.info(),
+            h("span", null, coarse ? "Painting is off. Choose Chart to edit." : "Painting is off. Choose Chart, or press S, to edit.")),
+          window.CreatorChartViewSwitch && h(window.CreatorChartViewSwitch, null)),
+        h("div", {
       ref:app.scrollRef,
       className:"cs-chart-scroll",
       // The fitted height and the cursor for the tool change as you work.
@@ -24267,8 +24385,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     },
       app.previewActive
         ? (app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
-        : h(window.PatternCanvas, null)
-    ),
+        // The stitched picture lies over the chart, which stays mounted, so
+        // the scroll position and zoom carry across (ChartStitchedView.js).
+        : h("div", {className:"cs-chart-layer"},
+            h(window.PatternCanvas, null),
+            stitchedOn && window.CreatorStitchedOverlay && h(window.CreatorStitchedOverlay, null))
+    )),
 
     // Copy / paste / flip / rotate bar over the selection (audit DRAW-04)
     window.CreatorSelectionBar && h(window.CreatorSelectionBar, null),

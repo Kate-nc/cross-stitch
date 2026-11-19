@@ -883,6 +883,10 @@ window.useCreatorState = function useCreatorState() {
   // null = auto (derived from fabricCt + strand count); float 0–1 = manual override
   var _covOvr     = useState(null);      var coverageOverride = _covOvr[0], setCoverageOverride = _covOvr[1];
 
+  // Edit's Chart / Stitched switch (creator/ChartStitchedView.js). Each
+  // visit starts on the chart, where painting works.
+  var _chartView = useState("chart"); var chartView = _chartView[0], setChartView = _chartView[1];
+
   // Split-pane state — loaded from UserPrefs on init
   var _spEn = useState(function() { return loadUserPref("splitPaneEnabled", false); });
   var splitPaneEnabled = _spEn[0], setSplitPaneEnabled = _spEn[1];
@@ -2943,6 +2947,7 @@ window.useCreatorState = function useCreatorState() {
     previewMode, setPreviewMode, realisticLevel, setRealisticLevel, coverageOverride, setCoverageOverride,
     fabricColour, setFabricColour, canvasTexture,
     threadBrand, setThreadBrand,
+    chartView, setChartView,
     splitPaneEnabled, setSplitPaneEnabled, splitPaneRatio, setSplitPaneRatio,
     splitPaneSyncEnabled, setSplitPaneSyncEnabled, rightPaneMode, setRightPaneMode,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,

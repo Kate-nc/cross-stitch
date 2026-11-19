@@ -114,6 +114,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     statusText = "Select a colour in the panel on the right, then choose a stitch type above.";
   }
 
+  var stitchedOn = app.chartView === "stitched" && !app.previewActive && !app.splitPaneEnabled;
+
   return h("div", null,
     cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {className:"pt-note"},
       "To see symbols, you may need to zoom in."),
@@ -218,7 +220,13 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     app.splitPaneEnabled
       ? h(window.CreatorSplitPane, null)
-      : h("div", {
+      : h("div", {className:"cs-chart-frame"},
+        // Chart / Stitched (Stage 3), with a note while painting is off.
+        h("div", {className:"chart-view-bar"},
+          stitchedOn && h("p", {className:"chart-stitched-hint", role:"status"}, Icons.info(),
+            h("span", null, coarse ? "Painting is off. Choose Chart to edit." : "Painting is off. Choose Chart, or press S, to edit.")),
+          window.CreatorChartViewSwitch && h(window.CreatorChartViewSwitch, null)),
+        h("div", {
       ref:app.scrollRef,
       className:"cs-chart-scroll",
       // The fitted height and the cursor for the tool change as you work.
@@ -259,8 +267,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     },
       app.previewActive
         ? (app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
-        : h(window.PatternCanvas, null)
-    ),
+        // The stitched picture lies over the chart, which stays mounted, so
+        // the scroll position and zoom carry across (ChartStitchedView.js).
+        : h("div", {className:"cs-chart-layer"},
+            h(window.PatternCanvas, null),
+            stitchedOn && window.CreatorStitchedOverlay && h(window.CreatorStitchedOverlay, null))
+    )),
 
     // Copy / paste / flip / rotate bar over the selection (audit DRAW-04)
     window.CreatorSelectionBar && h(window.CreatorSelectionBar, null),

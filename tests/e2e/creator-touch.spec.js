@@ -22,7 +22,8 @@ test.describe('Creator Touch Automation', function() {
     await loadCreatorFixture(page);
 
     const canvas = await getLargestCanvas(page);
-    const container = canvas.locator('xpath=..');
+    // The chart's scroll box (the canvas sits in .cs-chart-layer inside it).
+    const container = canvas.locator('xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " cs-chart-scroll ")][1]');
     // Zoom shows as the chart's size on screen: touch layouts are compact and
     // have no zoom percentage.
     const shownWidth = function() { return canvas.evaluate(function(el) { return el.getBoundingClientRect().width; }); };

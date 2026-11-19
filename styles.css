@@ -8455,6 +8455,7 @@ body.creator-compact .rpanel.rpanel--edit.rpanel--open{max-height:calc(100dvh - 
    without negative-scroll clipping when zoomed in larger than the box (B4). */
 .cs-chart-scroll { display: flex; }
 .cs-chart-scroll > canvas,
+.cs-chart-scroll > .cs-chart-layer,
 .cs-chart-scroll > .preview-wrap { margin: auto; flex-shrink: 0; }
 
 body.creator-compact .cs-chart-scroll{height:calc(100dvh - 48px - env(safe-area-inset-top,0px) - var(--creator-rail-h) - env(safe-area-inset-bottom,0px) - var(--creator-status-h))!important;max-height:none!important;min-height:0!important;}
@@ -9825,3 +9826,22 @@ body.creator-space-pan .cs-chart-scroll,body.creator-space-pan .cs-chart-scroll 
 .pt-hi-clear { display: flex; justify-content: flex-end; gap: var(--s-1); margin: var(--s-1) 0; }
 .pt-hi-clear .cs-seltools__btn svg { width: 12px; height: 12px; }
 
+/* ── Chart / Stitched (creator/ChartStitchedView.js) ──────────────────────
+   The switch in a corner of the chart, and the stitched picture laid over
+   the chart's grid in the same scroll box. */
+.cs-chart-frame { position: relative; }
+.cs-chart-layer { position: relative; margin: auto; flex-shrink: 0; }
+.cs-chart-layer > canvas { display: block; }
+/* Bottom right on a desktop, clear of "Your pattern is ready" over the
+   chart's top; top right on a phone, clear of the notices at the bottom. */
+.chart-view-bar { position: absolute; bottom: 12px; right: 16px; z-index: 5; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--s-2); max-width: calc(100% - 32px); pointer-events: none; }
+.chart-view-bar > * { pointer-events: auto; }
+body.creator-compact .chart-view-bar { top: 8px; bottom: auto; right: 8px; max-width: calc(100% - 16px); }
+.chart-view-switch { width: auto; margin: 0; box-shadow: var(--shadow-sm); }
+.chart-stitched-hint { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 6px 10px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-sm); font-size: var(--text-sm); color: var(--text-secondary); }
+.chart-stitched-hint svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--accent); }
+.chart-view-switch .lp-seg { min-width: 72px; min-height: 32px; padding: 4px 12px; }
+@media (pointer: coarse) { .chart-view-switch .lp-seg { min-height: 44px; } }
+.chart-stitched { position: absolute; z-index: 1; overflow: hidden; cursor: grab; touch-action: pan-x pan-y; }
+.chart-stitched:active { cursor: grabbing; }
+.chart-stitched > canvas { display: block; }

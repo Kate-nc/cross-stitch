@@ -94,6 +94,7 @@ const ORDER = [
   'Sidebar.js',
   'ConvertPanel.js',
   'StitchedPreview.js',
+  'ChartStitchedView.js',
   'Toast.js',
   'ContextMenu.js',
   'ReadyBar.js',

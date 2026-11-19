@@ -155,6 +155,7 @@
           body: "Switch display modes at any time with the V key or the View tab — view modes never change the underlying pattern.",
           bullets: [
             ["Colour, symbol or both (V)", "Shows each stitch in its thread colour, as a printed symbol, or as colour with the symbol on top."],
+            ["Chart or Stitched (S)", "The switch in the corner of the chart (bottom right on a computer, top right on a phone) shows the pattern as stitches: crosses of thread on your fabric, drawn as Convert's Stitched preview draws them. It keeps your zoom and the part of the chart you were looking at, so you can check a change as it will look stitched and switch straight back. Painting is off in Stitched: a drag moves around the chart and a click changes nothing. Choose Chart, or press S, to edit again."],
             ["Preview tab", "Renders the pattern as real stitches on fabric, from a plain chart up to a hoop or frame mock-up. The detail level and fabric colour are set in Preferences > Preview & display."],
             ["Split pane (\\)", "Shows the editable chart and a live preview side by side. Drag the centre handle to resize."],
             ["Ready to stitch", "Once the chart has stitches, open the review from the Your pattern is ready bar, Materials, or the Project menu on a phone. Compare the chart and stitch simulation, dimensions and material assumptions. Confetti stitches describe effort, not colour fidelity or retained detail."]
@@ -688,6 +689,7 @@
     { id: "c.hand",  scope: "creator", keys: ["H"], description: "Switch between Navigate and Draw" },
     { id: "c.replace", scope: "creator", keys: ["R"], description: "Replace colour (toggle) — click a stitch to replace every stitch of that colour" },
     { id: "c.view",  scope: "creator", keys: ["V"], description: "Cycle view: colour / symbol / both" },
+    { id: "c.stitched", scope: "creator", keys: ["S"], description: "Switch between the chart and the stitched view" },
     { id: "c.split", scope: "creator", keys: ["\\"], description: "Toggle split-pane preview" },
     { id: "c.zoomIn",  scope: "creator", keys: ["+", "="], description: "Zoom in" },
     { id: "c.zoomOut", scope: "creator", keys: ["-"], description: "Zoom out" },
