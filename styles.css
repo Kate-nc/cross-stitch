@@ -9737,3 +9737,90 @@ body.creator-space-pan .cs-chart-scroll,body.creator-space-pan .cs-chart-scroll 
 .ps-confirm__canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 .ps-confirm__bar { display: flex; align-items: center; gap: var(--s-2); margin-top: 8px; padding: 10px 0; border-top: 0.5px solid var(--border); }
 .ps-confirm__save { margin-right: auto; }
+
+/* ── Edit toolbar (creator/ToolStrip.js): the phone rail, the toolbar kept
+   while creator.desktopRail is off, the More panel, and the Fix outline
+   colours and Reduce confetti rows. */
+.tb-label { flex-shrink: 0; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-tertiary); }
+.tb-label--gap { margin-left: 4px; }
+.tb-label--end { margin-right: 6px; }
+.tb-hint { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; white-space: nowrap; font-size: 11px; color: var(--text-tertiary); }
+.tb-hint svg { width: 12px; height: 12px; }
+.tb-gap { margin-left: 4px; }
+.tb-error { flex-shrink: 1; max-width: 160px; margin-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: var(--danger); }
+.tb-note { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--warning-soft); font-size: 11px; color: var(--text-primary); }
+.tb-check { display: flex; align-items: center; gap: 3px; font-size: 11px; cursor: pointer; user-select: none; }
+.tb-radios { display: inline-flex; gap: 2px; }
+.tb-btn--sm { padding: 1px 8px; font-size: 11px; }
+.tb-btn--step { padding: 1px 7px; font-size: 12px; }
+.tb-btn--step svg, .tb-btn--history svg { width: 14px; height: 14px; }
+.tb-btn:disabled { opacity: 0.4; cursor: default; }
+.tb-btn--history:disabled { opacity: 0.3; }
+.tb-btn--apply { margin-left: 8px; }
+.tb-btn--apply-on { background: var(--accent); color: var(--text-on-accent); font-weight: 600; }
+.tb-btn--row { width: 100%; justify-content: flex-start; }
+.tb-step-val { min-width: 16px; text-align: center; font-size: 11px; color: var(--text-secondary); }
+.tb-mode-row { gap: var(--s-2); padding-top: var(--s-1); align-items: center; }
+.tb-mode-row--wrap { flex-wrap: wrap; }
+.tb-grp--wrap { flex-wrap: wrap; gap: 2px; }
+.tb-more-zoom { gap: 4px; align-items: center; }
+.tb-range { width: 100%; margin-top: 4px; }
+.tb-zoom-range { width: 55px; }
+.creator-optbar__zoom-range { width: 90px; }
+/* Fix outline colours: the target colour and its picker */
+.tb-target { display: inline-flex; }
+.tb-target__btn { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 5px; }
+.tb-target__swatch { display: inline-block; flex-shrink: 0; width: 12px; height: 12px; border-radius: 2px; border: 1.5px solid var(--border); }
+.tb-target__chev { display: inline-flex; margin-left: 1px; opacity: 0.6; }
+.tb-target__list { position: absolute; top: calc(100% + 2px); left: 0; z-index: 200; display: flex; flex-wrap: wrap; gap: 3px; min-width: 100px; max-width: 210px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+.tb-target__opt { flex-shrink: 0; width: 18px; height: 18px; padding: 0; border-radius: 3px; border: 1.5px solid var(--border); cursor: pointer; }
+.tb-target__opt--on { border: 2px solid var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
+/* The colour strip */
+.tb-colour-chip { display: inline-flex; align-items: center; gap: var(--s-1); flex-shrink: 0; max-width: 40vw; margin-right: 6px; padding: 1px 7px 1px 3px; border-radius: var(--radius-lg); background: var(--accent-light); border: 1px solid var(--accent-border); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.tb-colour-chip__swatch { display: inline-block; flex-shrink: 0; width: 12px; height: 12px; border-radius: 2px; border: 1px solid var(--border); }
+.tb-colour-chip__id { flex-shrink: 0; font-weight: 600; color: var(--accent); }
+.tb-colour-chip__name { min-width: 0; color: var(--accent-hover); overflow-wrap: anywhere; }
+.tb-swatch { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; padding: 0; border-radius: 6px; border: 1.5px solid var(--border); cursor: pointer; outline: none; }
+.tb-swatch--on { border: 2.5px solid var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
+.tb-swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The tool badge in the toolbar pill */
+.tb-badge { display: inline-flex; align-items: center; gap: var(--s-1); flex-shrink: 0; padding: 2px 8px 2px 6px; border-radius: var(--radius-lg); font-size: 10px; font-weight: 600; letter-spacing: 0.2px; line-height: 1.4; background: var(--surface-secondary); color: var(--text-secondary); }
+.tb-badge__dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); }
+.tb-badge--plain-strong { color: var(--text-primary); }
+.tb-badge--plain-accent { color: var(--accent); }
+.tb-badge--plain-accent .tb-badge__dot { background: var(--accent); }
+.tb-badge--accent, .tb-badge--accent-deep, .tb-badge--accent-ink { background: var(--accent-soft); color: var(--accent); }
+.tb-badge--accent-deep { color: var(--accent-hover); }
+.tb-badge--accent-ink { color: var(--accent-ink); }
+.tb-badge--accent .tb-badge__dot, .tb-badge--accent-deep .tb-badge__dot, .tb-badge--accent-ink .tb-badge__dot { background: var(--accent); }
+.tb-badge--success { background: var(--success-soft); color: var(--success); }
+.tb-badge--success .tb-badge__dot { background: var(--success); }
+.tb-badge--danger { background: var(--danger-soft); color: var(--danger); }
+.tb-badge--danger .tb-badge__dot { background: var(--danger); }
+.tb-badge--warning { background: var(--warning-soft); color: var(--text-primary); }
+.tb-badge--warning .tb-badge__dot { background: var(--warning); }
+
+/* ── Notes above the chart (creator/PatternTab.js), in the Convert panel's
+   note style (.cv-note): one size, one radius, a dismiss button. */
+.pt-note { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--s-2); margin-bottom: var(--s-2); padding: 6px 10px; border-radius: var(--radius-md); background: var(--surface-secondary); border: 1px solid var(--line); font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
+.pt-note svg { width: 14px; height: 14px; vertical-align: -2px; }
+.pt-note--centre { justify-content: center; }
+.pt-note--quiet { color: var(--text-tertiary); }
+.pt-note--small { font-size: var(--text-xs); }
+.pt-note--accent { border-left: 3px solid var(--accent); }
+.pt-note--danger { background: var(--danger-soft); border-color: var(--danger-soft); color: var(--danger); }
+.pt-note__text { flex: 1; min-width: 0; }
+.pt-note__title { font-weight: 500; }
+.pt-note__meta { color: var(--text-tertiary); }
+.pt-note__meta--good { color: var(--success); }
+.pt-note__close { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 24px; min-height: 24px; padding: 0; background: none; border: none; cursor: pointer; color: inherit; opacity: 0.75; }
+.pt-note__close:hover { opacity: 1; }
+.pt-note .cs-seltools__btn { flex-shrink: 0; }
+.cs-chart-scroll { overflow: auto; max-height: 550px; border: 0.5px solid var(--border); border-radius: var(--radius-md); background: var(--surface-tertiary); }
+.tb-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.tb-status__coords { flex-shrink: 0; font-family: monospace; font-size: 10px; color: var(--text-tertiary); }
+.tb-status__thread { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.tb-status__swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; border: 1px solid var(--border); }
+.tb-status__name { font-size: 10px; color: var(--text-secondary); }
+.pt-hi-clear { display: flex; justify-content: flex-end; gap: var(--s-1); margin: var(--s-1) 0; }
+.pt-hi-clear .cs-seltools__btn svg { width: 12px; height: 12px; }

@@ -115,9 +115,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   }
 
   return h("div", null,
-    cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {
-      style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:6,background:"var(--surface-tertiary)",padding:"6px 10px",borderRadius:'var(--radius-md)'}
-    }, "To see symbols, you may need to zoom in."),
+    cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {className:"pt-note"},
+      "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (Number(ctx.totalStitchable) || 0) === 0 && (function() {
       var hasThreads = !!(ctx.displayPal && ctx.displayPal.length > 0);
@@ -126,8 +125,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         ? (typeof formatThread === "function" ? formatThread(activeThread) : (activeThread.name ? activeThread.id + " " + activeThread.name : activeThread.id))
         : "";
       return h("div", {
-        className: "scratch-empty-hint",
-        style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-2)',flexWrap:"wrap"}
+        className: "pt-note pt-note--centre scratch-empty-hint"
       },
         activeThread
           ? h("span", null, cv.drawMode && cv.activeTool === "paint"
@@ -152,17 +150,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     // The shortcuts hint and review note wait while "Your pattern is ready"
     // or a one-off tip is showing, so notices come one at a time.
     // The tool rail's tooltips name each shortcut, so it has no hint row.
-    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && !app.desktopRail && h("div", {
-      style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
-    },
-      h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
+    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && !app.desktopRail && h("div", {className:"pt-note pt-note--quiet"},
+      h("span", {className:"pt-note__text"}, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
+        type: "button", className: "pt-note__close", "aria-label": "Dismiss", title: "Dismiss",
         onClick: function() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
           app.setShortcutsHintDismissed(true);
-        },
-        style:{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0}
-      }, "\xD7")
+        }
+      }, Icons.x())
     ),
 
     !confettiBannerDismissed && app.confettiData && gen.orphans > 0 && (function() {
@@ -172,28 +168,25 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var totalStitchable = ctx.pat ? ctx.pat.filter(function(m){return m.id!=="__skip__"&&m.id!=="__empty__";}).length : 1;
       var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
       if (pctOfTotal < 15) return null;
-      return h("div", {
-        style:{padding:"8px 12px",background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center"}
-      },
-        h("span", null, Icons.warning(), " Reduce confetti changed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to convert again with a lower Reduce confetti level."),
+      return h("div", {className:"pt-note pt-note--danger", role:"note"},
+        h("span", {className:"pt-note__text"}, Icons.warning(), " Reduce confetti changed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to convert again with a lower Reduce confetti level."),
         h("button", {
-          onClick:function(){setConfettiBannerDismissed(true);},
-          style:{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:'var(--text-lg)',flexShrink:0,marginLeft:'var(--s-2)'}
-        }, "\xD7")
+          type:"button", className:"pt-note__close", "aria-label":"Dismiss", title:"Dismiss",
+          onClick:function(){setConfettiBannerDismissed(true);}
+        }, Icons.x())
       );
     })(),
 
     // Stitched progress (UX-006): edits to stitched cells reset them, so say so
     // up front and offer to show which cells those are.
     ctx.progressPct > 0 && h("div", {
-      className:"stitched-banner", role:"status",
-      style:{padding:"8px 12px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderLeft:"3px solid var(--accent)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)',flexWrap:"wrap"}
+      className:"stitched-banner pt-note pt-note--accent", role:"status"
     },
-      h("span", null, Icons.info(), " This project is ", ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "less than 1", "% stitched. Changing stitched cells resets them to not done."),
+      h("span", {className:"pt-note__text"}, Icons.info(), " This project is ", ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "less than 1", "% stitched. Changing stitched cells resets them to not done."),
       h("button", {
-        type:"button", className:"stitched-banner__toggle", "aria-pressed": !!cv.showStitched,
-        onClick:function(){ cv.setShowStitched(!cv.showStitched); },
-        style:{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,cursor:"pointer",borderRadius:'var(--radius-sm)',border:cv.showStitched?"1px solid var(--accent)":"0.5px solid var(--line)",background:cv.showStitched?"var(--accent-soft)":"var(--surface)",color:cv.showStitched?"var(--accent)":"var(--text-secondary)",flexShrink:0}
+        type:"button", "aria-pressed": !!cv.showStitched,
+        className:"stitched-banner__toggle cs-seltools__btn" + (cv.showStitched ? " cs-seltools__btn--on" : ""),
+        onClick:function(){ cv.setShowStitched(!cv.showStitched); }
       }, cv.showStitched ? Icons.eyeOff() : Icons.eye(), " Show stitched")
     ),
 
@@ -202,24 +195,24 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     gen.disambig && (function() {
       var hasResult = gen.disambigData != null;
       var canRun = ctx.pat && ctx.pal && !app.busy;
-      return h("div", {style:{padding:"8px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-2)',flexWrap:"wrap"}},
-        h("span", {style:{flex:1,color:"var(--text-secondary)",fontWeight:500}}, "Keep look-alike colours apart"),
-        hasResult && gen.disambigData.swaps > 0 && h("span", {style:{color:"var(--text-tertiary)"}},
+      return h("div", {className:"pt-note pt-note--small"},
+        h("span", {className:"pt-note__text pt-note__title"}, "Keep look-alike colours apart"),
+        hasResult && gen.disambigData.swaps > 0 && h("span", {className:"pt-note__meta"},
           gen.disambigData.swaps.toLocaleString(), " cell", gen.disambigData.swaps !== 1 ? "s" : "", " corrected"
         ),
-        hasResult && gen.disambigData.swaps === 0 && h("span", {style:{color:"var(--success)"}}, "No clashes found"),
+        hasResult && gen.disambigData.swaps === 0 && h("span", {className:"pt-note__meta pt-note__meta--good"}, "No clashes found"),
         h("button", {
+          type: "button", className: "cs-seltools__btn cs-seltools__btn--primary",
           disabled: !canRun,
           onClick: function() {
             if (!canRun) return;
             gen.disambiguateNow();
-          },
-          style:{padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,background:canRun?"var(--accent)":"var(--surface-tertiary)",color:canRun?"var(--on-accent)":"var(--text-tertiary)",border:"none",borderRadius:'var(--radius-sm)',cursor:canRun?"pointer":"not-allowed",flexShrink:0,transition:"background 0.15s"}
+          }
         }, hasResult ? "Re-apply" : "Apply now"),
         h("button", {
-          onClick: function() { gen.setDisambig(false); },
-          style:{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0,flexShrink:0}
-        }, "\xD7")
+          type: "button", className: "pt-note__close", "aria-label": "Turn off Keep look-alike colours apart", title: "Turn off",
+          onClick: function() { gen.setDisambig(false); }
+        }, Icons.x())
       );
     })(),
 
@@ -228,7 +221,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       : h("div", {
       ref:app.scrollRef,
       className:"cs-chart-scroll",
-      style:{overflow:"auto",maxHeight:550,minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
+      // The fitted height and the cursor for the tool change as you work.
+      style:{minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
@@ -293,30 +287,30 @@ window.CreatorPatternTab = function CreatorPatternTab() {
           parts.push(formatThread(info) + " (" + (info.count || 0) + " st)");
         }
       }
-      return h("div", {className:"tb-status", style:{display:"flex",gap:'var(--s-3)',alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
+      return h("div", {className:"tb-status"},
         h("span", null, parts[0]),
-        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}, parts[1]),
-        parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
+        parts.length > 1 && h("span", {className:"tb-status__coords"}, parts[1]),
+        parts.length > 2 && h("span", {className:"tb-status__thread"},
           ctx.cmap && ctx.pat && hov.hoverCoords && (function() {
             var hIdx2 = hov.hoverCoords.gy * ctx.sW + hov.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
-              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",
-                background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
+              return h("span", {className:"tb-status__swatch", style:{background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
             }
             return null;
           })(),
-          h("span", {style:{fontSize:10,color:"var(--text-secondary)"}}, parts[2])
+          h("span", {className:"tb-status__name"}, parts[2])
         )
       );
     })(),
 
     // Clear for a highlighted thread; in the tool-rail layout it is in the options bar.
-    !app.desktopRail && h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
+    !app.desktopRail && h("div", {className:"pt-hi-clear"},
       cv.hiId && h("button", {
-        onClick: function(){cv.setHiId(null);},
-        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer"}
-      }, "Clear \u2715")
+        type: "button", className: "cs-seltools__btn sb-danger-btn",
+        "aria-label": "Clear the highlighted thread",
+        onClick: function(){cv.setHiId(null);}
+      }, h("span", null, "Clear"), Icons.x())
     ),
 
   );

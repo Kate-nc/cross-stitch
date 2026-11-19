@@ -531,7 +531,7 @@
     var zoom = h("div", { key: "zoom", className: "creator-optbar__zoom", role: "group", "aria-label": "Zoom" },
       h("button", { type: "button", className: "creator-optbar__icon-btn", "aria-label": "Zoom out", title: "Zoom out (−)",
         onClick: function () { cv.setZoom(Math.max(0.05, Math.round((cv.zoom - 0.1) * 100) / 100)); } }, icon("minus")),
-      h(window.CreatorZoomSlider, { zoom: cv.zoom, setZoom: cv.setZoom, maxZoom: cv.maxZoom, style: { width: 90 }, labelClassName: "creator-optbar__zoom-pct" }),
+      h(window.CreatorZoomSlider, { zoom: cv.zoom, setZoom: cv.setZoom, maxZoom: cv.maxZoom, className: "creator-optbar__zoom-range", labelClassName: "creator-optbar__zoom-pct" }),
       h("button", { type: "button", className: "creator-optbar__icon-btn", "aria-label": "Zoom in", title: "Zoom in (+)",
         onClick: function () { cv.setZoom(Math.min(cv.maxZoom || 3, Math.round((cv.zoom + 0.1) * 100) / 100)); } }, icon("plus")),
       h("button", { type: "button", className: "creator-optbar__btn creator-optbar__fit", title: "Fit the chart to the window (0)", onClick: cv.fitZ }, "Fit")

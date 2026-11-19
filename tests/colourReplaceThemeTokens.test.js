@@ -24,6 +24,10 @@ describe('theme tokens instead of raw hex', () => {
     const block = src.slice(src.indexOf('var badgeLabel'), src.indexOf('badgeLabel = null'));
     expect(block.length).toBeGreaterThan(100);
     expect(block.match(HEX)).toBeNull();
-    expect(block).toMatch(/badgeLabel = "Replace"; badgeBg = "var\(--accent-soft\)"; badgeColor = "var\(--accent-ink\)"/);
+    expect(block).toMatch(/badgeLabel = "Replace"; badgeTone = "accent-ink";/);
+    // The tone's colours are tokens in styles.css (Stage 3, D1).
+    const css = read('styles.css');
+    expect(css).toMatch(/\.tb-badge--accent-ink \{ color: var\(--accent-ink\); \}/);
+    expect(css).toMatch(/\.tb-badge--accent, \.tb-badge--accent-deep, \.tb-badge--accent-ink \{ background: var\(--accent-soft\);/);
   });
 });

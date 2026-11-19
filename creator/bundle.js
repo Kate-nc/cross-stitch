@@ -18788,7 +18788,7 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
     var zoom = h("div", { key: "zoom", className: "creator-optbar__zoom", role: "group", "aria-label": "Zoom" },
       h("button", { type: "button", className: "creator-optbar__icon-btn", "aria-label": "Zoom out", title: "Zoom out (−)",
         onClick: function () { cv.setZoom(Math.max(0.05, Math.round((cv.zoom - 0.1) * 100) / 100)); } }, icon("minus")),
-      h(window.CreatorZoomSlider, { zoom: cv.zoom, setZoom: cv.setZoom, maxZoom: cv.maxZoom, style: { width: 90 }, labelClassName: "creator-optbar__zoom-pct" }),
+      h(window.CreatorZoomSlider, { zoom: cv.zoom, setZoom: cv.setZoom, maxZoom: cv.maxZoom, className: "creator-optbar__zoom-range", labelClassName: "creator-optbar__zoom-pct" }),
       h("button", { type: "button", className: "creator-optbar__icon-btn", "aria-label": "Zoom in", title: "Zoom in (+)",
         onClick: function () { cv.setZoom(Math.min(cv.maxZoom || 3, Math.round((cv.zoom + 0.1) * 100) / 100)); } }, icon("plus")),
       h("button", { type: "button", className: "creator-optbar__btn creator-optbar__fit", title: "Fit the chart to the window (0)", onClick: cv.fitZ }, "Fit")
@@ -18856,14 +18856,14 @@ function toolStrictnessControl(h, levels, value, onPick, name) {
   var cur = toolStrictnessLevel(levels, value);
   return h(React.Fragment, null,
     h("span", {
-      style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
+      className:"tb-label tb-label--gap"
     }, "How strict"),
-    h("div", { role: "radiogroup", "aria-label": name + ": how strict", style: { display: "inline-flex", gap: 2 } },
+    h("div", { role: "radiogroup", "aria-label": name + ": how strict", className: "tb-radios" },
       levels.map(function (l, i) {
         var on = l.id === cur.id;
         return h("button", {
           key: l.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false", tabIndex: on ? 0 : -1,
-          className: "tb-btn" + (on ? " tb-btn--on" : ""), style: { padding: "1px 8px", fontSize: 11 },
+          className: "tb-btn tb-btn--sm" + (on ? " tb-btn--on" : ""),
           onClick: function () { onPick(l.value); },
           onKeyDown: function (e) {
             var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
@@ -18920,9 +18920,9 @@ window.CreatorZoomSlider = function CreatorZoomSlider(props) {
       ref: inputRef,
       type: "range", min: 0.05, max: props.maxZoom || 3, step: 0.05, value: value,
       onChange: onChange, onPointerUp: commitNow, onBlur: commitNow,
-      style: props.style, title: props.title, "aria-label": "Zoom"
+      className: props.className, title: props.title, "aria-label": "Zoom"
     }),
-    h("span", { className: props.labelClassName, style: props.labelStyle }, Math.round(value * 100) + "%")
+    h("span", { className: props.labelClassName }, Math.round(value * 100) + "%")
   );
 };
 
@@ -19036,11 +19036,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     // popover on click. Reuses the openDrop / outside-click-close mechanism.
     var clTgtEntry = ctx.cmap && cv.cleanupTargetColorId ? ctx.cmap[cv.cleanupTargetColorId] : null;
     var cleanupTgtChip = h("div", {
-      className: "tb-drop-wrap" + (openDrop === 'cleanup-target' ? " tb-drop-wrap--open" : ""),
-      style: { position: "relative", display: "inline-flex", flexShrink: 0 }
+      className: "tb-drop-wrap tb-target" + (openDrop === 'cleanup-target' ? " tb-drop-wrap--open" : "")
     },
       h("button", {
-        className: "tb-btn" + (openDrop === 'cleanup-target' ? " tb-btn--on" : ""),
+        className: "tb-btn tb-target__btn" + (openDrop === 'cleanup-target' ? " tb-btn--on" : ""),
         onClick: function(e) {
           e.stopPropagation();
           setOpenDrop(function(v) { return v === 'cleanup-target' ? null : 'cleanup-target'; });
@@ -19048,28 +19047,21 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         title: "Target: " + formatThread((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId || "" }) + " — click to change",
         "aria-label": "Change cleanup target colour",
         "aria-expanded": openDrop === 'cleanup-target' ? "true" : "false",
-        "aria-haspopup": "listbox",
-        style: { display:"inline-flex", alignItems:"center", gap:5, padding:"2px 8px 2px 5px" }
+        "aria-haspopup": "listbox"
       },
         clTgtEntry && h("span", {
-          "aria-hidden": "true",
-          style: { width:12, height:12, borderRadius:2, flexShrink:0, display:"inline-block",
-                   background:"rgb("+clTgtEntry.rgb+")", border:"1.5px solid rgba(0,0,0,0.2)" }
+          "aria-hidden": "true", className: "tb-target__swatch",
+          style: { background:"rgb("+clTgtEntry.rgb+")" }
         }),
-        h("span", {style:{fontSize:11}},
+        h("span", null,
           cv.cleanupTargetColorId ? threadLabel((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId }) : "None"
         ),
-        h("span", {"aria-hidden":"true", style:{display:"inline-flex",opacity:0.6,marginLeft:1}}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
+        h("span", {"aria-hidden":"true", className:"tb-target__chev"}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
       ),
       openDrop === 'cleanup-target' && h("div", {
         role: "listbox",
         "aria-label": "Select cleanup target colour",
-        style: {
-          position:"absolute", top:"calc(100% + 2px)", left:0, zIndex:200,
-          background:"var(--surface)", border:"1px solid var(--line)", borderRadius:"var(--radius-sm)",
-          boxShadow:"var(--shadow-sm)", padding:6, display:"flex", flexWrap:"wrap", gap:3,
-          minWidth:100, maxWidth:210
-        }
+        className: "tb-target__list"
       },
         palForCleanup.map(function(p) {
           var isTgt = cv.cleanupTargetColorId === p.id;
@@ -19080,103 +19072,87 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             onClick: function(e) { e.stopPropagation(); cv.setCleanupTargetColorId(p.id); setOpenDrop(null); },
             title: formatThread(p),
             "aria-label": "Set cleanup target to " + formatThread(p),
-            style:{
-              width:18, height:18, flexShrink:0, borderRadius:3, cursor:"pointer", padding:0,
-              background:"rgb("+p.rgb+")",
-              border: isTgt ? "2px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
-              boxShadow: isTgt ? "0 0 0 2px #fff inset" : "none",
-              outline: "none"
-            }
+            className: "tb-target__opt" + (isTgt ? " tb-target__opt--on" : ""),
+            style:{ background:"rgb("+p.rgb+")" }
           });
         })
       )
     );
     cleanupRow = h("div", {
-      className: "swatch-strip-row",
+      className: "swatch-strip-row tb-mode-row",
       role: "group",
-      "aria-label": "Fix outline colours controls",
-      style: { gap: "var(--s-2)", paddingTop: "var(--s-1)", alignItems: "center" }
+      "aria-label": "Fix outline colours controls"
     },
       // ── Target colour chip ────────────────────────────────────────────────
       h("span", {
-        style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5}
+        className:"tb-label"
       }, "Target"),
       cleanupTgtChip,
       // ── How strict ────────────────────────────────────────────────────────
       toolStrictnessControl(h, TOOL_STRICTNESS.outline, cv.cleanupTolerance, function (v) { cv.setCleanupTolerance(v); }, "Fix outline colours"),
       // ── Sub-tool radios ───────────────────────────────────────────────────
       h("span", {
-        style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
+        className:"tb-label tb-label--gap"
       }, "Mode"),
       subTools.map(function(st) {
         var isActive = cv.cleanupSelTool === st.id;
         return h("button", {
           key: st.id,
-          className: "tb-btn" + (isActive ? " tb-btn--on" : ""),
+          className: "tb-btn tb-btn--sm" + (isActive ? " tb-btn--on" : ""),
           onClick: function(){ cv.setCleanupSelTool(st.id); },
           title: st.label + " selection",
           "aria-label": st.label + " selection mode",
-          "aria-pressed": isActive,
-          style:{padding:"1px 8px",fontSize:11}
+          "aria-pressed": isActive
         }, st.label);
       }),
       // ── Brush size (only when Brush sub-tool is active) ───────────────────
       cv.cleanupSelTool === "brush" && h(React.Fragment, null,
         h("span", {
-          style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
+          className:"tb-label tb-label--gap"
         }, "Size"),
         h("button", {
-          className:"tb-btn", style:{padding:"1px 7px",fontSize:12},
+          className:"tb-btn tb-btn--step",
           onClick:function(){ cv.setCleanupBrushSize(Math.max(1, (cv.cleanupBrushSize||1)-1)); },
           "aria-label":"Decrease brush size",
           disabled:(cv.cleanupBrushSize||1) <= 1
         }, window.Icons && window.Icons.minus ? window.Icons.minus() : null),
-        h("span", {style:{fontSize:11,minWidth:16,textAlign:"center",color:"var(--text-secondary)"}}, cv.cleanupBrushSize||1),
+        h("span", {className:"tb-step-val"}, cv.cleanupBrushSize||1),
         h("button", {
-          className:"tb-btn", style:{padding:"1px 7px",fontSize:12},
+          className:"tb-btn tb-btn--step",
           onClick:function(){ cv.setCleanupBrushSize(Math.min(10, (cv.cleanupBrushSize||1)+1)); },
           "aria-label":"Increase brush size",
           disabled:(cv.cleanupBrushSize||1) >= 10
-        }, "+")
+        }, window.Icons.plus())
       ),
       // ── Re-run button (Auto sub-tool only — first run triggers automatically) ──
       cv.cleanupSelTool === "auto" && h("button", {
-        className:"tb-btn",
+        className:"tb-btn tb-gap",
         onClick: function(){ if (cv.runAutoDetect) cv.runAutoDetect(); },
         disabled: cv.cleanupAutoRunning || !cv.cleanupTargetColorId,
         title: cv.cleanupAutoRunning ? "Detecting\u2026" : "Re-run auto-detect",
-        "aria-label": "Re-run auto-detect",
-        style:{marginLeft:4}
+        "aria-label": "Re-run auto-detect"
       }, cv.cleanupAutoRunning ? "Detecting\u2026" : "Re-run"),
       // ── Auto-error notice ─────────────────────────────────────────────────
       cv.cleanupAutoError && h("span", {
-        role:"alert",
-        style:{fontSize:10,color:"var(--danger)",marginLeft:4,flexShrink:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}
+        role:"alert", className:"tb-error"
       }, cv.cleanupAutoError),
       // ── Apply / Cancel ────────────────────────────────────────────────────
       h("button", {
-        className:"tb-btn tb-btn--primary",
+        className:"tb-btn tb-btn--apply" + (hasPending ? " tb-btn--apply-on" : ""),
         onClick: function(){ if (cv.applyCleanup) cv.applyCleanup(); },
         disabled: !hasPending,
         title: hasPending ? "Apply (" + pendingCt.toLocaleString("en-GB") + " stitches)" : "No stitches selected",
         "aria-label": "Apply outline fixes",
-        "aria-disabled": !hasPending,
-        style:{
-          marginLeft:8, opacity: hasPending ? 1 : 0.4,
-          background: hasPending ? "var(--accent)" : undefined,
-          color: hasPending ? "#fff" : undefined,
-          border: hasPending ? "none" : undefined
-        }
+        "aria-disabled": !hasPending
       }, "Apply"),
       h("button", {
-        className:"tb-btn",
+        className:"tb-btn tb-gap",
         onClick: function(){
           if (cv.cancelCleanup) cv.cancelCleanup();
           if (cv.exitCleanup) cv.exitCleanup();
         },
         title:"Stop fixing outline colours",
-        "aria-label":"Stop fixing outline colours",
-        style:{marginLeft:4}
+        "aria-label":"Stop fixing outline colours"
       }, "Cancel")
     );
   }
@@ -19198,41 +19174,36 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     var dnHasMergePending = dnMergeCount > 0;
     var dnCanApply = dnHasPending || dnHasMergePending;
     denoiseRow = h('div', {
-      className: 'swatch-strip-row',
+      className: 'swatch-strip-row tb-mode-row tb-mode-row--wrap',
       role: 'group',
-      'aria-label': 'Reduce confetti controls',
-      style: { gap: 'var(--s-2)', paddingTop: 'var(--s-1)', alignItems: 'center', flexWrap: 'wrap' }
+      'aria-label': 'Reduce confetti controls'
     },
       // ── Dither warning banner ────────────────────────────────────────────
       cv.denoiseDitherWarning && h('div', {
-        role: 'alert',
-        style: { display:'flex', alignItems:'center', gap:6, padding:'3px 8px',
-                 background:'var(--accent-2,#fffbe6)', border:'1px solid var(--line)',
-                 borderRadius:'var(--radius-sm)', fontSize:11, color:'var(--text-primary)', flexShrink:0 }
+        role: 'alert', className: 'tb-note'
       },
         h('span', null, 'This pattern has a lot of shading, so the results may be approximate.'),
         h('button', {
-          className: 'tb-btn',
+          className: 'tb-btn tb-btn--sm',
           onClick: function() { if (cv.dismissDitherWarning) cv.dismissDitherWarning(); },
-          style: { padding:'1px 6px', fontSize:10 },
           'aria-label': 'Dismiss shading warning'
         }, 'Dismiss')
       ),
       // ── Operations checkboxes ────────────────────────────────────────────
-      h('span', { style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5} }, 'Ops'),
-      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+      h('span', { className:'tb-label' }, 'Ops'),
+      h('label', { className:'tb-check' },
         h('input', { type:'checkbox', checked: !!dnOps.palette,
           onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { palette: e.target.checked })); },
           'aria-label': 'Enable palette consolidation' }),
         'Palette'
       ),
-      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+      h('label', { className:'tb-check' },
         h('input', { type:'checkbox', checked: !!dnOps.speckle,
           onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { speckle: e.target.checked })); },
           'aria-label': 'Enable confetti reduction' }),
         'Confetti'
       ),
-      h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
+      h('label', { className:'tb-check' },
         h('input', { type:'checkbox', checked: !!dnOps.fringe,
           onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { fringe: e.target.checked })); },
           'aria-label': 'Enable edge fringe smoothing' }),
@@ -19248,7 +19219,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         // visible but swaps to "Recalculating…" until the next merge count
         // arrives from the debounced worker re-run (~350ms).
         dnReport && dnReport.mergeMap && h('span', {
-          style:{fontSize:11,color:'var(--text-tertiary)',flexShrink:0,whiteSpace:'nowrap',display:'inline-flex',alignItems:'center',gap:3}
+          className:'tb-hint'
         },
           window.Icons && window.Icons.pointing ? window.Icons.pointing() : null,
           cv.denoiseAutoRunning
@@ -19260,85 +19231,73 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       ),
       // ── Mode radios ──────────────────────────────────────────────────────
       h('span', {
-        style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+        className:'tb-label tb-label--gap'
       }, 'Mode'),
       dnSubTools.map(function(st) {
         var isActive = (cv.denoiseSelTool || 'auto') === st.id;
         return h('button', {
           key: st.id,
-          className: 'tb-btn' + (isActive ? ' tb-btn--on' : ''),
+          className: 'tb-btn tb-btn--sm' + (isActive ? ' tb-btn--on' : ''),
           onClick: function(){ cv.setDenoiseSelTool && cv.setDenoiseSelTool(st.id); },
           title: st.label + ' mode',
           'aria-label': st.label + ' selection',
-          'aria-pressed': isActive,
-          style:{padding:'1px 8px',fontSize:11}
+          'aria-pressed': isActive
         }, st.label);
       }),
       // ── Brush size (Brush sub-tool only) ─────────────────────────────────
       (cv.denoiseSelTool === 'brush') && h(React.Fragment, null,
         h('span', {
-          style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
+          className:'tb-label tb-label--gap'
         }, 'Size'),
         h('button', {
-          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          className:'tb-btn tb-btn--step',
           onClick:function(){ cv.setDenoiseBrushSize && cv.setDenoiseBrushSize(Math.max(1, (cv.denoiseBrushSize||1)-1)); },
           'aria-label':'Decrease brush size',
           disabled:(cv.denoiseBrushSize||1) <= 1
         }, window.Icons && window.Icons.minus ? window.Icons.minus() : null),
-        h('span', {style:{fontSize:11,minWidth:16,textAlign:'center',color:'var(--text-secondary)'}}, cv.denoiseBrushSize||1),
+        h('span', {className:'tb-step-val'}, cv.denoiseBrushSize||1),
         h('button', {
-          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
+          className:'tb-btn tb-btn--step',
           onClick:function(){ cv.setDenoiseBrushSize && cv.setDenoiseBrushSize(Math.min(10, (cv.denoiseBrushSize||1)+1)); },
           'aria-label':'Increase brush size',
           disabled:(cv.denoiseBrushSize||1) >= 10
-        }, '+')
+        }, window.Icons.plus())
       ),
       // ── Re-run (Auto sub-tool only) ──────────────────────────────────────
       (cv.denoiseSelTool === 'auto' || !cv.denoiseSelTool) && h('button', {
-        className:'tb-btn',
+        className:'tb-btn tb-gap',
         onClick: function(){ if (cv.runDenoiseAutoDetect) cv.runDenoiseAutoDetect(); },
         disabled: cv.denoiseAutoRunning,
         title: cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Look again',
-        'aria-label': 'Look again',
-        style:{marginLeft:4}
+        'aria-label': 'Look again'
       }, cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Re-run'),
       // ── Preview report counts ────────────────────────────────────────────
-      dnReport && h('span', {
-        style:{fontSize:10,color:'var(--text-tertiary)',marginLeft:4}
-      },
+      dnReport && h('span', {className:'tb-hint tb-gap'},
         (dnReport.paletteCount > 0 ? 'Palette: ' + dnReport.paletteCount + '  ' : '') +
         (dnReport.speckleCount > 0 ? 'Confetti: ' + dnReport.speckleCount + '  ' : '') +
         (dnReport.fringeCount  > 0 ? 'Fringe: '  + dnReport.fringeCount        : '')
       ),
       // ── Auto-error notice ────────────────────────────────────────────────
       cv.denoiseAutoError && h('span', {
-        role:'alert',
-        style:{fontSize:10,color:'var(--danger)',marginLeft:4,flexShrink:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:160}
+        role:'alert', className:'tb-error'
       }, cv.denoiseAutoError),
       // ── Apply / Cancel ───────────────────────────────────────────────────
       h('button', {
-        className:'tb-btn tb-btn--primary',
+        className:'tb-btn tb-btn--apply' + (dnCanApply ? ' tb-btn--apply-on' : ''),
         onClick: function(){ if (cv.applyDenoise) cv.applyDenoise(); },
         disabled: !dnCanApply,
         title: dnCanApply ? 'Apply (' + dnPendingCt.toLocaleString('en-GB') + ' stitches)' : 'No stitches selected',
         'aria-label': 'Apply stray-stitch fixes',
-        'aria-disabled': !dnCanApply,
-        style:{
-          marginLeft:8, opacity: dnCanApply ? 1 : 0.4,
-          background: dnCanApply ? 'var(--accent)' : undefined,
-          color: dnCanApply ? '#fff' : undefined,
-          border: dnCanApply ? 'none' : undefined
-        }
+        'aria-disabled': !dnCanApply
       }, 'Apply'),
       h('button', {
-        className:'tb-btn',
+        className:'tb-btn tb-gap',
         onClick: function(){
           if (cv.cancelDenoise) cv.cancelDenoise();
           if (cv.exitDenoise) cv.exitDenoise();
         },
         title:'Stop reducing confetti',
-        'aria-label':'Stop reducing confetti',
-        style:{marginLeft:4}
+        'aria-label':'Stop reducing confetti'
       }, 'Cancel')
     );
   }
@@ -19452,15 +19411,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Colour swatch strip — second toolbar row, sorted by usage, all swatches scrollable
   var showSwatchRow = ((cv.brushMode==="paint" || cv.brushMode==="fill") && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase" || cv.activeTool==="eyedropper") && palData.length > 0;
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
-    h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:'var(--s-1)',flexShrink:0,letterSpacing:0.5}}, "Colour"),
+    h("span", {className:"tb-label tb-label--end"}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"40vw",overflowWrap:"anywhere"},
+      className:"tb-colour-chip",
       title: formatThread(ctx.cmap[cv.selectedColorId], {variant:"title"})
     },
-      h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, formatThread(ctx.cmap[cv.selectedColorId], {variant:"short"})),
-      formatThread(ctx.cmap[cv.selectedColorId], {variant:"name"}) ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,minWidth:0,overflowWrap:"anywhere"}}, formatThread(ctx.cmap[cv.selectedColorId], {variant:"name"})) : null
-    ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
+      h("span", {className:"tb-colour-chip__swatch", style:{background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")"}}),
+      h("span", {className:"tb-colour-chip__id"}, formatThread(ctx.cmap[cv.selectedColorId], {variant:"short"})),
+      formatThread(ctx.cmap[cv.selectedColorId], {variant:"name"}) ? h("span", {className:"tb-colour-chip__name"}, formatThread(ctx.cmap[cv.selectedColorId], {variant:"name"})) : null
+    ) : h("span", {className:"tb-hint tb-label--end"}, "none selected"),
     palData.length > 5 && h("button", {
       className:"tb-swatch-scroll-btn",
       onClick:function(){ swatchRowRef.current && swatchRowRef.current.scrollBy({left:-120,behavior:"smooth"}); },
@@ -19486,15 +19445,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           title: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p),
           "aria-label": "Select " + formatThread(p),
           "aria-pressed": isSel,
-          style:{
-            width:40, height:40, flexShrink:0,
-            borderRadius:6, cursor:"pointer", padding:0,
-            background:"rgb("+p.rgb+")",
-            border: isSel ? "2.5px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
-            boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
-            outline:"none",
-            display:"inline-flex", alignItems:"center", justifyContent:"center"
-          }
+          className:"tb-swatch" + (isSel ? " tb-swatch--on" : ""),
+          style:{ background:"rgb("+p.rgb+")" }
         }, p.symbol ? h("span", {
           className:"tb-swatch-sym tb-swatch-sym--" + (window.PaletteTools ? window.PaletteTools.swatchInk(p.rgb) : "black"),
           "aria-hidden":"true"
@@ -19514,64 +19466,63 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {key:"sdiv-clrsel", className:"tb-sdiv"}),
     h("button", {
       key:"clr-sel",
-      className:"tb-btn",
+      className:"tb-btn tb-btn--sm",
       onClick:function(){ if(cv.cancelLasso) cv.cancelLasso(); if(cv.clearSelection) cv.clearSelection(); },
-      title:"Clear selection (Esc)", "aria-label":"Clear selection",
-      style:{fontSize:10,padding:"2px 6px",color:"var(--text-secondary)"}
+      title:"Clear selection (Esc)", "aria-label":"Clear selection"
     }, (cv.selectionCount||0).toLocaleString()+" sel ", window.Icons.x())
   ] : null;
 
   // Active tool indicator badge — tooltip surfaces the selected colour
   // since the toolbar no longer carries a colour chip.
-  var badgeLabel, badgeBg, badgeColor, badgeDot;
+  var badgeLabel, badgeTone = "plain";
   // Active tools (eyedropper to cleanup) must be checked before stitch type /
   // brush mode: brushMode is always "paint" or "fill", so any branch after it
   // never runs.
   if (cv.activeTool === "eyedropper") {
-    badgeLabel = "Eyedropper"; badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
+    badgeLabel = "Eyedropper"; badgeTone = "warning";
   } else if (cv.activeTool === "magicWand") {
-    badgeLabel = "Magic Wand"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+    badgeLabel = "Magic Wand"; badgeTone = "plain-accent";
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
-    badgeLabel = "Lasso \xB7 " + lm; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
+    badgeLabel = "Lasso \xB7 " + lm; badgeTone = "accent-deep";
   } else if (cv.activeTool === "text") {
-    badgeLabel = "Text"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
+    badgeLabel = "Text"; badgeTone = "success";
   } else if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") {
     badgeLabel = { line: "Line", rect: "Rectangle", ellipse: "Ellipse" }[cv.activeTool] + (cv.mirror && cv.mirror.on ? " \u00B7 Mirror" : "");
-    badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
+    badgeTone = "success";
   } else if (cv.activeTool === "float") {
-    badgeLabel = "Place selection"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
+    badgeLabel = "Place selection"; badgeTone = "accent-deep";
   } else if (cv.activeTool === "move") {
-    badgeLabel = "Move"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+    badgeLabel = "Move"; badgeTone = "plain-accent";
   } else if (cv.activeTool === "colourReplace") {
-    badgeLabel = "Replace"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-ink)"; badgeDot = "var(--accent)";
+    badgeLabel = "Replace"; badgeTone = "accent-ink";
   } else if (cv.activeTool === "cleanup") {
     var pendingCount = 0;
     if (cv.cleanupPendingMask) { for (var ci2 = 0; ci2 < cv.cleanupPendingMask.length; ci2++) { if (cv.cleanupPendingMask[ci2]) pendingCount++; } }
     badgeLabel = "Fix outlines" + (pendingCount > 0 ? " \xb7 " + pendingCount.toLocaleString() + " sel" : "");
-    badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
+    badgeTone = "warning";
   } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
-    badgeLabel = "Erase"; badgeBg = "var(--danger-soft)"; badgeColor = "var(--danger)"; badgeDot = "var(--danger)";
+    badgeLabel = "Erase"; badgeTone = "danger";
   } else if (cv.stitchType === "knot") {
-    badgeLabel = "French knot"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--text-tertiary)";
+    badgeLabel = "French knot"; badgeTone = "plain-strong";
   } else if (cv.stitchType === "backstitch") {
-    badgeLabel = "Backstitch"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--text-tertiary)";
+    badgeLabel = "Backstitch"; badgeTone = "plain-strong";
   } else if (cv.stitchType === "half-fwd") {
-    badgeLabel = "Half /"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+    badgeLabel = "Half /"; badgeTone = "accent";
   } else if (cv.stitchType === "half-bck") {
-    badgeLabel = "Half \\"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+    badgeLabel = "Half \\"; badgeTone = "accent";
   } else if (!cv.drawMode) {
     // Navigate: on touch the Navigate | Draw toggle already says so.
     badgeLabel = coarsePointer ? null : "Navigate";
-    badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-secondary)"; badgeDot = "var(--text-tertiary)";
+    badgeTone = "plain";
   } else if (!cv.activeTool && !ctx.partialStitchTool) {
     badgeLabel = "";  // no tool chosen: no badge
-    badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-secondary)"; badgeDot = "var(--text-tertiary)";
+    badgeTone = "plain";
   } else if (cv.brushMode === "fill") {
-    badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
+    badgeLabel = "Fill"; badgeTone = "success";
   } else if (cv.brushMode === "paint") {
     var szTxt = cv.brushSize > 1 ? " " + cv.brushSize + "\xD7" + cv.brushSize : "";
-    badgeLabel = "Paint" + szTxt; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
+    badgeLabel = "Paint" + szTxt; badgeTone = "success";
   } else {
     badgeLabel = null;
   }
@@ -19579,20 +19530,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     ? (" \u2014 " + formatThread(ctx.cmap[cv.selectedColorId]))
     : "";
   var toolBadge = badgeLabel ? h("span", {
-    title: badgeLabel + badgeColourTip,
-    style:{fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:'var(--s-1)',
-      padding:"2px 8px 2px 6px",borderRadius:'var(--radius-lg)',background:badgeBg,color:badgeColor,
-      flexShrink:0,letterSpacing:0.2,lineHeight:1.4,border:"1px solid " + badgeDot + "33"}
+    className:"tb-badge tb-badge--" + badgeTone,
+    title: badgeLabel + badgeColourTip
   },
-    h("span", {style:{width:6,height:6,borderRadius:"50%",background:badgeDot,display:"inline-block",
-      boxShadow:"0 0 4px " + badgeDot + "66"}}),
+    h("span", {className:"tb-badge__dot", "aria-hidden":"true"}),
     badgeLabel
   ) : null;
 
   // Zoom group
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
     h("span", {className:"tb-zoom-lbl"}, "Zoom"),
-    h(window.CreatorZoomSlider, {zoom:cv.zoom, setZoom:cv.setZoom, maxZoom:cv.maxZoom, style:{width:55}, labelClassName:"tb-zoom-pct"}),
+    h(window.CreatorZoomSlider, {zoom:cv.zoom, setZoom:cv.setZoom, maxZoom:cv.maxZoom, className:"tb-zoom-range", labelClassName:"tb-zoom-pct"}),
     h("button", {className:"tb-fit-btn", onClick:cv.fitZ}, "Fit")
   );
 
@@ -19600,19 +19548,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var undoRedo = [
     h("div", {key:"sdiv-ur", className:"tb-sdiv"}),
     h("button", {
-      key:"undo", className:"tb-btn",
+      key:"undo", className:"tb-btn tb-btn--history",
       onClick:cv.undoEdit, disabled:!cv.editHistory.length,
       title:"Undo (Ctrl+Z)",
-      "aria-label":"Undo",
-      style:{opacity:cv.editHistory.length?1:0.3}
-    }, "\u21A9"),
+      "aria-label":"Undo"
+    }, window.Icons.undo()),
     h("button", {
-      key:"redo", className:"tb-btn",
+      key:"redo", className:"tb-btn tb-btn--history",
       onClick:cv.redoEdit, disabled:!cv.redoHistory.length,
       title:"Redo (Ctrl+Y)",
-      "aria-label":"Redo",
-      style:{opacity:cv.redoHistory.length?1:0.3}
-    }, "\u21AA")
+      "aria-label":"Redo"
+    }, window.Icons.redo())
   ];
 
   // "More" panel — secondary tools + settings flyout (dropdown on desktop, bottom sheet on touch)
@@ -19653,10 +19599,11 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     var on = t.isOn(toolApi);
     var props = Object.assign({
       key:"tool-" + t.id, "data-tool":t.id,
-      className:"tb-btn"+(on?" tb-btn--on":""),
+      className:"tb-btn"+(extra && extra.row ? " tb-btn--row" : "")+(on?" tb-btn--on":""),
       onClick:function(){ t.activate(toolApi); setMorePanelOpen(false); },
       title:t.title, "aria-label":t.label
     }, extra || {});
+    delete props.row;
     if (t.kind !== "action") props["aria-pressed"] = on ? "true" : "false";
     if (t.disabled) { props.disabled = ToolReg.isDisabled(t, toolApi); props["aria-disabled"] = props.disabled; }
     var icon = Object.prototype.hasOwnProperty.call(moreIconOverride, t.id) ? moreIconOverride[t.id] : toolIcon(t);
@@ -19675,7 +19622,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     //    still the main way to zoom. ──
     compact && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "View"),
-      h("div", {className:"tb-grp tb-more-zoom", style:{flexWrap:"wrap",gap:4,alignItems:"center"}},
+      h("div", {className:"tb-grp tb-grp--wrap tb-more-zoom"},
         h("button", {className:"tb-btn", "aria-label":"Zoom out", title:"Zoom out",
           onClick:function(){ cv.setZoom(Math.max(0.05, Math.round((cv.zoom - 0.25) * 100) / 100)); }}, window.Icons.minus()),
         h("span", {className:"tb-zoom-pct", "aria-live":"polite"}, Math.round(cv.zoom*100)+"%"),
@@ -19688,7 +19635,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         h("input", {type:"checkbox", checked:showColourStrip, onChange:function(e){ setShowColourStrip(e.target.checked); }}),
         h("span", null, "Show colour strip")
       ),
-      h("button", {className:"tb-btn", style:{width:"100%",justifyContent:"flex-start"},
+      h("button", {className:"tb-btn tb-btn--row",
         onClick:function(){ setMorePanelOpen(false); if (app.setPanelOpen) app.setPanelOpen(true); }},
         window.Icons.sliders ? window.Icons.sliders() : null, " Panels: palette, tools, view…")
     ),
@@ -19713,24 +19660,22 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Canvas"),
       h("button", {
-        className:"tb-btn",
+        className:"tb-btn tb-btn--row",
         onClick:function(){ if(app&&app.openResizeCanvas)app.openResizeCanvas(); setMorePanelOpen(false); },
         title:"Resize canvas \u2014 crop or expand the pattern bounds",
-        "aria-label":"Resize canvas",
-        style:{width:"100%",justifyContent:"flex-start"}
+        "aria-label":"Resize canvas"
       }, window.Icons&&window.Icons.canvasResize?window.Icons.canvasResize():null, " Resize canvas\u2026"),
       (gen.img && gen.img.src && !ctx.isScratchMode) && h("button", {
-        className:"tb-btn",
+        className:"tb-btn tb-btn--row",
         onClick:function(){ if(app&&app.requestBackToConvert)app.requestBackToConvert(); setMorePanelOpen(false); },
         title:"Return to image settings and re-generate the pattern",
-        "aria-label":"Re-generate from image",
-        style:{width:"100%",justifyContent:"flex-start"}
+        "aria-label":"Re-generate from image"
       }, window.Icons&&window.Icons.sliders?window.Icons.sliders():null, " Re-generate from image\u2026")
     ),
     // ── Tools (from creator/toolRegistry.js) ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Tools"),
-      h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
+      h("div", {className:"tb-grp tb-grp--wrap"},
         // Navigate replaces the separate Hand tool. On touch the Navigate |
         // Draw toggle is always in the strip, so the registry leaves it out.
         ToolReg.moreTools({ coarse: coarsePointer, desktopRail: railLayout }).map(function(t) { return moreToolBtn(t); })
@@ -19739,13 +19684,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     // ── Cleanup and denoise ──
     !railLayout && ToolReg.moreTools({ coarse: coarsePointer }, ToolReg.MORE_CLEANUP).map(function(t) {
       return h("div", {key:"sec-" + t.id, className:"tb-more-panel__section" + (t.id === "cleanup" ? " tb-more-panel__section--cleanup" : "")},
-        moreToolBtn(t, {style:{width:"100%",justifyContent:"flex-start"},
+        moreToolBtn(t, {row:true,
           title: t.id === "denoise" ? "Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads" : t.title}));
     }),
     // ── Stitch type ──
     !railLayout && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Stitch type"),
-      h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
+      h("div", {className:"tb-grp tb-grp--wrap"},
         stitchTypeOptions.map(function(st) {
           var isOn = cv.stitchType === st.id;
           return h("button", {
@@ -19760,7 +19705,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     // ── Brush size ──
     !railLayout && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Brush size"),
-      h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
+      h("div", {className:"tb-grp tb-grp--wrap"},
         [1,2,3,5,7,10].map(function(sz) {
           var isOn = (cv.brushSize||1) === sz;
           return h("button", {
@@ -19775,16 +19720,16 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     // ── Overlay (conditional) ──
     (gen.img && gen.img.src) && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Display"),
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,padding:"2px 0",cursor:"pointer",fontSize:12}},
+      h("label", {className:"tb-more-check"},
         h("input", {
           type:"checkbox", checked:!!cv.showOverlay,
           onChange:function(e){ cv.setShowOverlay(e.target.checked); }
-        }), " Overlay"
+        }), h("span", null, "Overlay")
       ),
       cv.showOverlay && h("input", {
         type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
         onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
-        style:{width:"100%",marginTop:4}, "aria-label":"Overlay opacity"
+        className:"tb-range", "aria-label":"Overlay opacity"
       })
     )
   ) : null;
@@ -24206,9 +24151,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   }
 
   return h("div", null,
-    cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {
-      style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:6,background:"var(--surface-tertiary)",padding:"6px 10px",borderRadius:'var(--radius-md)'}
-    }, "To see symbols, you may need to zoom in."),
+    cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {className:"pt-note"},
+      "To see symbols, you may need to zoom in."),
 
     ctx.isScratchMode && (Number(ctx.totalStitchable) || 0) === 0 && (function() {
       var hasThreads = !!(ctx.displayPal && ctx.displayPal.length > 0);
@@ -24217,8 +24161,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         ? (typeof formatThread === "function" ? formatThread(activeThread) : (activeThread.name ? activeThread.id + " " + activeThread.name : activeThread.id))
         : "";
       return h("div", {
-        className: "scratch-empty-hint",
-        style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-2)',flexWrap:"wrap"}
+        className: "pt-note pt-note--centre scratch-empty-hint"
       },
         activeThread
           ? h("span", null, cv.drawMode && cv.activeTool === "paint"
@@ -24243,17 +24186,15 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     // The shortcuts hint and review note wait while "Your pattern is ready"
     // or a one-off tip is showing, so notices come one at a time.
     // The tool rail's tooltips name each shortcut, so it has no hint row.
-    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && !app.desktopRail && h("div", {
-      style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
-    },
-      h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
+    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && !app.desktopRail && h("div", {className:"pt-note pt-note--quiet"},
+      h("span", {className:"pt-note__text"}, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
       h("button", {
+        type: "button", className: "pt-note__close", "aria-label": "Dismiss", title: "Dismiss",
         onClick: function() {
           localStorage.setItem("shortcuts_hint_dismissed", "1");
           app.setShortcutsHintDismissed(true);
-        },
-        style:{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0}
-      }, "\xD7")
+        }
+      }, Icons.x())
     ),
 
     !confettiBannerDismissed && app.confettiData && gen.orphans > 0 && (function() {
@@ -24263,28 +24204,25 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var totalStitchable = ctx.pat ? ctx.pat.filter(function(m){return m.id!=="__skip__"&&m.id!=="__empty__";}).length : 1;
       var pctOfTotal = removed / Math.max(1, totalStitchable) * 100;
       if (pctOfTotal < 15) return null;
-      return h("div", {
-        style:{padding:"8px 12px",background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center"}
-      },
-        h("span", null, Icons.warning(), " Reduce confetti changed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to convert again with a lower Reduce confetti level."),
+      return h("div", {className:"pt-note pt-note--danger", role:"note"},
+        h("span", {className:"pt-note__text"}, Icons.warning(), " Reduce confetti changed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to convert again with a lower Reduce confetti level."),
         h("button", {
-          onClick:function(){setConfettiBannerDismissed(true);},
-          style:{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:'var(--text-lg)',flexShrink:0,marginLeft:'var(--s-2)'}
-        }, "\xD7")
+          type:"button", className:"pt-note__close", "aria-label":"Dismiss", title:"Dismiss",
+          onClick:function(){setConfettiBannerDismissed(true);}
+        }, Icons.x())
       );
     })(),
 
     // Stitched progress (UX-006): edits to stitched cells reset them, so say so
     // up front and offer to show which cells those are.
     ctx.progressPct > 0 && h("div", {
-      className:"stitched-banner", role:"status",
-      style:{padding:"8px 12px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderLeft:"3px solid var(--accent)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)',flexWrap:"wrap"}
+      className:"stitched-banner pt-note pt-note--accent", role:"status"
     },
-      h("span", null, Icons.info(), " This project is ", ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "less than 1", "% stitched. Changing stitched cells resets them to not done."),
+      h("span", {className:"pt-note__text"}, Icons.info(), " This project is ", ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "less than 1", "% stitched. Changing stitched cells resets them to not done."),
       h("button", {
-        type:"button", className:"stitched-banner__toggle", "aria-pressed": !!cv.showStitched,
-        onClick:function(){ cv.setShowStitched(!cv.showStitched); },
-        style:{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,cursor:"pointer",borderRadius:'var(--radius-sm)',border:cv.showStitched?"1px solid var(--accent)":"0.5px solid var(--line)",background:cv.showStitched?"var(--accent-soft)":"var(--surface)",color:cv.showStitched?"var(--accent)":"var(--text-secondary)",flexShrink:0}
+        type:"button", "aria-pressed": !!cv.showStitched,
+        className:"stitched-banner__toggle cs-seltools__btn" + (cv.showStitched ? " cs-seltools__btn--on" : ""),
+        onClick:function(){ cv.setShowStitched(!cv.showStitched); }
       }, cv.showStitched ? Icons.eyeOff() : Icons.eye(), " Show stitched")
     ),
 
@@ -24293,24 +24231,24 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     gen.disambig && (function() {
       var hasResult = gen.disambigData != null;
       var canRun = ctx.pat && ctx.pal && !app.busy;
-      return h("div", {style:{padding:"8px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-2)',flexWrap:"wrap"}},
-        h("span", {style:{flex:1,color:"var(--text-secondary)",fontWeight:500}}, "Keep look-alike colours apart"),
-        hasResult && gen.disambigData.swaps > 0 && h("span", {style:{color:"var(--text-tertiary)"}},
+      return h("div", {className:"pt-note pt-note--small"},
+        h("span", {className:"pt-note__text pt-note__title"}, "Keep look-alike colours apart"),
+        hasResult && gen.disambigData.swaps > 0 && h("span", {className:"pt-note__meta"},
           gen.disambigData.swaps.toLocaleString(), " cell", gen.disambigData.swaps !== 1 ? "s" : "", " corrected"
         ),
-        hasResult && gen.disambigData.swaps === 0 && h("span", {style:{color:"var(--success)"}}, "No clashes found"),
+        hasResult && gen.disambigData.swaps === 0 && h("span", {className:"pt-note__meta pt-note__meta--good"}, "No clashes found"),
         h("button", {
+          type: "button", className: "cs-seltools__btn cs-seltools__btn--primary",
           disabled: !canRun,
           onClick: function() {
             if (!canRun) return;
             gen.disambiguateNow();
-          },
-          style:{padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,background:canRun?"var(--accent)":"var(--surface-tertiary)",color:canRun?"var(--on-accent)":"var(--text-tertiary)",border:"none",borderRadius:'var(--radius-sm)',cursor:canRun?"pointer":"not-allowed",flexShrink:0,transition:"background 0.15s"}
+          }
         }, hasResult ? "Re-apply" : "Apply now"),
         h("button", {
-          onClick: function() { gen.setDisambig(false); },
-          style:{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:15,lineHeight:1,padding:0,flexShrink:0}
-        }, "\xD7")
+          type: "button", className: "pt-note__close", "aria-label": "Turn off Keep look-alike colours apart", title: "Turn off",
+          onClick: function() { gen.setDisambig(false); }
+        }, Icons.x())
       );
     })(),
 
@@ -24319,7 +24257,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       : h("div", {
       ref:app.scrollRef,
       className:"cs-chart-scroll",
-      style:{overflow:"auto",maxHeight:550,minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
+      // The fitted height and the cursor for the tool change as you work.
+      style:{minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
@@ -24384,30 +24323,30 @@ window.CreatorPatternTab = function CreatorPatternTab() {
           parts.push(formatThread(info) + " (" + (info.count || 0) + " st)");
         }
       }
-      return h("div", {className:"tb-status", style:{display:"flex",gap:'var(--s-3)',alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
+      return h("div", {className:"tb-status"},
         h("span", null, parts[0]),
-        parts.length > 1 && h("span", {style:{fontFamily:"monospace",fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}, parts[1]),
-        parts.length > 2 && h("span", {style:{display:"flex",alignItems:"center",gap:3,flexShrink:0}},
+        parts.length > 1 && h("span", {className:"tb-status__coords"}, parts[1]),
+        parts.length > 2 && h("span", {className:"tb-status__thread"},
           ctx.cmap && ctx.pat && hov.hoverCoords && (function() {
             var hIdx2 = hov.hoverCoords.gy * ctx.sW + hov.hoverCoords.gx;
             var hCell2 = ctx.pat[hIdx2];
             if (hCell2 && hCell2.id !== "__skip__" && hCell2.id !== "__empty__" && ctx.cmap[hCell2.id]) {
-              return h("span", {style:{width:8,height:8,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",
-                background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
+              return h("span", {className:"tb-status__swatch", style:{background:"rgb("+ctx.cmap[hCell2.id].rgb+")"}});
             }
             return null;
           })(),
-          h("span", {style:{fontSize:10,color:"var(--text-secondary)"}}, parts[2])
+          h("span", {className:"tb-status__name"}, parts[2])
         )
       );
     })(),
 
     // Clear for a highlighted thread; in the tool-rail layout it is in the options bar.
-    !app.desktopRail && h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
+    !app.desktopRail && h("div", {className:"pt-hi-clear"},
       cv.hiId && h("button", {
-        onClick: function(){cv.setHiId(null);},
-        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer"}
-      }, "Clear \u2715")
+        type: "button", className: "cs-seltools__btn sb-danger-btn",
+        "aria-label": "Clear the highlighted thread",
+        onClick: function(){cv.setHiId(null);}
+      }, h("span", null, "Clear"), Icons.x())
     ),
 
   );

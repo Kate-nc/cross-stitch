@@ -294,7 +294,7 @@ describe('what the user is told', () => {
     expect(state).not.toMatch(/Project \\u203a Backup/);
   });
   test('Edit shows the stitched banner when the project has progress', () => {
-    expect(tab).toMatch(/ctx\.progressPct > 0 && h\("div", \{\s*className:"stitched-banner"/);
+    expect(tab).toMatch(/ctx\.progressPct > 0 && h\("div", \{\s*className:"stitched-banner[" ]/);
     expect(tab).toMatch(/% stitched\. Changing stitched cells resets them to not done\./);
   });
   test('the banner offers a Show stitched overlay toggle', () => {
