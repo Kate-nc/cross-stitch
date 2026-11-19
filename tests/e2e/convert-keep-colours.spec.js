@@ -4,7 +4,7 @@ const { test, expect } = require('@playwright/test');
 const { createCanvas } = require('canvas');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, quietOnboarding, skipTourIfShown, convertStep } = require('./creator-helpers');
+const { device, quietOnboarding, skipTourIfShown, convertStep, continueFromFrame } = require('./creator-helpers');
 
 // Navy and a pale wall, with a small patch of a colour close to the wall (a
 // "face"): the patch's thread is DMC 3893.
@@ -26,7 +26,9 @@ test.describe('Colours to keep', function() {
     await skipTourIfShown(page);
     await page.locator('input.home-create-file-input').setInputFiles(patchPicture());
     await page.waitForURL(/create\.html/);
-    await page.waitForSelector('.rpanel', { state: 'attached' });
+    await page.waitForSelector('[data-frame-view]', { timeout: 15000 });
+    await skipTourIfShown(page);
+    await continueFromFrame(page);
     await skipTourIfShown(page);
     await expect(page.getByRole('status', { name: 'Updating preview' })).toHaveCount(0, { timeout: 20000 });
 

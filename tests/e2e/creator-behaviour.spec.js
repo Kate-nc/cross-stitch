@@ -3,7 +3,7 @@ const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const fs = require('fs');
-const { LOGO, device, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit, generateLogo, pickDarkSwatch, startBlankGrid } = require('./creator-helpers');
+const { LOGO, device, quietOnboarding, skipTourIfShown, continueFromFrame, clickGenerate, waitForEdit, generateLogo, pickDarkSwatch, startBlankGrid } = require('./creator-helpers');
 
 const pixel5 = device('Pixel 5');
 
@@ -118,7 +118,9 @@ test.describe('Creator behaviour on Pixel 5', function() {
     await skipTourIfShown(page);
     await page.locator('input.home-create-file-input').setInputFiles({ name: 'IMG_2041.png', mimeType: 'image/png', buffer: fs.readFileSync(LOGO) });
     await page.waitForURL(/create\.html/);
-    await page.waitForSelector('.rpanel', { state: 'attached' });
+    await page.waitForSelector('[data-frame-view]', { timeout: 15000 });
+    await skipTourIfShown(page);
+    await continueFromFrame(page);
     await skipTourIfShown(page);
     await clickGenerate(page);
     await waitForEdit(page);

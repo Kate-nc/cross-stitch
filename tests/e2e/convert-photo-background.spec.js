@@ -4,7 +4,7 @@ const { test, expect } = require('@playwright/test');
 const { createCanvas } = require('canvas');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, quietOnboarding, skipTourIfShown, convertStep } = require('./creator-helpers');
+const { device, quietOnboarding, skipTourIfShown, convertStep, continueFromFrame } = require('./creator-helpers');
 
 // A photo-like picture: a shaded, grainy subject on a plain pale frame (10%
 // on each side), so the upload check finds a plain border but guesses Photo.
@@ -35,7 +35,8 @@ test.describe('A photo with a plain background', function() {
     await skipTourIfShown(page);
     await page.locator('input.home-create-file-input').setInputFiles(framedPhoto());
     await page.waitForURL(/create\.html/);
-    await page.waitForSelector('.rpanel', { state: 'attached' });
+    // A new picture opens on Frame the picture.
+    await page.waitForSelector('[data-frame-view]', { timeout: 15000 });
     await skipTourIfShown(page);
 
     await expect(page.getByRole('radiogroup', { name: 'What kind of picture is this?' }).getByRole('radio', { name: 'Photo' }))
@@ -43,25 +44,29 @@ test.describe('A photo with a plain background', function() {
     // Offered, not applied.
     const offer = page.locator('.creator-toast-container').filter({ hasText: 'This picture has a plain background' });
     await expect(offer).toBeVisible();
-    await convertStep(page, 'picture');
     const leave = page.getByRole('checkbox', { name: 'Leave background unstitched' });
     await expect(leave).not.toBeChecked();
 
     await offer.getByRole('button', { name: 'Leave it unstitched' }).click();
     await expect(leave).toBeChecked();
-    // The count, and the overlay switched on so the stitcher sees what goes.
-    const count = page.locator('.cv-sec--background').getByText(/stitches are left unstitched/);
+    // Frame stripes what is left out and counts it.
+    const count = page.locator('[data-bg-count]');
     await expect(count).toBeVisible({ timeout: 20000 });
-    const before = await count.textContent();
-    expect(Number(before.match(/In the preview, ([\d,]+)/)[1].replace(/,/g, ''))).toBeGreaterThan(0);
-    await expect(page.locator('[data-testid="cvp-background"], [data-testid="cmp-background"]').first()).toBeAttached();
+    const before = await count.getAttribute('data-bg-count');
+    expect(Number(before)).toBeGreaterThan(0);
 
-    // Brightness no longer moves the mask.
+    // Brightness doesn't move the background.
+    await page.locator('[data-frame-view] details[data-cv-fix] summary').click();
     const bri = page.getByRole('slider', { name: 'Brightness' });
     await bri.focus();
     for (let i = 0; i < 10; i++) await bri.press('ArrowLeft');
-    await expect(page.locator('.cvp-spinner')).toHaveCount(0, { timeout: 20000 });
-    await expect(count).toHaveText(before);
+    await expect(page.locator('[data-bg-key][aria-busy]')).toHaveCount(0, { timeout: 20000 });
+    await expect(count).toHaveAttribute('data-bg-count', before);
+
+    // On to the preview, which marks the left-out stitches.
+    await continueFromFrame(page);
+    await skipTourIfShown(page);
+    await expect(page.locator('[data-testid="cvp-background"], [data-testid="cmp-background"]').first()).toBeAttached({ timeout: 20000 });
 
     // A photo keeps its in-between shades: the Detail step says so.
     await convertStep(page, 'detail');
