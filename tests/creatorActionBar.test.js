@@ -138,8 +138,8 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     expect(ACTION_BAR_SRC).toMatch(/hasStitches \? trackBtn : null/);
     const compact = fs.readFileSync(path.join(REPO_ROOT, 'creator', 'CompactBar.js'), 'utf8');
     expect(compact).toMatch(/var hasStitches = hasPat && \(Number\(props\.totalStitchable\) \|\| 0\) > 0;/);
-    expect(compact).toMatch(/hasStitches \? h\("button", \{ type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run\(props\.onPrintPdf\) \}/);
-    expect(compact).toMatch(/hasStitches \? h\("button", \{ type: "button", className: "cc-sheet__item", onClick: run\(props\.onTrackPattern\) \}/);
+    expect(compact).toMatch(/hasStitches \? h\("button", \{ type: "button", className: "cc-sheet__item"[^,]*, onClick: run\(props\.onPrintPdf\) \}/);
+    expect(compact).toMatch(/hasStitches && !props\.pictureFromTracker \? h\("button", \{ type: "button", className: "cc-sheet__item", onClick: run\(props\.onTrackPattern\) \}/);
   });
 
   test('scratch projects say Canvas; imported charts without a picture show neither', () => {

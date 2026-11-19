@@ -152,7 +152,9 @@
       h("div", { className: "cc-sheet-backdrop", onClick: close }),
       h("div", { className: "cc-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Pattern actions" },
         h("div", { className: "cc-sheet__handle", "aria-hidden": "true" }),
-        hasStitches ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onPrintPdf) },
+        hasStitches && props.pictureFromTracker ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onTrackPattern) },
+          Icons.pointing ? Icons.pointing() : Icons.chevronRight(), h("span", null, "Open in Tracker")) : null,
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item" + (props.pictureFromTracker ? "" : " cc-sheet__item--primary"), onClick: run(props.onPrintPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")) : null,
         hasStitches ? h("button", {
           type: "button", className: "cc-sheet__item", "aria-expanded": exportOpen ? "true" : "false",
@@ -165,7 +167,7 @@
           h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onMoreExports) },
             Icons.archive ? Icons.archive() : null, h("span", null, "More export options…"))
         ) : null,
-        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
+        hasStitches && !props.pictureFromTracker ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
           Icons.chevronRight ? Icons.chevronRight() : null, h("span", null, "Open in Tracker")) : null,
         hasPat ? h("button", {
           ref: infoBtnRef, type: "button", className: "cc-sheet__item",

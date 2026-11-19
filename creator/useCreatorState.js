@@ -1379,6 +1379,10 @@ window.useCreatorState = function useCreatorState() {
     toastsRef.current = toastsRef.current.filter(function(t) { return t.id !== id; });
     setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
   }, []);
+  var clearToasts = useCallback(function() {
+    toastsRef.current = [];
+    setToasts([]);
+  }, []);
 
   // Refs
   var pcRef      = useRef(null);
@@ -2119,6 +2123,9 @@ window.useCreatorState = function useCreatorState() {
     setZoom(creatorFitZoom(genW, genH, null, null, G));
     pendingFitRef.current = true;
     setBusy(false);
+    // Dismiss Convert's toasts (such as the plain-background offer) so nothing
+    // covers the Ready bar when Generate finishes.
+    clearToasts();
     // One "Your pattern is ready" bar above the chart says what was made
     // (threads and chart symbols, not "colours": audit IMG-02) and offers
     // Print PDF, Open in Tracker and Threads to buy, instead of a toast
@@ -3087,7 +3094,7 @@ window.useCreatorState = function useCreatorState() {
     // Context menu
     contextMenu, setContextMenu,
     // Toast notifications
-    toasts, addToast, dismissToast,
+    toasts, addToast, dismissToast, clearToasts,
     // Selection modifier key state (null | "add" | "subtract" | "intersect")
     selectionModifier, setSelectionModifier,
     // PaletteSwap

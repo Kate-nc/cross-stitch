@@ -7910,6 +7910,10 @@ window.useCreatorState = function useCreatorState() {
     toastsRef.current = toastsRef.current.filter(function(t) { return t.id !== id; });
     setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
   }, []);
+  var clearToasts = useCallback(function() {
+    toastsRef.current = [];
+    setToasts([]);
+  }, []);
 
   // Refs
   var pcRef      = useRef(null);
@@ -8650,6 +8654,9 @@ window.useCreatorState = function useCreatorState() {
     setZoom(creatorFitZoom(genW, genH, null, null, G));
     pendingFitRef.current = true;
     setBusy(false);
+    // Dismiss Convert's toasts (such as the plain-background offer) so nothing
+    // covers the Ready bar when Generate finishes.
+    clearToasts();
     // One "Your pattern is ready" bar above the chart says what was made
     // (threads and chart symbols, not "colours": audit IMG-02) and offers
     // Print PDF, Open in Tracker and Threads to buy, instead of a toast
@@ -9618,7 +9625,7 @@ window.useCreatorState = function useCreatorState() {
     // Context menu
     contextMenu, setContextMenu,
     // Toast notifications
-    toasts, addToast, dismissToast,
+    toasts, addToast, dismissToast, clearToasts,
     // Selection modifier key state (null | "add" | "subtract" | "intersect")
     selectionModifier, setSelectionModifier,
     // PaletteSwap
@@ -17667,7 +17674,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       h("div", { className: "cc-sheet-backdrop", onClick: close }),
       h("div", { className: "cc-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Pattern actions" },
         h("div", { className: "cc-sheet__handle", "aria-hidden": "true" }),
-        hasStitches ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onPrintPdf) },
+        hasStitches && props.pictureFromTracker ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onTrackPattern) },
+          Icons.pointing ? Icons.pointing() : Icons.chevronRight(), h("span", null, "Open in Tracker")) : null,
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item" + (props.pictureFromTracker ? "" : " cc-sheet__item--primary"), onClick: run(props.onPrintPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")) : null,
         hasStitches ? h("button", {
           type: "button", className: "cc-sheet__item", "aria-expanded": exportOpen ? "true" : "false",
@@ -17680,7 +17689,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onMoreExports) },
             Icons.archive ? Icons.archive() : null, h("span", null, "More export options…"))
         ) : null,
-        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
+        hasStitches && !props.pictureFromTracker ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
           Icons.chevronRight ? Icons.chevronRight() : null, h("span", null, "Open in Tracker")) : null,
         hasPat ? h("button", {
           ref: infoBtnRef, type: "button", className: "cc-sheet__item",
@@ -23212,16 +23221,37 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     var ctx = window.usePatternData();
     if (!app.readyBarOpen || !ctx.pat || !ctx.pal) return null;
     var Icons = window.Icons || {};
+    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
+    var coarse = !!(window.Platform && typeof window.Platform.isCoarsePointer === "function" && window.Platform.isCoarsePointer());
     var s = readySummary(ctx.sW, ctx.sH, ctx.pal, ctx.totalSkeins);
     var save = readySaveState(app.saveStatus, app.savedAt);
     var isError = save.state === "error";
     function close() { app.setReadyBarOpen(false); }
     function then(fn) { return function () { close(); fn(); }; }
+    function openPaletteAndFocus() {
+      if (app.setSidebarTab) app.setSidebarTab("palette");
+      if (app.setPanelOpen) app.setPanelOpen(true);
+      var focusFirst = function () {
+        var row = document.querySelector(".pal-rows .pal-row");
+        if (row && typeof row.focus === "function") row.focus();
+      };
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(function () { setTimeout(focusFirst, 0); });
+      } else {
+        setTimeout(focusFirst, 0);
+      }
+    }
     var fromTracker = !!app.pictureFromTracker;
     function trackBtn(primary) {
       return app.handleOpenInTracker ? h("button", { key: "track", type: "button", className: "btn btn-sm" + (primary ? " btn-primary" : ""), onClick: then(app.handleOpenInTracker) },
         Icons.pointing ? Icons.pointing() : null, h("span", null, "Open in Tracker")) : null;
     }
+    var chooseThreadBtn = h("button", {
+      key: "choose-thread",
+      type: "button",
+      className: "btn btn-sm" + (!compact && !fromTracker ? " btn-primary" : ""),
+      onClick: openPaletteAndFocus
+    }, Icons.palette ? Icons.palette() : (Icons.thread ? Icons.thread() : null), h("span", null, "Choose a thread"));
     var saveLine = save.state === "saved"
       ? (save.text + (fromTracker ? "; Open in Tracker to start stitching it." : "."))
       : (save.state === "saving" ? save.text : save.text + ".");
@@ -23233,6 +23263,8 @@ window.CreatorContextMenu = function CreatorContextMenu() {
         h("span", { className: "ready-bar__summary", "data-ready-summary": "" },
           s.text + ". ",
           h("span", { className: "ready-bar__save-status", "data-ready-save-status": save.state, role: isError ? "alert" : "status" }, saveLine)),
+        h("span", { className: "ready-bar__next", "data-ready-next": "" },
+          coarse ? "Choose a thread, then tap a square to change it." : "Choose a thread, then click a square to change it."),
         isError && h("span", { className: "ready-bar__save-actions" },
           app.retryAutoSave ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.retryAutoSave(); } },
             Icons.refresh ? Icons.refresh() : null, h("span", null, "Retry")) : null,
@@ -23244,12 +23276,15 @@ window.CreatorContextMenu = function CreatorContextMenu() {
             ? h("button", { type: "button", className: "ready-bar__link", onClick: function () { window.openBlendHelp(); } }, window.BLEND_HELP.title)
             : null)),
       h("div", { className: "ready-bar__actions" },
-        // A picture sent from the Tracker goes back there to be stitched.
-        fromTracker && trackBtn(true),
-        app.printPdf && h("button", { type: "button", className: "btn btn-sm" + (fromTracker ? "" : " btn-primary"), onClick: then(app.printPdf) },
+        // On desktop, Print PDF and Open in Tracker live in the ActionBar only;
+        // on phones (no ActionBar) the Ready bar keeps them. Pictures from the
+        // Tracker keep Open in Tracker first and primary everywhere.
+        compact && fromTracker && trackBtn(true),
+        chooseThreadBtn,
+        compact && app.printPdf && h("button", { key: "print", type: "button", className: "btn btn-sm" + (fromTracker ? "" : " btn-primary"), onClick: then(app.printPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")),
-        !fromTracker && trackBtn(false),
-        h("button", { type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.setTab("materials"); }) },
+        compact && !fromTracker && trackBtn(false),
+        h("button", { key: "threads", type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.setTab("materials"); }) },
           Icons.thread ? Icons.thread() : null, h("span", null, "Threads to buy"))),
       h("button", { type: "button", className: "ready-bar__close", onClick: close, "aria-label": "Close: keep editing", title: "Close" },
         Icons.x ? Icons.x() : null));
@@ -23433,10 +23468,6 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     ),
 
     h(window.MagicWandPanel, null),
-
-    ctx.pat && !app.readyBarOpen && !app.coachTipActive && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
-      h("button", {type:"button", className:"btn btn-sm", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
-      h("span", {style:{marginLeft:"var(--s-2)",color:"var(--text-secondary)"}}, "Compare the current chart, stitch preview, size and material assumptions before buying.")),
 
     gen.disambig && (function() {
       var hasResult = gen.disambigData != null;
@@ -25804,7 +25835,31 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     })
   );
 
-  var trackBtn = hasStitches && (typeof props.onTrackPattern === "function") ? h("button", {
+  var fromTracker = !!props.pictureFromTracker;
+  var printBtn = hasStitches ? h("button", {
+      key: "print",
+      type: "button",
+      className: "creator-actionbar__btn " + (fromTracker ? "creator-actionbar__btn--ghost" : "creator-actionbar__btn--primary"),
+      onClick: props.onPrintPdf,
+      title: "Print to PDF"
+    },
+    Icons.printer ? Icons.printer() : null,
+    h("span", null, "Print PDF")
+  ) : null;
+
+  var trackPrimaryBtn = hasStitches && fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
+      key: "track-primary",
+      type: "button",
+      className: "creator-actionbar__btn creator-actionbar__btn--primary",
+      onClick: props.onTrackPattern,
+      title: "Open this pattern in the Stitch Tracker",
+      "aria-label": "Open in Tracker"
+    },
+    Icons.pointing ? Icons.pointing() : null,
+    h("span", null, "Open in Tracker")
+  ) : null;
+
+  var trackBtn = hasStitches && !fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -25872,15 +25927,8 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
     hasStitches ? h("div", { className: "creator-actionbar__primary" },
-      h("button", {
-          type: "button",
-          className: "creator-actionbar__btn creator-actionbar__btn--primary",
-          onClick: props.onPrintPdf,
-          title: "Print to PDF"
-        },
-        Icons.printer ? Icons.printer() : null,
-        h("span", null, "Print PDF")
-      ),
+      trackPrimaryBtn,
+      printBtn,
       h("div", { className: "creator-actionbar__menu-wrap" },
         h("button", {
             ref: btnRef,

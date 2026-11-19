@@ -241,7 +241,31 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     })
   );
 
-  var trackBtn = hasStitches && (typeof props.onTrackPattern === "function") ? h("button", {
+  var fromTracker = !!props.pictureFromTracker;
+  var printBtn = hasStitches ? h("button", {
+      key: "print",
+      type: "button",
+      className: "creator-actionbar__btn " + (fromTracker ? "creator-actionbar__btn--ghost" : "creator-actionbar__btn--primary"),
+      onClick: props.onPrintPdf,
+      title: "Print to PDF"
+    },
+    Icons.printer ? Icons.printer() : null,
+    h("span", null, "Print PDF")
+  ) : null;
+
+  var trackPrimaryBtn = hasStitches && fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
+      key: "track-primary",
+      type: "button",
+      className: "creator-actionbar__btn creator-actionbar__btn--primary",
+      onClick: props.onTrackPattern,
+      title: "Open this pattern in the Stitch Tracker",
+      "aria-label": "Open in Tracker"
+    },
+    Icons.pointing ? Icons.pointing() : null,
+    h("span", null, "Open in Tracker")
+  ) : null;
+
+  var trackBtn = hasStitches && !fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -309,15 +333,8 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
     hasStitches ? h("div", { className: "creator-actionbar__primary" },
-      h("button", {
-          type: "button",
-          className: "creator-actionbar__btn creator-actionbar__btn--primary",
-          onClick: props.onPrintPdf,
-          title: "Print to PDF"
-        },
-        Icons.printer ? Icons.printer() : null,
-        h("span", null, "Print PDF")
-      ),
+      trackPrimaryBtn,
+      printBtn,
       h("div", { className: "creator-actionbar__menu-wrap" },
         h("button", {
             ref: btnRef,

@@ -27,9 +27,11 @@ test.describe('A picture opened in the Tracker', function() {
     await waitForEdit(page);
     const bar = page.getByRole('region', { name: 'Your pattern is ready' });
     await expect(bar.locator('[data-ready-summary]')).toContainText('Open in Tracker to start stitching it');
-    const buttons = bar.locator('.ready-bar__actions button');
-    await expect(buttons.first()).toHaveText('Open in Tracker');
-    await expect(buttons.first()).toHaveClass(/btn-primary/);
+    const actionPrimary = page.locator('.creator-actionbar__primary button');
+    await expect(actionPrimary.first()).toHaveText('Open in Tracker');
+    await expect(actionPrimary.first()).toHaveClass(/creator-actionbar__btn--primary/);
+    await expect(page.getByRole('button', { name: 'Open in Tracker' })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Print PDF' })).toHaveCount(1);
     // The handoff record is gone once the Creator has the picture.
     await expect.poll(function() {
       return page.evaluate(async function() { return (await BlobStore.list('handoff:')).length; });
@@ -44,7 +46,8 @@ test.describe('A picture opened in the Tracker', function() {
     await continueFromFrame(page);
     await clickGenerate(page);
     await waitForEdit(page);
-    const buttons = page.getByRole('region', { name: 'Your pattern is ready' }).locator('.ready-bar__actions button');
-    await expect(buttons.first()).toHaveText('Print PDF');
+    const actionPrimary = page.locator('.creator-actionbar__primary button');
+    await expect(actionPrimary.first()).toHaveText('Print PDF');
+    await expect(actionPrimary.first()).toHaveClass(/creator-actionbar__btn--primary/);
   });
 });

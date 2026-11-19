@@ -1594,6 +1594,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onRequestBackToConvert={handleRequestBackToConvert}
         onPrintPdf={printPdfWithNameNudge}
         onTrackPattern={stableHandleOpenInTracker}
+        pictureFromTracker={!!window.__creatorPictureFromTracker}
         onSaveJson={io.saveProject}
         onMoreExports={()=>_nameNudgeRef.current('exports')}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
@@ -1626,6 +1627,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onRequestBackToConvert={handleRequestBackToConvert}
         onPrintPdf={printPdfWithNameNudge}
         onTrackPattern={stableHandleOpenInTracker}
+        pictureFromTracker={!!window.__creatorPictureFromTracker}
         onSaveJson={io.saveProject}
         onMoreExports={()=>_nameNudgeRef.current('exports')}
         hasImage={!!(state.img&&state.img.src)&&!state.isScratchMode}

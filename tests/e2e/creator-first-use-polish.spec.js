@@ -76,10 +76,10 @@ test.describe('First use on desktop', function() {
     await expect(page.getByText('Palette and View are beside it.')).toBeVisible();
     await expect(hint).toHaveCount(0);
     await expect(review).toHaveCount(0);
-    // Once the tips are dismissed, the standing notes come back.
+    // Once the tips are dismissed, the keyboard hint comes back (the duplicate review note was removed).
     await page.getByRole('button', { name: 'Skip tips' }).click();
     await expect(hint).toBeVisible();
-    await expect(review).toBeVisible();
+    await expect(review).toHaveCount(0);
   });
 
   test('with an empty stash, Use only stash threads says so instead of letting Generate stop', async function({ page }) {
