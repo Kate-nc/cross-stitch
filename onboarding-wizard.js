@@ -82,7 +82,7 @@
       return [
         {
           title: "Frame your picture",
-          body: "First, the picture itself. Drag on it to crop it to the part you want to stitch, or choose a shape such as Square. Turn left and Turn right fix a photo that is on its side, and Undo takes back the last crop or turn. Then check the picture type and background the Creator chose; you can change either."
+          body: "First, the picture itself. Drag on it to crop it to the part you want to stitch, or choose a shape such as Square; drag the box or its handles to adjust it. Turn left and Turn right fix a photo that is on its side, and Undo takes back the last crop or turn. Then check the picture type and background the Creator chose; you can change either."
         },
         {
           title: "Then Continue",
