@@ -1303,7 +1303,9 @@ function CreatorApp({
   // on the left, one options bar above the chart, and the pattern actions in
   // the header row. body.creator-drail-layout keys the CSS (styles.css, "Desktop
   // tool rail"); body.creator-drail-tools is set while the rail is showing.
-  const _desktopRail = !_compact && (window.useCreatorDesktopRail ? window.useCreatorDesktopRail() : false);
+  // (The hook runs on every render: React needs the same hooks each time.)
+  const _desktopRailPref = window.useCreatorDesktopRail ? window.useCreatorDesktopRail() : false;
+  const _desktopRail = !_compact && _desktopRailPref;
   // The Creator's first tab (audit COMMON-10): Convert when there is a
   // picture to convert, Canvas for a design drawn from scratch (its size and
   // fabric), and neither for a chart imported without a picture.
