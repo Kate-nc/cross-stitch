@@ -245,7 +245,8 @@ test.describe('Tool rail on a 1440 x 900 desktop', () => {
     }
     await bar.getByRole('button', { name: 'Selection menu' }).click();
     const selMenu = page.getByRole('menu', { name: 'Selection' });
-    for (const name of ['Reduce confetti…', 'Reduce colours…', 'Replace colour…', 'Stitch info…', 'Outline…']) {
+    for (const name of ['Reduce confetti…', 'Reduce colours…', 'Replace colour…', 'Stitch info…', 'Outline…', 'Move selection',
+      'Copy', 'Cut', 'Duplicate', 'Flip horizontally', 'Flip vertically', 'Rotate left', 'Rotate right', 'Delete selected stitches']) {
       await expect(selMenu.getByRole('menuitem', { name })).toBeVisible();
     }
     await page.keyboard.press('Escape');

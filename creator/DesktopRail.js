@@ -394,6 +394,23 @@
               title: Reg.get("move").title,
               onClick: function () { setSelMenuOpen(false); if (raw !== "move") Reg.get("move").activate(api); }
             }, icon("move"), "Move selection"),
+            // Copy, cut, duplicate, flip and rotate (the Tools tab had them;
+            // the right-click menu and the shortcuts do too).
+            cv.clip && h("div", { className: "creator-optbar__menu-sep", role: "separator" }),
+            cv.clip && [
+              ["copy", "Copy", "Copy (Ctrl+C)", "copy", function () { cv.clip.copy(); }],
+              ["cut", "Cut", "Cut (Ctrl+X)", "scissors", function () { cv.clip.cut(); }],
+              ["dup", "Duplicate", "Duplicate (Ctrl+D)", "duplicate", function () { cv.clip.duplicate(); }],
+              ["flipH", "Flip horizontally", "Flip left to right (Shift+H)", "flipHorizontal", function () { cv.clip.transform("flipH"); }],
+              ["flipV", "Flip vertically", "Flip upside down (Shift+V)", "flipVertical", function () { cv.clip.transform("flipV"); }],
+              ["rotCCW", "Rotate left", "Rotate anticlockwise (,)", "rotateCcw", function () { cv.clip.transform("rotCCW"); }],
+              ["rotCW", "Rotate right", "Rotate clockwise (.)", "rotateCw", function () { cv.clip.transform("rotCW"); }]
+            ].map(function (a) {
+              return h("button", {
+                key: a[0], type: "button", role: "menuitem", className: "creator-optbar__menu-item", title: a[2],
+                onClick: function () { setSelMenuOpen(false); a[4](); }
+              }, icon(a[3]), a[1]);
+            }),
             h("div", { className: "creator-optbar__menu-sep", role: "separator" }),
             h("button", {
               type: "button", role: "menuitem", className: "creator-optbar__menu-item creator-optbar__menu-item--danger",
