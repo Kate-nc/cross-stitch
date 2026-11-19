@@ -35,13 +35,18 @@ describe('thread counts', () => {
       .toBe('24 threads, 1,040 chart symbols (16 are blends of two threads)');
   });
 
-  test('the Generate toast puts the counts in running text, not inside brackets', () => {
-    const m = state.match(/addToast\("Pattern generated and saved[^\n]*/);
-    expect(m).not.toBeNull();
-    expect(m[0]).toContain('now editing at " + sW + "\\u00D7" + sH + " with " + counts + ". Use the Convert tab');
-    expect(m[0]).not.toContain('(" + sW');
-    // With the sentence's own bracket, the old text ended "...two threads))."
-    expect(m[0]).not.toMatch(/counts \+ "\)\./);
+  test('"Your pattern is ready" puts the counts in running text, not inside brackets', () => {
+    // The bar replaced the Generate toast (creator/ReadyBar.js).
+    expect(state).not.toMatch(/addToast\("Pattern generated and saved/);
+    expect(state).toMatch(/setReadyBarOpen\(true\);/);
+    global.window = global.window || global;
+    window.creatorThreadCounts = () => ({ threads: 15, symbols: 16, blends: 1 });
+    window.threadCountsSentence = threadCountsSentence;
+    // eslint-disable-next-line no-eval
+    eval(read('creator/ReadyBar.js').replace(/^/, 'var React = { createElement: function () {} };\n'));
+    const s = window.creatorReadySummary(100, 75, [], 2.4);
+    expect(s.text).toBe('100 \u00D7 75 stitches, 15 threads, 16 chart symbols (1 is a blend of two threads), about 3 skeins');
+    expect(s.text).not.toMatch(/\)\)/);
   });
 });
 

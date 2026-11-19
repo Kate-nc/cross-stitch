@@ -116,7 +116,7 @@ This document outlines 20 recommended wiki pages to create a comprehensive docum
   - OXS files (KG-Chart / Pattern Keeper format)
   - Pixel-art images as patterns (PNG/JPG)
   - PDF pattern extraction
-  - Import wizard walkthrough
+  - Frame the picture walkthrough (crop, turn, picture type, background)
   - Troubleshooting import failures
   - Merging imported patterns with existing projects
   - File format requirements

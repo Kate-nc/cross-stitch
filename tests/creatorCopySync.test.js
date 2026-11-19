@@ -18,7 +18,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
 // there (a string literal, so `"Edit"` or `"Generate Pattern"`).
 const CONTROLS = {
   "Generate":        [["creator/CompactBar.js", "Generate"]],
-  "Generate Pattern": [["creator/ActionBar.js", "Generate Pattern"]],
+  "Generate Pattern": [["creator/ConvertPanel.js", "Generate Pattern"]],
   "Compare options": [["creator/CompareStrip.js", "Compare options"]],
   "Convert":         [["creator/ActionBar.js", "Convert"], ["creator/CompactBar.js", "Convert"]],
   "Canvas":          [["creator/ActionBar.js", "Canvas"], ["creator/CompactBar.js", "Canvas"]],
@@ -32,8 +32,10 @@ const CONTROLS = {
   "Paint":           [["creator/ToolStrip.js", "Paint"]],
   "Tools":           [["creator/Sidebar.js", "Tools"]],
   "View":            [["creator/Sidebar.js", "View"]],
-  // Convert's step tabs (creator/ConvertPanel.js).
-  "Picture":         [["creator/ConvertPanel.js", "Picture"]],
+  // Convert's step tabs (creator/ConvertPanel.js), and Reframe beside the
+  // picture, which goes back to Frame the picture.
+  "Reframe":         [["creator/FrameView.js", "Reframe"]],
+  "Continue":        [["creator/FrameView.js", "Continue"]],
   "Size":            [["creator/ConvertPanel.js", "Size"]],
   "Threads":         [["creator/ConvertPanel.js", "Threads"]],
   "Detail":          [["creator/ConvertPanel.js", "Detail"]],

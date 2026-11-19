@@ -118,8 +118,9 @@ algorithm behind them. The technical name may appear only inside an
 | Control | Plain name | Not |
 |---|---|---|
 | Convert section | **Detail and tidiness** | Clean-up, Quality |
-| Convert's steps (tabs) | **Picture**, **Size**, **Threads**, **Detail**, **Project**; each ends with **Next: …** | Image, Dimensions, Palette, Settings |
-| Convert's sections | **Picture type**, **Background**, **Adjust picture**; **Thread brand**, **Number of threads**, **Blends**, **Rare colours**, **Stash**; **Detail and tidiness**, **Shading**, **Tidying**, **Look-alike colours** | Size & fabric, Colours, Adjust image (accordions) |
+| Convert's first view | **Frame the picture** (**Frame your picture** on screen); **Continue**, and back with **Reframe** | Crop dialog, Picture step |
+| Convert's steps (tabs) | **Size**, **Threads**, **Detail**; each but the last ends with **Next: …** | Image, Dimensions, Palette, Settings, Picture, Project |
+| Convert's sections | Frame the picture: **Picture type**, **Background**, **Fix the picture**; Threads: **Stash**, **Number of threads**, **Blends**, **Thread brand**; Detail: **Detail and tidiness**, **Shading**, **Tidying**, **Rare colours**, **Look-alike colours** | Size & fabric, Colours, Adjust image (accordions) |
 | Detail and tidiness steps | **More detail**, **Balanced**, **Tidier**, **Easiest to stitch**; the individual controls below them in the Detail step | Style, Quality levels |
 | Background removal | **Leave background unstitched**, **Pick from picture**, **How close a match** | Skip background, Tolerance |
 | Convert preview views | **Stitched** (the default), **Flat**, **Before / after**; **Close up**, **Show confetti**, **Show tidied stitches** | Realistic, Pixel, Heatmap |

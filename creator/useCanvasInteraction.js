@@ -23,6 +23,95 @@ function lineCells(x0, y0, x1, y1) {
 }
 window.lineCells = lineCells;
 
+/* Crop geometry (Frame the picture, FrameView.js). Rectangles are in the displayed picture's
+   pixels, inside bounds { w, h }; ratio is width / height, or null for a
+   free shape. */
+// The rectangle dragged from `start` to the pointer at (px, py), kept to
+// `ratio` and inside the picture. It grows away from the starting corner.
+function constrainCropRect(start, px, py, ratio, bounds) {
+  var cx = Math.max(0, Math.min(bounds.w, px)), cy = Math.max(0, Math.min(bounds.h, py));
+  var dx = cx - start.x, dy = cy - start.y;
+  if (!ratio) {
+    return { x: Math.min(start.x, cx), y: Math.min(start.y, cy), w: Math.abs(dx), h: Math.abs(dy) };
+  }
+  // The larger of the two drags decides the size.
+  var w = Math.max(Math.abs(dx), Math.abs(dy) * ratio), h = w / ratio;
+  var roomW = dx >= 0 ? bounds.w - start.x : start.x;
+  var roomH = dy >= 0 ? bounds.h - start.y : start.y;
+  if (w > roomW) { w = roomW; h = w / ratio; }
+  if (h > roomH) { h = roomH; w = h * ratio; }
+  return { x: dx >= 0 ? start.x : start.x - w, y: dy >= 0 ? start.y : start.y - h, w: w, h: h };
+}
+window.constrainCropRect = constrainCropRect;
+
+// The largest rectangle of `ratio` centred in the picture (all of it when
+// ratio is null): what choosing a shape starts from.
+function centredCropRect(bounds, ratio) {
+  if (!ratio) return { x: 0, y: 0, w: bounds.w, h: bounds.h };
+  var w = bounds.w, h = w / ratio;
+  if (h > bounds.h) { h = bounds.h; w = h * ratio; }
+  return { x: (bounds.w - w) / 2, y: (bounds.h - h) / 2, w: w, h: h };
+}
+window.centredCropRect = centredCropRect;
+
+// `rect` moved by (dx, dy), kept whole inside the picture.
+function moveCropRect(rect, dx, dy, bounds) {
+  return {
+    x: Math.max(0, Math.min(bounds.w - rect.w, rect.x + dx)),
+    y: Math.max(0, Math.min(bounds.h - rect.h, rect.y + dy)),
+    w: rect.w, h: rect.h
+  };
+}
+window.moveCropRect = moveCropRect;
+
+// The handles on a crop rectangle: four corners, and four edges for a free
+// shape. A corner keeps the opposite corner where it is; an edge moves only
+// its own side.
+var CROP_CORNERS = ["nw", "ne", "sw", "se"];
+var CROP_EDGES = ["n", "e", "s", "w"];
+window.CROP_HANDLES = { corners: CROP_CORNERS, edges: CROP_EDGES };
+
+// `rect` with handle `handle` dragged to the pointer at (px, py), kept to
+// `ratio` and inside the picture. With a shape, an edge acts as the corner
+// clockwise from it, so the shape is kept.
+function resizeCropRect(rect, handle, px, py, ratio, bounds) {
+  if (ratio && CROP_EDGES.indexOf(handle) >= 0) handle = { n: "ne", e: "se", s: "sw", w: "nw" }[handle];
+  var x0 = rect.x, y0 = rect.y, x1 = rect.x + rect.w, y1 = rect.y + rect.h;
+  if (CROP_CORNERS.indexOf(handle) >= 0) {
+    var anchor = { x: handle.indexOf("w") >= 0 ? x1 : x0, y: handle.indexOf("n") >= 0 ? y1 : y0 };
+    return constrainCropRect(anchor, px, py, ratio, bounds);
+  }
+  var cx = Math.max(0, Math.min(bounds.w, px)), cy = Math.max(0, Math.min(bounds.h, py));
+  if (handle === "e") x1 = cx; else if (handle === "w") x0 = cx;
+  else if (handle === "s") y1 = cy; else if (handle === "n") y0 = cy;
+  return { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+}
+window.resizeCropRect = resizeCropRect;
+
+// The crop rectangle after an arrow key on it: the key moves it by `step`;
+// with `resize` it grows (right, down) or shrinks (left, up) from its top
+// left corner instead, kept to `ratio`. Never smaller than `min`.
+function nudgeCropRect(rect, key, step, resize, ratio, bounds, min) {
+  var dx = key === "ArrowRight" ? step : key === "ArrowLeft" ? -step : 0;
+  var dy = key === "ArrowDown" ? step : key === "ArrowUp" ? -step : 0;
+  if (!dx && !dy) return rect;
+  if (!resize) return moveCropRect(rect, dx, dy, bounds);
+  min = min || 10;
+  var w, h;
+  if (ratio) {
+    var d = dx || dy;
+    w = rect.w + d; h = w / ratio;
+    if (w < min || h < min) { h = Math.max(min, min / ratio); w = Math.max(min, h * ratio); h = w / ratio; }
+    if (rect.x + w > bounds.w) { w = bounds.w - rect.x; h = w / ratio; }
+    if (rect.y + h > bounds.h) { h = bounds.h - rect.y; w = h * ratio; }
+  } else {
+    w = Math.max(min, Math.min(bounds.w - rect.x, rect.w + dx));
+    h = Math.max(min, Math.min(bounds.h - rect.y, rect.h + dy));
+  }
+  return { x: rect.x, y: rect.y, w: w, h: h };
+}
+window.nudgeCropRect = nudgeCropRect;
+
 /* computePinchScroll — pure maths for the two-finger gesture. `pinch` holds
    the scroll position and finger midpoint captured when the gesture began,
    plus the scroll container's viewport origin and the canvas's offset inside
@@ -297,10 +386,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
   }
   function interruptAll() {
-    if (state.cropStartRef && state.cropStartRef.current) {
-      state.cropStartRef.current = null;
-      state.setCropRect(null);
-    }
+    if (state.cropStartRef && state.cropStartRef.current) abandonCropDrag();
     cropPointersRef.current.forEach(function(target, id) {
       cropPointersRef.current.delete(id);
       try { target.releasePointerCapture(id); } catch (_) {}
@@ -1468,25 +1554,51 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   // ─── Crop handlers ───────────────────────────────────────────────────────────
+  // A drag on the picture draws a new rectangle; on a rectangle already
+  // drawn it moves it, and on one of its handles (data-crop-handle) it
+  // resizes it. cropStartRef holds { mode, ... } while dragging.
   function handleCropMouseDown(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
     if (!isCropping || !cropRef.current) return;
     if (!isPrimaryButton(e)) return;
     e.preventDefault();
     var r = cropRef.current.getBoundingClientRect();
-    cropStartRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
-    state.setCropRect({ x: cropStartRef.current.x, y: cropStartRef.current.y, w: 0, h: 0 });
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    var rect = state.cropRect;
+    if (rect && rect.w >= 10 && rect.h >= 10) {
+      var handleEl = e.target && e.target.closest ? e.target.closest("[data-crop-handle]") : null;
+      if (handleEl) {
+        cropStartRef.current = { mode: "resize", handle: handleEl.getAttribute("data-crop-handle"), rect: rect };
+        return;
+      }
+      if (px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h) {
+        cropStartRef.current = { mode: "move", px: px, py: py, rect: rect };
+        return;
+      }
+    }
+    cropStartRef.current = { mode: "draw", x: px, y: py };
+    state.setCropRect({ x: px, y: py, w: 0, h: 0 });
   }
 
   function handleCropMouseMove(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
-    if (!isCropping || !cropStartRef.current || !cropRef.current) return;
+    var s = cropStartRef.current;
+    if (!isCropping || !s || !cropRef.current) return;
     var r = cropRef.current.getBoundingClientRect();
-    var cx = Math.max(0, Math.min(r.width, e.clientX - r.left));
-    var cy = Math.max(0, Math.min(r.height, e.clientY - r.top));
-    var x = Math.min(cropStartRef.current.x, cx), y = Math.min(cropStartRef.current.y, cy);
-    var w = Math.abs(cx - cropStartRef.current.x), h = Math.abs(cy - cropStartRef.current.y);
-    state.setCropRect({ x: x, y: y, w: w, h: h });
+    var bounds = { w: r.width, h: r.height };
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    var ratio = state.cropRatioRef ? state.cropRatioRef.current : null;
+    if (s.mode === "move") state.setCropRect(moveCropRect(s.rect, px - s.px, py - s.py, bounds));
+    else if (s.mode === "resize") state.setCropRect(resizeCropRect(s.rect, s.handle, px, py, ratio, bounds));
+    else state.setCropRect(constrainCropRect(s, px, py, ratio, bounds));
+  }
+
+  // A drag stopped part way (a second finger, a cancelled pointer): a move
+  // or resize puts the rectangle back as it was; a new one is dropped.
+  function abandonCropDrag() {
+    var s = state.cropStartRef.current;
+    state.cropStartRef.current = null;
+    state.setCropRect(s && s.rect ? s.rect : null);
   }
 
   function handleCropMouseUp(e) {
@@ -1501,9 +1613,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (target && target.setPointerCapture) {
       try { target.setPointerCapture(e.pointerId); } catch (_) {}
     }
-    if (cropPointersRef.current.size > 1) {
-      state.cropStartRef.current = null; state.setCropRect(null); return;
-    }
+    if (cropPointersRef.current.size > 1) { abandonCropDrag(); return; }
     handleCropMouseDown(e);
   }
 
@@ -1526,38 +1636,62 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handleCropPointerCancel(e) {
     if (!cropPointersRef.current.has(e.pointerId)) return;
+    var s = state.cropStartRef.current;
     handleCropPointerUp(e);
-    state.setCropRect(null);
+    state.setCropRect(s && s.rect ? s.rect : null);
   }
 
-  function applyCrop() {
-    var cropRect = state.cropRect, cropRef = state.cropRef, img = state.img;
-    if (!cropRect || cropRect.w < 10 || cropRect.h < 10 || !cropRef.current || !img) {
-      state.setIsCropping(false);
-      return;
+  // Puts a new picture in place of the current one (a crop, a turn, or
+  // Undo in Frame the picture): its size, shape and height (aspect lock),
+  // then looks at it again, since its type, plain background and pixel-art
+  // size were worked out from the old one. An existing chart is kept, with
+  // its edits and progress: Convert's preview shows the new picture, and the
+  // chart changes only when Regenerate replaces it (which asks first when it
+  // was edited).
+  function replacePicture(newImg) {
+    if (!newImg) return;
+    var w = newImg.naturalWidth || newImg.width, hh = newImg.naturalHeight || newImg.height;
+    state.setImg(newImg);
+    state.setOrigW(w);
+    state.setOrigH(hh);
+    var newAr = w / hh;
+    state.setAr(newAr);
+    if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
+    state.setCropRect(null);
+    var examine = state.pictureExaminerRef && state.pictureExaminerRef.current;
+    if (typeof examine === "function") examine(newImg, { reframed: true });
+  }
+
+  // Crops the picture to the rectangle drawn on it (Frame the picture).
+  // opts.source (an image or canvas) is the picture to use instead of the
+  // current one, such as the current one turned; opts.whole keeps all of it,
+  // ignoring any rectangle. opts.onDone(newImg) runs once it is in place.
+  function applyCrop(opts) {
+    opts = opts || {};
+    var cropRect = state.cropRect, cropRef = state.cropRef;
+    var src = opts.source || state.img;
+    var hasRect = !opts.whole && !!(cropRect && cropRect.w >= 10 && cropRect.h >= 10);
+    if (!src || (!hasRect && src === state.img) || (hasRect && !cropRef.current)) return false;
+    var srcW = src.naturalWidth || src.width, srcH = src.naturalHeight || src.height;
+    var cropX = 0, cropY = 0, cropW = srcW, cropH = srcH;
+    if (hasRect) {
+      var r = cropRef.current.getBoundingClientRect();
+      var scaleX = srcW / r.width, scaleY = srcH / r.height;
+      // Rounded, not floored, so a square drawn on screen stays square.
+      cropX = Math.max(0, Math.round(cropRect.x * scaleX)); cropY = Math.max(0, Math.round(cropRect.y * scaleY));
+      cropW = Math.max(1, Math.min(srcW - cropX, Math.round(cropRect.w * scaleX))); cropH = Math.max(1, Math.min(srcH - cropY, Math.round(cropRect.h * scaleY)));
     }
-    var r = cropRef.current.getBoundingClientRect();
-    var scaleX = img.width / r.width, scaleY = img.height / r.height;
-    var cropX = Math.floor(cropRect.x * scaleX), cropY = Math.floor(cropRect.y * scaleY);
-    var cropW = Math.floor(cropRect.w * scaleX), cropH = Math.floor(cropRect.h * scaleY);
     var c = document.createElement("canvas"); c.width = cropW; c.height = cropH;
     var cx = c.getContext("2d");
-    cx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+    cx.drawImage(src, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
     var newImg = new Image();
     newImg.onload = function() {
-      state.setImg(newImg);
-      state.setOrigW(newImg.width);
-      state.setOrigH(newImg.height);
-      var newAr = newImg.width / newImg.height;
-      state.setAr(newAr);
-      if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
-      state.setIsCropping(false);
-      state.setCropRect(null);
-      // An existing chart is kept, with its edits and progress: Convert's
-      // preview shows the cropped picture, and the chart changes only when
-      // Regenerate replaces it (which asks first when it was edited).
+      replacePicture(newImg);
+      if (typeof opts.onDone === "function") opts.onDone(newImg);
     };
-    newImg.src = c.toDataURL();
+    // PNG keeps transparency (pixel art, logos with clear backgrounds).
+    newImg.src = c.toDataURL("image/png");
+    return true;
   }
 
   function srcClick(e) {
@@ -1595,6 +1729,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     handleCropPointerUp: handleCropPointerUp,
     handleCropPointerCancel: handleCropPointerCancel,
     applyCrop: applyCrop,
+    replacePicture: replacePicture,
     srcClick: srcClick,
     isDraggingRef: isDraggingRef,
   };

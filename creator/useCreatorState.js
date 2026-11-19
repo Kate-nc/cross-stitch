@@ -173,9 +173,9 @@ var CONVERSION_STATE_KEYS = [
 ];
 
 // ── Picture-type presets (audit IMG-01) ────────────────────────────────────
-// "What kind of picture is this?" at the top of Convert. Choosing one only
-// sets values; every control stays editable, and once a value differs from
-// what the preset set the control shows Custom. Pixel art takes its thread
+// "What kind of picture is this?" in Frame the picture. Choosing one only
+// sets values; every control stays editable, and changing one keeps the type
+// (presetUntouched records whether they are unchanged). Pixel art takes its thread
 // count and size from the picture itself (picturePresetValues).
 // `style` is the Detail and tidiness step the type starts on (STITCH_STYLES).
 var PICTURE_PRESETS = {
@@ -651,6 +651,9 @@ window.useCreatorState = function useCreatorState() {
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
   var _cmap = useState(null);         var cmap = _cmap[0], setCmap = _cmap[1];
   var _busy = useState(false);        var busy = _busy[0], setBusy = _busy[1];
+  // "Your pattern is ready" (creator/ReadyBar.js): opened by Generate,
+  // closed by its buttons, the first edit or going back to Convert.
+  var _readyBar = useState(false); var readyBarOpen = _readyBar[0], setReadyBarOpen = _readyBar[1];
   var _patternCreatedThisVisit = useState(false);
   var patternCreatedThisVisit = _patternCreatedThisVisit[0], setPatternCreatedThisVisit = _patternCreatedThisVisit[1];
   var _patternGeneratedThisVisit = useState(false);
@@ -859,9 +862,19 @@ window.useCreatorState = function useCreatorState() {
   var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
-  // Convert's step tab (creator/ConvertPanel.js): Picture, Size, Threads,
-  // Detail or Project. A new picture starts on Picture (resetAll).
-  var _convertTab = useState("picture"); var convertTab = _convertTab[0], _setConvertTabRaw = _convertTab[1];
+  // Convert's step tab (creator/ConvertPanel.js): Size, Threads or Detail.
+  // A new picture starts on Size (resetAll); what the picture is and its
+  // background are set in Frame the picture (convertStage below).
+  var _convertTab = useState("size"); var convertTab = _convertTab[0], _setConvertTabRaw = _convertTab[1];
+  // Which part of Convert is showing: "frame" (Frame the picture: crop,
+  // turn, picture type, background, fixes; creator/FrameView.js) or "make"
+  // (the preview and the Size, Threads and Detail steps). A new picture opens
+  // on Frame unless Preferences > Pattern Creator turns it off.
+  var _convertStage = useState("make"); var convertStage = _convertStage[0], setConvertStage = _convertStage[1];
+  // The steps opened since this picture came in ({ frame, size, threads,
+  // detail }), ticked in the step bar (ConvertPanel.js CreatorConvertProgress).
+  // Frame is not ticked when it was skipped (Preferences, a draft).
+  var _convertSeen = useState({}); var convertSeen = _convertSeen[0], setConvertSeen = _convertSeen[1];
   function setConvertTab(v) {
     var ok = (window.CONVERT_TABS || []).some(function (t) { return t.id === v; });
     if (ok || !window.CONVERT_TABS) _setConvertTabRaw(v);
@@ -884,8 +897,11 @@ window.useCreatorState = function useCreatorState() {
   // ── Picture type (audit IMG-01) ─────────────────────────────────────────
   // pictureInfo: analysePicture() of the loaded picture. presetApplied:
   // { id, values } for the preset last chosen (or guessed on upload).
-  // pictureType is that id while every value it set is unchanged, else
-  // 'custom' (also 'custom' when no preset has been applied).
+  // pictureType is that id, or null when none was chosen (Guess the picture
+  // type off). It says what the picture is, so changing a thread setting no
+  // longer turns it into Custom: Detail and tidiness has its own Custom
+  // (reports/create-from-image-workflow, Phase B). presetUntouched says
+  // whether every value the type set is still as it set it.
   var _exactPixel = useState(false), exactPixelArt = _exactPixel[0], setExactPixelArt = _exactPixel[1];
   useEffect(function() {
     if (!exactPixelArt || !img || appMode !== "create") return;
@@ -897,7 +913,9 @@ window.useCreatorState = function useCreatorState() {
   var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
   var pictureInfoRef = useRef(null);
   pictureInfoRef.current = pictureInfo;
-  var applyPicturePreset = useCallback(function (id, info) {
+  // opts.guessed: the Creator chose it from the picture, not the user (a crop
+  // may then guess again; useProjectIO.examinePicture).
+  var applyPicturePreset = useCallback(function (id, info, opts) {
     var v = picturePresetValues(id, info === undefined ? pictureInfoRef.current : info);
     if (!v) return;
     if (v.maxC != null) setMaxC(v.maxC);
@@ -906,19 +924,20 @@ window.useCreatorState = function useCreatorState() {
     if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails, foldEdgeShades: v.foldEdgeShades }); });
     if (v.orphans != null) setOrphans(v.orphans);
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
-    setPresetApplied({ id: id, values: v });
+    setPresetApplied(opts && opts.guessed ? { id: id, values: v, guessed: true } : { id: id, values: v });
   }, []);
   // The Detail and tidiness step is its own choice: changing it keeps the
   // picture type, so its keys are not compared here.
-  var pictureType = (function () {
-    if (!presetApplied) return 'custom';
+  var presetUntouched = (function () {
+    if (!presetApplied) return false;
     var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: sW, sH: sH };
     for (var k in v) {
       if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
-      if (cur[k] !== v[k]) return 'custom';
+      if (cur[k] !== v[k]) return false;
     }
-    return presetApplied.id;
+    return true;
   })();
+  var pictureType = presetApplied && PICTURE_PRESETS[presetApplied.id] ? presetApplied.id : null;
   // Detail and tidiness: steps are read in the last picture type chosen, even
   // after another value made the type Custom. With none chosen (Guess the
   // picture type off in Preferences), in the type the picture looks like, so
@@ -943,6 +962,12 @@ window.useCreatorState = function useCreatorState() {
   var _cropRect= useState(null);     var cropRect   = _cropRect[0], setCropRect = _cropRect[1];
   var cropStartRef = useRef(null);
   var cropRef      = useRef(null);
+  // Frame the picture's crop shape: null (free) or width / height. The drag in
+  // useCanvasInteraction keeps the rectangle to it.
+  var cropRatioRef = useRef(null);
+  // useProjectIO's picture check (type, background, pixel-art size), so a
+  // crop can look at the cropped picture again (useCanvasInteraction.applyCrop).
+  var pictureExaminerRef = useRef(null);
 
   // Cleanup mode handlers ref — set by useCleanupMode so useCanvasInteraction
   // can dispatch click/drag events without a circular hook dependency.
@@ -1059,6 +1084,9 @@ window.useCreatorState = function useCreatorState() {
   // Thread organiser
   var _thOwned  = useState({});      var threadOwned = _thOwned[0], setThreadOwned = _thOwned[1];
   var _glStash  = useState({});      var globalStash = _glStash[0], setGlobalStash = _glStash[1];
+  // False until the stash has been read (creator-main.js), so an empty {}
+  // before then is not taken for an empty stash.
+  var _glStashLoaded = useState(false); var globalStashLoaded = _glStashLoaded[0], setGlobalStashLoaded = _glStashLoaded[1];
   var _kitResult= useState(null);    var kittingResult = _kitResult[0], setKittingResult = _kitResult[1];
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
@@ -1688,14 +1716,25 @@ window.useCreatorState = function useCreatorState() {
     }).catch(function() {});
   }
 
+  // A step counts as seen once it is on screen: Frame the picture, or a
+  // Convert step.
+  useEffect(function () {
+    if (!img) return;
+    var id = convertStage === "frame" ? "frame" : convertTab;
+    setConvertSeen(function (s) {
+      if (s[id]) return s;
+      var n = Object.assign({}, s); n[id] = true; return n;
+    });
+  }, [convertStage, convertTab, img]);
+
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
     setBsLines([]); setKnots([]); setSpecialtyStitches([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
-    setLastGenSnapshot(null); setGenPatSnapshot(null);
+    setLastGenSnapshot(null); setGenPatSnapshot(null); setReadyBarOpen(false);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    _setConvertTabRaw("picture"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    _setConvertTabRaw("size"); setConvertSeen({}); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
     setKeepColours([]); setPickKeep(false);
     setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
@@ -2008,18 +2047,13 @@ window.useCreatorState = function useCreatorState() {
     setZoom(creatorFitZoom(sW, sH, null, null, G));
     pendingFitRef.current = true;
     setBusy(false);
-    // Toast on successful generation. Mentions the phase flip so users
-    // notice the sidebar tabs and canvas tools have changed; the action
-    // bar's "< Setup" button is the way back. (Polish B.)
-    // Threads and chart symbols, not "colours": a blend is one symbol made of
-    // two threads (audit IMG-02).
+    // One "Your pattern is ready" bar above the chart says what was made
+    // (threads and chart symbols, not "colours": audit IMG-02) and offers
+    // Print PDF, Open in Tracker and Threads to buy, instead of a toast
+    // arriving together with the editing tips (creator/ReadyBar.js).
+    setReadyBarOpen(true);
+    setConvertStage("make");
     var tc = creatorThreadCounts(result.pal);
-    var counts = threadCountsSentence(tc);
-    // A pattern with blends says what a blend is, one click away (UX-013).
-    var blendAction = tc.blends > 0 && typeof openBlendHelp === "function"
-      ? { label: window.BLEND_HELP.title, onClick: openBlendHelp }
-      : null;
-    addToast("Pattern generated and saved \u2014 now editing at " + sW + "\u00D7" + sH + " with " + counts + ". Use the Convert tab to change the picture, size or threads.", {type:"success", duration: blendAction ? 9000 : 5000, action: blendAction});
     // More symbols than the printed chart has (audit UX-005): say so now, not at export.
     var limitMsg = symbolLimitWarning(tc);
     if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});
@@ -2201,7 +2235,7 @@ window.useCreatorState = function useCreatorState() {
         allowedPalette = stashInfo.palette;
       }
       if (!allowedPalette || allowedPalette.length === 0) {
-        addToast("Your stash is empty — add threads to use stash-only mode.", {type: "warning", duration: 3000});
+        addToast("Your stash has no " + (window.threadBrandLabel ? window.threadBrandLabel(convertBrand) : "DMC") + " threads, so there are none to use. Turn off Use only stash threads, or add the threads you own in the Stash Manager.", {type: "warning", duration: 10000});
         setBusy(false);
         return;
       }
@@ -2768,13 +2802,13 @@ window.useCreatorState = function useCreatorState() {
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     exactPixelArt, setExactPixelArt,
-    pictureInfo, setPictureInfo, pictureType, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
+    pictureInfo, setPictureInfo, pictureType, presetUntouched, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
     stitchStyle, stitchStyleBasis, applyStitchStyle,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, maxBlends, setAllowBlends, setMaxBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, readyBarOpen, setReadyBarOpen, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
@@ -2795,10 +2829,10 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    convertTab, setConvertTab,
+    convertTab, setConvertTab, convertStage, setConvertStage, convertSeen,
     stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
-    cropRect, setCropRect, cropStartRef, cropRef,
+    cropRect, setCropRect, cropStartRef, cropRef, cropRatioRef, pictureExaminerRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
     penNavigation, setPenNavigation, penNavigationRef,
@@ -2821,7 +2855,7 @@ window.useCreatorState = function useCreatorState() {
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
     sessions, setSessions, partialStitches, setPartialStitches,
     partialStitchTool: effPartialStitchTool, setPartialStitchTool: choosePartialStitchTool, partialStitchToolRef: effPartialToolRef.current, threadOwned, setThreadOwned,
-    globalStash, setGlobalStash, kittingResult, setKittingResult,
+    globalStash, setGlobalStash, globalStashLoaded, setGlobalStashLoaded, kittingResult, setKittingResult,
     altOpen, setAltOpen,
     resizeCanvasOpen, setResizeCanvasOpen,
     adaptModalOpen, setAdaptModalOpen,
@@ -2888,6 +2922,16 @@ window.useCreatorState = function useCreatorState() {
     skeinData, materialThreadRows, totalSkeins, blendCount, difficulty, confettiStats: difficultyMetrics.confetti || null, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
+
+    // How many threads of the convert brand the stash holds, whether or not
+    // Use only stash threads is on, so Convert can say up front when the
+    // stash is empty (creator/ConvertPanel.js).
+    // null until the stash has been read.
+    ownedThreadCount: useMemo(function() {
+      if (!globalStashLoaded) return null;
+      if (!globalStash) return 0;
+      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
+    }, [globalStash, globalStashLoaded, convertBrand]),
 
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {

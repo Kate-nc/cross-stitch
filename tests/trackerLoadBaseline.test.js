@@ -27,8 +27,9 @@ describe('which loads may start clean', () => {
   test('imports, hand-offs, links and the Creator hand-over are saved as before', () => {
     const calls = SRC.match(/processLoadedProject\([^)]*\)(?!\{)/g);   // calls, not the definition
     const unflagged = calls.filter((c) => !/stored|opts/.test(c));
-    // loadProject (JSON, OXS, PDF), the image wizard x2, the Creator's project prop x2, the hand-off, the share link.
-    expect(unflagged.length).toBeGreaterThanOrEqual(8);
+    // loadProject (JSON, OXS, PDF), the Creator's project prop x2, the hand-off, the share link.
+    // (The Tracker's own image import, two calls, is gone: pictures go to the Creator.)
+    expect(unflagged.length).toBeGreaterThanOrEqual(7);
     expect(PLP).toContain("const _needs=_stored?[]:['not read from storage'];");
   });
 

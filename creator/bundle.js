@@ -6737,9 +6737,9 @@ var CONVERSION_STATE_KEYS = [
 ];
 
 // ── Picture-type presets (audit IMG-01) ────────────────────────────────────
-// "What kind of picture is this?" at the top of Convert. Choosing one only
-// sets values; every control stays editable, and once a value differs from
-// what the preset set the control shows Custom. Pixel art takes its thread
+// "What kind of picture is this?" in Frame the picture. Choosing one only
+// sets values; every control stays editable, and changing one keeps the type
+// (presetUntouched records whether they are unchanged). Pixel art takes its thread
 // count and size from the picture itself (picturePresetValues).
 // `style` is the Detail and tidiness step the type starts on (STITCH_STYLES).
 var PICTURE_PRESETS = {
@@ -7215,6 +7215,9 @@ window.useCreatorState = function useCreatorState() {
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
   var _cmap = useState(null);         var cmap = _cmap[0], setCmap = _cmap[1];
   var _busy = useState(false);        var busy = _busy[0], setBusy = _busy[1];
+  // "Your pattern is ready" (creator/ReadyBar.js): opened by Generate,
+  // closed by its buttons, the first edit or going back to Convert.
+  var _readyBar = useState(false); var readyBarOpen = _readyBar[0], setReadyBarOpen = _readyBar[1];
   var _patternCreatedThisVisit = useState(false);
   var patternCreatedThisVisit = _patternCreatedThisVisit[0], setPatternCreatedThisVisit = _patternCreatedThisVisit[1];
   var _patternGeneratedThisVisit = useState(false);
@@ -7423,9 +7426,19 @@ window.useCreatorState = function useCreatorState() {
   var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
-  // Convert's step tab (creator/ConvertPanel.js): Picture, Size, Threads,
-  // Detail or Project. A new picture starts on Picture (resetAll).
-  var _convertTab = useState("picture"); var convertTab = _convertTab[0], _setConvertTabRaw = _convertTab[1];
+  // Convert's step tab (creator/ConvertPanel.js): Size, Threads or Detail.
+  // A new picture starts on Size (resetAll); what the picture is and its
+  // background are set in Frame the picture (convertStage below).
+  var _convertTab = useState("size"); var convertTab = _convertTab[0], _setConvertTabRaw = _convertTab[1];
+  // Which part of Convert is showing: "frame" (Frame the picture: crop,
+  // turn, picture type, background, fixes; creator/FrameView.js) or "make"
+  // (the preview and the Size, Threads and Detail steps). A new picture opens
+  // on Frame unless Preferences > Pattern Creator turns it off.
+  var _convertStage = useState("make"); var convertStage = _convertStage[0], setConvertStage = _convertStage[1];
+  // The steps opened since this picture came in ({ frame, size, threads,
+  // detail }), ticked in the step bar (ConvertPanel.js CreatorConvertProgress).
+  // Frame is not ticked when it was skipped (Preferences, a draft).
+  var _convertSeen = useState({}); var convertSeen = _convertSeen[0], setConvertSeen = _convertSeen[1];
   function setConvertTab(v) {
     var ok = (window.CONVERT_TABS || []).some(function (t) { return t.id === v; });
     if (ok || !window.CONVERT_TABS) _setConvertTabRaw(v);
@@ -7448,8 +7461,11 @@ window.useCreatorState = function useCreatorState() {
   // ── Picture type (audit IMG-01) ─────────────────────────────────────────
   // pictureInfo: analysePicture() of the loaded picture. presetApplied:
   // { id, values } for the preset last chosen (or guessed on upload).
-  // pictureType is that id while every value it set is unchanged, else
-  // 'custom' (also 'custom' when no preset has been applied).
+  // pictureType is that id, or null when none was chosen (Guess the picture
+  // type off). It says what the picture is, so changing a thread setting no
+  // longer turns it into Custom: Detail and tidiness has its own Custom
+  // (reports/create-from-image-workflow, Phase B). presetUntouched says
+  // whether every value the type set is still as it set it.
   var _exactPixel = useState(false), exactPixelArt = _exactPixel[0], setExactPixelArt = _exactPixel[1];
   useEffect(function() {
     if (!exactPixelArt || !img || appMode !== "create") return;
@@ -7461,7 +7477,9 @@ window.useCreatorState = function useCreatorState() {
   var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
   var pictureInfoRef = useRef(null);
   pictureInfoRef.current = pictureInfo;
-  var applyPicturePreset = useCallback(function (id, info) {
+  // opts.guessed: the Creator chose it from the picture, not the user (a crop
+  // may then guess again; useProjectIO.examinePicture).
+  var applyPicturePreset = useCallback(function (id, info, opts) {
     var v = picturePresetValues(id, info === undefined ? pictureInfoRef.current : info);
     if (!v) return;
     if (v.maxC != null) setMaxC(v.maxC);
@@ -7470,19 +7488,20 @@ window.useCreatorState = function useCreatorState() {
     if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails, foldEdgeShades: v.foldEdgeShades }); });
     if (v.orphans != null) setOrphans(v.orphans);
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
-    setPresetApplied({ id: id, values: v });
+    setPresetApplied(opts && opts.guessed ? { id: id, values: v, guessed: true } : { id: id, values: v });
   }, []);
   // The Detail and tidiness step is its own choice: changing it keeps the
   // picture type, so its keys are not compared here.
-  var pictureType = (function () {
-    if (!presetApplied) return 'custom';
+  var presetUntouched = (function () {
+    if (!presetApplied) return false;
     var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: sW, sH: sH };
     for (var k in v) {
       if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
-      if (cur[k] !== v[k]) return 'custom';
+      if (cur[k] !== v[k]) return false;
     }
-    return presetApplied.id;
+    return true;
   })();
+  var pictureType = presetApplied && PICTURE_PRESETS[presetApplied.id] ? presetApplied.id : null;
   // Detail and tidiness: steps are read in the last picture type chosen, even
   // after another value made the type Custom. With none chosen (Guess the
   // picture type off in Preferences), in the type the picture looks like, so
@@ -7507,6 +7526,12 @@ window.useCreatorState = function useCreatorState() {
   var _cropRect= useState(null);     var cropRect   = _cropRect[0], setCropRect = _cropRect[1];
   var cropStartRef = useRef(null);
   var cropRef      = useRef(null);
+  // Frame the picture's crop shape: null (free) or width / height. The drag in
+  // useCanvasInteraction keeps the rectangle to it.
+  var cropRatioRef = useRef(null);
+  // useProjectIO's picture check (type, background, pixel-art size), so a
+  // crop can look at the cropped picture again (useCanvasInteraction.applyCrop).
+  var pictureExaminerRef = useRef(null);
 
   // Cleanup mode handlers ref — set by useCleanupMode so useCanvasInteraction
   // can dispatch click/drag events without a circular hook dependency.
@@ -7623,6 +7648,9 @@ window.useCreatorState = function useCreatorState() {
   // Thread organiser
   var _thOwned  = useState({});      var threadOwned = _thOwned[0], setThreadOwned = _thOwned[1];
   var _glStash  = useState({});      var globalStash = _glStash[0], setGlobalStash = _glStash[1];
+  // False until the stash has been read (creator-main.js), so an empty {}
+  // before then is not taken for an empty stash.
+  var _glStashLoaded = useState(false); var globalStashLoaded = _glStashLoaded[0], setGlobalStashLoaded = _glStashLoaded[1];
   var _kitResult= useState(null);    var kittingResult = _kitResult[0], setKittingResult = _kitResult[1];
   var _altOpen  = useState(null);    var altOpen = _altOpen[0], setAltOpen = _altOpen[1];
 
@@ -8252,14 +8280,25 @@ window.useCreatorState = function useCreatorState() {
     }).catch(function() {});
   }
 
+  // A step counts as seen once it is on screen: Frame the picture, or a
+  // Convert step.
+  useEffect(function () {
+    if (!img) return;
+    var id = convertStage === "frame" ? "frame" : convertTab;
+    setConvertSeen(function (s) {
+      if (s[id]) return s;
+      var n = Object.assign({}, s); n[id] = true; return n;
+    });
+  }, [convertStage, convertTab, img]);
+
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
     setBsLines([]); setKnots([]); setSpecialtyStitches([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
-    setLastGenSnapshot(null); setGenPatSnapshot(null);
+    setLastGenSnapshot(null); setGenPatSnapshot(null); setReadyBarOpen(false);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    _setConvertTabRaw("picture"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    _setConvertTabRaw("size"); setConvertSeen({}); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
     setKeepColours([]); setPickKeep(false);
     setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
@@ -8572,18 +8611,13 @@ window.useCreatorState = function useCreatorState() {
     setZoom(creatorFitZoom(sW, sH, null, null, G));
     pendingFitRef.current = true;
     setBusy(false);
-    // Toast on successful generation. Mentions the phase flip so users
-    // notice the sidebar tabs and canvas tools have changed; the action
-    // bar's "< Setup" button is the way back. (Polish B.)
-    // Threads and chart symbols, not "colours": a blend is one symbol made of
-    // two threads (audit IMG-02).
+    // One "Your pattern is ready" bar above the chart says what was made
+    // (threads and chart symbols, not "colours": audit IMG-02) and offers
+    // Print PDF, Open in Tracker and Threads to buy, instead of a toast
+    // arriving together with the editing tips (creator/ReadyBar.js).
+    setReadyBarOpen(true);
+    setConvertStage("make");
     var tc = creatorThreadCounts(result.pal);
-    var counts = threadCountsSentence(tc);
-    // A pattern with blends says what a blend is, one click away (UX-013).
-    var blendAction = tc.blends > 0 && typeof openBlendHelp === "function"
-      ? { label: window.BLEND_HELP.title, onClick: openBlendHelp }
-      : null;
-    addToast("Pattern generated and saved \u2014 now editing at " + sW + "\u00D7" + sH + " with " + counts + ". Use the Convert tab to change the picture, size or threads.", {type:"success", duration: blendAction ? 9000 : 5000, action: blendAction});
     // More symbols than the printed chart has (audit UX-005): say so now, not at export.
     var limitMsg = symbolLimitWarning(tc);
     if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});
@@ -8765,7 +8799,7 @@ window.useCreatorState = function useCreatorState() {
         allowedPalette = stashInfo.palette;
       }
       if (!allowedPalette || allowedPalette.length === 0) {
-        addToast("Your stash is empty — add threads to use stash-only mode.", {type: "warning", duration: 3000});
+        addToast("Your stash has no " + (window.threadBrandLabel ? window.threadBrandLabel(convertBrand) : "DMC") + " threads, so there are none to use. Turn off Use only stash threads, or add the threads you own in the Stash Manager.", {type: "warning", duration: 10000});
         setBusy(false);
         return;
       }
@@ -9332,13 +9366,13 @@ window.useCreatorState = function useCreatorState() {
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     exactPixelArt, setExactPixelArt,
-    pictureInfo, setPictureInfo, pictureType, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
+    pictureInfo, setPictureInfo, pictureType, presetUntouched, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
     stitchStyle, stitchStyleBasis, applyStitchStyle,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, maxBlends, setAllowBlends, setMaxBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, readyBarOpen, setReadyBarOpen, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
@@ -9359,10 +9393,10 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    convertTab, setConvertTab,
+    convertTab, setConvertTab, convertStage, setConvertStage, convertSeen,
     stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
-    cropRect, setCropRect, cropStartRef, cropRef,
+    cropRect, setCropRect, cropStartRef, cropRef, cropRatioRef, pictureExaminerRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
     penNavigation, setPenNavigation, penNavigationRef,
@@ -9385,7 +9419,7 @@ window.useCreatorState = function useCreatorState() {
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
     sessions, setSessions, partialStitches, setPartialStitches,
     partialStitchTool: effPartialStitchTool, setPartialStitchTool: choosePartialStitchTool, partialStitchToolRef: effPartialToolRef.current, threadOwned, setThreadOwned,
-    globalStash, setGlobalStash, kittingResult, setKittingResult,
+    globalStash, setGlobalStash, globalStashLoaded, setGlobalStashLoaded, kittingResult, setKittingResult,
     altOpen, setAltOpen,
     resizeCanvasOpen, setResizeCanvasOpen,
     adaptModalOpen, setAdaptModalOpen,
@@ -9452,6 +9486,16 @@ window.useCreatorState = function useCreatorState() {
     skeinData, materialThreadRows, totalSkeins, blendCount, difficulty, confettiStats: difficultyMetrics.confetti || null, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
+
+    // How many threads of the convert brand the stash holds, whether or not
+    // Use only stash threads is on, so Convert can say up front when the
+    // stash is empty (creator/ConvertPanel.js).
+    // null until the stash has been read.
+    ownedThreadCount: useMemo(function() {
+      if (!globalStashLoaded) return null;
+      if (!globalStash) return 0;
+      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
+    }, [globalStash, globalStashLoaded, convertBrand]),
 
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {
@@ -11529,6 +11573,95 @@ function lineCells(x0, y0, x1, y1) {
 }
 window.lineCells = lineCells;
 
+/* Crop geometry (Frame the picture, FrameView.js). Rectangles are in the displayed picture's
+   pixels, inside bounds { w, h }; ratio is width / height, or null for a
+   free shape. */
+// The rectangle dragged from `start` to the pointer at (px, py), kept to
+// `ratio` and inside the picture. It grows away from the starting corner.
+function constrainCropRect(start, px, py, ratio, bounds) {
+  var cx = Math.max(0, Math.min(bounds.w, px)), cy = Math.max(0, Math.min(bounds.h, py));
+  var dx = cx - start.x, dy = cy - start.y;
+  if (!ratio) {
+    return { x: Math.min(start.x, cx), y: Math.min(start.y, cy), w: Math.abs(dx), h: Math.abs(dy) };
+  }
+  // The larger of the two drags decides the size.
+  var w = Math.max(Math.abs(dx), Math.abs(dy) * ratio), h = w / ratio;
+  var roomW = dx >= 0 ? bounds.w - start.x : start.x;
+  var roomH = dy >= 0 ? bounds.h - start.y : start.y;
+  if (w > roomW) { w = roomW; h = w / ratio; }
+  if (h > roomH) { h = roomH; w = h * ratio; }
+  return { x: dx >= 0 ? start.x : start.x - w, y: dy >= 0 ? start.y : start.y - h, w: w, h: h };
+}
+window.constrainCropRect = constrainCropRect;
+
+// The largest rectangle of `ratio` centred in the picture (all of it when
+// ratio is null): what choosing a shape starts from.
+function centredCropRect(bounds, ratio) {
+  if (!ratio) return { x: 0, y: 0, w: bounds.w, h: bounds.h };
+  var w = bounds.w, h = w / ratio;
+  if (h > bounds.h) { h = bounds.h; w = h * ratio; }
+  return { x: (bounds.w - w) / 2, y: (bounds.h - h) / 2, w: w, h: h };
+}
+window.centredCropRect = centredCropRect;
+
+// `rect` moved by (dx, dy), kept whole inside the picture.
+function moveCropRect(rect, dx, dy, bounds) {
+  return {
+    x: Math.max(0, Math.min(bounds.w - rect.w, rect.x + dx)),
+    y: Math.max(0, Math.min(bounds.h - rect.h, rect.y + dy)),
+    w: rect.w, h: rect.h
+  };
+}
+window.moveCropRect = moveCropRect;
+
+// The handles on a crop rectangle: four corners, and four edges for a free
+// shape. A corner keeps the opposite corner where it is; an edge moves only
+// its own side.
+var CROP_CORNERS = ["nw", "ne", "sw", "se"];
+var CROP_EDGES = ["n", "e", "s", "w"];
+window.CROP_HANDLES = { corners: CROP_CORNERS, edges: CROP_EDGES };
+
+// `rect` with handle `handle` dragged to the pointer at (px, py), kept to
+// `ratio` and inside the picture. With a shape, an edge acts as the corner
+// clockwise from it, so the shape is kept.
+function resizeCropRect(rect, handle, px, py, ratio, bounds) {
+  if (ratio && CROP_EDGES.indexOf(handle) >= 0) handle = { n: "ne", e: "se", s: "sw", w: "nw" }[handle];
+  var x0 = rect.x, y0 = rect.y, x1 = rect.x + rect.w, y1 = rect.y + rect.h;
+  if (CROP_CORNERS.indexOf(handle) >= 0) {
+    var anchor = { x: handle.indexOf("w") >= 0 ? x1 : x0, y: handle.indexOf("n") >= 0 ? y1 : y0 };
+    return constrainCropRect(anchor, px, py, ratio, bounds);
+  }
+  var cx = Math.max(0, Math.min(bounds.w, px)), cy = Math.max(0, Math.min(bounds.h, py));
+  if (handle === "e") x1 = cx; else if (handle === "w") x0 = cx;
+  else if (handle === "s") y1 = cy; else if (handle === "n") y0 = cy;
+  return { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+}
+window.resizeCropRect = resizeCropRect;
+
+// The crop rectangle after an arrow key on it: the key moves it by `step`;
+// with `resize` it grows (right, down) or shrinks (left, up) from its top
+// left corner instead, kept to `ratio`. Never smaller than `min`.
+function nudgeCropRect(rect, key, step, resize, ratio, bounds, min) {
+  var dx = key === "ArrowRight" ? step : key === "ArrowLeft" ? -step : 0;
+  var dy = key === "ArrowDown" ? step : key === "ArrowUp" ? -step : 0;
+  if (!dx && !dy) return rect;
+  if (!resize) return moveCropRect(rect, dx, dy, bounds);
+  min = min || 10;
+  var w, h;
+  if (ratio) {
+    var d = dx || dy;
+    w = rect.w + d; h = w / ratio;
+    if (w < min || h < min) { h = Math.max(min, min / ratio); w = Math.max(min, h * ratio); h = w / ratio; }
+    if (rect.x + w > bounds.w) { w = bounds.w - rect.x; h = w / ratio; }
+    if (rect.y + h > bounds.h) { h = bounds.h - rect.y; w = h * ratio; }
+  } else {
+    w = Math.max(min, Math.min(bounds.w - rect.x, rect.w + dx));
+    h = Math.max(min, Math.min(bounds.h - rect.y, rect.h + dy));
+  }
+  return { x: rect.x, y: rect.y, w: w, h: h };
+}
+window.nudgeCropRect = nudgeCropRect;
+
 /* computePinchScroll — pure maths for the two-finger gesture. `pinch` holds
    the scroll position and finger midpoint captured when the gesture began,
    plus the scroll container's viewport origin and the canvas's offset inside
@@ -11803,10 +11936,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
   }
   function interruptAll() {
-    if (state.cropStartRef && state.cropStartRef.current) {
-      state.cropStartRef.current = null;
-      state.setCropRect(null);
-    }
+    if (state.cropStartRef && state.cropStartRef.current) abandonCropDrag();
     cropPointersRef.current.forEach(function(target, id) {
       cropPointersRef.current.delete(id);
       try { target.releasePointerCapture(id); } catch (_) {}
@@ -12974,25 +13104,51 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   // ─── Crop handlers ───────────────────────────────────────────────────────────
+  // A drag on the picture draws a new rectangle; on a rectangle already
+  // drawn it moves it, and on one of its handles (data-crop-handle) it
+  // resizes it. cropStartRef holds { mode, ... } while dragging.
   function handleCropMouseDown(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
     if (!isCropping || !cropRef.current) return;
     if (!isPrimaryButton(e)) return;
     e.preventDefault();
     var r = cropRef.current.getBoundingClientRect();
-    cropStartRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
-    state.setCropRect({ x: cropStartRef.current.x, y: cropStartRef.current.y, w: 0, h: 0 });
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    var rect = state.cropRect;
+    if (rect && rect.w >= 10 && rect.h >= 10) {
+      var handleEl = e.target && e.target.closest ? e.target.closest("[data-crop-handle]") : null;
+      if (handleEl) {
+        cropStartRef.current = { mode: "resize", handle: handleEl.getAttribute("data-crop-handle"), rect: rect };
+        return;
+      }
+      if (px >= rect.x && px <= rect.x + rect.w && py >= rect.y && py <= rect.y + rect.h) {
+        cropStartRef.current = { mode: "move", px: px, py: py, rect: rect };
+        return;
+      }
+    }
+    cropStartRef.current = { mode: "draw", x: px, y: py };
+    state.setCropRect({ x: px, y: py, w: 0, h: 0 });
   }
 
   function handleCropMouseMove(e) {
     var cropRef = state.cropRef, cropStartRef = state.cropStartRef, isCropping = state.isCropping;
-    if (!isCropping || !cropStartRef.current || !cropRef.current) return;
+    var s = cropStartRef.current;
+    if (!isCropping || !s || !cropRef.current) return;
     var r = cropRef.current.getBoundingClientRect();
-    var cx = Math.max(0, Math.min(r.width, e.clientX - r.left));
-    var cy = Math.max(0, Math.min(r.height, e.clientY - r.top));
-    var x = Math.min(cropStartRef.current.x, cx), y = Math.min(cropStartRef.current.y, cy);
-    var w = Math.abs(cx - cropStartRef.current.x), h = Math.abs(cy - cropStartRef.current.y);
-    state.setCropRect({ x: x, y: y, w: w, h: h });
+    var bounds = { w: r.width, h: r.height };
+    var px = e.clientX - r.left, py = e.clientY - r.top;
+    var ratio = state.cropRatioRef ? state.cropRatioRef.current : null;
+    if (s.mode === "move") state.setCropRect(moveCropRect(s.rect, px - s.px, py - s.py, bounds));
+    else if (s.mode === "resize") state.setCropRect(resizeCropRect(s.rect, s.handle, px, py, ratio, bounds));
+    else state.setCropRect(constrainCropRect(s, px, py, ratio, bounds));
+  }
+
+  // A drag stopped part way (a second finger, a cancelled pointer): a move
+  // or resize puts the rectangle back as it was; a new one is dropped.
+  function abandonCropDrag() {
+    var s = state.cropStartRef.current;
+    state.cropStartRef.current = null;
+    state.setCropRect(s && s.rect ? s.rect : null);
   }
 
   function handleCropMouseUp(e) {
@@ -13007,9 +13163,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (target && target.setPointerCapture) {
       try { target.setPointerCapture(e.pointerId); } catch (_) {}
     }
-    if (cropPointersRef.current.size > 1) {
-      state.cropStartRef.current = null; state.setCropRect(null); return;
-    }
+    if (cropPointersRef.current.size > 1) { abandonCropDrag(); return; }
     handleCropMouseDown(e);
   }
 
@@ -13032,38 +13186,62 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handleCropPointerCancel(e) {
     if (!cropPointersRef.current.has(e.pointerId)) return;
+    var s = state.cropStartRef.current;
     handleCropPointerUp(e);
-    state.setCropRect(null);
+    state.setCropRect(s && s.rect ? s.rect : null);
   }
 
-  function applyCrop() {
-    var cropRect = state.cropRect, cropRef = state.cropRef, img = state.img;
-    if (!cropRect || cropRect.w < 10 || cropRect.h < 10 || !cropRef.current || !img) {
-      state.setIsCropping(false);
-      return;
+  // Puts a new picture in place of the current one (a crop, a turn, or
+  // Undo in Frame the picture): its size, shape and height (aspect lock),
+  // then looks at it again, since its type, plain background and pixel-art
+  // size were worked out from the old one. An existing chart is kept, with
+  // its edits and progress: Convert's preview shows the new picture, and the
+  // chart changes only when Regenerate replaces it (which asks first when it
+  // was edited).
+  function replacePicture(newImg) {
+    if (!newImg) return;
+    var w = newImg.naturalWidth || newImg.width, hh = newImg.naturalHeight || newImg.height;
+    state.setImg(newImg);
+    state.setOrigW(w);
+    state.setOrigH(hh);
+    var newAr = w / hh;
+    state.setAr(newAr);
+    if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
+    state.setCropRect(null);
+    var examine = state.pictureExaminerRef && state.pictureExaminerRef.current;
+    if (typeof examine === "function") examine(newImg, { reframed: true });
+  }
+
+  // Crops the picture to the rectangle drawn on it (Frame the picture).
+  // opts.source (an image or canvas) is the picture to use instead of the
+  // current one, such as the current one turned; opts.whole keeps all of it,
+  // ignoring any rectangle. opts.onDone(newImg) runs once it is in place.
+  function applyCrop(opts) {
+    opts = opts || {};
+    var cropRect = state.cropRect, cropRef = state.cropRef;
+    var src = opts.source || state.img;
+    var hasRect = !opts.whole && !!(cropRect && cropRect.w >= 10 && cropRect.h >= 10);
+    if (!src || (!hasRect && src === state.img) || (hasRect && !cropRef.current)) return false;
+    var srcW = src.naturalWidth || src.width, srcH = src.naturalHeight || src.height;
+    var cropX = 0, cropY = 0, cropW = srcW, cropH = srcH;
+    if (hasRect) {
+      var r = cropRef.current.getBoundingClientRect();
+      var scaleX = srcW / r.width, scaleY = srcH / r.height;
+      // Rounded, not floored, so a square drawn on screen stays square.
+      cropX = Math.max(0, Math.round(cropRect.x * scaleX)); cropY = Math.max(0, Math.round(cropRect.y * scaleY));
+      cropW = Math.max(1, Math.min(srcW - cropX, Math.round(cropRect.w * scaleX))); cropH = Math.max(1, Math.min(srcH - cropY, Math.round(cropRect.h * scaleY)));
     }
-    var r = cropRef.current.getBoundingClientRect();
-    var scaleX = img.width / r.width, scaleY = img.height / r.height;
-    var cropX = Math.floor(cropRect.x * scaleX), cropY = Math.floor(cropRect.y * scaleY);
-    var cropW = Math.floor(cropRect.w * scaleX), cropH = Math.floor(cropRect.h * scaleY);
     var c = document.createElement("canvas"); c.width = cropW; c.height = cropH;
     var cx = c.getContext("2d");
-    cx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+    cx.drawImage(src, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
     var newImg = new Image();
     newImg.onload = function() {
-      state.setImg(newImg);
-      state.setOrigW(newImg.width);
-      state.setOrigH(newImg.height);
-      var newAr = newImg.width / newImg.height;
-      state.setAr(newAr);
-      if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
-      state.setIsCropping(false);
-      state.setCropRect(null);
-      // An existing chart is kept, with its edits and progress: Convert's
-      // preview shows the cropped picture, and the chart changes only when
-      // Regenerate replaces it (which asks first when it was edited).
+      replacePicture(newImg);
+      if (typeof opts.onDone === "function") opts.onDone(newImg);
     };
-    newImg.src = c.toDataURL();
+    // PNG keeps transparency (pixel art, logos with clear backgrounds).
+    newImg.src = c.toDataURL("image/png");
+    return true;
   }
 
   function srcClick(e) {
@@ -13101,6 +13279,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     handleCropPointerUp: handleCropPointerUp,
     handleCropPointerCancel: handleCropPointerCancel,
     applyCrop: applyCrop,
+    replacePicture: replacePicture,
     srcClick: srcClick,
     isDraggingRef: isDraggingRef,
   };
@@ -13775,8 +13954,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 
   // ─── processLoadedProject ────────────────────────────────────────────────────
   function processLoadedProject(project) {
+    // A saved project opens on its chart or Convert's settings, never on
+    // Frame the picture (which is for a picture just added).
+    if (state.setConvertStage) state.setConvertStage("make");
     if(!project)return;
-    cancelBackgroundOffer();
     // INT-7 Phase B-1: seed the last-seen cache so the next save() from this
     // tab has a baseline to compare against for stale-read detection.
     // No-op when CrossTabCoord isn't loaded or the project has no Phase B
@@ -13788,6 +13969,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           project.id, project.lastWriteAt, project.lastWriteTabId);
       }
     } catch (_) {}
+    // A plain-background offer for a picture doesn't apply to this project.
+    cancelBackgroundOffer();
     if(project.specialtyVersion!=null&&project.specialtyVersion!==1)throw new Error('Unsupported petite/long stitch schema version '+project.specialtyVersion+'.');
     project=ProgressUnits.specialty.migrate(project);
     // P4-5: a project in another brand's numbering loads that brand's
@@ -14129,6 +14312,108 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     return true;
   }
 
+  // Look at a picture: a plain background (the outer 2% one colour) is
+  // offered, never left out on its own, and the picture type is guessed and
+  // its preset applied (audit IMG-01). Everything joined to the border within
+  // the match goes with the background, and that can be part of the subject
+  // (a pale shirt against a pale wall), so the stitcher chooses, with the
+  // preview showing what would be left out
+  // (reports/photo-conversion-audit-2026-11.md). On upload every value
+  // is set. After a crop (opts.reframed) the cropped picture is looked at
+  // again, without undoing choices the user made: the type is guessed again
+  // only while it is the Creator's own guess and nothing it set has changed,
+  // and a background the user chose is left as it is.
+  function examinePicture(imgEl, opts) {
+    var reframed = !!(opts && opts.reframed);
+    if (reframed) reframeDraft(imgEl);
+    var info = null;
+    try { info = creatorExaminePicture(imgEl); }
+    catch (err) { console.warn("useProjectIO: picture check failed", err); }
+    var typeBefore = state.pictureType;
+    // After a crop, guess again only while the type is the Creator's own
+    // guess and nothing it set has been changed.
+    var guessedUntouched = !!(state.presetApplied && state.presetApplied.guessed && state.presetUntouched);
+    var guess = true;
+    try { guess = typeof UserPrefs === "undefined" || UserPrefs.get("creatorGuessPictureType") !== false; } catch (_) {}
+    var applyType = !!(info && info.w && guess && state.applyPicturePreset && typeof window.guessPictureType === "function" &&
+      (!reframed || guessedUntouched));
+    var newType = applyType ? window.guessPictureType(info) : null;
+    offerBackground(info ? info.border : null, reframed);
+    if (info && info.w && state.setPictureInfo) {
+      state.setPictureInfo(info);
+      // Preferences > Pattern Creator > Guess the picture type. Off: the
+      // Preferences defaults stay, and no type is chosen.
+      if (applyType) {
+        state.applyPicturePreset(newType, info, { guessed: true });
+        if (reframed && newType !== typeBefore && state.addToast && window.PICTURE_PRESETS && window.PICTURE_PRESETS[newType]) {
+          state.addToast("The cropped picture looks like " + (newType === "photo" ? "a photo" : newType === "pixel" ? "pixel art" : "a graphic or logo") + ", so Convert now starts from its settings.", { type: "info", duration: 6000 });
+        }
+      }
+    }
+  }
+  function offerBackground(found, reframed) {
+    if (!state.setSkipBg) return;
+    var autoRef = state.bgAutoSkippedRef;
+    var accepted = !!(autoRef && autoRef.current);
+    // A background the user chose themselves stays after a crop.
+    if (reframed && state.skipBg && !accepted) return;
+    // An offer accepted for the same border colour stays after a crop.
+    if (reframed && accepted && found && state.skipBg && state.bgCol &&
+        String(state.bgCol.slice(0, 3)) === String(found.rgb.slice(0, 3))) return;
+    cancelBackgroundOffer();
+    // A background left out from an earlier offer doesn't carry over to a new
+    // picture, or to a crop whose border is different.
+    if (accepted) {
+      state.setSkipBg(false); autoRef.current = false;
+      if (reframed && !found && state.addToast) state.addToast("The cropped picture has no plain border, so its background is stitched.", { type: "info", duration: 6000 });
+    }
+    if (!found || !state.addToast) return;
+    var offer = {};
+    offer.toastId = state.addToast((reframed ? "The cropped picture" : "This picture") + " has a plain background. Leave it unstitched? The preview will show what's left out.", {
+      type: "info", duration: 12000,
+      action: { label: "Leave it unstitched", onClick: function () {
+        // Only for the picture it was offered for.
+        if (bgOfferRef.current !== offer) return;
+        bgOfferRef.current = null;
+        state.setBgCol(found.rgb);
+        state.setSkipBg(true);
+        if (autoRef) autoRef.current = true;
+        if (state.setShowBackground) state.setShowBackground(true);
+      } }
+    });
+    bgOfferRef.current = offer;
+  }
+  if (state.pictureExaminerRef) state.pictureExaminerRef.current = examinePicture;
+
+  // A crop or turn is kept in the Convert draft, so continuing the draft
+  // later starts from the framed picture, not the whole one.
+  function reframeDraft(imgEl) {
+    var d = draftRef.current;
+    if (!d || !d.id || state.pat || !window.BlobStore || typeof document === "undefined") return;
+    try {
+      var c = document.createElement("canvas");
+      c.width = imgEl.naturalWidth || imgEl.width; c.height = imgEl.naturalHeight || imgEl.height;
+      var cx = c.getContext("2d");
+      if (!cx || !c.toBlob) return;
+      cx.drawImage(imgEl, 0, 0);
+      c.toBlob(function (b) {
+        if (!b || draftRef.current !== d) return;
+        d.blob = b; d.type = "image/png";
+        window.BlobStore.put(d.id, { blob: b, name: d.name, type: d.type, createdAt: d.createdAt,
+          settings: creatorDraftSettings(state) }).catch(function () {});
+      }, "image/png");
+    } catch (err) { console.warn("useProjectIO: could not keep the framed picture in the draft", err); }
+  }
+
+  // Which part of Convert a picture opens on: Frame the picture, unless
+  // Preferences > Pattern Creator turns it off or a draft is being
+  // continued (it was framed then).
+  function openingStage(resuming) {
+    if (resuming) return "make";
+    try { if (typeof UserPrefs !== "undefined" && UserPrefs.get("creatorShowFrameStep") === false) return "make"; } catch (_) {}
+    return "frame";
+  }
+
   function handleFile(e) {
     var f = e.target ? e.target.files[0] : e;
     if (!f) return;
@@ -14141,6 +14426,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // app into create mode so the correct sidebar tabs render.
     if (typeof state.setAppMode === "function") state.setAppMode("create");
     state.setIsUploading(true);
+    var resumingDraft = !!(draftRef.current && draftRef.current.restore);
     // Name the project after the image ("IMG_2041.jpg" gives "IMG_2041")
     // instead of asking. A name the user typed before generating is kept.
     function nameFromImage() {
@@ -14150,50 +14436,6 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (typedBeforeGenerate) return;
       var fromFile = window.projectNameFromFile ? window.projectNameFromFile(f.name) : (f.name || "");
       state.setAutoProjectName(fromFile || "Untitled design");
-    }
-    // Look at the picture once: a plain background is offered, never left out
-    // on its own, and the picture type is guessed and its preset applied
-    // (audit IMG-01). Everything joined to the border within the match goes
-    // with the background, and that can be part of the subject (a pale shirt
-    // against a pale wall), so the stitcher chooses, with the preview showing
-    // what would be left out (reports/photo-conversion-audit-2026-11.md).
-    function examinePicture(imgEl) {
-      var info = null;
-      try { info = creatorExaminePicture(imgEl); }
-      catch (err) { console.warn("useProjectIO: picture check failed", err); }
-      cancelBackgroundOffer();
-      offerBackground(info ? info.border : null);
-      if (info && info.w && state.setPictureInfo) {
-        state.setPictureInfo(info);
-        // Preferences > Pattern Creator > Guess the picture type. Off: the
-        // Preferences defaults stay, and the control shows Custom.
-        var guess = true;
-        try { guess = typeof UserPrefs === "undefined" || UserPrefs.get("creatorGuessPictureType") !== false; } catch (_) {}
-        if (guess && state.applyPicturePreset && typeof window.guessPictureType === "function") {
-          state.applyPicturePreset(window.guessPictureType(info), info);
-        }
-      }
-    }
-    function offerBackground(found) {
-      if (!state.setSkipBg) return;
-      var autoRef = state.bgAutoSkippedRef;
-      // A background left out from the previous picture's offer doesn't carry over.
-      if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
-      if (!found || !state.addToast) return;
-      var offer = {};
-      offer.toastId = state.addToast("This picture has a plain background. Leave it unstitched? The preview will show what's left out.", {
-        type: "info", duration: 12000,
-        action: { label: "Leave it unstitched", onClick: function () {
-          // Only for the picture it was offered for.
-          if (bgOfferRef.current !== offer) return;
-          bgOfferRef.current = null;
-          state.setBgCol(found.rgb);
-          state.setSkipBg(true);
-          if (autoRef) autoRef.current = true;
-          if (state.setShowBackground) state.setShowBackground(true);
-        } }
-      });
-      bgOfferRef.current = offer;
     }
     var rd = new FileReader();
     rd.onload = function(ev) {
@@ -14221,7 +14463,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setOrigW(targetW); state.setOrigH(targetH);
                 var a = targetW / targetH; state.setAr(a);
                 var size = creatorInitialSize(targetW, targetH); state.setSW(size.w); state.setSH(size.h);
-                state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); state.setIsUploading(false); startDraft(f);
+                state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); if (state.setConvertStage) state.setConvertStage(openingStage(resumingDraft)); state.setIsUploading(false); startDraft(f);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
             // PNG retains the coverage mask when large uploads are resized.
@@ -14232,7 +14474,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setOrigW(i.width); state.setOrigH(i.height);
           var a2 = i.width / i.height; state.setAr(a2);
           var size2 = creatorInitialSize(i.width, i.height); state.setSW(size2.w); state.setSH(size2.h);
-          state.setImg(i); state.resetAll(); nameFromImage(); examinePicture(i); state.setIsUploading(false); startDraft(f);
+          state.setImg(i); state.resetAll(); nameFromImage(); examinePicture(i); if (state.setConvertStage) state.setConvertStage(openingStage(resumingDraft)); state.setIsUploading(false); startDraft(f);
         } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
       if (typeof i.decode === "function") {
@@ -17300,15 +17542,21 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       h("button", {
         type: "button", className: "cc-name",
         onClick: function () { window.dispatchEvent(new CustomEvent("cs:openRename")); },
-        disabled: !hasPat,
+        disabled: !(hasPat || props.canRename),
         title: "Rename", "aria-label": "Rename “" + (props.projectName || "pattern") + "”"
       },
         h("span", { className: "cc-name__text" }, props.projectName || "New pattern"),
-        hasPat && Icons.pencil ? h("span", { className: "cc-name__icon", "aria-hidden": "true" }, Icons.pencil()) : null
+        (hasPat || props.canRename) && Icons.pencil ? h("span", { className: "cc-name__icon", "aria-hidden": "true" }, Icons.pencil()) : null
       ),
       hasPat ? h("span", {
         className: "cc-save cc-save--" + status.tone, role: "status", "aria-label": status.label, title: status.label
       }, status.icon) : null,
+      // Frame the picture: Continue to the settings, the same as the button
+      // under Frame's settings (creator/FrameView.js listens for it).
+      appMode === "create" && props.hasImage && props.framing ? h("button", {
+        type: "button", className: "cc-continue", onClick: props.onContinue, "data-onboard": "frame-continue",
+        "aria-label": "Continue", title: "Continue to size, threads and detail"
+      }, h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null) :
       // Convert: Generate stays one tap away (it is also in the settings drawer).
       appMode === "create" && props.hasImage && sourceTab === "convert" ? h("button", {
         type: "button", className: "cc-generate",
@@ -19317,167 +19565,411 @@ window.BulkAddModal = (function () {
 })();
 
 
-/* ─── CropModal.js ─── */
-/* creator/CropModal.js — Full-screen crop modal for the Convert tab.
-   Mounts when GenerationContext.isCropping === true.
-   Reuses the existing cropRef, handleCropPointer*, and applyCrop
-   machinery from useCanvasInteraction (accessed via GenerationContext).
-   Exposes window.CropModal. */
+/* ─── FrameView.js ─── */
+/* creator/FrameView.js — Frame the picture: the first part of Convert
+   (reports/create-from-image-workflow, Phase B).
 
-window.CropModal = function CropModal() {
+   A picture just added opens here, full width, before any pattern setting:
+   crop it (Free, Square, 4:3 or 3:4), turn it, and check what the Creator
+   took it for and its background, with fixes to the picture folded away
+   (creator/ConvertPanel.js CreatorPictureSections). Each crop or turn is
+   applied straight away, so the type and background are worked out again
+   from what is kept (useProjectIO.examinePicture); Undo puts the previous
+   picture back. Continue (applying a rectangle still drawn) goes on to the
+   preview and the Size, Threads and Detail steps; Reframe, beside the
+   picture there, comes back. Preferences > Pattern Creator > Start with
+   Frame the picture turns off opening here.
+
+   The crop rectangle can be moved by dragging it, resized by its handles
+   (corners keep a chosen shape; a free shape also has edges), and moved or
+   resized with the arrow keys. With Leave background unstitched on, the
+   stitches Generate will leave out are striped on the picture
+   (FrameBackgroundOverlay), worked out exactly as Generate does.
+
+   Reuses the crop pointer handlers, applyCrop and replacePicture from
+   useCanvasInteraction (GenerationContext). Exposes window.CreatorFrameView,
+   plus CROP_RATIOS, rotatePictureCanvas and frameBackgroundMask. */
+
+// The crop shapes, as width / height (null: any shape).
+window.CROP_RATIOS = [
+  { id: "free", label: "Free", ratio: null },
+  { id: "square", label: "Square", ratio: 1 },
+  { id: "4:3", label: "4:3", ratio: 4 / 3, title: "Landscape, 4 wide by 3 tall" },
+  { id: "3:4", label: "3:4", ratio: 3 / 4, title: "Portrait, 3 wide by 4 tall" }
+];
+
+// The picture turned by `quarters` quarter turns clockwise, as a canvas.
+window.rotatePictureCanvas = function rotatePictureCanvas(img, quarters) {
+  var q = ((quarters % 4) + 4) % 4;
+  var w = img.naturalWidth || img.width, hgt = img.naturalHeight || img.height;
+  var c = document.createElement("canvas");
+  c.width = q % 2 ? hgt : w; c.height = q % 2 ? w : hgt;
+  var cx = c.getContext("2d");
+  cx.translate(c.width / 2, c.height / 2);
+  cx.rotate(q * Math.PI / 2);
+  cx.drawImage(img, -w / 2, -hgt / 2);
+  return c;
+};
+
+// Pictures smaller than this (pixel art, icons) are shown larger, with hard
+// pixel edges, so they can be seen and cropped; at their own size a 9×7
+// sprite was a dot. The crop maps from the size shown, so it stays exact.
+window.FRAME_SMALL_PICTURE_PX = 360;
+window.framePictureMinSize = function framePictureMinSize(w, h) {
+  if (!w || !h || Math.max(w, h) >= window.FRAME_SMALL_PICTURE_PX) return {};
+  var px = window.FRAME_SMALL_PICTURE_PX + "px";
+  // The longer side grows; the shorter one follows the picture's shape.
+  // Capped by the screen, not the box: the box shrinks to fit the picture.
+  return w >= h ? { minWidth: "min(" + px + ", 80vw)" } : { minHeight: "min(" + px + ", 50vh)" };
+};
+
+// The CSS filter that shows brightness, contrast and saturation on the
+// picture as Generate applies them (useCreatorState: brightness((100+bri)%)…).
+window.framePictureFilter = function framePictureFilter(bri, con, sat) {
+  if (!bri && !con && !sat) return "none";
+  return "brightness(" + (100 + (bri || 0)) + "%) contrast(" + (100 + (con || 0)) + "%) saturate(" + (100 + (sat || 0)) + "%)";
+};
+
+// Which stitches Generate leaves unstitched as background, on the grid of
+// sW × sH stitches: the same grid (gridPixels, with brightness, contrast,
+// saturation and Sharpen details) and the same test (prepareConversionPixels:
+// matching colours joined to the edge, or the clear parts of a picture that
+// has them) as Generate (useCreatorState generate, creator/generate.js).
+// Returns { mask (1 = left out), count, w, h, img } or null.
+window.frameBackgroundMask = function frameBackgroundMask(img, sW, sH, opts) {
+  if (!img || !sW || !sH || typeof gridPixels !== "function" || typeof prepareConversionPixels !== "function") return null;
+  var grid = gridPixels(img, sW, sH, { bri: opts.bri, con: opts.con, sat: opts.sat,
+    preSharpenOpts: opts.preSharpen ? { amount: opts.preSharpenAmount } : null });
+  var data = new Uint8ClampedArray(grid.data);
+  var cover = prepareConversionPixels(data, sW, sH, { skipBg: !!opts.skipBg, bgCol: opts.bgCol, bgTh: opts.bgTh });
+  var n = sW * sH, mask = new Uint8Array(n), count = 0;
+  for (var i = 0; i < n; i++) if (!cover[i]) { mask[i] = 1; count++; }
+  return { mask: mask, count: count, w: sW, h: sH, img: img };
+};
+
+// Stripes over the stitches left unstitched, drawn at the size the picture
+// is shown. Decorative: the count beside the picture says it in words.
+function FrameBackgroundOverlay(props) {
+  var canvasRef = React.useRef(null);
+  var info = props.info, w = info.w, hh = info.h;
+  // Drawn again when the picture's size on screen or the theme changes.
+  var _redraw = React.useState(0); var redraw = _redraw[0], setRedraw = _redraw[1];
+  React.useEffect(function () {
+    var c = canvasRef.current, box = c && c.parentNode;
+    function bump() { setRedraw(function (k) { return k + 1; }); }
+    var ro = null, mo = null;
+    if (box && typeof ResizeObserver === "function") { ro = new ResizeObserver(bump); ro.observe(box); }
+    else window.addEventListener("resize", bump);
+    if (typeof MutationObserver === "function") {
+      mo = new MutationObserver(bump);
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
+    }
+    return function () {
+      if (ro) ro.disconnect(); else window.removeEventListener("resize", bump);
+      if (mo) mo.disconnect();
+    };
+  }, []);
+  React.useEffect(function () {
+    var c = canvasRef.current;
+    if (!c) return;
+    var box = c.parentNode && c.parentNode.getBoundingClientRect ? c.parentNode.getBoundingClientRect() : null;
+    var dpr = window.devicePixelRatio || 1;
+    var cw = Math.max(1, Math.round((box && box.width || w) * dpr)), ch = Math.max(1, Math.round((box && box.height || hh) * dpr));
+    c.width = cw; c.height = ch;
+    var cx = c.getContext("2d");
+    if (!cx) return;
+    cx.clearRect(0, 0, cw, ch);
+    if (!info || !info.count) return;
+    // The left-out stitches, one pixel each, enlarged with hard edges.
+    var m = document.createElement("canvas"); m.width = w; m.height = hh;
+    var mx = m.getContext("2d"), id = mx.createImageData(w, hh);
+    for (var i = 0; i < info.mask.length; i++) if (info.mask[i]) id.data[i * 4 + 3] = 255;
+    mx.putImageData(id, 0, 0);
+    var css = getComputedStyle(c);
+    var accent = css.getPropertyValue("--accent").trim() || "currentColor";
+    var light = css.getPropertyValue("--surface").trim() || "transparent";
+    // Diagonal stripes in the accent on a pale wash, readable on dark and
+    // light pictures alike.
+    var step = Math.max(6, Math.round(8 * dpr));
+    cx.globalAlpha = 0.45; cx.fillStyle = light; cx.fillRect(0, 0, cw, ch);
+    cx.globalAlpha = 0.85; cx.strokeStyle = accent; cx.lineWidth = Math.max(1.5, 2 * dpr);
+    cx.beginPath();
+    for (var d = -ch; d < cw + ch; d += step) { cx.moveTo(d, 0); cx.lineTo(d + ch, ch); }
+    cx.stroke();
+    cx.globalAlpha = 1;
+    cx.globalCompositeOperation = "destination-in";
+    cx.imageSmoothingEnabled = false;
+    cx.drawImage(m, 0, 0, cw, ch);
+    cx.globalCompositeOperation = "source-over";
+  }, [info, w, hh, redraw]);
+  return React.createElement("canvas", { ref: canvasRef, className: "fr-picture__bg", "aria-hidden": "true", "data-bg-overlay": "" });
+}
+
+// Reframe, beside the picture in Convert: back to Frame the picture.
+window.CreatorReframeButton = function CreatorReframeButton() {
   var gen = window.useGeneration();
+  return React.createElement("button", {
+    type: "button", className: "cvp-source__btn", "data-reframe": "",
+    title: "Crop or turn the picture, and check its type and background",
+    onClick: function () { gen.setConvertStage("frame"); }
+  }, "Reframe");
+};
+
+window.CreatorFrameView = function CreatorFrameView(props) {
+  var gen = window.useGeneration();
+  var pd = window.usePatternData ? window.usePatternData() : null;
+  // On phones the tour points at the top bar's Continue (CompactBar), the one
+  // on screen; this one is at the foot of the page.
+  var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
   var h = React.createElement;
+  var Icons = window.Icons || {};
 
-  if (!gen.isCropping || !gen.img) return null;
+  var _shape = React.useState("free"); var shape = _shape[0], setShape = _shape[1];
+  // Pictures before each crop or turn, newest last, for Undo.
+  var _hist = React.useState([]); var history = _hist[0], setHistory = _hist[1];
+  // The picture Frame itself last put in place (a crop, turn or Undo). Any
+  // other new picture (Change picture) starts a fresh Undo list, so Undo
+  // never brings back a different picture.
+  var ownImgRef = React.useRef(gen.img);
+  React.useEffect(function () {
+    if (gen.img === ownImgRef.current) return;
+    ownImgRef.current = gen.img;
+    setHistory([]); setShape("free");
+    if (gen.cropRatioRef) gen.cropRatioRef.current = null;
+  }, [gen.img]); // eslint-disable-line react-hooks/exhaustive-deps
+  function mine(img) { ownImgRef.current = img; }
 
-  var cropReady = !!(gen.cropRect && gen.cropRect.w >= 10 && gen.cropRect.h >= 10);
+  // Dragging crops, except while the background colour is being picked:
+  // then a click on the picture picks it (srcClick).
+  React.useEffect(function () {
+    gen.setIsCropping(!gen.pickBg);
+  }, [gen.pickBg]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(function () {
+    return function () {
+      gen.setIsCropping(false); gen.setCropRect(null);
+      if (gen.cropRatioRef) gen.cropRatioRef.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  var backdropStyle = {
-    position: "fixed", inset: 0, zIndex: 2000,
-    background: "rgba(0,0,0,0.82)",
-    display: "flex", flexDirection: "column",
-    alignItems: "center", justifyContent: "center",
-    padding: 16
-  };
+  var rect = gen.cropRect;
+  var cropReady = !!(rect && rect.w >= 10 && rect.h >= 10);
 
-  var wrapStyle = {
-    width: "100%", maxWidth: 860,
-    display: "flex", flexDirection: "column",
-    background: "var(--surface)",
-    borderRadius: "var(--radius-md)",
-    overflow: "hidden",
-    maxHeight: "calc(100vh - 40px)"
-  };
+  // The background Generate will leave out, striped on the picture while
+  // Leave background unstitched is on. Worked out a moment after the last
+  // change, so dragging the match slider stays smooth.
+  var sW = pd && pd.sW, sH = pd && pd.sH;
+  var bgActive = !!(gen.skipBg && !gen.exactPixelArt && gen.img && gen.img.src && sW && sH);
+  var _bgInfo = React.useState(null); var bgInfo = _bgInfo[0], setBgInfo = _bgInfo[1];
+  var _showBg = React.useState(true); var showBg = _showBg[0], setShowBg = _showBg[1];
+  React.useEffect(function () {
+    if (!bgActive) { setBgInfo(null); return undefined; }
+    var t = setTimeout(function () {
+      var info = null;
+      try {
+        info = window.frameBackgroundMask(gen.img, sW, sH, { bri: gen.bri, con: gen.con, sat: gen.sat,
+          preSharpen: gen.preSharpen, preSharpenAmount: gen.preSharpenAmount, skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
+      } catch (e) { info = null; }
+      setBgInfo(info);
+    }, 120);
+    return function () { clearTimeout(t); };
+  }, [bgActive, gen.img, sW, sH, gen.bri, gen.con, gen.sat, gen.preSharpen, gen.preSharpenAmount, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Stripes for another picture or size (just cropped, turned or resized)
+  // are not shown: the row says the background is being found until the new
+  // ones are ready. A change of colour or match keeps the last stripes until
+  // then, so the slider does not flicker.
+  var bgFresh = !!(bgInfo && bgInfo.img === gen.img && bgInfo.w === sW && bgInfo.h === sH);
 
-  var headerStyle = {
-    display: "flex", alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 14px",
-    borderBottom: "1px solid var(--line)",
-    flexShrink: 0
-  };
+  // Arrow keys on the crop box move it (Shift: further); with Alt they
+  // resize it from its top left corner, keeping a chosen shape.
+  function onRectKey(e) {
+    if (!rect || e.key.indexOf("Arrow") !== 0) return;
+    var el = gen.cropRef && gen.cropRef.current;
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    e.preventDefault(); e.stopPropagation();
+    gen.setCropRect(window.nudgeCropRect(rect, e.key, e.shiftKey ? 10 : 2, e.altKey,
+      gen.cropRatioRef ? gen.cropRatioRef.current : null, { w: r.width, h: r.height }, 10));
+  }
 
-  var footerStyle = {
-    display: "flex", alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 14px",
-    borderTop: "1px solid var(--line)",
-    background: "var(--surface)", flexShrink: 0
-  };
+  function ratioOf(id) {
+    var r = window.CROP_RATIOS.filter(function (x) { return x.id === id; })[0];
+    return r ? r.ratio : null;
+  }
+  // The largest rectangle of the chosen shape, centred on the picture shown.
+  function startShape(id) {
+    var ratio = ratioOf(id);
+    if (gen.cropRatioRef) gen.cropRatioRef.current = ratio;
+    var el = gen.cropRef && gen.cropRef.current;
+    if (!el) return;
+    var r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    gen.setCropRect(ratio ? window.centredCropRect({ w: r.width, h: r.height }, ratio) : null);
+  }
+  function chooseShape(id) { setShape(id); startShape(id); }
+  function remember() { var prev = gen.img; setHistory(function (hs) { return hs.concat([prev]).slice(-10); }); }
+  function applyRect() {
+    if (!cropReady) return false;
+    remember();
+    var ok = gen.applyCrop({ onDone: mine });
+    setShape("free");
+    if (gen.cropRatioRef) gen.cropRatioRef.current = null;
+    return ok;
+  }
+  function turn(by) {
+    remember();
+    var keep = shape;
+    gen.setCropRect(null);
+    gen.applyCrop({ source: window.rotatePictureCanvas(gen.img, by), whole: true, onDone: function (img) {
+      mine(img);
+      // A shape chosen before turning starts again on the turned picture.
+      if (keep !== "free") window.requestAnimationFrame(function () { startShape(keep); });
+    } });
+  }
+  function undo() {
+    if (!history.length) return;
+    var prev = history[history.length - 1];
+    setHistory(history.slice(0, -1));
+    setShape("free");
+    if (gen.cropRatioRef) gen.cropRatioRef.current = null;
+    mine(prev);
+    gen.replacePicture(prev);
+  }
+  function clearRect() {
+    gen.setCropRect(null);
+    setShape("free");
+    if (gen.cropRatioRef) gen.cropRatioRef.current = null;
+  }
+  function next() {
+    // A rectangle drawn but not applied is what the user meant to keep.
+    if (cropReady) applyRect();
+    if (gen.pickBg) gen.setPickBg(false);
+    gen.setConvertStage("make");
+  }
 
-  // Image container — must be inline-block (tight to displayed image) so
-  // that cropRect pixel coords (relative to getBoundingClientRect) map
-  // correctly to the crop overlay's position:absolute children.
-  var imageAreaStyle = {
-    flex: 1, overflow: "auto",
-    display: "flex", justifyContent: "center", alignItems: "flex-start",
-    background: "var(--surface-secondary)",
-    cursor: "crosshair"
-  };
+  // Enter applies the crop; Escape stops picking the background colour,
+  // or clears the rectangle. Not while typing.
+  var keysRef = React.useRef(null);
+  keysRef.current = { applyRect: applyRect, clearRect: clearRect, rect: cropReady, pickBg: gen.pickBg, setPickBg: gen.setPickBg };
+  React.useEffect(function () {
+    function onKey(e) {
+      var t = e.target, tag = t && t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+      // Keys in a dialog over Frame (Help, Preferences, a rename) are the
+      // dialog's: Escape closes it rather than clearing the crop.
+      if (t && t.closest && t.closest('[role="dialog"], [role="alertdialog"], [aria-modal="true"]')) return;
+      var k = keysRef.current;
+      // Enter on a button presses that button.
+      if (e.key === "Enter" && k.rect && tag !== "BUTTON") { e.preventDefault(); k.applyRect(); }
+      else if (e.key === "Escape" && (k.pickBg || k.rect)) {
+        e.preventDefault(); e.stopPropagation();
+        if (k.pickBg) k.setPickBg(false); else k.clearRect();
+      }
+    }
+    window.addEventListener("keydown", onKey, true);
+    return function () { window.removeEventListener("keydown", onKey, true); };
+  }, []);
+  // The phone top bar's Continue does the same as the one in the panel.
+  var nextRef = React.useRef(next); nextRef.current = next;
+  React.useEffect(function () {
+    function onContinue() { nextRef.current(); }
+    window.addEventListener("cs:frameContinue", onContinue);
+    return function () { window.removeEventListener("cs:frameContinue", onContinue); };
+  }, []);
 
-  var containerStyle = {
-    position: "relative",
-    display: "inline-block",
-    touchAction: "none",
-    userSelect: "none"
-  };
+  if (!gen.img || !gen.img.src) return null;
+  var hasChart = !!(pd && pd.pat);
+  var w = gen.origW || gen.img.naturalWidth || gen.img.width, hh = gen.origH || gen.img.naturalHeight || gen.img.height;
+  var small = Math.max(w, hh) < window.FRAME_SMALL_PICTURE_PX;
 
-  var imgStyle = {
-    display: "block",
-    maxWidth: "100%",
-    maxHeight: "calc(100vh - 180px)",
-    width: "auto", height: "auto",
-    opacity: 0.8
-  };
+  var hint = gen.pickBg ? "Click the background in the picture to choose its colour."
+    : cropReady ? "Drag the box or its handles to adjust it, then Apply crop. Escape clears it."
+    : shape !== "free" ? "Drag on the picture to draw a new " + (shape === "square" ? "square" : shape) + " area."
+    : "Drag on the picture to crop it to the part you want to stitch.";
 
-  return h("div", {
-    style: backdropStyle,
-    role: "dialog",
-    "aria-modal": "true",
-    "aria-label": "Crop image"
-  },
-    h("div", { style: wrapStyle },
-      // ── Header ────────────────────────────────────────────────────────
-      h("div", { style: headerStyle },
-        h("span", {
-          style: { fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--text-primary)" }
-        }, "Crop image"),
-        h("button", {
-          type: "button",
-          onClick: function() { gen.setIsCropping(false); gen.setCropRect(null); },
-          style: {
-            background: "none", border: "none", cursor: "pointer",
-            color: "var(--text-secondary)", padding: 4,
-            display: "inline-flex", alignItems: "center"
-          },
-          "aria-label": "Cancel crop"
-        }, window.Icons && window.Icons.x ? window.Icons.x() : "\u00D7")
-      ),
+  var tools = h("div", { className: "fr-tools" },
+    h("div", { className: "lp-segmented cv-seg fr-shapes", role: "radiogroup", "aria-label": "Crop shape" },
+      window.CROP_RATIOS.map(function (r) {
+        var on = r.id === shape;
+        return h("button", {
+          key: r.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false",
+          className: "lp-seg" + (on ? " lp-seg--on" : ""), title: r.title || r.label,
+          "data-crop-shape": r.id, onClick: function () { chooseShape(r.id); }
+        }, r.label);
+      })),
+    h("div", { className: "fr-tools__group" },
+      h("button", { type: "button", className: "cs-seltools__btn", onClick: function () { turn(-1); }, "aria-label": "Turn left" },
+        Icons.rotateCcw ? Icons.rotateCcw() : null, h("span", null, "Turn left")),
+      h("button", { type: "button", className: "cs-seltools__btn", onClick: function () { turn(1); }, "aria-label": "Turn right" },
+        Icons.rotateCw ? Icons.rotateCw() : null, h("span", null, "Turn right")),
+      h("button", { type: "button", className: "cs-seltools__btn", onClick: undo, disabled: !history.length, "aria-label": "Undo crop or turn", title: "Undo the last crop or turn" },
+        Icons.undo ? Icons.undo() : null, h("span", null, "Undo")),
+      props && props.onChangePicture && h("button", { type: "button", className: "cs-seltools__btn", onClick: props.onChangePicture },
+        Icons.image ? Icons.image() : null, h("span", null, "Change picture"))));
 
-      // ── Image area with draggable crop rectangle ───────────────────────
-      h("div", { style: imageAreaStyle },
-        h("div", {
-          ref: gen.cropRef,
-          style: containerStyle,
-          onPointerDown: gen.handleCropPointerDown,
-          onPointerMove: gen.handleCropPointerMove,
-          onPointerUp: gen.handleCropPointerUp,
-          onPointerCancel: gen.handleCropPointerCancel,
-          onLostPointerCapture: gen.handleCropPointerCancel
-        },
-          h("img", {
-            src: gen.img.src,
-            alt: "Source image for cropping",
-            draggable: false,
-            onDragStart: function(e) { e.preventDefault(); },
-            style: imgStyle
-          }),
-          gen.cropRect && h("div", {
-            style: {
-              position: "absolute",
-              left: gen.cropRect.x, top: gen.cropRect.y,
-              width: gen.cropRect.w, height: gen.cropRect.h,
-              border: "2px dashed var(--accent)",
-              background: "rgba(184,92,56,0.15)",
-              boxSizing: "border-box", pointerEvents: "none"
-            }
-          })
-        )
-      ),
+  var picture = h("div", { id: "bg-pick-target", className: "fr-picture" + (gen.pickBg ? " fr-picture--pick" : "") },
+    h("div", {
+      ref: gen.cropRef, className: "fr-picture__crop",
+      onPointerDown: gen.handleCropPointerDown,
+      onPointerMove: gen.handleCropPointerMove,
+      onPointerUp: gen.handleCropPointerUp,
+      onPointerCancel: gen.handleCropPointerCancel,
+      onLostPointerCapture: gen.handleCropPointerCancel
+    },
+      h("img", {
+        src: gen.img.src, alt: "Your picture", draggable: false,
+        onDragStart: function (e) { e.preventDefault(); },
+        onClick: gen.pickBg ? gen.srcClick : undefined,
+        className: "fr-picture__img" + (small ? " fr-picture__img--small" : ""),
+        style: Object.assign({ filter: window.framePictureFilter(gen.bri, gen.con, gen.sat) }, window.framePictureMinSize(w, hh))
+      }),
+      // Hidden while picking the colour, so the picture shows its own colours.
+      bgActive && bgFresh && showBg && !gen.pickBg && h(FrameBackgroundOverlay, { info: bgInfo }),
+      rect && h("div", {
+        className: "fr-picture__rect" + (cropReady && !gen.pickBg ? " fr-picture__rect--live" : ""), "data-crop-rect": "",
+        tabIndex: cropReady && !gen.pickBg ? 0 : undefined,
+        role: cropReady ? "group" : undefined,
+        "aria-label": cropReady ? "Crop area. Drag it or use the arrow keys to move it; drag a handle, or Alt and the arrow keys, to resize it." : undefined,
+        onKeyDown: cropReady && !gen.pickBg ? onRectKey : undefined,
+        style: { left: rect.x, top: rect.y, width: rect.w, height: rect.h }
+      }, cropReady && !gen.pickBg && window.CROP_HANDLES.corners.concat(shape === "free" ? window.CROP_HANDLES.edges : []).map(function (id) {
+        return h("span", { key: id, className: "fr-picture__handle fr-picture__handle--" + id, "data-crop-handle": id, "aria-hidden": "true" });
+      }))));
 
-      // ── Footer ────────────────────────────────────────────────────────
-      h("div", { style: footerStyle },
-        h("span", {
-          style: { fontSize: "var(--text-xs)", color: "var(--text-secondary)" }
-        }, "Drag to select the area to keep"),
-        h("div", { style: { display: "flex", gap: 8 } },
-          h("button", {
-            type: "button",
-            onClick: function() { gen.setIsCropping(false); gen.setCropRect(null); },
-            style: {
-              padding: "7px 14px", fontSize: "var(--text-sm)", fontWeight: 500,
-              border: "1px solid var(--line)", borderRadius: "var(--radius-sm)",
-              background: "var(--surface)", color: "var(--text-secondary)",
-              cursor: "pointer", fontFamily: "inherit"
-            }
-          }, "Cancel"),
-          h("button", {
-            type: "button",
-            disabled: !cropReady,
-            onClick: function() { if (cropReady) gen.applyCrop(); },
-            style: {
-              padding: "7px 14px", fontSize: "var(--text-sm)", fontWeight: 600,
-              border: "none", borderRadius: "var(--radius-sm)",
-              background: cropReady ? "var(--accent)" : "var(--line-2)",
-              color: cropReady ? "var(--surface)" : "var(--text-tertiary)",
-              cursor: cropReady ? "pointer" : "not-allowed",
-              fontFamily: "inherit"
-            }
-          }, "Apply crop")
-        )
-      )
-    )
-  );
+  // What the stripes mean, in words, and a way to hide them.
+  // The row is there from the moment the option is on, so the picture does
+  // not move while the count is worked out.
+  var bgKey = !bgActive ? null : !bgFresh ? h("div", { className: "fr-bgkey", "data-bg-key": "", "aria-busy": "true" },
+    h("span", { className: "fr-bgkey__swatch", "aria-hidden": "true" }),
+    h("span", { className: "fr-bgkey__text" }, "Finding the background\u2026")) : h("div", { className: "fr-bgkey", "data-bg-key": "" },
+    h("span", { className: "fr-bgkey__swatch", "aria-hidden": "true" }),
+    h("span", { className: "fr-bgkey__text", "data-bg-count": bgInfo.count },
+      bgInfo.count
+        ? (showBg ? "Striped: " : "") + bgInfo.count.toLocaleString() + " of " + (sW * sH).toLocaleString() + " stitches left unstitched as background."
+        : "Nothing at the edges matches the background colour, so every stitch is kept. Pick the colour again, or allow a looser match."),
+    bgInfo.count > 0 && h("button", { type: "button", className: "cs-seltools__btn", "aria-pressed": showBg ? "true" : "false",
+      onClick: function () { setShowBg(!showBg); } }, showBg ? "Hide stripes" : "Show stripes"));
+
+  var cropBar = h("div", { className: "fr-cropbar" },
+    h("span", { className: "fr-cropbar__hint", role: "status" }, hint),
+    h("span", { className: "fr-cropbar__size" }, w + "×" + hh + "px"),
+    cropReady && h("button", { type: "button", className: "cs-seltools__btn", onClick: clearRect }, "Clear"),
+    cropReady && h("button", { type: "button", className: "cs-seltools__btn cs-seltools__btn--on", onClick: applyRect },
+      Icons.crop ? Icons.crop() : null, h("span", null, "Apply crop")));
+
+  return h("div", { className: "fr-layout", "data-frame-view": "" },
+    h("div", { className: "fr-stage" }, tools, picture, cropBar, bgKey),
+    h("aside", { className: "fr-panel", "aria-labelledby": "fr-title" },
+      h("div", { className: "fr-panel__head" },
+        h("h2", { id: "fr-title", className: "fr-panel__title" }, "Frame your picture"),
+        h("p", { className: "cs-toolsec__hint" }, "Crop to the part you want to stitch and check what the Creator took it for. Next come the size, threads and detail."),
+        hasChart && h("p", { className: "cs-toolsec__hint fr-panel__chart-note", "data-frame-chart-note": "" },
+          "Your chart stays as it is until you Regenerate, so its edits and stitching are safe while you try a new crop.")),
+      h("div", { className: "fr-panel__body" },
+        window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
+      h("footer", { className: "fr-footer" },
+        h("button", Object.assign(compact ? {} : { "data-onboard": "frame-continue" }, { type: "button", className: "fr-continue", onClick: next }),
+          h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null),
+        h("p", { className: "cs-toolsec__hint fr-footer__note" }, "Reframe, beside your picture, brings you back here."))));
 };
 
 
@@ -21395,10 +21887,15 @@ window.CreatorSidebar = function CreatorSidebar() {
    while a picture is being converted).
 
    Laid out like the Edit panel: a strip of tabs in the order the choices are
-   made (Picture, Size, Threads, Detail, then Project), flat sections with the
-   Edit panel's headings and hints (.cs-toolsec), a Next button at the foot of
-   each step, and Generate pinned at the bottom under a one-line summary of
-   what it will make. Every setting is shown once.
+   made (Size, Threads, Detail), flat sections with the Edit panel's
+   headings and hints (.cs-toolsec), a Next button at the foot of each step,
+   and Generate pinned at the bottom under a one-line summary of what it will
+   make. Every setting is shown once. Within a step, a setting comes before
+   the ones it limits (the stash before the thread count). The pattern's name
+   comes from the picture's file name and shows in the header; designer and
+   notes are in Edit's Project tab (reports/create-from-image-workflow).
+   What the picture is, its background and fixes (CreatorPictureSections,
+   below) are shown in Frame the picture (creator/FrameView.js) instead.
 
    Sidebar.js renders this in Convert (appMode "create" with a picture); a
    design drawn from scratch has the Canvas panel instead. Reads the Creator
@@ -21408,13 +21905,11 @@ window.CreatorSidebar = function CreatorSidebar() {
 (function () {
   // The steps, left to right. `next` is the step the Next button opens.
   var CONVERT_TABS = [
-    { id: "picture", label: "Picture", icon: "image",    next: "size",    lead: "What the picture is, its background, and fixes to the picture itself." },
     { id: "size",    label: "Size",    icon: "ruler",    next: "threads", lead: "How big the pattern is, and the fabric it is stitched on." },
     { id: "threads", label: "Threads", icon: "palette",  next: "detail",  lead: "Which threads the colours are matched to, and how many." },
-    { id: "detail",  label: "Detail",  icon: "sparkles", next: "project",      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
-    { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name, designer and notes." }
+    { id: "detail",  label: "Detail",  icon: "sparkles", next: null,      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." }
   ];
-  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness", project: "Project" };
+  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness" };
   window.CONVERT_TABS = CONVERT_TABS;
 
   // Hover text for each picture type.
@@ -21423,6 +21918,66 @@ window.CreatorSidebar = function CreatorSidebar() {
     photo: "Up to 24 threads and blends, with smooth shading tidied into patches.",
     pixel: "One stitch per pixel at the picture's own size, in its own colours. Every pixel is kept."
   };
+
+  var h = React.createElement;
+  // ── Building blocks: the Edit panel's sections, so both read the same ──
+  function sec(id, title, info) {
+    var kids = Array.prototype.slice.call(arguments, 3);
+    return h("section", { key: id, className: "cs-toolsec cv-sec cv-sec--" + id, "data-cv-section": id },
+      title ? h("div", { className: "cv-sec__head" },
+        h("h3", { className: "cs-toolsec__title cv-sec__title" }, title),
+        info ? h(InfoIcon, { label: title, text: info, width: 260 }) : null) : null,
+      kids);
+  }
+  function hint(content, extra) {
+    return h("p", Object.assign({ className: "cs-toolsec__hint" }, extra || {}), content);
+  }
+  function note(level, content, extra) {
+    var icon = level === "danger" || level === "warning" ? window.Icons.warning() : window.Icons.info();
+    return h("div", Object.assign({ role: "note", className: "cv-note cv-note--" + level }, extra || {}),
+      h("span", { className: "cv-note__icon", "aria-hidden": "true" }, icon),
+      h("span", null, content));
+  }
+  // A checkbox with its label; the hint icon sits outside the <label> so
+  // pressing it never ticks the box.
+  function check(o) {
+    return h("div", { className: "convert-label cv-check" },
+      h("label", { className: "cs-toolsec__check" + (o.disabled ? " cv-check--disabled" : "") },
+        h("input", { type: "checkbox", checked: !!o.checked, disabled: !!o.disabled,
+          onChange: function (e) { o.onChange(e.target.checked); } }),
+        h("span", null, o.label)),
+      o.info ? h(InfoIcon, { label: o.label, text: o.info, width: 260 }) : null);
+  }
+  // One choice from a row (or grid) of buttons; arrow keys move and choose.
+  function seg(o) {
+    var opts = o.options;
+    var anyOn = opts.some(function (x) { return x.id === o.value && !x.disabled; });
+    return h("div", { className: "lp-segmented cv-seg" + (o.className ? " " + o.className : ""), role: "radiogroup", "aria-label": o.label },
+      opts.map(function (x, i) {
+        var on = x.id === o.value;
+        var enabled = opts.filter(function (y) { return !y.disabled; });
+        var p = {
+          key: x.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false",
+          className: "lp-seg" + (on ? " lp-seg--on" : ""), title: x.title, disabled: !!x.disabled,
+          tabIndex: (on && !x.disabled) || (!anyOn && i === 0) ? 0 : -1,
+          "data-seg-id": x.id,
+          onClick: function () { if (!x.disabled) o.onChange(x.id); },
+          onKeyDown: function (e) {
+            var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+            if (!step) return;
+            e.preventDefault();
+            var at = enabled.indexOf(x);
+            var next = enabled[(at + step + enabled.length) % enabled.length];
+            o.onChange(next.id);
+            var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-seg-id="' + next.id + '"]');
+            if (sib) sib.focus();
+          }
+        };
+        if (o.attr) p[o.attr] = x.id;
+        return h("button", p, x.label);
+      }));
+  }
+
 
   // A warning when the chosen tidying is a lot for the pattern's size.
   function cleanupWarning(sW, sH, orphans, previewStats) {
@@ -21464,99 +22019,23 @@ window.CreatorSidebar = function CreatorSidebar() {
   }
   window.convertChartStateText = chartStateText;
 
-  window.CreatorConvertPanel = function CreatorConvertPanel(props) {
-    var ctx = window.usePatternData();
-    var cv = window.useCanvas();
-    var app = window.useApp();
+  // What the picture is, its background and fixes to the picture itself:
+  // Frame the picture's settings (creator/FrameView.js), shown once there.
+  // Choosing a type starts the pattern from that type's settings; the type
+  // does not change to Custom when one of them is changed afterwards.
+  window.CreatorPictureSections = function CreatorPictureSections() {
     var gen = window.useGeneration();
-    var h = React.createElement;
     var Icons = window.Icons;
-    var contentRef = React.useRef(null);
-    var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
-    var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
-    var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
-    var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
-    var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
-
-    var tab = app.convertTab;
-    if (!CONVERT_TABS.some(function (t) { return t.id === tab; })) tab = "picture";
-    var tabMeta = CONVERT_TABS.filter(function (t) { return t.id === tab; })[0];
-    function pickTab(id) { if (app.setConvertTab) app.setConvertTab(id); }
-    // A new step starts at its top.
-    React.useEffect(function () { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
-
-    var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
-    var ps = app.previewStats;
-
-    // ── Building blocks: the Edit panel's sections, so both read the same ──
-    function sec(id, title, info) {
-      var kids = Array.prototype.slice.call(arguments, 3);
-      return h("section", { key: id, className: "cs-toolsec cv-sec cv-sec--" + id, "data-cv-section": id },
-        title ? h("div", { className: "cv-sec__head" },
-          h("h3", { className: "cs-toolsec__title cv-sec__title" }, title),
-          info ? h(InfoIcon, { label: title, text: info, width: 260 }) : null) : null,
-        kids);
-    }
-    function hint(content, extra) {
-      return h("p", Object.assign({ className: "cs-toolsec__hint" }, extra || {}), content);
-    }
-    function note(level, content, extra) {
-      var icon = level === "danger" || level === "warning" ? Icons.warning() : Icons.info();
-      return h("div", Object.assign({ role: "note", className: "cv-note cv-note--" + level }, extra || {}),
-        h("span", { className: "cv-note__icon", "aria-hidden": "true" }, icon),
-        h("span", null, content));
-    }
-    // A checkbox with its label; the hint icon sits outside the <label> so
-    // pressing it never ticks the box.
-    function check(o) {
-      return h("div", { className: "convert-label cv-check" },
-        h("label", { className: "cs-toolsec__check" + (o.disabled ? " cv-check--disabled" : "") },
-          h("input", { type: "checkbox", checked: !!o.checked, disabled: !!o.disabled,
-            onChange: function (e) { o.onChange(e.target.checked); } }),
-          h("span", null, o.label)),
-        o.info ? h(InfoIcon, { label: o.label, text: o.info, width: 260 }) : null);
-    }
-    // One choice from a row (or grid) of buttons; arrow keys move and choose.
-    function seg(o) {
-      var opts = o.options;
-      var anyOn = opts.some(function (x) { return x.id === o.value && !x.disabled; });
-      return h("div", { className: "lp-segmented cv-seg" + (o.className ? " " + o.className : ""), role: "radiogroup", "aria-label": o.label },
-        opts.map(function (x, i) {
-          var on = x.id === o.value;
-          var enabled = opts.filter(function (y) { return !y.disabled; });
-          var p = {
-            key: x.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false",
-            className: "lp-seg" + (on ? " lp-seg--on" : ""), title: x.title, disabled: !!x.disabled,
-            tabIndex: (on && !x.disabled) || (!anyOn && i === 0) ? 0 : -1,
-            "data-seg-id": x.id,
-            onClick: function () { if (!x.disabled) o.onChange(x.id); },
-            onKeyDown: function (e) {
-              var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
-              if (!step) return;
-              e.preventDefault();
-              var at = enabled.indexOf(x);
-              var next = enabled[(at + step + enabled.length) % enabled.length];
-              o.onChange(next.id);
-              var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-seg-id="' + next.id + '"]');
-              if (sib) sib.focus();
-            }
-          };
-          if (o.attr) p[o.attr] = x.id;
-          return h("button", p, x.label);
-        }));
-    }
-
-    // ═══ Picture ═══════════════════════════════════════════════════════════
     var pictureType = (gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER) ? sec("picture-type", "Picture type",
-      "Picks good starting values for the picture. Graphic or logo: a few flat colours, no shading. Photo: up to 24 threads with smooth shading. Pixel art: one stitch per pixel, every pixel kept. The Creator guesses when you add a picture; every setting stays editable.",
+      "Picks good starting values for the picture. Graphic or logo: a few flat colours, no shading. Photo: up to 24 threads with smooth shading. Pixel art: one stitch per pixel, every pixel kept. The Creator guesses when you add a picture. Choosing a type starts the threads and detail from its settings; changing them afterwards keeps the type.",
       seg({ label: "What kind of picture is this?", attr: "data-picture-type", className: "cv-seg--wrap", value: gen.pictureType,
         onChange: function (id) { gen.applyPicturePreset(id); },
         options: window.PICTURE_PRESET_ORDER.map(function (id) {
           return { id: id, label: window.PICTURE_PRESETS[id].label, title: PICTURE_TYPE_HINTS[id] };
-        }).concat([{ id: "custom", label: "Custom", disabled: true, title: "Your own settings. Pick a type to start again from its settings." }]) }),
-      hint(gen.pictureType === "custom"
-        ? "Custom: you have changed settings since choosing a type. Pick a type to start again from its settings."
-        : (PICTURE_TYPE_HINTS[gen.pictureType] || "") + " Choosing a type sets the threads and detail; you can change them after."),
+        }) }),
+      hint(!gen.pictureType
+        ? "No type chosen: your Preferences defaults are used. Choose one to start from its settings."
+        : (PICTURE_TYPE_HINTS[gen.pictureType] || "") + " Choosing a type starts the threads and detail from its settings; you can change them later."),
       // Exact import is a Pixel art option, so it shows for pixel art (or while on).
       (gen.stitchStyleBasis === "pixel" || gen.exactPixelArt) && h("div", { className: "picture-type__exact" },
         check({ checked: gen.exactPixelArt, label: "Exact pixel-art import",
@@ -21570,7 +22049,6 @@ window.CreatorSidebar = function CreatorSidebar() {
     ) : null;
 
     function armBgPick() {
-      pickTab("picture");
       gen.setPickBg(true);
       // Bring the picture into view so it is clear where to click.
       if (typeof window !== "undefined" && window.requestAnimationFrame) {
@@ -21604,22 +22082,16 @@ window.CreatorSidebar = function CreatorSidebar() {
             Icons.eyedropper(), h("span", null, gen.pickBg ? "Click the picture…" : "Pick from picture"))),
         h(SliderRow, { label: "How close a match", value: gen.bgTh, min: 3, max: 50, onChange: gen.setBgTh,
           helpText: "How closely a pixel must match the background colour to be left unstitched. Higher leaves out more." }),
-        hint("Only plain areas that touch the picture's edge are left unstitched. Pale parts of the subject that touch a pale background can go with it: check the preview, and lower How close a match if they do."),
-        // How much is left out, and a way to see exactly which stitches: on
-        // fabric of the background's colour the preview can't show them.
-        ps && ps.skipped != null && !app.previewLoading && h("div", { className: "cv-tidied" },
-          hint(ps.skipped === 0 ? "In the preview, no stitches are left unstitched."
-            : "In the preview, " + ps.skipped.toLocaleString() + " stitch" + (ps.skipped === 1 ? " is" : "es are") + " left unstitched" +
-              (ps.stitchable + ps.skipped > 0 ? " (" + (ps.skipped / (ps.stitchable + ps.skipped) * 100).toFixed(1) + "% of the chart)." : ".")),
-          ps.skipped > 0 && app.setShowBackground && h("button", { type: "button", className: "cs-seltools__btn" + (app.showBackground ? " cs-seltools__btn--on" : ""),
-            "aria-pressed": app.showBackground ? "true" : "false", onClick: function () { app.setShowBackground(!app.showBackground); } },
-            Icons.eye(), h("span", null, "Show them on the preview")))
+        hint(gen.convertStage === "frame" && !gen.exactPixelArt
+          ? "Only plain areas that touch the picture's edge are left unstitched. They are striped on the picture, so you can see what will be left out. Pale parts of the subject that touch a pale background can go with it: lower How close a match if they do."
+          : "Only plain areas that touch the picture's edge are left unstitched. Pale parts of the subject that touch a pale background can go with it: check the preview, and lower How close a match if they do.")
       ) : hint("Off: every pixel is stitched, background included.")
     );
 
     var adjusted = !!(gen.bri || gen.con || gen.sat || gen.smooth || gen.preSharpen);
-    var adjust = sec("adjust", "Adjust picture",
-      "Changes the picture before threads are matched. Most pictures need none of these.",
+    // Folded away under "Fix the picture": most pictures need none of these.
+    var adjust = sec("adjust", null, null,
+      hint("Changes the picture before threads are matched. Most pictures need none of these. Brightness, contrast and saturation show on the picture straight away; sharpening and softening show in the preview."),
       h(SliderRow, { label: "Brightness", value: gen.bri, min: -50, max: 50, onChange: gen.setBri, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
         helpText: "Lightens or darkens the picture before threads are chosen. Try it when a photo is too dark or washed out." }),
       h(SliderRow, { label: "Contrast", value: gen.con, min: -50, max: 50, onChange: gen.setCon, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
@@ -21648,6 +22120,89 @@ window.CreatorSidebar = function CreatorSidebar() {
         gen.setBri(0); gen.setCon(0); gen.setSat(0); gen.setSmooth(0); gen.setPreSharpen(false);
       } }, Icons.undo(), h("span", null, "Reset adjustments")) : null
     );
+
+    var adjustOpen = adjusted || undefined;
+    return h(React.Fragment, null, pictureType, background,
+      h("details", { className: "cv-fix", open: adjustOpen, "data-cv-fix": "" },
+        h("summary", null, "Fix the picture", adjusted ? h("span", { className: "cv-fix__on" }, " (changed)") : null),
+        adjust));
+  };
+
+  // The way from a picture to a pattern, as numbered steps across the top of
+  // Frame and Convert: Frame, then Convert's Size, Threads and Detail, then
+  // Generate. The step on screen is marked, steps already opened are ticked,
+  // and each one (but Generate) opens that step. On phones a Convert step
+  // opens the settings sheet on it.
+  window.CreatorConvertProgress = function CreatorConvertProgress() {
+    var app = window.useApp();
+    var gen = window.useGeneration();
+    var h = React.createElement;
+    var Icons = window.Icons || {};
+    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
+    if (!gen.img || !gen.img.src) return null;
+    var framing = gen.convertStage === "frame";
+    var seen = app.convertSeen || {};
+    var tab = app.convertTab;
+    var steps = [{ id: "frame", label: "Frame" }].concat(CONVERT_TABS.map(function (t) { return { id: t.id, label: t.label }; }))
+      .concat([{ id: "generate", label: gen.hasGenerated ? "Regenerate" : "Generate" }]);
+    function stateOf(id) {
+      if (id === "frame") return framing ? "current" : seen.frame ? "done" : "todo";
+      if (id === "generate") return gen.hasGenerated ? "done" : "todo";
+      if (!framing && id === tab) return "current";
+      return seen[id] ? "done" : "todo";
+    }
+    function open(id) {
+      if (id === "frame") { gen.setConvertStage("frame"); return; }
+      // From Frame: Continue (which applies a crop still drawn), then the step.
+      if (framing) window.dispatchEvent(new CustomEvent("cs:frameContinue"));
+      if (app.setConvertTab) app.setConvertTab(id);
+      if (compact && app.setPanelOpen) app.setPanelOpen(true);
+    }
+    var currentIndex = 0;
+    steps.forEach(function (s, i) { if (stateOf(s.id) === "current") currentIndex = i; });
+    return h("nav", { className: "cv-progress", "aria-label": "Steps to your pattern", "data-convert-progress": "" },
+      h("ol", { className: "cv-progress__list" },
+        steps.map(function (s, i) {
+          var st = stateOf(s.id);
+          var mark = st === "done" && Icons.check ? Icons.check() : h("span", null, i + 1);
+          var inner = h(React.Fragment, null,
+            h("span", { className: "cv-progress__mark", "aria-hidden": "true" }, mark),
+            h("span", { className: "cv-progress__label" }, s.label),
+            st === "done" ? h("span", { className: "tracker-sr-only" }, " (done)") : null);
+          var clickable = s.id !== "generate" && st !== "current";
+          return h("li", { key: s.id, className: "cv-progress__step cv-progress__step--" + st, "data-step": s.id, "data-step-state": st },
+            clickable
+              ? h("button", { type: "button", className: "cv-progress__btn", onClick: function () { open(s.id); },
+                  title: s.id === "frame" ? "Back to Frame the picture" : "Open " + s.label }, inner)
+              : h("span", { className: "cv-progress__btn", "aria-current": st === "current" ? "step" : undefined,
+                  title: s.id === "generate" ? (gen.hasGenerated ? "Your pattern is made; Regenerate makes it again with new settings" : "Generate makes the pattern, at the foot of the settings") : undefined }, inner));
+        })),
+      h("span", { className: "cv-progress__count" }, "Step " + (currentIndex + 1) + " of " + steps.length));
+  };
+
+  window.CreatorConvertPanel = function CreatorConvertPanel(props) {
+    var ctx = window.usePatternData();
+    var cv = window.useCanvas();
+    var app = window.useApp();
+    var gen = window.useGeneration();
+    var h = React.createElement;
+    var Icons = window.Icons;
+    var contentRef = React.useRef(null);
+    var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
+    var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
+    var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
+    var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
+    var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
+
+    var tab = app.convertTab;
+    if (!CONVERT_TABS.some(function (t) { return t.id === tab; })) tab = "size";
+    var tabMeta = CONVERT_TABS.filter(function (t) { return t.id === tab; })[0];
+    function pickTab(id) { if (app.setConvertTab) app.setConvertTab(id); }
+    // A new step starts at its top.
+    React.useEffect(function () { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
+
+    var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
+    var ps = app.previewStats;
 
     // ═══ Size ══════════════════════════════════════════════════════════════
     var sizeSec = sec("size", null, null,
@@ -21681,7 +22236,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         helpText: "Each thread is one colour of stranded cotton. This is the most the pattern may use. It is a limit, not a target: simpler pictures use fewer. Fewer threads means less to buy and a calmer chart.",
         inlineHint: "A blend uses two of these threads in one stitch, so the chart can have more symbols than threads.",
         helpTopic: "palette" }),
-      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && hint("Limited to " + gen.stashThreadCount + ", the threads in your stash."),
+      // !! so an empty stash (0) renders nothing, not a stray "0".
+      !!(gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount) && hint("Limited to " + gen.stashThreadCount + ", the threads in your stash."),
       used != null
         ? hint("In the preview: " + used + " thread" + (used === 1 ? "" : "s") + " and " + ps.uniqueColors + " chart symbol" + (ps.uniqueColors === 1 ? "" : "s") + "; " + (ps.blendsUsed || 0) + " blends, " + (ps.blendPct || 0) + "% of stitches. " + (ps.estimated ? "Counts are approximate." : ""), { "data-threads-used": "" })
         : hint("A limit, not a target: simpler pictures use fewer.")
@@ -21751,13 +22307,29 @@ window.CreatorSidebar = function CreatorSidebar() {
       hint(gen.minSt === 0 ? "Off still folds away stray colours, and keeps small bright accents." : "Colours used fewer than " + gen.minSt + " times merge into a similar neighbour.")
     );
 
+    // The stash comes first: it limits the thread count and blends below.
+    // Its tools (the threads, adding one, variations) follow the settings.
+    // With nothing in the stash the choice can't work: say so, and where to
+    // add threads, instead of letting Generate stop on it.
+    var stashEmpty = gen.ownedThreadCount === 0;
+    var stashLink = h("a", { href: "manager.html", target: "_blank", rel: "noopener", className: "cv-link" }, "Stash Manager");
     var stashSec = (typeof StashBridge !== "undefined") ? sec("stash", "Stash", null,
       check({ checked: gen.stashConstrained, label: "Use only stash threads", onChange: function (v) { gen.setStashConstrained(v); },
+        disabled: stashEmpty && !gen.stashConstrained,
         info: "Constrains the palette to the " + brandLabel + " threads you own. Produces a pattern you can stitch immediately without buying anything." }),
-      !gen.stashConstrained && hint("Turn on to make the pattern only from threads you already own."),
-      gen.stashConstrained && h(React.Fragment, null,
+      stashEmpty && !gen.stashConstrained && hint(h(React.Fragment, null, "You haven't recorded any " + brandLabel + " threads you own yet. Add them in the ", stashLink, " to make a pattern only from them."), { className: "cs-toolsec__hint", "data-stash-empty": "" }),
+      stashEmpty && gen.stashConstrained && note("warning", h(React.Fragment, null, "Your stash has no " + brandLabel + " threads, so Generate can't use only stash threads. Turn this off, or add the threads you own in the ", stashLink, "."), { "data-stash-empty": "" }),
+      !stashEmpty && !gen.stashConstrained && hint("Turn on to make the pattern only from threads you already own."),
+      gen.stashConstrained && !stashEmpty && h(React.Fragment, null,
         note("info", (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in your stash" +
           (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? "; the pattern may use up to " + gen.effectiveMaxC + "." : ".")),
+        gen.coverageGaps && gen.coverageGaps.hasGaps && note("warning", h(React.Fragment, null, "Your stash may lack colours in: ",
+          gen.coverageGaps.gaps.map(function (g, i) {
+            return h("span", { key: g.hue }, (i > 0 ? ", " : ""), h("strong", null, g.hue), g.severity === "high" ? " (significant)" : "");
+          }))))
+    ) : null;
+
+    var stashToolsSec = (typeof StashBridge !== "undefined" && gen.stashConstrained) ? sec("stash-tools", "Your stash threads", null,
         gen.stashPalette && gen.stashPalette.length > 0 && h("div", { className: "cv-stash-strip" },
           h("div", { className: "cv-stash-strip__chips" },
             (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0, 60)).map(function (t) {
@@ -21767,10 +22339,6 @@ window.CreatorSidebar = function CreatorSidebar() {
             })),
           gen.stashPalette.length > 60 && h("button", { type: "button", className: "cv-link", onClick: function () { setStashStripExpanded(function (o) { return !o; }); } },
             stashStripExpanded ? "Show fewer" : "Show " + (gen.stashPalette.length - 60) + " more")),
-        gen.coverageGaps && gen.coverageGaps.hasGaps && note("warning", h(React.Fragment, null, "Your stash may lack colours in: ",
-          gen.coverageGaps.gaps.map(function (g, i) {
-            return h("span", { key: g.hue }, (i > 0 ? ", " : ""), h("strong", null, g.hue), g.severity === "high" ? " (significant)" : "");
-          }))),
         h("div", { className: "cv-quickadd" },
           h("label", { className: "cv-field__label", htmlFor: "cv-quickadd" }, "Add a thread to your stash"),
           h("div", { className: "cv-quickadd__row" },
@@ -21842,7 +22410,6 @@ window.CreatorSidebar = function CreatorSidebar() {
                   h("span", null, "#" + entry.seed));
               })))
         )
-      )
     ) : null;
 
     // ═══ Detail ════════════════════════════════════════════════════════════
@@ -21953,24 +22520,10 @@ window.CreatorSidebar = function CreatorSidebar() {
       )
     );
 
-    // ═══ Project ═══════════════════════════════════════════════════════════
-    function field(label, input) { return h("label", { className: "cv-field" }, h("span", { className: "cv-field__label" }, label), input); }
-    var projectSec = sec("project", "Project info", null,
-      field("Pattern name", h("input", { type: "text", className: "cv-input", value: app.projectName || "", maxLength: 60,
-        placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
-        onChange: function (e) { var v = e.target.value.slice(0, 60); if (typeof app.renameProject === "function") app.renameProject(v); else if (typeof app.setProjectName === "function") app.setProjectName(v); } })),
-      field("Designer (optional)", h("input", { type: "text", className: "cv-input", value: app.projectDesigner || "", maxLength: 80, placeholder: "Your name or studio",
-        onChange: function (e) { if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(e.target.value.slice(0, 80)); } })),
-      field("Description / notes (optional)", h("textarea", { className: "cv-input cv-input--area", value: app.projectDescription || "", maxLength: 500, rows: 3,
-        placeholder: "Source, copyright, stitching notes…",
-        onChange: function (e) { if (typeof app.setProjectDescription === "function") app.setProjectDescription(e.target.value.slice(0, 500)); } }))
-    );
     var content;
-    if (tab === "picture") content = [pictureType, background, adjust];
-    else if (tab === "size") content = [sizeSec, fabricSec];
-    else if (tab === "threads") content = [brandSec, countSec, keepSec, blendSec, rareSec, stashSec];
-    else if (tab === "detail") content = [stepsSec, shadingSec, tidySec, lookSec];
-    else content = [projectSec];
+    if (tab === "size") content = [sizeSec, fabricSec];
+    else if (tab === "threads") content = [stashSec, countSec, keepSec, blendSec, brandSec, stashToolsSec];
+    else content = [stepsSec, shadingSec, tidySec, rareSec, lookSec];
 
     // ── Tab strip (the Edit panel's) ────────────────────────────────────────
     var tabBar = h("div", { role: "tablist", "aria-label": "Convert steps", className: "cv-tabs" },
@@ -21996,33 +22549,41 @@ window.CreatorSidebar = function CreatorSidebar() {
         })));
 
     var next = tabMeta.next;
+    var hasImg = !!(gen.img && gen.img.src);
     var panel = h("div", { ref: contentRef, className: "cv-panel", role: "tabpanel", id: "convert-panel", "aria-labelledby": "convert-tab-" + tab },
       h("p", { className: "cv-lead" }, tabMeta.lead),
       content,
       next && h("div", { className: "cv-next" },
         h("button", { type: "button", className: "cv-next__btn", onClick: function () { pickTab(next); } },
-          h("span", null, "Next: " + NEXT_LABELS[next]), Icons.chevronRight()))
+          h("span", null, "Next: " + NEXT_LABELS[next]), Icons.chevronRight())),
+      // The last step: what comes next is Generate, just below.
+      !next && hasImg && h("div", { className: "cv-next cv-last-step", "data-last-step": "" },
+        hint(gen.hasGenerated
+          ? "That is every step. Regenerate below when the preview looks right."
+          : "That is every step. Generate the pattern below when the preview looks right; you can come back and change any of these."))
     );
 
     // ── Footer: what Generate will make, and Generate ──────────────────────
-    var hasImg = !!(gen.img && gen.img.src);
-    var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : "Custom";
+    var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : null;
     var summary = gen.exactPixelArt
       ? "Exact pixel art · one stitch per pixel"
-      : [typeLabel, ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
+      : [typeLabel || "Your defaults", ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
          window.STITCH_STYLE_LABELS && window.STITCH_STYLE_LABELS[styleNow] ? window.STITCH_STYLE_LABELS[styleNow] : "Custom detail"].join(" · ");
     var editCount = (cv.editHistory && cv.editHistory.length) || 0;
     var chartState = ctx.pat ? app.convertChartState : null;
     var stateText = chartStateText(chartState, editCount);
+    // The tour points at this button on wider screens; on phones, at the
+    // compact bar's Generate (the panel is a closed sheet there).
+    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
     var footer = h("footer", { className: "cv-footer" },
       hasImg && h("p", { className: "cv-footer__summary", "data-convert-summary": "" }, summary),
       hasImg && stateText && h("p", { className: "cv-footer__state", "data-chart-state": chartState }, stateText),
-      hasImg ? h("button", {
+      hasImg ? h("button", Object.assign(compact ? {} : { "data-onboard": "creator-generate" }, {
         type: "button", className: "cv-generate" + (chartState === "same" ? " cv-generate--quiet" : ""),
         // Generate asks before replacing an edited or unknown chart.
         onClick: function () { gen.generate(); },
         disabled: gen.busy, "aria-label": gen.hasGenerated ? "Regenerate pattern" : "Generate pattern"
-      }, gen.busy ? (gen.progressMessage || "Generating…") : h(React.Fragment, null, Icons.refresh(), gen.hasGenerated ? " Regenerate" : " Generate Pattern"))
+      }), gen.busy ? (gen.progressMessage || "Generating…") : h(React.Fragment, null, Icons.refresh(), h("span", null, gen.hasGenerated ? "Regenerate" : "Generate Pattern")))
         : hint("Upload an image to get started", { className: "cs-toolsec__hint cv-footer__empty" })
     );
 
@@ -22471,6 +23032,73 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 };
 
 
+/* ─── ReadyBar.js ─── */
+/* creator/ReadyBar.js — "Your pattern is ready", shown once at the top of the
+   chart right after Generate (reports/create-from-image-workflow, decision 3).
+
+   It replaces the four notices that used to arrive together after Generate
+   (the "Pattern generated and saved" toast, the Tools tab tip, the Ready to
+   stitch review note and the keyboard-shortcuts hint): one line saying what
+   was made, and the three things most people do next, Print PDF, Open in
+   Tracker and Threads to buy. Close it, or start editing, and it goes; the
+   editing tips then appear one at a time as before.
+
+   Reads AppContext (readyBarOpen, setReadyBarOpen, printPdf,
+   handleOpenInTracker, setTab, setMaterialsTab) and PatternDataContext.
+   Concatenated into creator/bundle.js before PatternTab.js, which renders it. */
+
+(function () {
+  var h = React.createElement;
+
+  // "100 × 75 stitches, 15 threads, 16 chart symbols (1 is a blend of two
+  // threads), about 3 skeins". The counts come from the chart itself.
+  function readySummary(sW, sH, pal, totalSkeins) {
+    var parts = [Number(sW).toLocaleString("en-GB") + " × " + Number(sH).toLocaleString("en-GB") + " stitches"];
+    var tc = typeof window.creatorThreadCounts === "function" ? window.creatorThreadCounts(pal) : null;
+    if (tc && typeof window.threadCountsSentence === "function") parts.push(window.threadCountsSentence(tc));
+    var sk = Number(totalSkeins);
+    if (sk > 0) parts.push("about " + Math.ceil(sk).toLocaleString("en-GB") + " skein" + (Math.ceil(sk) === 1 ? "" : "s"));
+    return { text: parts.join(", "), blends: tc ? tc.blends : 0 };
+  }
+  window.creatorReadySummary = readySummary;
+
+  window.CreatorReadyBar = function CreatorReadyBar() {
+    var app = window.useApp();
+    var ctx = window.usePatternData();
+    if (!app.readyBarOpen || !ctx.pat || !ctx.pal) return null;
+    var Icons = window.Icons || {};
+    var s = readySummary(ctx.sW, ctx.sH, ctx.pal, ctx.totalSkeins);
+    function close() { app.setReadyBarOpen(false); }
+    function then(fn) { return function () { close(); fn(); }; }
+    var fromTracker = !!app.pictureFromTracker;
+    function trackBtn(primary) {
+      return app.handleOpenInTracker ? h("button", { key: "track", type: "button", className: "btn btn-sm" + (primary ? " btn-primary" : ""), onClick: then(app.handleOpenInTracker) },
+        Icons.pointing ? Icons.pointing() : null, h("span", null, "Open in Tracker")) : null;
+    }
+    return h("section", { className: "ready-bar", role: "region", "aria-label": "Your pattern is ready" },
+      h("span", { className: "ready-bar__icon", "aria-hidden": "true" }, Icons.check ? Icons.check() : null),
+      h("div", { className: "ready-bar__text" },
+        h("strong", { className: "ready-bar__title" }, "Your pattern is ready"),
+        h("span", { className: "ready-bar__summary", "data-ready-summary": "" }, s.text + ". It is saved in your library" + (fromTracker ? "; Open in Tracker to start stitching it." : ".")),
+        h("span", { className: "ready-bar__links" },
+          h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
+          s.blends > 0 && window.openBlendHelp && window.BLEND_HELP
+            ? h("button", { type: "button", className: "ready-bar__link", onClick: function () { window.openBlendHelp(); } }, window.BLEND_HELP.title)
+            : null)),
+      h("div", { className: "ready-bar__actions" },
+        // A picture sent from the Tracker goes back there to be stitched.
+        fromTracker && trackBtn(true),
+        app.printPdf && h("button", { type: "button", className: "btn btn-sm" + (fromTracker ? "" : " btn-primary"), onClick: then(app.printPdf) },
+          Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")),
+        !fromTracker && trackBtn(false),
+        h("button", { type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.setTab("materials"); }) },
+          Icons.thread ? Icons.thread() : null, h("span", null, "Threads to buy"))),
+      h("button", { type: "button", className: "ready-bar__close", onClick: close, "aria-label": "Close: keep editing", title: "Close" },
+        Icons.x ? Icons.x() : null));
+  };
+})();
+
+
 /* ─── PatternTab.js ─── */
 /* creator/PatternTab.js — The pattern view tab (canvas area + palette chips).
    Reads from CreatorContext and GenerationContext.
@@ -22597,7 +23225,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
-    !app.shortcutsHintDismissed && !coarse && h("div", {
+    window.CreatorReadyBar && h(window.CreatorReadyBar, null),
+
+    // The shortcuts hint and review note wait while "Your pattern is ready"
+    // or a one-off tip is showing, so notices come one at a time.
+    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && h("div", {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
@@ -22644,7 +23276,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    ctx.pat && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
+    ctx.pat && !app.readyBarOpen && !app.coachTipActive && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
       h("button", {type:"button", className:"btn btn-sm", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
       h("span", {style:{marginLeft:"var(--s-2)",color:"var(--text-secondary)"}}, "Compare the current chart, stitch preview, size and material assumptions before buying.")),
 
@@ -24324,7 +24956,7 @@ window.cropToStitchesSpec = function cropToStitchesSpec(pat, sW, sH, extras) {
 /* creator/ResizeCanvasModal.js — Modal for resizing (crop / expand) the
    cross-stitch pattern canvas.
 
-   This is DISTINCT from CropModal.js, which crops the SOURCE IMAGE before
+   This is DISTINCT from FrameView.js (Frame the picture), which crops the SOURCE IMAGE before
    pattern generation. This modal operates on the already-generated pattern
    grid: it lets users grow or shrink the canvas in any direction and
    reposition the existing stitches within the new bounds.
@@ -24807,9 +25439,8 @@ window.ResizeCanvasModal = function ResizeCanvasModal(props) {
  *   stitchSpeed      — stitches/hr (popover only)
  *   doneCount        — stitches completed (popover only)
  *   ready            — boolean; true when a generated pattern is available
- *   hasImage          — boolean; true when an image is loaded (shows Generate button)
- *   generatingPattern — boolean; true while generation is running
- *   onGenerate        — optional; "Generate Pattern" / "Regenerate" click handler
+ *   hasImage          — boolean; true when an image is loaded. Generate itself
+ *                       is at the foot of the Convert panel, not in this bar.
  *   sourceTab         — "convert" | "canvas" | null (audit COMMON-10): the
  *                       first tab. Canvas (size and fabric) for a design
  *                       drawn from scratch; none for a chart imported
@@ -25071,27 +25702,9 @@ window.CreatorActionBar = function CreatorActionBar(props) {
       : null
   );
 
-  // Generate button — visible in Create mode when an image is loaded.
-  // Sits on the right side of the bar so it's always reachable without
-  // scrolling the sidebar.
-  var hasImage = !!(props && props.hasImage);
-  var generating = !!(props && props.generatingPattern);
-  var generateBtn = (appMode === "create" && hasImage)
-    ? h("button", {
-        type: "button",
-        className: "creator-actionbar__btn creator-actionbar__btn--primary",
-        "data-onboard": "creator-generate",
-        onClick: generating ? undefined : (typeof props.onGenerate === "function" ? props.onGenerate : undefined),
-        disabled: generating,
-        title: generating ? "Generating\u2026" : hasPat ? "Regenerate pattern" : "Generate pattern",
-        "aria-label": generating ? "Generating\u2026" : hasPat ? "Regenerate pattern" : "Generate pattern"
-      },
-      generating
-        ? (Icons.spinner ? Icons.spinner() : null)
-        : (Icons.refresh ? Icons.refresh() : null),
-      h("span", null, generating ? "Generating\u2026" : hasPat ? "Regenerate" : "Generate Pattern")
-    )
-    : null;
+  // No Generate here: in Convert it is the one button at the foot of the
+  // settings panel, under the summary of what it will make
+  // (reports/create-from-image-workflow, F4).
 
   return h("div", {
       className: "creator-actionbar",
@@ -25100,7 +25713,6 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     },
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
-    generateBtn,
     hasStitches ? h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",

@@ -51,7 +51,7 @@ describe('Convert preview block and generating overlay use tokens', () => {
     expect(card).not.toMatch(/#[0-9A-Fa-f]{3,6}\b/);
     expect(card).not.toMatch(/fontSize:\s*1[01]\b/);
   });
-  const start = main.indexOf('{showConvertView&&<div className="cvp-layout"');
+  const start = main.indexOf('{showConvertView&&!_framing&&<div className="cvp-layout"');
   // The block ends at the generating progress card (P2-8).
   const end = main.indexOf('<window.CreatorGenerateProgress stage={state.progressStage}');
 

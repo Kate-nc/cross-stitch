@@ -29,7 +29,7 @@ Open `home.html` (or your deployment's address). When you return, **Start someth
 Home also gives you access to:
 
 - **Projects** — your active project and every other project, with Track, Edit and Export actions
-- **Create new** — **Stitch an existing chart** (PDF, `.oxs`, supported `.xsd`, PCStitch 7 `.pat` or project `.json`), **Convert a picture** (image), or **Draw a pattern**
+- **What are you starting with?** — **A pattern I already have** (PDF, `.oxs`, supported `.xsd`, PCStitch 7 `.pat` or project `.json`), **A photo or picture** (image), or **A blank canvas**
 - **Stash** — what you own, what you could start, and your shopping list
 - **Stats** — lifetime stitches and recent activity
 

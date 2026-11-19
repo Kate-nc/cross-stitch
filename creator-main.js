@@ -358,7 +358,7 @@ function ConvertPreview({state, onRetry}) {
       {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
         <div role="status" className="cvp-note cvp-note--warn">
           <span className="cvp-note__icon" aria-hidden="true">{Icons.warning()}</span>
-          No threads marked as owned, so the preview uses every thread. Add threads in the Stash Manager to see a stash-only preview.
+          Your stash has no threads yet, so this preview uses every thread and Generate will stop. Turn off Use only stash threads, or add the threads you own in the Stash Manager.
         </div>
       )}
       <div className="cvp-head">
@@ -527,10 +527,19 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // its picture: a saved project's picture is restored after the pattern
   // (useProjectIO's Image.onload), and its tour is about the chart, not
   // about generating.
-  const tourWayIn=state.isScratchMode?'scratch':state.pat?'import':(state.img&&state.img.src)?'convert':null;
+  // A picture has two tours: Frame the picture first, then, after Continue,
+  // the one about the preview and the steps.
+  const tourWayIn=state.isScratchMode?'scratch':state.pat?'import':(state.img&&state.img.src)?(state.convertStage==='frame'?'frame':'convert'):null;
   const[tourPage,setTourPage]=React.useState(null);
+  // The way in the tour was chosen for. One tour per visit, except that a
+  // picture's Frame tour hands on to the converting tour after Continue
+  // (a pattern made from it afterwards is not an import: no third tour).
+  const tourDecidedRef=React.useRef(null);
   React.useEffect(()=>{
-    if(tourPage!==null||!state.bootSettled||state.newDesignOpen||!tourWayIn)return;
+    if(tourPage||!state.bootSettled||state.newDesignOpen||!tourWayIn)return;
+    const prev=tourDecidedRef.current;
+    if(prev!==null&&!(prev==='frame'&&tourWayIn==='convert'))return;
+    tourDecidedRef.current=tourWayIn;
     const page='creator-'+tourWayIn;
     setTourPage(window.WelcomeWizard&&window.WelcomeWizard.shouldShow(page)?page:'');
   },[tourPage,state.bootSettled,state.newDesignOpen,tourWayIn]);
@@ -617,7 +626,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     let cancelled = false;
     const fetchStash = () => {
       window.StashBridge.getGlobalStash()
-        .then(s => { if (!cancelled) state.setGlobalStash(s || {}); })
+        .then(s => { if (!cancelled) { state.setGlobalStash(s || {}); if (state.setGlobalStashLoaded) state.setGlobalStashLoaded(true); } })
         .catch(e => console.warn('getGlobalStash failed:', e));
     };
     fetchStash();
@@ -634,6 +643,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const _cvHRef  = React.useRef(null);  _cvHRef.current  = canvas;
   const _ioRef   = React.useRef(null);  _ioRef.current   = io;
   const _nameNudgeRef = React.useRef(function(){});
+  // True while a one-off editing tip (coaching) is showing, so the Pattern
+  // tab holds back its own standing notes and notices come one at a time.
+  const [coachTipActive, setCoachTipActive] = React.useState(false);
   // Compact phone chrome (audit COMMON-03): under 900px one top bar and a
   // bottom tool rail replace the header, action bar and tool strip.
   // body.creator-compact keys the CSS (styles.css, "Compact phone chrome").
@@ -645,6 +657,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // Convert shows the live preview of the current settings, also once a chart
   // exists: the chart itself is Edit's. Without a chart the preview is all
   // there is to show.
+  // Before Generate, Convert's pattern is named after the picture's file
+  // (useProjectIO nameFromImage); the header shows it and it can be renamed
+  // there, instead of "No project" (reports/create-from-image-workflow, F7).
+  const _convertName = (!(state.pat&&state.pal)&&state.img&&!state.isScratchMode&&state.projectName)||'';
+  // Frame the picture (creator/FrameView.js) comes before the preview and
+  // settings for a picture just added.
+  const _framing = !!(state.img && !state.isScratchMode && state.convertStage === 'frame' && (!state.pat || state.appMode === 'create'));
   const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || (state.appMode === 'create' && state.tab === 'pattern')));
   // Materials & Output and the Adapt modal live in creator/extras-bundle.js,
   // loaded the first time either is opened rather than on every Creator load.
@@ -692,7 +711,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableHandleCropPointerUp    = React.useCallback(function(e){_cvHRef.current.handleCropPointerUp(e);},    []);
   const stableHandleCropPointerCancel= React.useCallback(function(e){_cvHRef.current.handleCropPointerCancel(e);},[]);
   const stableShapePreview = React.useCallback(function(){return _cvHRef.current.shapePreview?_cvHRef.current.shapePreview():null;},[]);
-  const stableApplyCrop              = React.useCallback(function()  {_cvHRef.current.applyCrop();},               []);
+  const stableApplyCrop              = React.useCallback(function(opts){return _cvHRef.current.applyCrop(opts);},    []);
+  const stableReplacePicture         = React.useCallback(function(img){_cvHRef.current.replacePicture(img);},        []);
   const stableSrcClick               = React.useCallback(function(e){_cvHRef.current.srcClick(e);},               []);
 
   const stableSaveProject         = React.useCallback(function()  {_ioRef.current.saveProject();},         []);
@@ -700,6 +720,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableHandleFile          = React.useCallback(function(e) {_ioRef.current.handleFile(e);},         []);
   const stableLoadProject         = React.useCallback(function(e) {_ioRef.current.loadProject(e);},        []);
   const stableHandleOpenInTracker = React.useCallback(function()  {_nameNudgeRef.current('track');}, []);
+  const stablePrintPdf            = React.useCallback(function()  {_nameNudgeRef.current('pdf');},   []);
 
   const stableUndoEdit = React.useCallback(function(){_histRef.current.undoEdit();}, []);
   // Latest edit history, read by toast actions that outlive the render they
@@ -861,6 +882,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     stitchCleanup: state.stitchCleanup, setStitchCleanup: state.setStitchCleanup,
     isCropping: state.isCropping, setIsCropping: state.setIsCropping,
     cropRect: state.cropRect, setCropRect: state.setCropRect,
+    cropRatioRef: state.cropRatioRef,
     cropStartRef: state.cropStartRef, cropRef: state.cropRef,
     generate: state.generate,
     randomise: state.randomise,
@@ -878,7 +900,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     cleanupDiff: state.cleanupDiff, setCleanupDiff: state.setCleanupDiff,
     showCleanupDiff: state.showCleanupDiff, setShowCleanupDiff: state.setShowCleanupDiff,
     fRef: state.fRef, prevSW: state.prevSW, prevSH: state.prevSH,
-    stashThreadCount: state.stashThreadCount,
+    stashThreadCount: state.stashThreadCount, ownedThreadCount: state.ownedThreadCount,
     effectiveMaxC: state.effectiveMaxC,
     stashPalette: state.stashPalette,
     blendsAutoDisabled: state.blendsAutoDisabled,
@@ -887,7 +909,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleCropPointerMove: stableHandleCropPointerMove,
     handleCropPointerUp: stableHandleCropPointerUp,
     handleCropPointerCancel: stableHandleCropPointerCancel,
-    applyCrop: stableApplyCrop,
+    applyCrop: stableApplyCrop, replacePicture: stableReplacePicture,
+    convertStage: state.convertStage, setConvertStage: state.setConvertStage,
     srcClick: stableSrcClick,
   }; }, [
     state.img, state.isUploading, state.isDragging,
@@ -897,14 +920,14 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount,
     state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage,
     state.origW, state.origH, state.hasGenerated,
-    state.stitchCleanup, state.isCropping, state.cropRect,
+    state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage,
     state.generate, state.randomise, state.generateGallery,
     state.promoteVariation, state.applyVariationSeed,
     state.variationSeed, state.variationSubset, state.variationHistory,
     state.gallerySlots, state.galleryOpen,
     state.stashConstrained, state.convertBrand, state.coverageGaps,
     state.cleanupDiff, state.showCleanupDiff,
-    state.stashThreadCount, state.effectiveMaxC, state.stashPalette,
+    state.stashThreadCount, state.ownedThreadCount, state.effectiveMaxC, state.stashPalette,
     state.blendsAutoDisabled, state.effectiveAllowBlends,
   ]);
 
@@ -921,7 +944,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
     loadError: state.loadError, setLoadError: state.setLoadError,
     copied: state.copied, setCopied: state.setCopied, copyText: state.copyText,
-    convertTab: state.convertTab, setConvertTab: state.setConvertTab,
+    convertTab: state.convertTab, setConvertTab: state.setConvertTab, convertSeen: state.convertSeen,
     showTidied: state.showTidied, setShowTidied: state.setShowTidied,
     previewChange: state.previewChange, previewTidied: state.previewTidied,
     showBackground: state.showBackground, setShowBackground: state.setShowBackground, previewBackground: state.previewBackground,
@@ -970,7 +993,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     previewTimerRef: state.previewTimerRef,
     saveProject: stableSaveProject, doSaveProject: stableDoSaveProject,
     handleFile: stableHandleFile, loadProject: stableLoadProject,
-    handleOpenInTracker: stableHandleOpenInTracker,
+    handleOpenInTracker: stableHandleOpenInTracker, printPdf: stablePrintPdf,
+    pictureFromTracker: !!window.__creatorPictureFromTracker,
+    readyBarOpen: state.readyBarOpen, setReadyBarOpen: state.setReadyBarOpen, coachTipActive: coachTipActive,
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
     cropToStitches: stableCropToStitches,
     isScratchMode: state.isScratchMode,
@@ -978,11 +1003,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     setTracePicture: io.setTracePicture, removeTracePicture: io.removeTracePicture,
     isActive: isActive,
   }; }, [
-    _sourceTab, handleOpenCanvas,
+    _sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive,
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot, convertChartState,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
-    state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied,
+    state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied,
     state.showBackground, state.previewBackground,
     state.splitPaneEnabled, state.splitPaneRatio,
     state.splitPaneSyncEnabled, state.rightPaneMode,
@@ -1339,8 +1364,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const _noEditsYet = !state.editHistory || state.editHistory.length === 0;
   const _coach = (typeof window.useCoachingSequence === 'function')
     ? window.useCoachingSequence('creator', {
-        toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal,
-        firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet
+        // Held back while "Your pattern is ready" is showing, so the
+        // notices after Generate come one at a time (creator/ReadyBar.js).
+        // Not on a phone: there the tabs are inside the closed settings
+        // sheet, and the drawing tools are already in the bottom bar.
+        toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal && !state.readyBarOpen && !_compact,
+        firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet && !state.readyBarOpen
       })
     : { active: null, complete: ()=>{}, skip: ()=>{}, skipAll: ()=>{} };
   const _coachBlocked = !isActive || !!state.namePromptOpen || !!state.busy;
@@ -1355,6 +1384,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   React.useEffect(()=>{
     if (_coach.active === 'firstStitch_creator' && !_noEditsYet) _coach.complete('firstStitch_creator');
   }, [_noEditsYet, _coach.active]);
+  // "Your pattern is ready" goes once editing starts, or on leaving Edit.
+  React.useEffect(()=>{
+    if (state.readyBarOpen && (!_noEditsYet || state.appMode !== 'edit')) state.setReadyBarOpen(false);
+  }, [state.readyBarOpen, _noEditsYet, state.appMode]); // eslint-disable-line react-hooks/exhaustive-deps
   // Opening the Tools tab counts as having seen the tip.
   React.useEffect(()=>{
     if (_coach.active === 'toolsTab_unlocked' && state.sidebarTab === 'tools') _coach.complete('toolsTab_unlocked');
@@ -1363,6 +1396,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const _coarsePointer = (()=>{ try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) { return false; } })();
   const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
   const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
+  // A tip that is due or showing (not one held back by a dialog).
+  const _coachTipNow = !_coachBlocked && !!_coach.active;
+  React.useEffect(()=>{ setCoachTipActive(_coachTipNow); }, [_coachTipNow]);
 
   return (
     <window.GenerationContext.Provider value={genCtx}>
@@ -1394,8 +1430,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
         setModal={state.setModal}
-        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
-        onNameChange={state.pat&&state.pal?n=>state.renameProject(n):undefined}
+        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):_convertName||undefined}
+        onNameChange={state.pat&&state.pal||_convertName?n=>state.renameProject(n):undefined}
         showAutosaved={!!(state.pat&&state.pal)}
         saveStatus={state.saveStatus}
         savedAt={state.savedAt}
@@ -1511,7 +1547,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onOpenCanvas={handleOpenCanvas}
         generatingPattern={!!state.busy}
         onGenerate={state.generate}
-        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):''}
+        framing={_framing}
+        onContinue={()=>window.dispatchEvent(new CustomEvent('cs:frameContinue'))}
+        projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):_convertName}
+        canRename={!!(state.pat&&state.pal)||!!_convertName}
         saveStatus={state.saveStatus}
         savedAt={state.savedAt}
         onTabChange={function(t){state.setTab(t);}}
@@ -1555,8 +1594,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         hasImage={!!(state.img&&state.img.src)&&!state.isScratchMode}
         sourceTab={_sourceTab}
         onOpenCanvas={handleOpenCanvas}
-        generatingPattern={!!state.busy}
-        onGenerate={state.generate}
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
@@ -1589,6 +1626,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.pat,.oxs,.xsd,.xml,.json,.pdf") : "image/*,.pat,.oxs,.xsd,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];
           if (!f) return;
+          // A picture chosen here did not come from the Tracker.
+          window.__creatorPictureFromTracker = false;
           var n = (f.name || '').toLowerCase();
           if (rejectUnsupportedFile(f)) { e.target.value = ''; return; }
           var isImage = !/\.(pat|xsd)$/i.test(n) && (f.type || '').indexOf('image/') === 0;
@@ -1613,7 +1652,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   {extrasFailed?"Materials & Output couldn't be loaded. Check your connection, then open it again.":"Loading Materials & Output…"}
                 </p>}
             </div>}
-            {showConvertView&&<div className="cvp-layout" style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
+            {showConvertView&&window.CreatorConvertProgress&&<window.CreatorConvertProgress/>}
+            {showConvertView&&_framing&&window.CreatorFrameView&&<window.CreatorFrameView onChangePicture={()=>state.fRef.current&&state.fRef.current.click()}/>}
+            {showConvertView&&!_framing&&<div className="cvp-layout" style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
               {/* Left: source image with crop / change controls */}
               <div className="cvp-source">
                 <div id="bg-pick-target" className={"card cvp-source__card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
@@ -1626,7 +1667,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   <div className="cvp-source__controls">
                     <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>{state.origW}×{state.origH}px</span>
                     <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:"var(--text-xs)",padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface)"}}>Crop</button>
+                      {window.CreatorReframeButton&&<window.CreatorReframeButton/>}
                       <button onClick={()=>state.fRef.current.click()} style={{fontSize:"var(--text-xs)",padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface)"}}>Change</button>
                     </div>
                   </div>
@@ -1658,7 +1699,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               </div>
             </div>}
           </div>
-          {state.tab==="pattern"&&<>
+          {state.tab==="pattern"&&!(showConvertView&&_framing)&&<>
             {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
             <div className={"rpanel"+(state.appMode==="edit"?" rpanel--edit":"")+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
@@ -1681,8 +1722,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             </div>
           </div>
         </div>}
-        {/* ── Full-screen crop modal ── */}
-        {typeof window.CropModal!=="undefined"&&<window.CropModal/>}
       </div>
       {/* Generating: the stage, a progress bar and Cancel (audit IMG-07). */}
       {state.busy&&window.CreatorGenerateProgress&&<window.CreatorGenerateProgress stage={state.progressStage} onCancel={state.cancelGenerate} cancellable={state.generateCancellable}/>}
@@ -1712,7 +1751,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         id: 'toolsTab_unlocked',
         target: '.creator-sidebar-tab[data-tab-id="tools"]',
         title: 'Tools and View are now unlocked',
-        body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Image, Dimensions and Palette stay one click away.',
+        body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Palette and View are beside it.',
         placement: 'left',
         showHighlight: true,
         completeOnTargetClick: true,
@@ -2028,6 +2067,9 @@ function CreatorNoProjectRedirect(){
       var handoffId = p.get('handoff');
       try { if (!handoffId) handoffId = sessionStorage.getItem('cs_pending_image_handoff'); } catch (_) {}
       if (handoffId && /^handoff:/.test(handoffId)) window.__pendingCreatorHandoffId = handoffId;
+      // A picture sent from the Stitch Tracker: "Your pattern is ready" puts
+      // Open in Tracker first (creator/ReadyBar.js).
+      if (p.get('from') === 'tracker') window.__creatorPictureFromTracker = true;
       var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
       var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
       var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';

@@ -93,14 +93,14 @@ describe('defaults', () => {
     // border check, then the offer and the picture-type guess follow.
     expect(io).toMatch(/window\.analysePicture\(data, imgEl\.width, imgEl\.height\)/);
     expect(io).toMatch(/window\.detectUniformBorder\(data\)/);
-    expect(io).toMatch(/offerBackground\(info \? info\.border : null\)/);
+    expect(io).toMatch(/offerBackground\(info \? info\.border : null, reframed\)/);
   });
 
   test('a plain background is offered, not applied, for every type of picture', () => {
     const io = loadSource('creator/useProjectIO.js');
     // The subject can touch the background (a pale shirt on a pale wall), so
     // the stitcher opts in from a toast. Nothing depends on the picture type.
-    const at = io.indexOf('function offerBackground('), fn = io.slice(at, io.indexOf('var rd = new FileReader();', at));
+    const at = io.indexOf('function offerBackground('), fn = io.slice(at, io.indexOf('state.pictureExaminerRef.current = examinePicture', at));
     expect(fn).not.toMatch(/guessPictureType|looksLikePhoto/);
     expect(fn).toMatch(/label: "Leave it unstitched", onClick: function \(\) \{[\s\S]*?state\.setBgCol\(found\.rgb\);\n\s*state\.setSkipBg\(true\);/);
     expect(fn).toMatch(/state\.setShowBackground\(true\)/);
@@ -109,8 +109,14 @@ describe('defaults', () => {
     // and a stale button does nothing (it would apply one picture's
     // background colour to another).
     expect(fn).toMatch(/if \(bgOfferRef\.current !== offer\) return;/);
-    expect(io).toMatch(/function examinePicture\(imgEl\) \{[\s\S]*?cancelBackgroundOffer\(\);[\s\S]*?offerBackground\(/);
-    expect(io).toMatch(/function processLoadedProject\(project\) \{\n    if\(!project\)return;\n    cancelBackgroundOffer\(\);/);
+    // examinePicture offers; the offer withdraws the previous one first.
+    expect(io).toMatch(/function examinePicture\(imgEl, opts\) \{[\s\S]*?offerBackground\(/);
+    expect(fn).toMatch(/cancelBackgroundOffer\(\);/);
+    // After a crop, a background the stitcher left out stays when the border
+    // is the same colour, or when they chose it themselves.
+    expect(fn).toMatch(/if \(reframed && state\.skipBg && !accepted\) return;/);
+    const load = io.slice(io.indexOf('function processLoadedProject(project) {'));
+    expect(load.slice(0, 1600)).toMatch(/if\(!project\)return;[\s\S]*?\n    cancelBackgroundOffer\(\);/);
     expect(io).toMatch(/function cancelBackgroundOffer\(\) \{[\s\S]*?state\.dismissToast\(offer\.toastId\)/);
     // Nothing is switched on before the stitcher chooses it.
     expect(fn.slice(0, fn.indexOf('label: "Leave it unstitched"'))).not.toMatch(/state\.setSkipBg\(true\)/);
@@ -125,20 +131,23 @@ describe('Convert panel order', () => {
   // this pins the order in the source.
   const cp = loadSource('creator/ConvertPanel.js');
 
-  test('steps: Picture (type, background, adjust), Size (size, fabric), Threads, Detail, Project', () => {
-    expect(cp).toMatch(/if \(tab === "picture"\) content = \[pictureType, background, adjust\];/);
-    expect(cp).toMatch(/else if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
-    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[brandSec, countSec, keepSec, blendSec, rareSec, stashSec\];/);
-    expect(cp).toMatch(/else if \(tab === "detail"\) content = \[stepsSec, shadingSec, tidySec, lookSec\];/);
-    expect(cp).toMatch(/else content = \[projectSec\];/);
+  // A setting comes before the ones it limits: the stash before the thread
+  // count; rare colours sit with the other tidying (reports/create-from-image-workflow).
+  test('steps: Size (size, fabric), Threads (stash first), Detail; the picture is framed first', () => {
+    expect(cp).toMatch(/if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
+    // Frame the picture: type, background, and fixes folded away.
+    expect(cp).toMatch(/return h\(React\.Fragment, null, pictureType, background,\s*h\("details", \{ className: "cv-fix"/);
+    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[stashSec, countSec, keepSec, blendSec, brandSec, stashToolsSec\];/);
+    expect(cp).toMatch(/else content = \[stepsSec, shadingSec, tidySec, rareSec, lookSec\];/);
+    expect(cp).not.toMatch(/projectSec/);
   });
 
   test('section headings', () => {
-    ['"picture-type", "Picture type"', '"background", "Background"', '"adjust", "Adjust picture"',
+    ['"picture-type", "Picture type"', '"background", "Background"', '"adjust", null, null',
      '"brand", "Thread brand"', '"count", "Number of threads"', '"blends", "Blends"', '"rare", "Rare colours"',
      '"style", "Detail and tidiness"', '"shading", "Shading pattern"', '"tidying", "Tidying"', '"lookalike", "Look-alike colours"']
       .forEach((h) => expect(cp).toContain('sec(' + h));
-    // Min stitches per colour is a thread choice, in Threads.
+    // Min stitches per colour merges rare colours away; it is in Detail with tidying.
     const rare = cp.slice(cp.indexOf('var rareSec = '), cp.indexOf('var stashSec = '));
     expect(rare).toMatch(/label: "Min stitches per colour"/);
   });
@@ -146,6 +155,7 @@ describe('Convert panel order', () => {
   test('no accordion open-state is kept for Convert any more', () => {
     const st = loadSource('creator/useCreatorState.js');
     expect(st).not.toMatch(/_dimOpen|_palOpen|_adjOpen|_clOpen|_bgOpen/);
-    expect(st).toMatch(/var _convertTab = useState\("picture"\);/);
+    expect(st).toMatch(/var _convertTab = useState\("size"\);/);
+    expect(st).toMatch(/var _convertStage = useState\("make"\);/);
   });
 });

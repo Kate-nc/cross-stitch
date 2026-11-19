@@ -21,12 +21,14 @@ describe('Convert and Edit each have their own tabs', () => {
     expect(m[1]).toMatch(/id:\s*"view"[\s\S]{0,160}disabled:\s*!hasPattern/);
   });
 
-  it('Convert steps are Picture / Size / Threads / Detail / Project, each falling through to the next', () => {
+  // What the picture is and its background are in Frame the picture now
+  // (creator/FrameView.js), before these steps.
+  it('Convert steps are Size / Threads / Detail, each falling through to the next', () => {
     const m = convertSrc.match(/var CONVERT_TABS = \[([\s\S]*?)\];/);
     const ids = Array.from(m[1].matchAll(/id: "([^"]+)"/g)).map(x => x[1]);
-    expect(ids).toEqual(['picture', 'size', 'threads', 'detail', 'project']);
+    expect(ids).toEqual(['size', 'threads', 'detail']);
     const next = Array.from(m[1].matchAll(/next: (null|"[^"]+")/g)).map(x => x[1]);
-    expect(next).toEqual(['"size"', '"threads"', '"detail"', '"project"', 'null']);
+    expect(next).toEqual(['"threads"', '"detail"', 'null']);
   });
 
   it('no longer ships the legacy single-Settings tab, nor the old Convert ids in Edit', () => {
@@ -40,9 +42,9 @@ describe('Convert and Edit each have their own tabs', () => {
     expect(stateSrc).toMatch(/return EDIT_SIDEBAR_TABS\.indexOf\(v\) >= 0 \? v : "palette";/);
   });
 
-  it('persists the chosen Edit tab via UserPrefs; a new picture starts Convert on Picture', () => {
+  it('persists the chosen Edit tab via UserPrefs; a new picture starts Convert on Size', () => {
     expect(stateSrc).toMatch(/UserPrefs\.set\("creator\.sidebarTab"/);
-    expect(stateSrc).toMatch(/_setConvertTabRaw\("picture"\);/);
+    expect(stateSrc).toMatch(/_setConvertTabRaw\("size"\);/);
   });
 
   it('Convert is one panel component; the old accordion sections are gone', () => {
@@ -77,7 +79,7 @@ describe('Convert panel shows each control once (audit B-16)', () => {
   it('renders one fabric block, in the Size step', () => {
     expect(convertSrc.match(/FABRIC_COUNTS\.map\(/g) || []).toHaveLength(0);
     expect(convertSrc.match(/window\.CreatorFabricBlock/g) || []).toHaveLength(1);
-    expect(convertSrc).toMatch(/else if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
+    expect(convertSrc).toMatch(/if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
     expect(convertSrc).toMatch(/Skein estimates assume 2 strands and 8 m per skein\./);
   });
 });

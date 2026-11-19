@@ -2,10 +2,15 @@
    while a picture is being converted).
 
    Laid out like the Edit panel: a strip of tabs in the order the choices are
-   made (Picture, Size, Threads, Detail, then Project), flat sections with the
-   Edit panel's headings and hints (.cs-toolsec), a Next button at the foot of
-   each step, and Generate pinned at the bottom under a one-line summary of
-   what it will make. Every setting is shown once.
+   made (Size, Threads, Detail), flat sections with the Edit panel's
+   headings and hints (.cs-toolsec), a Next button at the foot of each step,
+   and Generate pinned at the bottom under a one-line summary of what it will
+   make. Every setting is shown once. Within a step, a setting comes before
+   the ones it limits (the stash before the thread count). The pattern's name
+   comes from the picture's file name and shows in the header; designer and
+   notes are in Edit's Project tab (reports/create-from-image-workflow).
+   What the picture is, its background and fixes (CreatorPictureSections,
+   below) are shown in Frame the picture (creator/FrameView.js) instead.
 
    Sidebar.js renders this in Convert (appMode "create" with a picture); a
    design drawn from scratch has the Canvas panel instead. Reads the Creator
@@ -15,13 +20,11 @@
 (function () {
   // The steps, left to right. `next` is the step the Next button opens.
   var CONVERT_TABS = [
-    { id: "picture", label: "Picture", icon: "image",    next: "size",    lead: "What the picture is, its background, and fixes to the picture itself." },
     { id: "size",    label: "Size",    icon: "ruler",    next: "threads", lead: "How big the pattern is, and the fabric it is stitched on." },
     { id: "threads", label: "Threads", icon: "palette",  next: "detail",  lead: "Which threads the colours are matched to, and how many." },
-    { id: "detail",  label: "Detail",  icon: "sparkles", next: "project",      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
-    { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name, designer and notes." }
+    { id: "detail",  label: "Detail",  icon: "sparkles", next: null,      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." }
   ];
-  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness", project: "Project" };
+  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness" };
   window.CONVERT_TABS = CONVERT_TABS;
 
   // Hover text for each picture type.
@@ -30,6 +33,66 @@
     photo: "Up to 24 threads and blends, with smooth shading tidied into patches.",
     pixel: "One stitch per pixel at the picture's own size, in its own colours. Every pixel is kept."
   };
+
+  var h = React.createElement;
+  // ── Building blocks: the Edit panel's sections, so both read the same ──
+  function sec(id, title, info) {
+    var kids = Array.prototype.slice.call(arguments, 3);
+    return h("section", { key: id, className: "cs-toolsec cv-sec cv-sec--" + id, "data-cv-section": id },
+      title ? h("div", { className: "cv-sec__head" },
+        h("h3", { className: "cs-toolsec__title cv-sec__title" }, title),
+        info ? h(InfoIcon, { label: title, text: info, width: 260 }) : null) : null,
+      kids);
+  }
+  function hint(content, extra) {
+    return h("p", Object.assign({ className: "cs-toolsec__hint" }, extra || {}), content);
+  }
+  function note(level, content, extra) {
+    var icon = level === "danger" || level === "warning" ? window.Icons.warning() : window.Icons.info();
+    return h("div", Object.assign({ role: "note", className: "cv-note cv-note--" + level }, extra || {}),
+      h("span", { className: "cv-note__icon", "aria-hidden": "true" }, icon),
+      h("span", null, content));
+  }
+  // A checkbox with its label; the hint icon sits outside the <label> so
+  // pressing it never ticks the box.
+  function check(o) {
+    return h("div", { className: "convert-label cv-check" },
+      h("label", { className: "cs-toolsec__check" + (o.disabled ? " cv-check--disabled" : "") },
+        h("input", { type: "checkbox", checked: !!o.checked, disabled: !!o.disabled,
+          onChange: function (e) { o.onChange(e.target.checked); } }),
+        h("span", null, o.label)),
+      o.info ? h(InfoIcon, { label: o.label, text: o.info, width: 260 }) : null);
+  }
+  // One choice from a row (or grid) of buttons; arrow keys move and choose.
+  function seg(o) {
+    var opts = o.options;
+    var anyOn = opts.some(function (x) { return x.id === o.value && !x.disabled; });
+    return h("div", { className: "lp-segmented cv-seg" + (o.className ? " " + o.className : ""), role: "radiogroup", "aria-label": o.label },
+      opts.map(function (x, i) {
+        var on = x.id === o.value;
+        var enabled = opts.filter(function (y) { return !y.disabled; });
+        var p = {
+          key: x.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false",
+          className: "lp-seg" + (on ? " lp-seg--on" : ""), title: x.title, disabled: !!x.disabled,
+          tabIndex: (on && !x.disabled) || (!anyOn && i === 0) ? 0 : -1,
+          "data-seg-id": x.id,
+          onClick: function () { if (!x.disabled) o.onChange(x.id); },
+          onKeyDown: function (e) {
+            var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+            if (!step) return;
+            e.preventDefault();
+            var at = enabled.indexOf(x);
+            var next = enabled[(at + step + enabled.length) % enabled.length];
+            o.onChange(next.id);
+            var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-seg-id="' + next.id + '"]');
+            if (sib) sib.focus();
+          }
+        };
+        if (o.attr) p[o.attr] = x.id;
+        return h("button", p, x.label);
+      }));
+  }
+
 
   // A warning when the chosen tidying is a lot for the pattern's size.
   function cleanupWarning(sW, sH, orphans, previewStats) {
@@ -71,99 +134,23 @@
   }
   window.convertChartStateText = chartStateText;
 
-  window.CreatorConvertPanel = function CreatorConvertPanel(props) {
-    var ctx = window.usePatternData();
-    var cv = window.useCanvas();
-    var app = window.useApp();
+  // What the picture is, its background and fixes to the picture itself:
+  // Frame the picture's settings (creator/FrameView.js), shown once there.
+  // Choosing a type starts the pattern from that type's settings; the type
+  // does not change to Custom when one of them is changed afterwards.
+  window.CreatorPictureSections = function CreatorPictureSections() {
     var gen = window.useGeneration();
-    var h = React.createElement;
     var Icons = window.Icons;
-    var contentRef = React.useRef(null);
-    var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
-    var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
-    var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
-    var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
-    var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
-
-    var tab = app.convertTab;
-    if (!CONVERT_TABS.some(function (t) { return t.id === tab; })) tab = "picture";
-    var tabMeta = CONVERT_TABS.filter(function (t) { return t.id === tab; })[0];
-    function pickTab(id) { if (app.setConvertTab) app.setConvertTab(id); }
-    // A new step starts at its top.
-    React.useEffect(function () { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
-
-    var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
-    var ps = app.previewStats;
-
-    // ── Building blocks: the Edit panel's sections, so both read the same ──
-    function sec(id, title, info) {
-      var kids = Array.prototype.slice.call(arguments, 3);
-      return h("section", { key: id, className: "cs-toolsec cv-sec cv-sec--" + id, "data-cv-section": id },
-        title ? h("div", { className: "cv-sec__head" },
-          h("h3", { className: "cs-toolsec__title cv-sec__title" }, title),
-          info ? h(InfoIcon, { label: title, text: info, width: 260 }) : null) : null,
-        kids);
-    }
-    function hint(content, extra) {
-      return h("p", Object.assign({ className: "cs-toolsec__hint" }, extra || {}), content);
-    }
-    function note(level, content, extra) {
-      var icon = level === "danger" || level === "warning" ? Icons.warning() : Icons.info();
-      return h("div", Object.assign({ role: "note", className: "cv-note cv-note--" + level }, extra || {}),
-        h("span", { className: "cv-note__icon", "aria-hidden": "true" }, icon),
-        h("span", null, content));
-    }
-    // A checkbox with its label; the hint icon sits outside the <label> so
-    // pressing it never ticks the box.
-    function check(o) {
-      return h("div", { className: "convert-label cv-check" },
-        h("label", { className: "cs-toolsec__check" + (o.disabled ? " cv-check--disabled" : "") },
-          h("input", { type: "checkbox", checked: !!o.checked, disabled: !!o.disabled,
-            onChange: function (e) { o.onChange(e.target.checked); } }),
-          h("span", null, o.label)),
-        o.info ? h(InfoIcon, { label: o.label, text: o.info, width: 260 }) : null);
-    }
-    // One choice from a row (or grid) of buttons; arrow keys move and choose.
-    function seg(o) {
-      var opts = o.options;
-      var anyOn = opts.some(function (x) { return x.id === o.value && !x.disabled; });
-      return h("div", { className: "lp-segmented cv-seg" + (o.className ? " " + o.className : ""), role: "radiogroup", "aria-label": o.label },
-        opts.map(function (x, i) {
-          var on = x.id === o.value;
-          var enabled = opts.filter(function (y) { return !y.disabled; });
-          var p = {
-            key: x.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false",
-            className: "lp-seg" + (on ? " lp-seg--on" : ""), title: x.title, disabled: !!x.disabled,
-            tabIndex: (on && !x.disabled) || (!anyOn && i === 0) ? 0 : -1,
-            "data-seg-id": x.id,
-            onClick: function () { if (!x.disabled) o.onChange(x.id); },
-            onKeyDown: function (e) {
-              var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
-              if (!step) return;
-              e.preventDefault();
-              var at = enabled.indexOf(x);
-              var next = enabled[(at + step + enabled.length) % enabled.length];
-              o.onChange(next.id);
-              var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-seg-id="' + next.id + '"]');
-              if (sib) sib.focus();
-            }
-          };
-          if (o.attr) p[o.attr] = x.id;
-          return h("button", p, x.label);
-        }));
-    }
-
-    // ═══ Picture ═══════════════════════════════════════════════════════════
     var pictureType = (gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER) ? sec("picture-type", "Picture type",
-      "Picks good starting values for the picture. Graphic or logo: a few flat colours, no shading. Photo: up to 24 threads with smooth shading. Pixel art: one stitch per pixel, every pixel kept. The Creator guesses when you add a picture; every setting stays editable.",
+      "Picks good starting values for the picture. Graphic or logo: a few flat colours, no shading. Photo: up to 24 threads with smooth shading. Pixel art: one stitch per pixel, every pixel kept. The Creator guesses when you add a picture. Choosing a type starts the threads and detail from its settings; changing them afterwards keeps the type.",
       seg({ label: "What kind of picture is this?", attr: "data-picture-type", className: "cv-seg--wrap", value: gen.pictureType,
         onChange: function (id) { gen.applyPicturePreset(id); },
         options: window.PICTURE_PRESET_ORDER.map(function (id) {
           return { id: id, label: window.PICTURE_PRESETS[id].label, title: PICTURE_TYPE_HINTS[id] };
-        }).concat([{ id: "custom", label: "Custom", disabled: true, title: "Your own settings. Pick a type to start again from its settings." }]) }),
-      hint(gen.pictureType === "custom"
-        ? "Custom: you have changed settings since choosing a type. Pick a type to start again from its settings."
-        : (PICTURE_TYPE_HINTS[gen.pictureType] || "") + " Choosing a type sets the threads and detail; you can change them after."),
+        }) }),
+      hint(!gen.pictureType
+        ? "No type chosen: your Preferences defaults are used. Choose one to start from its settings."
+        : (PICTURE_TYPE_HINTS[gen.pictureType] || "") + " Choosing a type starts the threads and detail from its settings; you can change them later."),
       // Exact import is a Pixel art option, so it shows for pixel art (or while on).
       (gen.stitchStyleBasis === "pixel" || gen.exactPixelArt) && h("div", { className: "picture-type__exact" },
         check({ checked: gen.exactPixelArt, label: "Exact pixel-art import",
@@ -177,7 +164,6 @@
     ) : null;
 
     function armBgPick() {
-      pickTab("picture");
       gen.setPickBg(true);
       // Bring the picture into view so it is clear where to click.
       if (typeof window !== "undefined" && window.requestAnimationFrame) {
@@ -211,22 +197,16 @@
             Icons.eyedropper(), h("span", null, gen.pickBg ? "Click the picture…" : "Pick from picture"))),
         h(SliderRow, { label: "How close a match", value: gen.bgTh, min: 3, max: 50, onChange: gen.setBgTh,
           helpText: "How closely a pixel must match the background colour to be left unstitched. Higher leaves out more." }),
-        hint("Only plain areas that touch the picture's edge are left unstitched. Pale parts of the subject that touch a pale background can go with it: check the preview, and lower How close a match if they do."),
-        // How much is left out, and a way to see exactly which stitches: on
-        // fabric of the background's colour the preview can't show them.
-        ps && ps.skipped != null && !app.previewLoading && h("div", { className: "cv-tidied" },
-          hint(ps.skipped === 0 ? "In the preview, no stitches are left unstitched."
-            : "In the preview, " + ps.skipped.toLocaleString() + " stitch" + (ps.skipped === 1 ? " is" : "es are") + " left unstitched" +
-              (ps.stitchable + ps.skipped > 0 ? " (" + (ps.skipped / (ps.stitchable + ps.skipped) * 100).toFixed(1) + "% of the chart)." : ".")),
-          ps.skipped > 0 && app.setShowBackground && h("button", { type: "button", className: "cs-seltools__btn" + (app.showBackground ? " cs-seltools__btn--on" : ""),
-            "aria-pressed": app.showBackground ? "true" : "false", onClick: function () { app.setShowBackground(!app.showBackground); } },
-            Icons.eye(), h("span", null, "Show them on the preview")))
+        hint(gen.convertStage === "frame" && !gen.exactPixelArt
+          ? "Only plain areas that touch the picture's edge are left unstitched. They are striped on the picture, so you can see what will be left out. Pale parts of the subject that touch a pale background can go with it: lower How close a match if they do."
+          : "Only plain areas that touch the picture's edge are left unstitched. Pale parts of the subject that touch a pale background can go with it: check the preview, and lower How close a match if they do.")
       ) : hint("Off: every pixel is stitched, background included.")
     );
 
     var adjusted = !!(gen.bri || gen.con || gen.sat || gen.smooth || gen.preSharpen);
-    var adjust = sec("adjust", "Adjust picture",
-      "Changes the picture before threads are matched. Most pictures need none of these.",
+    // Folded away under "Fix the picture": most pictures need none of these.
+    var adjust = sec("adjust", null, null,
+      hint("Changes the picture before threads are matched. Most pictures need none of these. Brightness, contrast and saturation show on the picture straight away; sharpening and softening show in the preview."),
       h(SliderRow, { label: "Brightness", value: gen.bri, min: -50, max: 50, onChange: gen.setBri, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
         helpText: "Lightens or darkens the picture before threads are chosen. Try it when a photo is too dark or washed out." }),
       h(SliderRow, { label: "Contrast", value: gen.con, min: -50, max: 50, onChange: gen.setCon, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
@@ -255,6 +235,89 @@
         gen.setBri(0); gen.setCon(0); gen.setSat(0); gen.setSmooth(0); gen.setPreSharpen(false);
       } }, Icons.undo(), h("span", null, "Reset adjustments")) : null
     );
+
+    var adjustOpen = adjusted || undefined;
+    return h(React.Fragment, null, pictureType, background,
+      h("details", { className: "cv-fix", open: adjustOpen, "data-cv-fix": "" },
+        h("summary", null, "Fix the picture", adjusted ? h("span", { className: "cv-fix__on" }, " (changed)") : null),
+        adjust));
+  };
+
+  // The way from a picture to a pattern, as numbered steps across the top of
+  // Frame and Convert: Frame, then Convert's Size, Threads and Detail, then
+  // Generate. The step on screen is marked, steps already opened are ticked,
+  // and each one (but Generate) opens that step. On phones a Convert step
+  // opens the settings sheet on it.
+  window.CreatorConvertProgress = function CreatorConvertProgress() {
+    var app = window.useApp();
+    var gen = window.useGeneration();
+    var h = React.createElement;
+    var Icons = window.Icons || {};
+    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
+    if (!gen.img || !gen.img.src) return null;
+    var framing = gen.convertStage === "frame";
+    var seen = app.convertSeen || {};
+    var tab = app.convertTab;
+    var steps = [{ id: "frame", label: "Frame" }].concat(CONVERT_TABS.map(function (t) { return { id: t.id, label: t.label }; }))
+      .concat([{ id: "generate", label: gen.hasGenerated ? "Regenerate" : "Generate" }]);
+    function stateOf(id) {
+      if (id === "frame") return framing ? "current" : seen.frame ? "done" : "todo";
+      if (id === "generate") return gen.hasGenerated ? "done" : "todo";
+      if (!framing && id === tab) return "current";
+      return seen[id] ? "done" : "todo";
+    }
+    function open(id) {
+      if (id === "frame") { gen.setConvertStage("frame"); return; }
+      // From Frame: Continue (which applies a crop still drawn), then the step.
+      if (framing) window.dispatchEvent(new CustomEvent("cs:frameContinue"));
+      if (app.setConvertTab) app.setConvertTab(id);
+      if (compact && app.setPanelOpen) app.setPanelOpen(true);
+    }
+    var currentIndex = 0;
+    steps.forEach(function (s, i) { if (stateOf(s.id) === "current") currentIndex = i; });
+    return h("nav", { className: "cv-progress", "aria-label": "Steps to your pattern", "data-convert-progress": "" },
+      h("ol", { className: "cv-progress__list" },
+        steps.map(function (s, i) {
+          var st = stateOf(s.id);
+          var mark = st === "done" && Icons.check ? Icons.check() : h("span", null, i + 1);
+          var inner = h(React.Fragment, null,
+            h("span", { className: "cv-progress__mark", "aria-hidden": "true" }, mark),
+            h("span", { className: "cv-progress__label" }, s.label),
+            st === "done" ? h("span", { className: "tracker-sr-only" }, " (done)") : null);
+          var clickable = s.id !== "generate" && st !== "current";
+          return h("li", { key: s.id, className: "cv-progress__step cv-progress__step--" + st, "data-step": s.id, "data-step-state": st },
+            clickable
+              ? h("button", { type: "button", className: "cv-progress__btn", onClick: function () { open(s.id); },
+                  title: s.id === "frame" ? "Back to Frame the picture" : "Open " + s.label }, inner)
+              : h("span", { className: "cv-progress__btn", "aria-current": st === "current" ? "step" : undefined,
+                  title: s.id === "generate" ? (gen.hasGenerated ? "Your pattern is made; Regenerate makes it again with new settings" : "Generate makes the pattern, at the foot of the settings") : undefined }, inner));
+        })),
+      h("span", { className: "cv-progress__count" }, "Step " + (currentIndex + 1) + " of " + steps.length));
+  };
+
+  window.CreatorConvertPanel = function CreatorConvertPanel(props) {
+    var ctx = window.usePatternData();
+    var cv = window.useCanvas();
+    var app = window.useApp();
+    var gen = window.useGeneration();
+    var h = React.createElement;
+    var Icons = window.Icons;
+    var contentRef = React.useRef(null);
+    var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
+    var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
+    var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
+    var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
+    var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
+
+    var tab = app.convertTab;
+    if (!CONVERT_TABS.some(function (t) { return t.id === tab; })) tab = "size";
+    var tabMeta = CONVERT_TABS.filter(function (t) { return t.id === tab; })[0];
+    function pickTab(id) { if (app.setConvertTab) app.setConvertTab(id); }
+    // A new step starts at its top.
+    React.useEffect(function () { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
+
+    var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
+    var ps = app.previewStats;
 
     // ═══ Size ══════════════════════════════════════════════════════════════
     var sizeSec = sec("size", null, null,
@@ -288,7 +351,8 @@
         helpText: "Each thread is one colour of stranded cotton. This is the most the pattern may use. It is a limit, not a target: simpler pictures use fewer. Fewer threads means less to buy and a calmer chart.",
         inlineHint: "A blend uses two of these threads in one stitch, so the chart can have more symbols than threads.",
         helpTopic: "palette" }),
-      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && hint("Limited to " + gen.stashThreadCount + ", the threads in your stash."),
+      // !! so an empty stash (0) renders nothing, not a stray "0".
+      !!(gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount) && hint("Limited to " + gen.stashThreadCount + ", the threads in your stash."),
       used != null
         ? hint("In the preview: " + used + " thread" + (used === 1 ? "" : "s") + " and " + ps.uniqueColors + " chart symbol" + (ps.uniqueColors === 1 ? "" : "s") + "; " + (ps.blendsUsed || 0) + " blends, " + (ps.blendPct || 0) + "% of stitches. " + (ps.estimated ? "Counts are approximate." : ""), { "data-threads-used": "" })
         : hint("A limit, not a target: simpler pictures use fewer.")
@@ -358,13 +422,29 @@
       hint(gen.minSt === 0 ? "Off still folds away stray colours, and keeps small bright accents." : "Colours used fewer than " + gen.minSt + " times merge into a similar neighbour.")
     );
 
+    // The stash comes first: it limits the thread count and blends below.
+    // Its tools (the threads, adding one, variations) follow the settings.
+    // With nothing in the stash the choice can't work: say so, and where to
+    // add threads, instead of letting Generate stop on it.
+    var stashEmpty = gen.ownedThreadCount === 0;
+    var stashLink = h("a", { href: "manager.html", target: "_blank", rel: "noopener", className: "cv-link" }, "Stash Manager");
     var stashSec = (typeof StashBridge !== "undefined") ? sec("stash", "Stash", null,
       check({ checked: gen.stashConstrained, label: "Use only stash threads", onChange: function (v) { gen.setStashConstrained(v); },
+        disabled: stashEmpty && !gen.stashConstrained,
         info: "Constrains the palette to the " + brandLabel + " threads you own. Produces a pattern you can stitch immediately without buying anything." }),
-      !gen.stashConstrained && hint("Turn on to make the pattern only from threads you already own."),
-      gen.stashConstrained && h(React.Fragment, null,
+      stashEmpty && !gen.stashConstrained && hint(h(React.Fragment, null, "You haven't recorded any " + brandLabel + " threads you own yet. Add them in the ", stashLink, " to make a pattern only from them."), { className: "cs-toolsec__hint", "data-stash-empty": "" }),
+      stashEmpty && gen.stashConstrained && note("warning", h(React.Fragment, null, "Your stash has no " + brandLabel + " threads, so Generate can't use only stash threads. Turn this off, or add the threads you own in the ", stashLink, "."), { "data-stash-empty": "" }),
+      !stashEmpty && !gen.stashConstrained && hint("Turn on to make the pattern only from threads you already own."),
+      gen.stashConstrained && !stashEmpty && h(React.Fragment, null,
         note("info", (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in your stash" +
           (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? "; the pattern may use up to " + gen.effectiveMaxC + "." : ".")),
+        gen.coverageGaps && gen.coverageGaps.hasGaps && note("warning", h(React.Fragment, null, "Your stash may lack colours in: ",
+          gen.coverageGaps.gaps.map(function (g, i) {
+            return h("span", { key: g.hue }, (i > 0 ? ", " : ""), h("strong", null, g.hue), g.severity === "high" ? " (significant)" : "");
+          }))))
+    ) : null;
+
+    var stashToolsSec = (typeof StashBridge !== "undefined" && gen.stashConstrained) ? sec("stash-tools", "Your stash threads", null,
         gen.stashPalette && gen.stashPalette.length > 0 && h("div", { className: "cv-stash-strip" },
           h("div", { className: "cv-stash-strip__chips" },
             (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0, 60)).map(function (t) {
@@ -374,10 +454,6 @@
             })),
           gen.stashPalette.length > 60 && h("button", { type: "button", className: "cv-link", onClick: function () { setStashStripExpanded(function (o) { return !o; }); } },
             stashStripExpanded ? "Show fewer" : "Show " + (gen.stashPalette.length - 60) + " more")),
-        gen.coverageGaps && gen.coverageGaps.hasGaps && note("warning", h(React.Fragment, null, "Your stash may lack colours in: ",
-          gen.coverageGaps.gaps.map(function (g, i) {
-            return h("span", { key: g.hue }, (i > 0 ? ", " : ""), h("strong", null, g.hue), g.severity === "high" ? " (significant)" : "");
-          }))),
         h("div", { className: "cv-quickadd" },
           h("label", { className: "cv-field__label", htmlFor: "cv-quickadd" }, "Add a thread to your stash"),
           h("div", { className: "cv-quickadd__row" },
@@ -449,7 +525,6 @@
                   h("span", null, "#" + entry.seed));
               })))
         )
-      )
     ) : null;
 
     // ═══ Detail ════════════════════════════════════════════════════════════
@@ -560,24 +635,10 @@
       )
     );
 
-    // ═══ Project ═══════════════════════════════════════════════════════════
-    function field(label, input) { return h("label", { className: "cv-field" }, h("span", { className: "cv-field__label" }, label), input); }
-    var projectSec = sec("project", "Project info", null,
-      field("Pattern name", h("input", { type: "text", className: "cv-input", value: app.projectName || "", maxLength: 60,
-        placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
-        onChange: function (e) { var v = e.target.value.slice(0, 60); if (typeof app.renameProject === "function") app.renameProject(v); else if (typeof app.setProjectName === "function") app.setProjectName(v); } })),
-      field("Designer (optional)", h("input", { type: "text", className: "cv-input", value: app.projectDesigner || "", maxLength: 80, placeholder: "Your name or studio",
-        onChange: function (e) { if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(e.target.value.slice(0, 80)); } })),
-      field("Description / notes (optional)", h("textarea", { className: "cv-input cv-input--area", value: app.projectDescription || "", maxLength: 500, rows: 3,
-        placeholder: "Source, copyright, stitching notes…",
-        onChange: function (e) { if (typeof app.setProjectDescription === "function") app.setProjectDescription(e.target.value.slice(0, 500)); } }))
-    );
     var content;
-    if (tab === "picture") content = [pictureType, background, adjust];
-    else if (tab === "size") content = [sizeSec, fabricSec];
-    else if (tab === "threads") content = [brandSec, countSec, keepSec, blendSec, rareSec, stashSec];
-    else if (tab === "detail") content = [stepsSec, shadingSec, tidySec, lookSec];
-    else content = [projectSec];
+    if (tab === "size") content = [sizeSec, fabricSec];
+    else if (tab === "threads") content = [stashSec, countSec, keepSec, blendSec, brandSec, stashToolsSec];
+    else content = [stepsSec, shadingSec, tidySec, rareSec, lookSec];
 
     // ── Tab strip (the Edit panel's) ────────────────────────────────────────
     var tabBar = h("div", { role: "tablist", "aria-label": "Convert steps", className: "cv-tabs" },
@@ -603,33 +664,41 @@
         })));
 
     var next = tabMeta.next;
+    var hasImg = !!(gen.img && gen.img.src);
     var panel = h("div", { ref: contentRef, className: "cv-panel", role: "tabpanel", id: "convert-panel", "aria-labelledby": "convert-tab-" + tab },
       h("p", { className: "cv-lead" }, tabMeta.lead),
       content,
       next && h("div", { className: "cv-next" },
         h("button", { type: "button", className: "cv-next__btn", onClick: function () { pickTab(next); } },
-          h("span", null, "Next: " + NEXT_LABELS[next]), Icons.chevronRight()))
+          h("span", null, "Next: " + NEXT_LABELS[next]), Icons.chevronRight())),
+      // The last step: what comes next is Generate, just below.
+      !next && hasImg && h("div", { className: "cv-next cv-last-step", "data-last-step": "" },
+        hint(gen.hasGenerated
+          ? "That is every step. Regenerate below when the preview looks right."
+          : "That is every step. Generate the pattern below when the preview looks right; you can come back and change any of these."))
     );
 
     // ── Footer: what Generate will make, and Generate ──────────────────────
-    var hasImg = !!(gen.img && gen.img.src);
-    var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : "Custom";
+    var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : null;
     var summary = gen.exactPixelArt
       ? "Exact pixel art · one stitch per pixel"
-      : [typeLabel, ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
+      : [typeLabel || "Your defaults", ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
          window.STITCH_STYLE_LABELS && window.STITCH_STYLE_LABELS[styleNow] ? window.STITCH_STYLE_LABELS[styleNow] : "Custom detail"].join(" · ");
     var editCount = (cv.editHistory && cv.editHistory.length) || 0;
     var chartState = ctx.pat ? app.convertChartState : null;
     var stateText = chartStateText(chartState, editCount);
+    // The tour points at this button on wider screens; on phones, at the
+    // compact bar's Generate (the panel is a closed sheet there).
+    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
     var footer = h("footer", { className: "cv-footer" },
       hasImg && h("p", { className: "cv-footer__summary", "data-convert-summary": "" }, summary),
       hasImg && stateText && h("p", { className: "cv-footer__state", "data-chart-state": chartState }, stateText),
-      hasImg ? h("button", {
+      hasImg ? h("button", Object.assign(compact ? {} : { "data-onboard": "creator-generate" }, {
         type: "button", className: "cv-generate" + (chartState === "same" ? " cv-generate--quiet" : ""),
         // Generate asks before replacing an edited or unknown chart.
         onClick: function () { gen.generate(); },
         disabled: gen.busy, "aria-label": gen.hasGenerated ? "Regenerate pattern" : "Generate pattern"
-      }, gen.busy ? (gen.progressMessage || "Generating…") : h(React.Fragment, null, Icons.refresh(), gen.hasGenerated ? " Regenerate" : " Generate Pattern"))
+      }), gen.busy ? (gen.progressMessage || "Generating…") : h(React.Fragment, null, Icons.refresh(), h("span", null, gen.hasGenerated ? "Regenerate" : "Generate Pattern")))
         : hint("Upload an image to get started", { className: "cs-toolsec__hint cv-footer__empty" })
     );
 

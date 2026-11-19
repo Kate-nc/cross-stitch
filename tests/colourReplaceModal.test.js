@@ -170,7 +170,7 @@ describe('ColourReplaceModal', () => {
     render();
     expect(container.querySelector('[role="dialog"]').hasAttribute('data-pref-modal')).toBe(true);
     const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
-    expect(css).toMatch(/html\.pref-dark button:not\(\.btn-primary\):not\(\[data-pref-modal\] \*\)/);
+    expect(css).toMatch(/html\.pref-dark button:where\(:not\(\.btn-primary\):not\(\[data-pref-modal\] \*\)/);
   });
 
   test('omits the preview when there is no pattern', () => {

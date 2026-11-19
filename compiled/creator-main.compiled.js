@@ -808,7 +808,7 @@ function ConvertPreview({
   }, /*#__PURE__*/React.createElement("span", {
     className: "cvp-note__icon",
     "aria-hidden": "true"
-  }, Icons.warning()), "No threads marked as owned, so the preview uses every thread. Add threads in the Stash Manager to see a stash-only preview."), /*#__PURE__*/React.createElement("div", {
+  }, Icons.warning()), "Your stash has no threads yet, so this preview uses every thread and Generate will stop. Turn off Use only stash threads, or add the threads you own in the Stash Manager."), /*#__PURE__*/React.createElement("div", {
     className: "cvp-head"
   }, /*#__PURE__*/React.createElement("div", {
     className: "cvp-head__title"
@@ -1138,10 +1138,19 @@ function CreatorApp({
   // its picture: a saved project's picture is restored after the pattern
   // (useProjectIO's Image.onload), and its tour is about the chart, not
   // about generating.
-  const tourWayIn = state.isScratchMode ? 'scratch' : state.pat ? 'import' : state.img && state.img.src ? 'convert' : null;
+  // A picture has two tours: Frame the picture first, then, after Continue,
+  // the one about the preview and the steps.
+  const tourWayIn = state.isScratchMode ? 'scratch' : state.pat ? 'import' : state.img && state.img.src ? state.convertStage === 'frame' ? 'frame' : 'convert' : null;
   const [tourPage, setTourPage] = React.useState(null);
+  // The way in the tour was chosen for. One tour per visit, except that a
+  // picture's Frame tour hands on to the converting tour after Continue
+  // (a pattern made from it afterwards is not an import: no third tour).
+  const tourDecidedRef = React.useRef(null);
   React.useEffect(() => {
-    if (tourPage !== null || !state.bootSettled || state.newDesignOpen || !tourWayIn) return;
+    if (tourPage || !state.bootSettled || state.newDesignOpen || !tourWayIn) return;
+    const prev = tourDecidedRef.current;
+    if (prev !== null && !(prev === 'frame' && tourWayIn === 'convert')) return;
+    tourDecidedRef.current = tourWayIn;
     const page = 'creator-' + tourWayIn;
     setTourPage(window.WelcomeWizard && window.WelcomeWizard.shouldShow(page) ? page : '');
   }, [tourPage, state.bootSettled, state.newDesignOpen, tourWayIn]);
@@ -1256,7 +1265,10 @@ function CreatorApp({
     let cancelled = false;
     const fetchStash = () => {
       window.StashBridge.getGlobalStash().then(s => {
-        if (!cancelled) state.setGlobalStash(s || {});
+        if (!cancelled) {
+          state.setGlobalStash(s || {});
+          if (state.setGlobalStashLoaded) state.setGlobalStashLoaded(true);
+        }
       }).catch(e => console.warn('getGlobalStash failed:', e));
     };
     fetchStash();
@@ -1280,6 +1292,9 @@ function CreatorApp({
   const _ioRef = React.useRef(null);
   _ioRef.current = io;
   const _nameNudgeRef = React.useRef(function () {});
+  // True while a one-off editing tip (coaching) is showing, so the Pattern
+  // tab holds back its own standing notes and notices come one at a time.
+  const [coachTipActive, setCoachTipActive] = React.useState(false);
   // Compact phone chrome (audit COMMON-03): under 900px one top bar and a
   // bottom tool rail replace the header, action bar and tool strip.
   // body.creator-compact keys the CSS (styles.css, "Compact phone chrome").
@@ -1291,6 +1306,13 @@ function CreatorApp({
   // Convert shows the live preview of the current settings, also once a chart
   // exists: the chart itself is Edit's. Without a chart the preview is all
   // there is to show.
+  // Before Generate, Convert's pattern is named after the picture's file
+  // (useProjectIO nameFromImage); the header shows it and it can be renamed
+  // there, instead of "No project" (reports/create-from-image-workflow, F7).
+  const _convertName = !(state.pat && state.pal) && state.img && !state.isScratchMode && state.projectName || '';
+  // Frame the picture (creator/FrameView.js) comes before the preview and
+  // settings for a picture just added.
+  const _framing = !!(state.img && !state.isScratchMode && state.convertStage === 'frame' && (!state.pat || state.appMode === 'create'));
   const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || state.appMode === 'create' && state.tab === 'pattern'));
   // Materials & Output and the Adapt modal live in creator/extras-bundle.js,
   // loaded the first time either is opened rather than on every Creator load.
@@ -1367,8 +1389,11 @@ function CreatorApp({
   const stableShapePreview = React.useCallback(function () {
     return _cvHRef.current.shapePreview ? _cvHRef.current.shapePreview() : null;
   }, []);
-  const stableApplyCrop = React.useCallback(function () {
-    _cvHRef.current.applyCrop();
+  const stableApplyCrop = React.useCallback(function (opts) {
+    return _cvHRef.current.applyCrop(opts);
+  }, []);
+  const stableReplacePicture = React.useCallback(function (img) {
+    _cvHRef.current.replacePicture(img);
   }, []);
   const stableSrcClick = React.useCallback(function (e) {
     _cvHRef.current.srcClick(e);
@@ -1387,6 +1412,9 @@ function CreatorApp({
   }, []);
   const stableHandleOpenInTracker = React.useCallback(function () {
     _nameNudgeRef.current('track');
+  }, []);
+  const stablePrintPdf = React.useCallback(function () {
+    _nameNudgeRef.current('pdf');
   }, []);
   const stableUndoEdit = React.useCallback(function () {
     _histRef.current.undoEdit();
@@ -1636,6 +1664,7 @@ function CreatorApp({
       setIsCropping: state.setIsCropping,
       cropRect: state.cropRect,
       setCropRect: state.setCropRect,
+      cropRatioRef: state.cropRatioRef,
       cropStartRef: state.cropStartRef,
       cropRef: state.cropRef,
       generate: state.generate,
@@ -1666,6 +1695,7 @@ function CreatorApp({
       prevSW: state.prevSW,
       prevSH: state.prevSH,
       stashThreadCount: state.stashThreadCount,
+      ownedThreadCount: state.ownedThreadCount,
       effectiveMaxC: state.effectiveMaxC,
       stashPalette: state.stashPalette,
       blendsAutoDisabled: state.blendsAutoDisabled,
@@ -1675,9 +1705,12 @@ function CreatorApp({
       handleCropPointerUp: stableHandleCropPointerUp,
       handleCropPointerCancel: stableHandleCropPointerCancel,
       applyCrop: stableApplyCrop,
+      replacePicture: stableReplacePicture,
+      convertStage: state.convertStage,
+      setConvertStage: state.setConvertStage,
       srcClick: stableSrcClick
     };
-  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.keepColours, state.pickKeep, state.keepUnavailable, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.keepColours, state.pickKeep, state.keepUnavailable, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.ownedThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {
@@ -1706,6 +1739,7 @@ function CreatorApp({
       copyText: state.copyText,
       convertTab: state.convertTab,
       setConvertTab: state.setConvertTab,
+      convertSeen: state.convertSeen,
       showTidied: state.showTidied,
       setShowTidied: state.setShowTidied,
       previewChange: state.previewChange,
@@ -1807,6 +1841,11 @@ function CreatorApp({
       handleFile: stableHandleFile,
       loadProject: stableLoadProject,
       handleOpenInTracker: stableHandleOpenInTracker,
+      printPdf: stablePrintPdf,
+      pictureFromTracker: !!window.__creatorPictureFromTracker,
+      readyBarOpen: state.readyBarOpen,
+      setReadyBarOpen: state.setReadyBarOpen,
+      coachTipActive: coachTipActive,
       openResizeCanvas: () => state.setResizeCanvasOpen(true),
       cropToStitches: stableCropToStitches,
       isScratchMode: state.isScratchMode,
@@ -1816,7 +1855,7 @@ function CreatorApp({
       removeTracePicture: io.removeTracePicture,
       isActive: isActive
     };
-  }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied, state.showBackground, state.previewBackground, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [_sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied, state.showBackground, state.previewBackground, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {
@@ -2249,8 +2288,12 @@ function CreatorApp({
   const _freshPattern = state.patternCreatedThisVisit;
   const _noEditsYet = !state.editHistory || state.editHistory.length === 0;
   const _coach = typeof window.useCoachingSequence === 'function' ? window.useCoachingSequence('creator', {
-    toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal,
-    firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet
+    // Held back while "Your pattern is ready" is showing, so the
+    // notices after Generate come one at a time (creator/ReadyBar.js).
+    // Not on a phone: there the tabs are inside the closed settings
+    // sheet, and the drawing tools are already in the bottom bar.
+    toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal && !state.readyBarOpen && !_compact,
+    firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet && !state.readyBarOpen
   }) : {
     active: null,
     complete: () => {},
@@ -2269,6 +2312,10 @@ function CreatorApp({
   React.useEffect(() => {
     if (_coach.active === 'firstStitch_creator' && !_noEditsYet) _coach.complete('firstStitch_creator');
   }, [_noEditsYet, _coach.active]);
+  // "Your pattern is ready" goes once editing starts, or on leaving Edit.
+  React.useEffect(() => {
+    if (state.readyBarOpen && (!_noEditsYet || state.appMode !== 'edit')) state.setReadyBarOpen(false);
+  }, [state.readyBarOpen, _noEditsYet, state.appMode]); // eslint-disable-line react-hooks/exhaustive-deps
   // Opening the Tools tab counts as having seen the tip.
   React.useEffect(() => {
     if (_coach.active === 'toolsTab_unlocked' && state.sidebarTab === 'tools') _coach.complete('toolsTab_unlocked');
@@ -2283,6 +2330,11 @@ function CreatorApp({
   })();
   const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
   const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
+  // A tip that is due or showing (not one held back by a dialog).
+  const _coachTipNow = !_coachBlocked && !!_coach.active;
+  React.useEffect(() => {
+    setCoachTipActive(_coachTipNow);
+  }, [_coachTipNow]);
   return /*#__PURE__*/React.createElement(window.GenerationContext.Provider, {
     value: genCtx
   }, /*#__PURE__*/React.createElement(window.AppContext.Provider, {
@@ -2336,8 +2388,8 @@ function CreatorApp({
     } : undefined,
     onPreferences: typeof window.PreferencesModal !== 'undefined' ? () => state.setPreferencesOpen(true) : undefined,
     setModal: state.setModal,
-    projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : undefined,
-    onNameChange: state.pat && state.pal ? n => state.renameProject(n) : undefined,
+    projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : _convertName || undefined,
+    onNameChange: state.pat && state.pal || _convertName ? n => state.renameProject(n) : undefined,
     showAutosaved: !!(state.pat && state.pal),
     saveStatus: state.saveStatus,
     savedAt: state.savedAt,
@@ -2485,7 +2537,10 @@ function CreatorApp({
     onOpenCanvas: handleOpenCanvas,
     generatingPattern: !!state.busy,
     onGenerate: state.generate,
-    projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : '',
+    framing: _framing,
+    onContinue: () => window.dispatchEvent(new CustomEvent('cs:frameContinue')),
+    projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : _convertName,
+    canRename: !!(state.pat && state.pal) || !!_convertName,
     saveStatus: state.saveStatus,
     savedAt: state.savedAt,
     onTabChange: function (t) {
@@ -2535,9 +2590,7 @@ function CreatorApp({
     onMoreExports: () => _nameNudgeRef.current('exports'),
     hasImage: !!(state.img && state.img.src) && !state.isScratchMode,
     sourceTab: _sourceTab,
-    onOpenCanvas: handleOpenCanvas,
-    generatingPattern: !!state.busy,
-    onGenerate: state.generate
+    onOpenCanvas: handleOpenCanvas
   }), /*#__PURE__*/React.createElement(window.CreatorToolStrip, null), /*#__PURE__*/React.createElement("div", {
     className: "cs-page-content"
   }, state.loadError && /*#__PURE__*/React.createElement("div", {
@@ -2592,6 +2645,8 @@ function CreatorApp({
     onChange: e => {
       var f = e.target.files && e.target.files[0];
       if (!f) return;
+      // A picture chosen here did not come from the Tracker.
+      window.__creatorPictureFromTracker = false;
       var n = (f.name || '').toLowerCase();
       if (rejectUnsupportedFile(f)) {
         e.target.value = '';
@@ -2627,7 +2682,9 @@ function CreatorApp({
       fontSize: "var(--text-md)",
       color: "var(--text-secondary)"
     }
-  }, extrasFailed ? "Materials & Output couldn't be loaded. Check your connection, then open it again." : "Loading Materials & Output…")), showConvertView && /*#__PURE__*/React.createElement("div", {
+  }, extrasFailed ? "Materials & Output couldn't be loaded. Check your connection, then open it again." : "Loading Materials & Output…")), showConvertView && window.CreatorConvertProgress && /*#__PURE__*/React.createElement(window.CreatorConvertProgress, null), showConvertView && _framing && window.CreatorFrameView && /*#__PURE__*/React.createElement(window.CreatorFrameView, {
+    onChangePicture: () => state.fRef.current && state.fRef.current.click()
+  }), showConvertView && !_framing && /*#__PURE__*/React.createElement("div", {
     className: "cvp-layout",
     style: {
       display: "flex",
@@ -2697,20 +2754,7 @@ function CreatorApp({
       display: "flex",
       gap: 6
     }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      state.setIsCropping(true);
-      state.setCropRect(null);
-    },
-    style: {
-      fontSize: "var(--text-xs)",
-      padding: "2px 7px",
-      cursor: "pointer",
-      border: "0.5px solid var(--line)",
-      borderRadius: 6,
-      background: "var(--surface)"
-    }
-  }, "Crop"), /*#__PURE__*/React.createElement("button", {
+  }, window.CreatorReframeButton && /*#__PURE__*/React.createElement(window.CreatorReframeButton, null), /*#__PURE__*/React.createElement("button", {
     onClick: () => state.fRef.current.click(),
     style: {
       fontSize: "var(--text-xs)",
@@ -2773,7 +2817,7 @@ function CreatorApp({
     }
   }), state.previewUrl && !state.previewLoading && state.previewStats && /*#__PURE__*/React.createElement(PatternEstimates, {
     state: state
-  })))), state.tab === "pattern" && /*#__PURE__*/React.createElement(React.Fragment, null, state.panelOpen && /*#__PURE__*/React.createElement("div", {
+  })))), state.tab === "pattern" && !(showConvertView && _framing) && /*#__PURE__*/React.createElement(React.Fragment, null, state.panelOpen && /*#__PURE__*/React.createElement("div", {
     className: "rpanel-backdrop",
     onClick: () => state.setPanelOpen(false)
   }), /*#__PURE__*/React.createElement("div", {
@@ -2859,7 +2903,7 @@ function CreatorApp({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "Go to Convert")))), typeof window.CropModal !== "undefined" && /*#__PURE__*/React.createElement(window.CropModal, null)), state.busy && window.CreatorGenerateProgress && /*#__PURE__*/React.createElement(window.CreatorGenerateProgress, {
+  }, "Go to Convert"))))), state.busy && window.CreatorGenerateProgress && /*#__PURE__*/React.createElement(window.CreatorGenerateProgress, {
     stage: state.progressStage,
     onCancel: state.cancelGenerate,
     cancellable: state.generateCancellable
@@ -2882,7 +2926,7 @@ function CreatorApp({
     id: 'toolsTab_unlocked',
     target: '.creator-sidebar-tab[data-tab-id="tools"]',
     title: 'Tools and View are now unlocked',
-    body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Image, Dimensions and Palette stay one click away.',
+    body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Palette and View are beside it.',
     placement: 'left',
     showHighlight: true,
     completeOnTargetClick: true,
@@ -3277,6 +3321,9 @@ function CreatorNoProjectRedirect() {
         if (!handoffId) handoffId = sessionStorage.getItem('cs_pending_image_handoff');
       } catch (_) {}
       if (handoffId && /^handoff:/.test(handoffId)) window.__pendingCreatorHandoffId = handoffId;
+      // A picture sent from the Stitch Tracker: "Your pattern is ready" puts
+      // Open in Tracker first (creator/ReadyBar.js).
+      if (p.get('from') === 'tracker') window.__creatorPictureFromTracker = true;
       var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
       var pendingName = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
       var pendingType = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';

@@ -4,7 +4,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, startBlankGrid, skipTourIfShown, LOGO } = require('./creator-helpers');
+const { device, startBlankGrid, skipTourIfShown, LOGO, continueFromFrame } = require('./creator-helpers');
 
 // Everything quiet except the Creator's own tours.
 async function onlyCreatorTours(page) {
@@ -64,12 +64,21 @@ test.describe('Creator tours on a desktop', function() {
   test.use(device('desktop'));
   test.setTimeout(90000);
 
-  test('a picture opens the converting tour, in desktop words', async function({ page }) {
+  test('a picture opens the Frame tour, then after Continue the converting tour, in desktop words', async function({ page }) {
     await onlyCreatorTours(page);
     await page.goto('/home.html?tab=create');
     await skipTourIfShown(page);
     await page.locator('input.home-create-file-input').setInputFiles(LOGO);
     await page.waitForURL(/create\.html/);
+    // First, Frame the picture's own short tour.
+    const frameCard = tourCard(page);
+    await expect(frameCard.getByRole('heading', { name: 'Frame your picture' })).toBeVisible({ timeout: 15000 });
+    await frameCard.getByRole('button', { name: 'Next' }).click();
+    await expect(frameCard.getByRole('heading', { name: 'Then Continue' })).toBeVisible();
+    expect(await frameCard.innerText()).toMatch(/click Continue/);
+    // Pressing the highlighted Continue closes it and moves on.
+    await page.locator('[data-onboard="frame-continue"]').click();
+    await expect(page.locator('[data-frame-view]')).toHaveCount(0);
 
     const card = tourCard(page);
     await expect(card).toBeVisible({ timeout: 15000 });
@@ -81,5 +90,35 @@ test.describe('Creator tours on a desktop', function() {
     await card.getByRole('button', { name: 'Next' }).click();
     await expect(card.getByRole('heading', { name: 'Generate' })).toBeVisible();
     expect(await card.innerText()).toMatch(/click Generate Pattern/);
+  });
+
+  test('replaying the Creator walkthrough on Frame the picture plays the Frame tour', async function({ page }) {
+    await page.addInitScript(function() { try { localStorage.setItem('cs_welcome_creator_done', '1'); } catch (e) {} });
+    await onlyCreatorTours(page);
+    await page.goto('/home.html?tab=create');
+    await page.locator('input.home-create-file-input').setInputFiles(LOGO);
+    await page.waitForURL(/create\.html/);
+    await page.waitForSelector('[data-frame-view]');
+    await expect(tourCard(page)).toHaveCount(0);
+    // What Help > Getting started > Replay the Creator walkthrough does.
+    await page.evaluate(function() {
+      window.WelcomeWizard.reset('creator');
+      window.dispatchEvent(new CustomEvent('cs:showWelcome', { detail: { page: 'creator' } }));
+    });
+    await expect(tourCard(page).getByRole('heading', { name: 'Frame your picture' })).toBeVisible();
+  });
+
+  test('after the picture tours, making the pattern does not start a third tour', async function({ page }) {
+    await onlyCreatorTours(page);
+    await page.goto('/home.html?tab=create');
+    await page.locator('input.home-create-file-input').setInputFiles(LOGO);
+    await page.waitForURL(/create\.html/);
+    await tourCard(page).getByRole('button', { name: 'Skip tour' }).click();
+    await page.locator('[data-onboard="frame-continue"]').click();
+    await tourCard(page).getByRole('button', { name: 'Skip tour' }).click();
+    await page.locator('.cv-generate').click();
+    await page.waitForSelector('.rpanel--edit', { state: 'attached', timeout: 30000 });
+    await page.waitForTimeout(1500);
+    await expect(tourCard(page)).toHaveCount(0);
   });
 });

@@ -14,23 +14,36 @@ The Pattern Creator turns images into stitchable charts, or lets you design from
 ### From an image
 
 1. Open the app at **home.html**.
-2. Go to **Create new** and choose **Convert a picture**.
-3. Pick your image. The Pattern Creator opens with it loaded.
+2. Under **What are you starting with?**, choose **A photo or picture**.
+3. Pick your picture. The Pattern Creator opens on [Frame the picture](#framing-the-picture).
 
-You can also open an image inside the Creator with **File > Open…**.
+You can also open a picture inside the Creator with **File > Open…**, or in the Stitch Tracker with **File > Open…**: the Tracker saves the project you were stitching and sends the picture to the Creator, and when the pattern is made, **Open in Tracker** is the first button in **Your pattern is ready**.
 
 ### From scratch
 
-1. Go to **Create new** and choose **Draw a pattern**.
-2. A blank grid opens. Add colours in the **Palette** tab and skip to [Editing Your Pattern](#editing-your-pattern).
+1. Under **What are you starting with?**, choose **A blank canvas**.
+2. Pick a size and fabric (and optionally a picture to trace over), then **Start drawing**.
+3. A blank grid opens. Add colours in the **Palette** tab and skip to [Editing Your Pattern](#editing-your-pattern).
 
-### Guided import (experimental)
+## Framing the Picture
 
-**File > Preferences > Pattern Creator > Use guided import wizard** replaces the sidebar set-up with a five-step wizard (Crop, Choose a palette, Size, Preview, Confirm). It is off by default.
+A picture you add opens on **Frame the picture**, full width: the decisions about the picture itself come before any pattern setting.
+
+A step bar across the top of Frame the picture and Convert shows the way to a pattern: **Frame**, **Size**, **Threads**, **Detail** and **Generate**. It marks the step on screen, ticks the steps you have opened and says *Step 1 of 5* and so on. Click a step to go to it; on a phone, tapping a step opens the settings sheet on it.
+
+- **Crop** — drag on the picture, or choose a shape: **Free**, **Square**, **4:3** or **3:4**. A shape starts from the largest area of that shape, centred, and any area you drag keeps the shape. Once a box is drawn, drag inside it to move it, or drag a handle to resize it: the corners keep a chosen shape, and a **Free** box also has a handle on each side. With the box selected (Tab to it), the arrow keys move it (Shift moves it further) and Alt with the arrow keys resizes it. **Apply crop** (or Enter) crops; **Clear** (or Escape) removes the rectangle.
+- **Background** — with **Leave background unstitched** on, the stitches it will leave out are striped on the picture, with a count under it, worked out exactly as Generate does. Change the colour or **How close a match** and the stripes follow. They step aside while you pick the colour, and **Hide stripes** turns them off.
+- **Turn left / Turn right** — turn the picture a quarter at a time.
+- **Undo** — puts back the picture before the last crop or turn. **Change picture** chooses another, which starts with nothing to undo.
+- Small pictures, such as pixel art, are shown larger with sharp pixels so you can see and crop them.
+
+Each crop or turn applies straight away, and the Creator looks at the picture again: a picture type it guessed follows what you kept (a note says if it changed), and a plain background is offered again (**Leave it unstitched**), or stitched again if no plain border is left. A type or background you chose yourself, and settings you changed, are kept.
+
+Beside the picture are the settings about the picture itself (see [Picture settings](#picture-settings) below). When it looks right, choose **Continue** (on a phone it is also in the top bar). **Reframe**, beside your picture in the next view, brings you back; if the picture already has a chart, the chart stays as it is until you **Regenerate**. To go straight to the settings for every new picture, turn off **Start with Frame the picture** in **Preferences > Pattern Creator**.
 
 ## Setting Up the Conversion
 
-The panel on the right is laid out like Edit's: steps across the top, in the order you make the choices: **Picture**, **Size**, **Threads** and **Detail**, then **Project**. Each step ends with a **Next** button, and **Generate Pattern** stays at the bottom under a line saying what it will make, such as *Photo · 100 × 67 stitches · up to 24 DMC threads · Balanced*. Every setting has an information icon beside it.
+The panel on the right is laid out like Edit's: steps across the top, in the order you make the choices: **Size**, **Threads** and **Detail**. Each step ends with a **Next** button, and the last points to **Generate Pattern**, the one Generate button, at the foot of the panel under a line saying what it will make, such as *Photo · 100 × 67 stitches · up to 24 DMC threads · Balanced*. Every setting has an information icon beside it. The pattern is named after the picture's file; the name shows at the top of the page, where you can rename it, and the designer and notes are in Edit's **Project** tab.
 
 The preview in the middle updates as you change settings, and is the pattern Generate will make. It has three views:
 
@@ -44,7 +57,9 @@ The preview in the middle updates as you change settings, and is the pattern Gen
 
 Once a pattern exists, **Convert** still shows the live preview of its settings, and says when it differs from your pattern until you **Regenerate**.
 
-### Picture
+### Picture settings
+
+These are in **Frame the picture**.
 
 #### What kind of picture is this?
 
@@ -56,17 +71,16 @@ The first setting picks good starting values for the picture:
 | **Photo** | Up to 24 threads, blends; keeps the in-between shades along edges that shading makes; **Detail and tidiness** at Balanced |
 | **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across); **Detail and tidiness** at More detail, so every pixel is kept. **Exact pixel-art import** appears here |
 
-The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom** (changing **Detail and tidiness** keeps the type). To start every picture from your own defaults (threads, blends and shading) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
+The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and changing the threads or detail afterwards keeps the type (**Detail and tidiness** shows **Custom** instead). To start every picture from your own defaults (threads, blends and shading) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
 
-#### Background and Adjust picture
+#### Background and Fix the picture
 
-The rest of the **Picture** step:
+The rest of Frame's settings (the adjustments are folded under **Fix the picture**):
 
-- **Brightness / Contrast / Saturation** — tune the image before conversion. **Reset adjustments** puts them back.
+- **Brightness / Contrast / Saturation** — tune the image before conversion; the picture in Frame shows them as you change them. **Reset adjustments** puts them back.
 - **Soften grainy photos** — blurs the picture at stitch size before the threads are chosen: fewer speckled stitches, softer edges. Shrinking a photo to stitches already smooths away grain, so most photos look best with it Off. The method is under **Advanced**.
 - **Sharpen details** — keeps fine lines crisp.
-- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Leave background unstitched** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Leave background unstitched**, press **Pick from picture**, click the background colour, then adjust **How close a match**. Only matching regions connected to the outside edge are removed; enclosed matching details remain. The match uses the picture's own colours, so **Brightness**, **Contrast** and **Saturation** don't change it. The background is stitched unless you choose otherwise: a picture with a plain border gets an offer (**Leave it unstitched**), not a change, because a pale subject touching a pale background goes with it. The pattern is worked out from the whole picture first and the background left out afterwards, so leaving it out or putting it back changes only the stitches at its edge. The step says how many stitches the preview leaves unstitched, and **Show them on the preview** marks them.
-- **Crop** — crop the image to the part you want.
+- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Leave background unstitched** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Leave background unstitched**, press **Pick from picture**, click the background colour, then adjust **How close a match**. Only matching regions connected to the outside edge are removed; enclosed matching details remain. In Frame the picture, the stitches that will be removed are striped on the picture. The match uses the picture's own colours, so **Brightness**, **Contrast** and **Saturation** don't change it. The background is stitched unless you choose otherwise: a picture with a plain border gets an offer (**Leave it unstitched**), not a change, because a pale subject touching a pale background goes with it. The pattern is worked out from the whole picture first and the background left out afterwards, so leaving it out or putting it back changes only the stitches at its edge. In the preview, the step says how many stitches are left unstitched, and **Show them on the preview** marks them.
 
 ### Size
 
@@ -96,7 +110,7 @@ A blend stitches two threads together in one needle (one strand of each) and get
 | **20–40** | Complex photos, detailed artwork |
 | **50–100** | Photo-realistic patterns |
 
-**Use only stash threads** — match only to threads you own, in the brand chosen under **Thread brand**.
+**Use only stash threads** — the first setting in **Threads**, because it limits the rest: match only to threads you own, in the brand chosen under **Thread brand**. While your stash has none of that brand, it can't be ticked, and a note links to the Stash Manager.
 
 **Threads** says how many threads and chart symbols the preview uses.
 
@@ -124,7 +138,7 @@ Photos keep their shading up to **Tidier**; graphics and pixel art are never sha
 
 The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
 
-**Min stitches per colour** (in the **Threads** step) — colours used fewer times than this are dropped. Off (the default) still folds away stray colours automatically, keeping small bright accents such as catchlights.
+**Min stitches per colour** (in the **Detail** step, under **Tidying**) — colours used fewer times than this are dropped. Off (the default) still folds away stray colours automatically, keeping small bright accents such as catchlights.
 **Stitch Cleanup** — the on/off switch for tidying: merges confetti stitches and, for graphics and pixel art, folds away in-between shades along edges (photos keep them). Off still merges colours used by only a few stitches, and **Threads (max)** still applies.
 **Reduce confetti** — how much Stitch Cleanup merges (Off, 1–3): level 1 merges single confetti stitches, level 3 groups of up to 3. Plain areas allow groups three times larger.
 **Protect fine details** — keeps small groups that touch an outline (eyes, lettering). Off gives the tidiest chart; bright accents are kept either way.
@@ -136,9 +150,9 @@ The technical names (Atkinson error diffusion, ordered Bayer dithering) are unde
 
 Choose **Pin this preview** to keep a completed preview and all its settings. Its label includes the style, thread count, size and brand. Change your settings freely: **Pinned / Current** switches between the two pictures on phones; wide screens show both as stitched previews. The difference line compares changed stitches, confetti, threads and skeins. **Apply pinned settings** restores the complete choice, including picture adjustments, fabric, brand, thread limits, shading and tidying. Changing or cropping the picture clears the pin. **Unpin** removes it.
 
-**Pattern estimates** holds stitches, skipped stitches, chart symbols, threads, skeins, time and cost. Project holds the name and notes. In **Threads in this preview**, tap a thread to highlight its stitches in any view; tap it again to clear. Labels identify blends and the thread brand. The estimates use your stitching speed and skein price.
+**Pattern estimates** holds stitches, skipped stitches, chart symbols, threads, skeins, time and cost. In **Threads in this preview**, tap a thread to highlight its stitches in any view; tap it again to clear. Labels identify blends and the thread brand. The estimates use your stitching speed and skein price.
 
-On phones and tablets below 900 pixels wide, your picture appears as a short strip above the full-width preview, with **Crop** and **Change**.
+On phones and tablets below 900 pixels wide, your picture appears as a short strip above the full-width preview, with **Reframe** and **Change**.
 
 ### Compare options
 
@@ -152,7 +166,9 @@ Each shows its stitches, threads, roughly how many hours it would take and its c
 
 ### Generate
 
-Press **Generate pattern** in the action bar. Generation runs in the background; most images take a few seconds. Not happy? Change any setting and **Regenerate**.
+Press **Generate Pattern** at the foot of the settings panel (on a phone, **Generate** in the top bar). Generation runs in the background; most pictures take a few seconds, and **Cancel** stops it. Not happy? Change any setting and **Regenerate**.
+
+When it finishes, a **Your pattern is ready** bar above the chart says what was made (size, threads, chart symbols and about how many skeins) and offers **Print PDF**, **Open in Tracker** and **Threads to buy**, with links to **Ready to stitch review** and, when there are blends, what a blend is. It goes when you close it or start editing; the editing tips then come one at a time.
 
 ## The Pattern Creator Layout
 
@@ -164,7 +180,7 @@ The top bar lists the tools (**Create**, **Track**, **Stash** and **Stats**) and
 | **Project** | Name, designer, fabric, strands, stitching speed, Adapt to my stash / Adapt to brand. |
 | **Materials & Output** | Sub-tabs **Ready to stitch**, **Threads**, **Stash status** and **Export**. |
 
-The **action bar** has the **Create / Edit / Track** phase buttons, **Generate pattern**, **Print PDF** and **Export options**.
+The **action bar** has the Creator's steps (**Convert**, **Edit** and **Materials**; **Canvas** instead of Convert for a design drawn from scratch) and, once there is a pattern, **Print PDF**, **Export…**, **Open in Tracker** and **Pattern info**.
 
 After generating, the sidebar gains **Tools** and **View** tabs alongside **Palette**, **Preview** and **Project**.
 
@@ -422,10 +438,9 @@ The live layout illustration shows the first chart page to scale, resolved paper
 
 All presets use the existing worker and its 112-symbol limit, missing-glyph and unsupported-stitch checks. Use the standard print theme for Pattern Keeper. Actual Pattern Keeper import remains a manual device check.
 
-### Guided image import (experimental)
+### Pictures opened in the Stitch Tracker
 
-Enable **Preferences > Pattern Creator > Use guided import wizard** for image imports in Track. The five steps cover crop and orientation, palette, finished stitch dimensions, live preview, and confirmation. Aspect-ratio crops are centred after rotation and mirroring. Preview and Generate use the same processing settings. **From my stash** uses owned DMC threads, including partial skeins; an empty stash must be corrected before generation. **Show saliency overlay** highlights detail for inspection only and does not alter the stitches. If preview processing fails, adjust the settings or use **Retry preview**. Generate is available once the current preview succeeds.
-
+Opening a photo or picture in the Stitch Tracker (**File > Open…**) takes it to the Pattern Creator, the same as **A photo or picture** on Home: [Frame the picture](#framing-the-picture), then **Size**, **Threads** and **Detail** with the live preview. The project you were stitching is saved first. When the pattern is made, **Open in Tracker** comes first in **Your pattern is ready**. (The Tracker's own one-step image dialog and the experimental guided import wizard have been replaced by this.)
 
 ### Understanding thread estimates
 

@@ -3,7 +3,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, quietOnboarding, skipTourIfShown, LOGO, convertStep } = require('./creator-helpers');
+const { device, quietOnboarding, skipTourIfShown, LOGO, convertStep, continueFromFrame } = require('./creator-helpers');
 
 function slider(page, label) {
   return page.locator('xpath=//span[normalize-space(text())="' + label + '"]/ancestor::div[2]//input[@type="range"]').first();
@@ -49,7 +49,7 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
     expect(buffer.length).toBeGreaterThan(10 * 1024 * 1024);
     await page.locator('input.home-create-file-input').setInputFiles({ name: 'IMG_2041.jpg', mimeType: 'image/jpeg', buffer: buffer });
     await page.waitForURL(/create\.html/, { timeout: 30000 });
-    await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 60000 });
+    await expect(page.locator('.cc-continue')).toBeVisible({ timeout: 60000 });
     // The handoff record is gone once the Creator has the picture.
     await expect.poll(function() {
       return page.evaluate(async function() { return (await BlobStore.list('handoff:')).length; });
@@ -62,6 +62,7 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
     await skipTourIfShown(page);
     await page.locator('input.home-create-file-input').setInputFiles(LOGO);
     await page.waitForURL(/create\.html/);
+    await continueFromFrame(page);
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 20000 });
     await convertStep(page, 'size');
     const width = page.locator('.size-field').getByLabel('Width in stitches');
@@ -103,6 +104,7 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
     await skipTourIfShown(page);
     await page.locator('input.home-create-file-input').setInputFiles(LOGO);
     await page.waitForURL(/create\.html/);
+    await continueFromFrame(page);
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 20000 });
     await expect.poll(function() {
       return page.evaluate(async function() { return (await BlobStore.list('draft:')).length; });
