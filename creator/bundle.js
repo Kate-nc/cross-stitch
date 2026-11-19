@@ -3706,6 +3706,15 @@ window.ColourReplace = (function() {
      clearDone(done, idxs)  → new Uint8Array with those cells not done.
      restoreDone(done, idxs) → new Uint8Array with those cells done again.
      resetMessage(n)  → the toast text for n reset cells.
+     markedCount(done) → how many cells are marked done.
+     markedWith(done, pat, ids, mask) → how many marked cells use one of the
+         thread ids (inside mask, when given).
+     actionReach(t) → one sentence on how far the chosen tool reaches (one
+         stitch, a brush's worth, every joined stitch of a colour, every
+         stitch of a colour, or the selection), or null. Stage 3: said
+         beside the progress note so nobody is surprised which marks clear.
+   window.creatorActionReach(cv, ctx, stitchedView) reads the Creator's
+   contexts into actionReach.
    ────────────────────────────────────────────────────────────────────────── */
 
 window.StitchedEdits = (function() {
@@ -3748,9 +3757,65 @@ window.StitchedEdits = (function() {
     return n.toLocaleString() + " stitched cell" + (n === 1 ? "" : "s") + " reset to not done.";
   }
 
+  function markedCount(done) {
+    var n = 0;
+    if (!done) return 0;
+    for (var i = 0; i < done.length; i++) if (done[i] === 1) n++;
+    return n;
+  }
+
+  function markedWith(done, pat, ids, mask) {
+    var n = 0;
+    if (!done || !pat || !ids || !ids.length) return 0;
+    var want = {};
+    for (var k = 0; k < ids.length; k++) want[ids[k]] = true;
+    for (var i = 0; i < pat.length; i++) {
+      if (done[i] !== 1 || !pat[i] || !want[pat[i].id]) continue;
+      if (mask && !mask[i]) continue;
+      n++;
+    }
+    return n;
+  }
+
+  function brushReach(verb, size) {
+    size = Math.max(1, Math.round(Number(size) || 1));
+    if (size === 1) return verb + " one stitch at a time.";
+    return verb + " up to " + (size * size).toLocaleString() + " stitches at a time (a " + size + " \u00D7 " + size + " brush).";
+  }
+
+  // t: { drawMode, activeTool, brushMode, stitchType, brushSize, partialStitchTool,
+  //      hasSelection, selectionCount, mirrorOn, stitchedView }
+  function actionReach(t) {
+    if (!t || t.stitchedView || t.drawMode === false) return null;
+    var tool = t.activeTool;
+    if (t.hasSelection && (t.selectionCount || 0) > 0) {
+      var n = t.selectionCount;
+      return "Delete, Move and the Selection menu change only the " + n.toLocaleString() + " selected stitch" + (n === 1 ? "" : "es") + ".";
+    }
+    if (tool === "colourReplace") return "Replace colour changes every stitch of the colour you click.";
+    if (tool === "fill") return "Fill changes every joined stitch of the colour you click.";
+    if (t.stitchType === "erase" || tool === "eraseAll") return brushReach("Erase clears", t.brushSize);
+    if (tool === "line" || tool === "rect" || tool === "ellipse") return "A shape changes only the stitches it covers.";
+    if (tool === "text") return "Text changes only the stitches its letters cover.";
+    if (tool === "paint" || (t.partialStitchTool && t.partialStitchTool !== "erase")) {
+      return brushReach("Paint changes", t.brushSize) + (t.mirrorOn ? " Mirror drawing changes the mirrored stitches too." : "");
+    }
+    return null;
+  }
+
   return { cellChanged: cellChanged, stitchedResets: stitchedResets, clearDone: clearDone,
-    restoreDone: restoreDone, resetMessage: resetMessage };
+    restoreDone: restoreDone, resetMessage: resetMessage, markedCount: markedCount,
+    markedWith: markedWith, actionReach: actionReach };
 })();
+
+window.creatorActionReach = function(cv, ctx, stitchedView) {
+  return window.StitchedEdits.actionReach({
+    drawMode: cv.drawMode, activeTool: cv.activeTool, brushMode: cv.brushMode, stitchType: cv.stitchType,
+    brushSize: cv.brushSize, partialStitchTool: ctx && ctx.partialStitchTool,
+    hasSelection: !!cv.hasSelection, selectionCount: cv.selectionCount || 0,
+    mirrorOn: !!(cv.mirror && cv.mirror.on), stitchedView: !!stitchedView
+  });
+};
 
 
 /* ─── useMagicWand.js ─── */
@@ -8806,9 +8871,15 @@ window.useCreatorState = function useCreatorState() {
     if (_hasProgress && !(overrides && overrides.__confirmed)) {
       if (window.ConfirmDialog && window.ConfirmDialog.show) {
         var _ovr = overrides;
+        // Say how far it reaches before it runs (Stage 3): the whole chart.
+        var _marked = window.StitchedEdits ? window.StitchedEdits.markedCount(done) : 0;
+        var _parks = parkMarkers ? parkMarkers.length : 0;
         window.ConfirmDialog.show({
           title: "Regenerate will clear your progress",
-          message: "This project has stitched progress and/or park markers. Generating a new pattern will reset all stitches to unstitched and remove every park marker. Consider exporting a backup (File > Export Backup) before continuing.\n\nContinue anyway?",
+          message: "Regenerating makes a new chart from your picture, so it can change every stitch in the chart. " +
+            (_marked > 0 ? "It clears the marks on all " + _marked.toLocaleString() + " marked stitch" + (_marked === 1 ? "" : "es") : "It clears your progress") +
+            (_parks > 0 ? " and removes " + (_parks === 1 ? "the parking marker" : "all " + _parks + " parking markers") : "") +
+            ", and Undo cannot bring them back. Consider exporting a backup (File > Export Backup) before continuing.\n\nContinue anyway?",
           confirmLabel: "Regenerate (clear progress)",
           danger: true
         }).then(function(ok) {
@@ -8833,9 +8904,9 @@ window.useCreatorState = function useCreatorState() {
       var _edits = editHistory ? editHistory.length : 0;
       window.ConfirmDialog.show({
         title: "Replace your chart?",
-        message: (_edits > 0
-          ? "Regenerating makes a new chart from your picture and discards the " + _edits + " edit" + (_edits === 1 ? "" : "s") + " you made to this one."
-          : "Regenerating makes a new chart from your picture. Any changes made to this chart since it was generated will be lost.") +
+        message: "Regenerating makes a new chart from your picture, so it can change every stitch in the chart. " + (_edits > 0
+          ? "It discards the " + _edits + " edit" + (_edits === 1 ? "" : "s") + " you made to this one."
+          : "Any changes made to this chart since it was generated will be lost.") +
           " Undo cannot bring them back.",
         confirmLabel: "Regenerate",
         danger: true
@@ -24231,6 +24302,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   var stitchedOn = app.chartView === "stitched" && !app.previewActive && !app.splitPaneEnabled;
 
+  // How far the next action reaches (Stage 3), said beside the progress
+  // note: one stitch, a brush's worth, every joined stitch of a colour,
+  // every stitch of a colour, or the selection. Regenerate and Recolour,
+  // which change the whole chart, say so in their own dialogs.
+  var reachText = window.creatorActionReach ? window.creatorActionReach(cv, ctx, stitchedOn) : null;
+
   return h("div", null,
     cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {className:"pt-note"},
       "To see symbols, you may need to zoom in."),
@@ -24299,7 +24376,10 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     ctx.progressPct > 0 && h("div", {
       className:"stitched-banner pt-note pt-note--accent", role:"status"
     },
-      h("span", {className:"pt-note__text"}, Icons.info(), " This project is ", ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "less than 1", "% stitched. Changing stitched cells resets them to not done."),
+      h("span", {className:"pt-note__text"}, Icons.info(), " ",
+        h("strong", null, ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "Less than 1", "% stitched."),
+        " Changing a marked stitch clears its mark.",
+        reachText && h("span", {className:"pt-note__reach", "data-reach":""}, " " + reachText)),
       h("button", {
         type:"button", "aria-pressed": !!cv.showStitched,
         className:"stitched-banner__toggle cs-seltools__btn" + (cv.showStitched ? " cs-seltools__btn--on" : ""),
@@ -25608,6 +25688,17 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
     var hasThumb = !!(pat && sW > 0 && sH > 0);
 
+    // How far this reaches, before it runs (Stage 3): every stitch of the
+    // colour, in the selection or the whole pattern, and how many of those
+    // are marked as stitched (their marks clear; Undo brings them back).
+    var reachIds = swapping && pickedId ? srcIds.concat([pickedId]) : srcIds;
+    var marked = window.StitchedEdits && props.done ? window.StitchedEdits.markedWith(props.done, pat, reachIds, previewMask) : 0;
+    var where = scope === 'selection' ? ' in the selection' : ' in the whole pattern';
+    var reachLine = (swapping && picked
+        ? 'This changes every ' + lbl(srcEntry || { id: srcId }) + ' and every ' + lbl(picked) + ' stitch' + where + '.'
+        : 'This changes every ' + lbl(srcEntry || { id: srcId }) + ' stitch' + (extraIds.length ? ', and the similar shades you added,' : '') + where + '.') +
+      (marked > 0 ? ' ' + marked.toLocaleString() + ' of them ' + (marked === 1 ? 'is' : 'are') + ' marked as stitched; ' + (marked === 1 ? 'its mark clears' : 'their marks clear') + '.' : '');
+
     return h(window.Overlay, {
       onClose: onClose,
       variant: 'dialog',
@@ -25632,6 +25723,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
             style: { margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-primary)' }
           }, 'Replace ' + srcLabel + ' with…')
         ),
+        h('p', { className: 'colour-replace-reach' + (marked > 0 ? ' colour-replace-reach--marked' : ''), 'data-reach': '' }, reachLine),
 
         scopeRow,
         fuzzyRow,

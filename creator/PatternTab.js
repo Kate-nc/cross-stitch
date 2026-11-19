@@ -116,6 +116,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
   var stitchedOn = app.chartView === "stitched" && !app.previewActive && !app.splitPaneEnabled;
 
+  // How far the next action reaches (Stage 3), said beside the progress
+  // note: one stitch, a brush's worth, every joined stitch of a colour,
+  // every stitch of a colour, or the selection. Regenerate and Recolour,
+  // which change the whole chart, say so in their own dialogs.
+  var reachText = window.creatorActionReach ? window.creatorActionReach(cv, ctx, stitchedOn) : null;
+
   return h("div", null,
     cv.cs < 6 && (cv.view === "symbol" || cv.view === "both") && h("div", {className:"pt-note"},
       "To see symbols, you may need to zoom in."),
@@ -184,7 +190,10 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     ctx.progressPct > 0 && h("div", {
       className:"stitched-banner pt-note pt-note--accent", role:"status"
     },
-      h("span", {className:"pt-note__text"}, Icons.info(), " This project is ", ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "less than 1", "% stitched. Changing stitched cells resets them to not done."),
+      h("span", {className:"pt-note__text"}, Icons.info(), " ",
+        h("strong", null, ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "Less than 1", "% stitched."),
+        " Changing a marked stitch clears its mark.",
+        reachText && h("span", {className:"pt-note__reach", "data-reach":""}, " " + reachText)),
       h("button", {
         type:"button", "aria-pressed": !!cv.showStitched,
         className:"stitched-banner__toggle cs-seltools__btn" + (cv.showStitched ? " cs-seltools__btn--on" : ""),

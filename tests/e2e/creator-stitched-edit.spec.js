@@ -39,7 +39,7 @@ test.describe('Editing a stitched pattern (desktop)', function() {
 
     await stitchFirst(page, 200);
     const banner = page.locator('.stitched-banner');
-    await expect(banner).toContainText('stitched. Changing stitched cells resets them to not done.');
+    await expect(banner).toContainText('% stitched. Changing a marked stitch clears its mark.');
     await expect(banner).toContainText('% stitched');
 
     const toggle = banner.getByRole('button', { name: 'Show stitched' });

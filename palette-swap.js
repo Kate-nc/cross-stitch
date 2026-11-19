@@ -1623,7 +1623,15 @@ function usePaletteSwap(props) {
     )),
 
     // Tracking progress warning
-    doneCount > 0 && warnNote("This pattern has tracking progress (" + doneCount.toLocaleString('en-GB') + " stitches marked). Applying a palette swap will reset your progress."),
+    // How far this reaches (Stage 3): every stitch whose thread changes, and
+    // the marks on those that are marked (Undo brings them back).
+    (function() {
+      var changing = Object.keys(finalMapping).filter(function(id) { var m = finalMapping[id]; return m && m.dest && m.dest.id !== id; });
+      var markedChanging = doneCount > 0 && window.StitchedEdits ? window.StitchedEdits.markedWith(done, pat, changing) : 0;
+      var text = "This changes every stitch of the " + changing.length + " thread" + (changing.length === 1 ? "" : "s") + " that change" + (changing.length === 1 ? "s" : "") + ", across the whole chart.";
+      if (markedChanging > 0) return warnNote(text + " " + markedChanging.toLocaleString('en-GB') + " of them " + (markedChanging === 1 ? "is" : "are") + " marked as stitched; " + (markedChanging === 1 ? "its mark clears" : "their marks clear") + ".", { "data-reach": "" });
+      return React.createElement("p", { className: "cs-toolsec__hint ps-reach", "data-reach": "" }, text);
+    })(),
 
     // Collision warnings
     collisions.length > 0 && warnNote("Collision: " + collisionText + ". More than one source colour maps to the same thread."),

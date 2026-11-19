@@ -2600,6 +2600,7 @@ function CreatorApp({
     bsLines: state.bsLines,
     fabricColour: state.fabricColour,
     selectionMask: state.hasSelection ? state.selectionMask : null,
+    done: state.done,
     onApply: function (dstThread, opts) {
       var src = state.colourReplaceModal;
       var alsoIds = opts && opts.alsoIds || [];

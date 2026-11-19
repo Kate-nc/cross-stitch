@@ -9847,3 +9847,6 @@ body.creator-compact .chart-view-bar { top: 8px; bottom: auto; right: 8px; max-w
 .chart-stitched { position: absolute; z-index: 1; overflow: hidden; cursor: grab; touch-action: pan-x pan-y; }
 .chart-stitched:active { cursor: grabbing; }
 .chart-stitched > canvas { display: block; }
+/* Replace colour says how far it reaches before it runs (Stage 3). */
+.colour-replace-reach { margin: 0 0 12px; font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
+.colour-replace-reach--marked { padding: 6px 10px; border-radius: var(--radius-md); background: var(--warning-soft); color: var(--accent-ink); }

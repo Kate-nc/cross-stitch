@@ -447,6 +447,17 @@
 
     var hasThumb = !!(pat && sW > 0 && sH > 0);
 
+    // How far this reaches, before it runs (Stage 3): every stitch of the
+    // colour, in the selection or the whole pattern, and how many of those
+    // are marked as stitched (their marks clear; Undo brings them back).
+    var reachIds = swapping && pickedId ? srcIds.concat([pickedId]) : srcIds;
+    var marked = window.StitchedEdits && props.done ? window.StitchedEdits.markedWith(props.done, pat, reachIds, previewMask) : 0;
+    var where = scope === 'selection' ? ' in the selection' : ' in the whole pattern';
+    var reachLine = (swapping && picked
+        ? 'This changes every ' + lbl(srcEntry || { id: srcId }) + ' and every ' + lbl(picked) + ' stitch' + where + '.'
+        : 'This changes every ' + lbl(srcEntry || { id: srcId }) + ' stitch' + (extraIds.length ? ', and the similar shades you added,' : '') + where + '.') +
+      (marked > 0 ? ' ' + marked.toLocaleString() + ' of them ' + (marked === 1 ? 'is' : 'are') + ' marked as stitched; ' + (marked === 1 ? 'its mark clears' : 'their marks clear') + '.' : '');
+
     return h(window.Overlay, {
       onClose: onClose,
       variant: 'dialog',
@@ -471,6 +482,7 @@
             style: { margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--text-primary)' }
           }, 'Replace ' + srcLabel + ' with…')
         ),
+        h('p', { className: 'colour-replace-reach' + (marked > 0 ? ' colour-replace-reach--marked' : ''), 'data-reach': '' }, reachLine),
 
         scopeRow,
         fuzzyRow,

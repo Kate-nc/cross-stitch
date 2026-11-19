@@ -1562,7 +1562,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onClose:()=>state.setColourReplaceModal(null),
         pat:state.pat, sW:state.sW, sH:state.sH, pal:state.pal, threadBrand:state.threadBrand,
         partialStitches:state.partialStitches, bsLines:state.bsLines, fabricColour:state.fabricColour,
-        selectionMask:state.hasSelection?state.selectionMask:null,
+        selectionMask:state.hasSelection?state.selectionMask:null, done:state.done,
         onApply:function(dstThread,opts){
           var src=state.colourReplaceModal;
           var alsoIds=(opts&&opts.alsoIds)||[];

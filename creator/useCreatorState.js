@@ -2264,9 +2264,15 @@ window.useCreatorState = function useCreatorState() {
     if (_hasProgress && !(overrides && overrides.__confirmed)) {
       if (window.ConfirmDialog && window.ConfirmDialog.show) {
         var _ovr = overrides;
+        // Say how far it reaches before it runs (Stage 3): the whole chart.
+        var _marked = window.StitchedEdits ? window.StitchedEdits.markedCount(done) : 0;
+        var _parks = parkMarkers ? parkMarkers.length : 0;
         window.ConfirmDialog.show({
           title: "Regenerate will clear your progress",
-          message: "This project has stitched progress and/or park markers. Generating a new pattern will reset all stitches to unstitched and remove every park marker. Consider exporting a backup (File > Export Backup) before continuing.\n\nContinue anyway?",
+          message: "Regenerating makes a new chart from your picture, so it can change every stitch in the chart. " +
+            (_marked > 0 ? "It clears the marks on all " + _marked.toLocaleString() + " marked stitch" + (_marked === 1 ? "" : "es") : "It clears your progress") +
+            (_parks > 0 ? " and removes " + (_parks === 1 ? "the parking marker" : "all " + _parks + " parking markers") : "") +
+            ", and Undo cannot bring them back. Consider exporting a backup (File > Export Backup) before continuing.\n\nContinue anyway?",
           confirmLabel: "Regenerate (clear progress)",
           danger: true
         }).then(function(ok) {
@@ -2291,9 +2297,9 @@ window.useCreatorState = function useCreatorState() {
       var _edits = editHistory ? editHistory.length : 0;
       window.ConfirmDialog.show({
         title: "Replace your chart?",
-        message: (_edits > 0
-          ? "Regenerating makes a new chart from your picture and discards the " + _edits + " edit" + (_edits === 1 ? "" : "s") + " you made to this one."
-          : "Regenerating makes a new chart from your picture. Any changes made to this chart since it was generated will be lost.") +
+        message: "Regenerating makes a new chart from your picture, so it can change every stitch in the chart. " + (_edits > 0
+          ? "It discards the " + _edits + " edit" + (_edits === 1 ? "" : "s") + " you made to this one."
+          : "Any changes made to this chart since it was generated will be lost.") +
           " Undo cannot bring them back.",
         confirmLabel: "Regenerate",
         danger: true
