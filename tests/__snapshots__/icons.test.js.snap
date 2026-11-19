@@ -81,6 +81,7 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "sliders",
   "sparkles",
   "spinner",
+  "splitView",
   "star",
   "stitchDot",
   "sun",

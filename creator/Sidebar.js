@@ -117,7 +117,6 @@ window.CreatorSidebar = function CreatorSidebar() {
       });
       return worst;
     }
-    var STASH_DOT = { owned: 'var(--success)', partial: 'var(--warning)', needed: 'var(--danger)' };
     var hiddenByFilter = 0;
     // A1 (UX Phase 5) — collect composite keys of unowned palette threads so
     // the warning panel can wire its CTAs honestly. Mirrors stashStatusForChip.
@@ -180,8 +179,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         stashStatus && h("span", {
           className: "pal-row__stash pal-row__stash--" + stashStatus,
           title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'You own this colour but quantity may be low' : 'Not in stash',
-          "aria-label": "Stash status: " + stashStatus,
-          style: { background: STASH_DOT[stashStatus] }
+          "aria-label": "Stash status: " + stashStatus
         }),
         app.appMode === "edit" && withTip(ihs ? "Stop showing on chart" : "Show on chart", h("button", {
           type: "button",
@@ -224,27 +222,28 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     }).filter(Boolean);
     var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
-    return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
+    return h("div", {className:"pal-sec"},
       h("div", {
-        onClick:function(){setPalChipsOpen(function(o){return !o;});},
-        style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px 8px",cursor:"pointer",userSelect:"none"}
+        className:"pal-sec__head",
+        onClick:function(){setPalChipsOpen(function(o){return !o;});}
       },
-        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
-          h("span", {"aria-hidden":"true",style:{color:"var(--text-tertiary)",display:"inline-flex",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, Icons.chevronRight()),
-          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "In this pattern"),
+        h("div", {className:"pal-sec__lead"},
+          h("span", {"aria-hidden":"true", className:"pal-sec__chev" + (palChipsOpen ? " pal-sec__chev--open" : "")}, Icons.chevronRight()),
+          h("span", {className:"pal-sec__title"}, "In this pattern"),
           app.appMode === "edit" && typeof InfoIcon !== "undefined" && h(InfoIcon, {
             label: "Palette",
             width: 260,
             text: "Use Change symbol beside a thread to choose a different chart symbol. Strands and skeins are for each symbol on its own; Materials adds up the threads that several symbols share."
           })
         ),
-        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
+        h("div", {className:"pal-sec__actions"},
           app.appMode === "edit" && unusedCount > 0 && h("button", {
+            type: "button", className: "sb-mini-btn",
             onClick: function(e) { e.stopPropagation(); if (typeof ctx.removeUnusedColours === 'function') ctx.removeUnusedColours(); },
-            title: "Remove all colours not used in the pattern",
-            style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
+            title: "Remove all colours not used in the pattern"
           }, "Remove unused (" + unusedCount + ")"),
           app.appMode === "edit" && ctx.pal && ctx.pal.length > 1 && h("button", {
+            type: "button", className: "sb-mini-btn",
             onClick: function(e) {
               e.stopPropagation();
               cv.setActiveTool("magicWand");
@@ -253,30 +252,25 @@ window.CreatorSidebar = function CreatorSidebar() {
               cv.selectAll();
               cv.setWandPanel("reduce");
             },
-            title: "Select all stitches and open Simplify colours to merge similar colours",
-            style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
+            title: "Select all stitches and open Simplify colours to merge similar colours"
           }, "Simplify colours\u2026"),
-          window.creatorThreadCounts(displayPal).threads > 0 && h("span", {className:"palette-counts", title:"Threads used in stitches", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
+          window.creatorThreadCounts(displayPal).threads > 0 && h("span", {className:"palette-counts", title:"Threads used in stitches"}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
           symbolLimitMsg && h("span", {
             className: "palette-counts-warn", role: "img",
             title: symbolLimitMsg,
-            "aria-label": symbolLimitMsg,
-            style: {display:"inline-flex",width:16,height:16,color:"var(--danger)"}
+            "aria-label": symbolLimitMsg
           }, Icons.warning())
         )
       ),
-      palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
+      palChipsOpen && h("div", {className:"pal-sec__body"},
       window.BlendHelpNote && window.creatorThreadCounts(displayPal).blends > 0 && h(window.BlendHelpNote, null),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
-      stashHas && h("div", {
-        style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexWrap:"wrap"}
-      },
-        h("label", {style:{display:"flex",alignItems:"center",gap:5,cursor:"pointer",userSelect:"none"}},
+      stashHas && h("div", {className:"pal-stash-filter"},
+        h("label", {className:"pal-stash-filter__label"},
           h("input", {
             type:"checkbox",
             checked: !!ctx.creatorStashFilter,
-            onChange: function(e) { if (typeof ctx.setCreatorStashFilter === 'function') ctx.setCreatorStashFilter(e.target.checked); },
-            style:{margin:0}
+            onChange: function(e) { if (typeof ctx.setCreatorStashFilter === 'function') ctx.setCreatorStashFilter(e.target.checked); }
           }),
           h("span", null, "Only show threads I own")
         )
@@ -288,26 +282,27 @@ window.CreatorSidebar = function CreatorSidebar() {
       ctx.creatorStashFilter && stashHas && unownedKeys.length > 0 && h("div", {
         role: "status",
         "aria-live": "polite",
-        style:{marginBottom:'var(--s-2)',padding:"8px 10px",borderRadius:7,background:"#FAF5E1",border:"1px solid #E5C97D",fontSize:'var(--text-xs)',color:"var(--accent-ink)",display:"flex",flexDirection:"column",gap:6}
+        className: "pal-unowned"
       },
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,fontWeight:600}},
+        h("div", {className:"pal-unowned__head"},
           typeof Icons !== 'undefined' && Icons.warning ? Icons.warning() : null,
           h("span", null,
             unownedKeys.length + " unowned thread" + (unownedKeys.length !== 1 ? "s" : "") + " still in this pattern"
           )
         ),
-        h("div", {style:{color:"#78350f",lineHeight:1.4}},
+        h("div", {className:"pal-unowned__text"},
           "The filter only hides chips \u2014 it does not change the pattern. Substitute or buy these threads to be truly stash-ready."
         ),
-        h("div", {style:{display:"flex",gap:6,flexWrap:"wrap"}},
+        h("div", {className:"pal-unowned__actions"},
           h("button", {
+            type: "button", className: "pal-unowned__btn",
             onClick: function() {
               if (typeof ctx.setAdaptModalMode === 'function') ctx.setAdaptModalMode('stash');
               if (typeof ctx.setAdaptModalOpen === 'function') ctx.setAdaptModalOpen(true);
-            },
-            style:{fontSize:'var(--text-xs)',padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"1px solid #D49B45",background:"var(--surface)",color:"var(--accent-ink)",fontWeight:600,cursor:"pointer"}
+            }
           }, "Adapt to my stash"),
           h("button", {
+            type: "button", className: "pal-unowned__btn pal-unowned__btn--strong",
             onClick: function() {
               if (typeof StashBridge === 'undefined' || typeof StashBridge.markManyToBuy !== 'function') {
                 if (app.addToast) app.addToast("Shopping list is unavailable right now.", {type:"error", duration:3000});
@@ -326,48 +321,36 @@ window.CreatorSidebar = function CreatorSidebar() {
               }).catch(function() {
                 if (app.addToast) app.addToast("Could not update your shopping list.", {type:"error", duration:3000});
               });
-            },
-            style:{fontSize:'var(--text-xs)',padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"1px solid #D49B45",background:"var(--warning-soft)",color:"var(--accent-ink)",fontWeight:600,cursor:"pointer"}
+            }
           }, "Add to shopping list")
         )
       ),
       // Brief D — banner when filter hides chips (kept as a quieter follow-up
       // line for users who still need the "turn off the filter" hint).
-      ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && unownedKeys.length === 0 && h("div", {
-        style:{marginBottom:'var(--s-2)',padding:"5px 8px",borderRadius:'var(--radius-sm)',background:"#FAF5E1",border:"0.5px solid #E5C97D",fontSize:10,color:"var(--accent-ink)"}
-      }, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
-      ctx.creatorStashFilter && !stashHas && h("div", {
-        style:{marginBottom:'var(--s-2)',padding:"5px 8px",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",border:"0.5px solid var(--danger-soft)",fontSize:10,color:"var(--danger)"}
-      }, "Your stash is empty \u2014 turn off this filter, or add threads in the Stash Manager."),
-      isPaintMode && h("div", {
-        style:{
-          marginBottom:'var(--s-2)',padding:"5px 8px",borderRadius:7,
-          background: selInfo ? "var(--accent-light)" : "#FAF5E1",
-          border: selInfo ? "1px solid var(--accent-border)" : "1px solid #E5C97D",
-          display:"flex",alignItems:"center",gap:7,fontSize:'var(--text-xs)',minHeight:30
-        }
-      },
+      ctx.creatorStashFilter && stashHas && hiddenByFilter > 0 && unownedKeys.length === 0 && h("div", {className:"pal-filter-note"}, hiddenByFilter + " unowned colour" + (hiddenByFilter !== 1 ? "s" : "") + " hidden \u2014 turn off the filter to see all."),
+      ctx.creatorStashFilter && !stashHas && h("div", {className:"pal-filter-note pal-filter-note--danger"}, "Your stash is empty \u2014 turn off this filter, or add threads in the Stash Manager."),
+      isPaintMode && h("div", {className:"pal-paint-hint" + (selInfo ? " pal-paint-hint--chosen" : "")},
         selInfo
           ? h(React.Fragment, null,
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid var(--border)"}}),
-              h("span", {style:{fontWeight:600,color:"var(--accent)"}, title: formatThread(selInfo, {variant:"title"})}, formatThread(selInfo, {variant:"short"})),
-              h("span", {style:{color:"var(--text-secondary)",flex:1,minWidth:0,overflowWrap:"anywhere"}}, formatThread(selInfo, {variant:"name"})),
+              h("span", {className:"pal-paint-hint__swatch", style:{background:"rgb("+selInfo.rgb+")"}}),
+              h("span", {className:"pal-paint-hint__id", title: formatThread(selInfo, {variant:"title"})}, formatThread(selInfo, {variant:"short"})),
+              h("span", {className:"pal-paint-hint__name"}, formatThread(selInfo, {variant:"name"})),
               h("button", {
+                type:"button", className:"pal-paint-hint__clear",
                 onClick:function(){cv.setSelectedColorId(null);},
-                title:"Clear selection",
-                style:{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",fontSize:'var(--text-md)',lineHeight:1,padding:"0 2px",flexShrink:0}
-              }, "\xD7")
+                title:"Clear selection", "aria-label":"Clear selection"
+              }, Icons.x())
             )
           : h(React.Fragment, null,
-              h("span", {style:{fontSize:'var(--text-sm)'}}, Icons.pointing()),
-              h("span", {style:{color:"var(--accent-ink)"}}, (window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer())
+              h("span", {className:"pal-paint-hint__icon", "aria-hidden":"true"}, Icons.pointing()),
+              h("span", {className:"pal-paint-hint__text"}, (window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer())
                 ? "Select a colour to paint \u2014 or long-press a stitch"
                 : "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
       displayPal.length > 0
         ? h("div", {className:"creator-pattern-chips pal-rows", role:"list"}, chips)
-        : h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet"),
+        : h("div", {className:"pal-pick-empty"}, "No colours yet"),
       symbolPanel(displayPal)
       )
     );
@@ -526,65 +509,57 @@ window.CreatorSidebar = function CreatorSidebar() {
         !palIsEmpty && h("button", {type: "button", className: "pal-row__btn", "aria-label": "Close", title: "Close",
           onClick: function() { ctx.setColPickerOpen(false); }}, Icons.x())
       ),
-      ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:'var(--s-1)',marginBottom:'var(--s-2)',padding:"6px 8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)'}},
+      ctx.isScratchMode && h("div", {className:"pal-steps"},
         [["1","Add colour",true],["2","Select chip",true],["3","Paint!",false]].map(function(item,i) {
           return h(React.Fragment, {key:i},
-            h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)'}},
-              h("span", {style:{width:16,height:16,borderRadius:"50%",background:"var(--accent)",color:"var(--surface)",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
-              h("span", {style:{fontSize:10,color:"var(--text-secondary)",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
+            h("div", {className:"pal-steps__item"},
+              h("span", {className:"pal-steps__num"}, item[0]),
+              h("span", {className:"pal-steps__label"}, item[1])
             ),
-            item[2] && h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--text-tertiary)",display:"inline-flex"}}, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
+            item[2] && h("span", {"aria-hidden":"true", className:"pal-steps__sep"}, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
           );
         })
       ),
       // Toggle between single thread and blend mode
-      h("div", {style:{display:"flex",gap:'var(--s-1)',marginBottom:'var(--s-2)'}},
+      h("div", {className:"cs-seltools sb-pair"},
         h("button", {
           type:"button", "aria-pressed":!blendMode, onClick:function(){ setBlendMode(false); },
-          style:{flex:1,padding:"4px 8px",fontSize:'var(--text-xs)',fontWeight:blendMode?500:700,cursor:"pointer",
-            border:blendMode?"1px solid var(--border)":"1px solid var(--accent)",borderRadius:'var(--radius-sm)',
-            background:blendMode?"var(--surface)":"var(--accent-light)",color:blendMode?"var(--text-secondary)":"var(--accent)"}
+          className:"cs-seltools__btn" + (!blendMode ? " cs-seltools__btn--on" : "")
         }, "Single thread"),
         h("button", {
           type:"button", "aria-pressed":blendMode, onClick:function(){ setBlendMode(true); },
-          style:{flex:1,padding:"4px 8px",fontSize:'var(--text-xs)',fontWeight:blendMode?700:500,cursor:"pointer",
-            border:blendMode?"1px solid var(--accent)":"1px solid var(--border)",borderRadius:'var(--radius-sm)',
-            background:blendMode?"var(--accent-light)":"var(--surface)",color:blendMode?"var(--accent)":"var(--text-secondary)"}
+          className:"cs-seltools__btn" + (blendMode ? " cs-seltools__btn--on" : "")
         }, "Blend (2 threads)")
       ),
       !blendMode ? singlePicker : h(React.Fragment, null,
         // Blend mode UI: pick two threads
-        h("div", {className:"blend-component-slots",style:{display:"flex",flexDirection:"column",gap:'var(--s-1)',marginBottom:6}},
-          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread1?"var(--accent-light)":"var(--surface)"}},
-            blendThread1 ? h(React.Fragment, null,
-              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
-              h("span", {style:{fontWeight:600}}, "Thread 1: " + formatThread(Object.assign({},blendThread1,{brand:patBrand}))),
-              h("button", {type:"button", "aria-label":"Remove thread 1", onClick:function(){setBlendThread1(null);}}, window.Icons.x())
-            ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 1\u2026")
-          ),
-          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",fontWeight:600}}, "+"),
-          h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread2?"var(--accent-light)":"var(--surface)"}},
-            blendThread2 ? h(React.Fragment, null,
-              h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
-              h("span", {style:{fontWeight:600}}, "Thread 2: " + formatThread(Object.assign({},blendThread2,{brand:patBrand}))),
-              h("button", {type:"button", "aria-label":"Remove thread 2", onClick:function(){setBlendThread2(null);}}, window.Icons.x())
-            ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 2\u2026")
-          )
+        h("div", {className:"blend-component-slots"},
+          [[blendThread1, setBlendThread1, 1], [blendThread2, setBlendThread2, 2]].map(function(slot, i) {
+            var t = slot[0];
+            return h(React.Fragment, {key:slot[2]},
+              i > 0 && h("span", {className:"blend-slot__plus"}, "+"),
+              h("div", {className:"blend-slot" + (t ? " blend-slot--filled" : "")},
+                t ? h(React.Fragment, null,
+                  h("span", {className:"blend-slot__swatch", style:{background:"rgb("+t.rgb+")"}}),
+                  h("span", {className:"blend-slot__name"}, "Thread " + slot[2] + ": " + formatThread(Object.assign({},t,{brand:patBrand}))),
+                  h("button", {type:"button", "aria-label":"Remove thread " + slot[2], onClick:function(){slot[1](null);}}, window.Icons.x())
+                ) : h("span", {className:"blend-slot__empty"}, "Thread " + slot[2] + "\u2026")
+              ));
+          })
         ),
         blendPreview && h(window.BlendRecipePreview, {recipe:blendPreview, fabricColour:app.fabricColour, fabricCt:ctx.fabricCt}),
         blendPreview && dE2000(blendThread1.lab,blendThread2.lab)>20 && h("p",{className:"cs-toolsec__hint"},"These colours are far apart and may look speckled together. Automatic conversion uses closer partners; you can still add this recipe."),
         blendThread1 && blendThread2 && blendThread1.id !== blendThread2.id && h("button", {
           type:"button", onClick:addBlend,
-          style:{width:"100%",padding:"6px 0",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",
-            border:"1px solid var(--accent)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",marginBottom:'var(--s-2)'}
+          className:"cs-seltools__btn cs-seltools__btn--on sb-block-btn"
         }, existingBlend ? "Select existing blend" : "Add blend " + blendPreview.id),
-        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--danger)",marginBottom:'var(--s-2)'}}, "Pick two different threads"),
+        blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {className:"sb-error", role:"alert"}, "Pick two different threads"),
         h("input", {
           type:"text", "aria-label":"Search " + brandName + " threads", placeholder:"Search " + brandName + " threads\u2026",
-          value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);setBlendShown(60);},
-          style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
+          className:"pal-pick-search",
+          value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);setBlendShown(60);}
         }),
-        h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
+        h("div", {className:"pal-pick-list blend-pick-list"},
           blendFiltered.slice(0,blendShown).map(function(d) {
             var isSel1 = blendThread1 && blendThread1.id === d.id;
             var isSel2 = blendThread2 && blendThread2.id === d.id;
@@ -597,19 +572,16 @@ window.CreatorSidebar = function CreatorSidebar() {
                 else if (!blendThread1) {setBlendThread1(d);setBlendShown(60);}
                 else if (!blendThread2 && d.id !== blendThread1.id) setBlendThread2(d);
               },
-              style:{display:"flex",alignItems:"center",gap:'var(--s-2)',textAlign:"left",minHeight:40,padding:"4px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
-                background:(isSel1||isSel2)?"var(--accent-light)":"var(--surface)",
-                border:(isSel1||isSel2)?"1px solid var(--accent-border)":"1px solid transparent",
-                opacity:(isSel1||isSel2)?0.7:1,width:"100%"}
+              className:"pal-pick-row" + ((isSel1||isSel2) ? " pal-pick-row--in" : "")
             },
-              h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
-              h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
-              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, formatThread(Object.assign({},d,{brand:patBrand}),{variant:"name"})),
-              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, isSel1?"1":"2") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
+              h("span", {className:"pal-pick-row__swatch", style:{background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")"}}),
+              h("span", {className:"pal-pick-row__id"}, d.id),
+              h("span", {className:"pal-pick-row__name"}, formatThread(Object.assign({},d,{brand:patBrand}),{variant:"name"})),
+              h("span", {className:"pal-pick-row__mark", "aria-hidden":"true"}, (isSel1||isSel2) ? (isSel1?"1":"2") : Icons.plus())
             );
           }),
-          blendShown < blendFiltered.length && h("button",{type:"button",onClick:function(){setBlendShown(blendShown+60);}},"Show more threads ("+Math.min(blendShown,blendFiltered.length)+" of "+blendFiltered.length+")"),
-          blendFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
+          blendShown < blendFiltered.length && h("button",{type:"button",className:"cv-link sb-more-link",onClick:function(){setBlendShown(blendShown+60);}},"Show more threads ("+Math.min(blendShown,blendFiltered.length)+" of "+blendFiltered.length+")"),
+          blendFiltered.length === 0 && h("div", {className:"pal-pick-empty"}, "No colours found")
         )
       )
     );
@@ -665,11 +637,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     sTab = (tabs.find(function(t) { return !t.disabled; }) || tabs[0]).id;
   }
 
-  var tabBar = h("div", {
-    role:"tablist", "aria-label":"Edit mode panels",
-    style:{display:"flex",background:"var(--surface)",flexDirection:"column"}
-  },
-    h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
+  var tabBar = h("div", {role:"tablist", "aria-label":"Edit mode panels", className:"creator-sidebar-tablist"},
+    h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap"},
       h("div", {className:"rpanel-handle-bar"})
     ),
     h("div", {className:"creator-sidebar-tabs", "data-onboard":"creator-sidebar-tabs"},
@@ -714,149 +683,82 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
+  // Convert's building blocks (creator/ConvertPanel.js), so the two panels
+  // read the same. ConvertPanel.js is later in the bundle; these run at render.
+  var P = window.CreatorPanelParts;
+
   // ─── View toggle (shared between View tab content in both modes) ─────────
-  var viewToggle = (ctx.pat && ctx.pal) ? h("div", {
-    style:{padding:"8px 12px",display:"flex",alignItems:"center",gap:'var(--s-2)'}
-  },
-    h("span", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginRight:'var(--s-1)'}}, "View"),
-    h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
-      [["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl) {
-        return h("button", {
-          key:kl[0],
-          onClick:function(){cv.setView(kl[0]);},
-          title:"Cycle view (V)",
-          style:{
-            flex:1,padding:"4px 6px",fontSize:'var(--text-xs)',fontWeight:cv.view===kl[0]?600:400,
-            border:"none",cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
-            background:cv.view===kl[0]?"var(--surface)":"transparent",
-            color:cv.view===kl[0]?"var(--text-primary)":"var(--text-secondary)",
-            boxShadow:cv.view===kl[0]?"var(--shadow-sm)":"none"
-          }
-        }, kl[1]);
-      })
-    )
+  var viewToggle = (ctx.pat && ctx.pal) ? h("div", {className:"cs-toolsec sb-viewrow"},
+    h("span", {className:"cs-toolsec__title sb-viewrow__label", id:"sb-view-label"}, "View"),
+    P.seg({label:"View", className:"sb-viewrow__seg", value:cv.view, onChange:function(id){ cv.setView(id); },
+      options:[["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl){ return {id:kl[0], label:kl[1], title:"Cycle view (V)"}; })})
   ) : null;
 
   // ─── Highlight mode controls (shared between Edit and Track View tabs) ──
-  var highlightControls = cv.hiId ? h("div", {style:{padding:"8px 12px",borderTop:"0.5px solid var(--border)"}},
-    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}, "Highlight Mode"),
-    h("div", {style:{display:"flex",gap:3,flexWrap:"wrap"}},
-      [["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(function(kl) {
-        return h("button", {
-          key:kl[0],
-          onClick:function(){ cv.setHighlightMode(kl[0]); },
-          style:{
-            flex:1,padding:"4px 6px",fontSize:10,fontWeight:cv.highlightMode===kl[0]?600:400,
-            border:"1px solid "+(cv.highlightMode===kl[0]?"var(--accent)":"var(--border)"),
-            cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
-            background:cv.highlightMode===kl[0]?"var(--accent-light)":"transparent",
-            color:cv.highlightMode===kl[0]?"var(--accent)":"var(--text-secondary)",
-          }
-        }, kl[1]);
-      })
-    ),
-    cv.highlightMode === "isolate" && h("div", {style:{marginTop:6}},
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-        "Dim strength",
-        h("input", {type:"range",min:0,max:1,step:0.05,value:cv.bgDimOpacity,
-          onChange:function(e){cv.setBgDimOpacity(parseFloat(e.target.value));}})
-      )
-    ),
-    cv.highlightMode === "tint" && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6}},
-      h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}, "Tint"),
-      h("input", {type:"color",value:cv.tintColor,onChange:function(e){cv.setTintColor(e.target.value);},style:{width:24,height:20,border:"none",padding:0,cursor:"pointer"}}),
-      h("input", {type:"range",min:0,max:1,step:0.05,value:cv.tintOpacity,
+  function dimSlider(value, set) {
+    return h("label", {className:"sb-slider-row"},
+      h("span", {className:"sb-slider-row__label"}, "Dim strength"),
+      h("input", {type:"range",min:0,max:1,step:0.05,value:value,
+        onChange:function(e){set(parseFloat(e.target.value));}}));
+  }
+  var highlightControls = cv.hiId ? h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Highlight Mode"),
+    P.seg({label:"Highlight mode", className:"cv-seg--sub", value:cv.highlightMode, onChange:function(id){ cv.setHighlightMode(id); },
+      options:[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(function(kl){ return {id:kl[0], label:kl[1]}; })}),
+    cv.highlightMode === "isolate" && dimSlider(cv.bgDimOpacity, cv.setBgDimOpacity),
+    cv.highlightMode === "tint" && h("div", {className:"sb-slider-row"},
+      h("label", {className:"sb-slider-row__label", htmlFor:"sb-tint-colour"}, "Tint"),
+      h("input", {id:"sb-tint-colour", type:"color", className:"sb-colour-input", value:cv.tintColor, onChange:function(e){cv.setTintColor(e.target.value);}}),
+      h("input", {type:"range",min:0,max:1,step:0.05,value:cv.tintOpacity, "aria-label":"Tint strength",
         onChange:function(e){cv.setTintOpacity(parseFloat(e.target.value));}})
     ),
-    cv.highlightMode === "spotlight" && h("div", {style:{marginTop:6}},
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-        "Dim strength",
-        h("input", {type:"range",min:0,max:1,step:0.05,value:cv.spotDimOpacity,
-          onChange:function(e){cv.setSpotDimOpacity(parseFloat(e.target.value));}})
-      )
-    )
+    cv.highlightMode === "spotlight" && dimSlider(cv.spotDimOpacity, cv.setSpotDimOpacity)
   ) : null;
 
   // ─── Preview panel (shared between Create and Edit) ──────────────────────
   var isRealistic = app.previewMode === "realistic";
-  var previewPanel = h("div", {style:{padding:"12px"}},
-    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:'var(--s-2)'}}, "Chart Mode"),
-    h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
-      [["chart","Chart"],["pixel","Pixel"],["realistic","Realistic"]].map(function(kl) {
-        var active = (!app.previewActive && kl[0]==="chart") || (app.previewActive && app.previewMode===kl[0]);
-        return h("button", {
-          key:kl[0],
-          onClick:function(){
-            if(kl[0]==="chart"){app.setPreviewActive(false);}
-            else{app.setPreviewActive(true);app.setPreviewMode(kl[0]);}
-          },
-          style:{
-            flex:1,padding:"6px 4px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
-            border:"1px solid "+(active?"var(--accent)":"var(--border)"),
-            cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
-            background:active?"var(--accent-light)":"transparent",
-            color:active?"var(--accent)":"var(--text-secondary)",
-          }
-        }, kl[1]);
-      })
-    ),
+  var chartModeNow = !app.previewActive ? "chart" : app.previewMode;
+  var coverageNow = app.coverageOverride;
+  var previewPanel = h("div", {className:"cs-toolsec sb-preview"},
+    h("div", {className:"cs-toolsec__title"}, "Chart Mode"),
+    P.seg({label:"Chart mode", value:chartModeNow, onChange:function(id){
+        if (id === "chart") { app.setPreviewActive(false); }
+        else { app.setPreviewActive(true); app.setPreviewMode(id); }
+      },
+      options:[{id:"chart",label:"Chart"},{id:"pixel",label:"Pixel"},{id:"realistic",label:"Realistic"}]}),
     isRealistic && app.previewActive && h(React.Fragment, null,
-      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:'var(--s-1)'}}, "Quality Level"),
-      h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
-        [1,2,3,4].map(function(lv) {
-          return h("button", {
-            key:lv,
-            onClick:function(){app.setRealisticLevel(lv);},
-            style:{
-              flex:1,padding:"5px 4px",fontSize:'var(--text-xs)',fontWeight:app.realisticLevel===lv?600:400,
-              border:"1px solid "+(app.realisticLevel===lv?"var(--accent)":"var(--border)"),
-              cursor:"pointer",borderRadius:'var(--radius-sm)',fontFamily:"inherit",
-              background:app.realisticLevel===lv?"var(--accent-light)":"transparent",
-              color:app.realisticLevel===lv?"var(--accent)":"var(--text-secondary)",
-            }
-          }, "Level "+lv);
-        })
-      )
+      h("div", {className:"cs-toolsec__title sb-subtitle"}, "Quality Level"),
+      P.seg({label:"Quality level", className:"cv-seg--sub", value:app.realisticLevel, onChange:function(id){ app.setRealisticLevel(id); },
+        options:[1,2,3,4].map(function(lv){ return {id:lv, label:"Level " + lv}; })})
     ),
-    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:6}},
-      h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexShrink:0}}, "Coverage"),
-      h("input", {type:"range",min:0,max:1,step:0.05,
-        value:app.coverageOverride!=null?app.coverageOverride:0.5,
-        onChange:function(e){app.setCoverageOverride(parseFloat(e.target.value));},
-        style:{flex:1}
+    h("div", {className:"sb-slider-row"},
+      h("label", {className:"sb-slider-row__label", htmlFor:"sb-coverage"}, "Coverage"),
+      h("input", {id:"sb-coverage", type:"range",min:0,max:1,step:0.05,
+        value:coverageNow!=null?coverageNow:0.5,
+        onChange:function(e){app.setCoverageOverride(parseFloat(e.target.value));}
       }),
-      app.coverageOverride!=null && h("button", {
-        onClick:function(){app.setCoverageOverride(null);},
-        style:{fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer",color:"var(--text-secondary)"}
-      }, "\u21BA Auto")
+      coverageNow!=null && h("button", {type:"button", className:"cs-seltools__btn sb-auto-btn",
+        title:"Let the fabric count set the coverage",
+        onClick:function(){app.setCoverageOverride(null);}
+      }, Icons.refresh(), h("span", null, "Auto"))
     ),
-    h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
-      [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
-        var active = app.coverageOverride!=null && Math.abs(app.coverageOverride - preset[1]) < 0.03;
-        return h("button", {
-          key:preset[0],
-          onClick:function(){app.setCoverageOverride(preset[1]);},
-          style:{
-            flex:1,fontSize:9,padding:"3px 0",
-            border:"1px solid "+(active?"var(--accent)":"var(--border)"),
-            borderRadius:4,background:active?"var(--accent)":"transparent",
-            color:active?"var(--surface)":"var(--text-secondary)",cursor:"pointer"
-          }
-        }, preset[0]);
-      })
-    ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginBottom:'var(--s-1)'}},
+    P.seg({label:"Coverage preset", className:"cv-seg--sub",
+      value:(function(){ if (coverageNow == null) return null; var hit = [0.25,0.5,0.8,0.95].filter(function(v){ return Math.abs(coverageNow - v) < 0.03; }); return hit.length ? hit[0] : null; })(),
+      onChange:function(id){ app.setCoverageOverride(id); },
+      options:[["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(p){ return {id:p[1], label:p[0]}; })}),
+    h("label", {className:"cs-toolsec__check"},
       h("input", {type:"checkbox",checked:app.previewShowGrid,onChange:function(){app.setPreviewShowGrid(!app.previewShowGrid);}}),
-      "Grid overlay"
+      h("span", null, "Grid overlay")
     ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+    h("label", {className:"cs-toolsec__check"},
       h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(!app.previewFabricBg);}}),
-      "Fabric background"
+      h("span", null, "Fabric background")
     ),
     // ── Split / compare view (moved here from the top toolbar) ──────────
-    (ctx.pat && ctx.pal) && h("div", {style:{marginTop:14,paddingTop:10,borderTop:"1px solid var(--border)"}},
-      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:'var(--s-2)'}}, "Compare"),
+    (ctx.pat && ctx.pal) && h("div", {className:"sb-compare"},
+      h("div", {className:"cs-toolsec__title"}, "Compare"),
       h("button", {
+        type:"button",
         onClick:function(){
           var next = !app.splitPaneEnabled;
           app.setSplitPaneEnabled(next);
@@ -864,22 +766,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         },
         "aria-pressed": app.splitPaneEnabled ? "true" : "false",
         title: app.splitPaneEnabled ? "Exit compare view (\\)" : "Compare chart vs realistic preview (\\)",
-        style:{
-          width:"100%",padding:"8px 10px",fontSize:'var(--text-sm)',fontWeight:app.splitPaneEnabled?600:500,
-          border:"1px solid "+(app.splitPaneEnabled?"var(--accent)":"var(--border)"),
-          background:app.splitPaneEnabled?"var(--accent-light)":"transparent",
-          color:app.splitPaneEnabled?"var(--accent)":"var(--text-secondary)",
-          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit",
-          display:"flex",alignItems:"center",justifyContent:"center",gap:6
-        }
+        className:"cs-seltools__btn sb-block-btn" + (app.splitPaneEnabled ? " cs-seltools__btn--on" : "")
       },
-        h("svg", {width:14,height:12,viewBox:"0 0 14 12",fill:"none","aria-hidden":"true"},
-          h("rect",{x:"0.7",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"}),
-          h("rect",{x:"8",y:"0.7",width:"5.3",height:"10.6",rx:"1",stroke:"currentColor",strokeWidth:"1.3"})
-        ),
+        Icons.splitView(),
         app.splitPaneEnabled ? "Exit compare" : "Compare side-by-side"
       ),
-      h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+      h("p", {className:"cs-toolsec__hint"},
         "Shows the editable chart on the left and the realistic preview on the right."
       )
     )
@@ -909,14 +801,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     //    to convert, so its first tab is the grid's size and fabric. Size
     //    changes go through Resize canvas, which keeps the stitches. ──
     if (app.sourceTab === "canvas") {
-      var canvasPanel = h("div", {className:"creator-canvas-panel", style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}},
+      var canvasPanel = h("div", {className:"creator-canvas-panel"},
         h(Section, {title:"Size & fabric", defaultOpen:true},
-          h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"6px 0 10px"}},
-            h("span", {style:{color:"var(--text-tertiary)"}}, "Grid"),
-            h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, ctx.sW + " \u00D7 " + ctx.sH + " stitches")
+          h("div", {className:"sb-facts"},
+            h("span", {className:"sb-facts__k"}, "Grid"),
+            h("span", {className:"sb-facts__v"}, ctx.sW + " \u00D7 " + ctx.sH + " stitches")
           ),
           h("button", {
-            type:"button", className:"g-btn", style:{width:"100%",justifyContent:"center",marginBottom:'var(--s-3)'},
+            type:"button", className:"g-btn sb-block-btn",
             onClick:function(){ if (app.openResizeCanvas) app.openResizeCanvas(); }
           }, window.Icons && window.Icons.canvasResize ? window.Icons.canvasResize() : null, "Resize canvas\u2026"),
           fabricBlock()
@@ -924,34 +816,34 @@ window.CreatorSidebar = function CreatorSidebar() {
         // Tracing picture (audit DRAW-02): shown faintly under the grid,
         // never converted. Kept with the project as trace:<projectId>.
         h(Section, {title:"Tracing picture", defaultOpen:true},
-          h("input", {type:"file", accept:"image/*", ref:traceInputRef, style:{display:"none"},
+          h("input", {type:"file", accept:"image/*", ref:traceInputRef, hidden:true,
             "aria-label":"Choose a picture to trace",
             onChange:function(e){ var f = e.target.files && e.target.files[0]; e.target.value = "";
               if (f && app.setTracePicture) app.setTracePicture(f, typeof cv.overlayOpacity === "number" ? cv.overlayOpacity : 0.3); }}),
           (gen.img && gen.img.src)
-            ? h("div", {className:"canvas-trace", style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"6px 0"}},
-                h("img", {src:gen.img.src, alt:"Tracing picture", style:{maxWidth:"100%",maxHeight:120,objectFit:"contain",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",alignSelf:"flex-start"}}),
-                h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer"}},
+            ? h("div", {className:"canvas-trace"},
+                h("img", {src:gen.img.src, alt:"Tracing picture", className:"canvas-trace__img"}),
+                h("label", {className:"cs-toolsec__check"},
                   h("input", {type:"checkbox", checked:!!cv.showOverlay, onChange:function(e){ cv.setShowOverlay(e.target.checked); }}),
-                  "Show under the grid"),
-                h("label", {style:{display:"flex",flexDirection:"column",gap:4,fontSize:'var(--text-sm)'}},
+                  h("span", null, "Show under the grid")),
+                h("label", {className:"sb-field"},
                   h("span", null, "Opacity ", h("strong", null, Math.round((cv.overlayOpacity || 0) * 100) + "%")),
                   h("input", {type:"range", min:5, max:90, step:5, value:Math.round((cv.overlayOpacity || 0.3) * 100),
                     "aria-label":"Tracing picture opacity",
                     onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value) / 100); }})),
-                h("div", {style:{display:"flex",gap:'var(--s-2)'}},
+                h("div", {className:"sb-btnrow"},
                   h("button", {type:"button", className:"g-btn", onClick:function(){ traceInputRef.current && traceInputRef.current.click(); }}, "Change"),
                   h("button", {type:"button", className:"g-btn", onClick:function(){ if (app.removeTracePicture) app.removeTracePicture(); }}, "Remove"))
               )
-            : h("div", {style:{padding:"6px 0",display:"flex",flexDirection:"column",gap:'var(--s-2)'}},
-                h("p", {style:{margin:0,fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, "Show a picture faintly under the grid to draw over. It isn\u2019t converted."),
-                h("button", {type:"button", className:"g-btn", style:{alignSelf:"flex-start"}, onClick:function(){ traceInputRef.current && traceInputRef.current.click(); }},
+            : h("div", {className:"canvas-trace"},
+                h("p", {className:"cs-toolsec__hint"}, "Show a picture faintly under the grid to draw over. It isn\u2019t converted."),
+                h("button", {type:"button", className:"g-btn sb-start", onClick:function(){ traceInputRef.current && traceInputRef.current.click(); }},
                   window.Icons && window.Icons.image ? window.Icons.image() : null, "Add a tracing picture"))
         )
       );
-      var canvasActions = h("div", {style:{flexShrink:0,borderTop:"1px solid var(--border)",padding:"12px",background:"var(--surface)"}},
+      var canvasActions = h("div", {className:"creator-canvas-actions"},
         h("button", {
-          type:"button", className:"g-btn primary", style:{width:"100%",justifyContent:"center",padding:"10px"},
+          type:"button", className:"g-btn primary sb-block-btn sb-block-btn--tall",
           onClick:function(){ if (app.setAppMode) app.setAppMode("edit"); }
         }, window.Icons && window.Icons.pencil ? window.Icons.pencil() : null, "Back to drawing")
       );
@@ -969,32 +861,32 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ─── Project Info Section (shared between Create and Edit modes) ──────────
   // Name, designer, and description fields. Always-editable in both modes.
   var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
-    h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
-      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+    h("div", {className:"sb-fields"},
+      h("label", {className:"sb-field"},
         "Pattern name",
         h("input", {
           type:"text", value: app.projectName || "", maxLength:60,
           placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
           onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.renameProject === "function") app.renameProject(v); else if (typeof app.setProjectName === "function") app.setProjectName(v); },
-          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+          className:"cv-input"
         })
       ),
-      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+      h("label", {className:"sb-field"},
         "Designer (optional)",
         h("input", {
           type:"text", value: app.projectDesigner || "", maxLength:80,
           placeholder: "Your name or studio",
           onChange: function(e) { var v = e.target.value.slice(0,80); if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(v); },
-          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
+          className:"cv-input"
         })
       ),
-      h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
+      h("label", {className:"sb-field"},
         "Description / notes (optional)",
         h("textarea", {
           value: app.projectDescription || "", maxLength:500, rows:3,
           placeholder: "Source, copyright, stitching notes\u2026",
           onChange: function(e) { var v = e.target.value.slice(0,500); if (typeof app.setProjectDescription === "function") app.setProjectDescription(v); },
-          style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
+          className:"cv-input cv-input--area"
         })
       )
     )
@@ -1016,74 +908,52 @@ window.CreatorSidebar = function CreatorSidebar() {
     ["knot",          "French knot"]
   ];
   var curStitch = cv.stitchType || "cross";
-  var stitchTypeSection = h("div", {style:{padding:"12px"}},
-    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
-      "Stitch type"),
-    h("div", {role:"radiogroup", "aria-label":"Stitch type",
-      style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}},
+  // A pressed-or-not button in the Convert panel's style (.cs-seltools__btn).
+  function toolBtn(o, label) {
+    return h("button", Object.assign({type:"button"}, o.props || {}, {
+      className:"cs-seltools__btn" + (o.on ? " cs-seltools__btn--on" : "") + (o.className ? " " + o.className : ""),
+      onClick:o.onClick
+    }), label);
+  }
+  var stitchTypeSection = h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Stitch type"),
+    h("div", {role:"radiogroup", "aria-label":"Stitch type", className:"cs-seltools"},
       stitchOpts.map(function(kl) {
         var on = curStitch === kl[0];
-        return h("button", {
-          key:kl[0],
-          role:"radio",
-          "aria-checked": on ? "true" : "false",
-          onClick:function(){ cv.selectStitchType(kl[0]); },
-          style:{
-            padding:"7px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
-            border:"1px solid "+(on?"var(--accent)":"var(--border)"),
-            background:on?"var(--accent-light)":"transparent",
-            color:on?"var(--accent)":"var(--text-secondary)",
-            borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit",textAlign:"left"
-          }
-        }, kl[1]);
+        return toolBtn({on:on, onClick:function(){ cv.selectStitchType(kl[0]); },
+          props:{key:kl[0], role:"radio", "aria-checked": on ? "true" : "false"}}, kl[1]);
       })
     ),
-    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+    h("p", {className:"cs-toolsec__hint"},
       "Shortcuts: 1\u20134 for Cross / Half\u2009/ / Half\u2009\\ / Backstitch \u00B7 T cycles, Shift+T reverses.")
   );
 
-  var bsContSection = (curStitch === "backstitch") ? h("div", {
-    style:{padding:"0 12px 12px"}
-  },
-    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
-      "Backstitch options"),
-    h("label", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',fontSize:'var(--text-sm)',color:"var(--text-secondary)",cursor:"pointer"}},
+  var bsContSection = (curStitch === "backstitch") ? h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Backstitch options"),
+    h("label", {className:"cs-toolsec__check"},
       h("input", {type:"checkbox", checked: !!cv.bsContinuous,
         onChange:function(e){ cv.setBsContinuous(e.target.checked); cv.setBsStart(null); }}),
       h("span", null, "Continuous mode \u2014 chain segments without re-clicking the start")
     )
   ) : null;
 
-  var brushSizeSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
-    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
-      "Brush size"),
-    h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)'}},
+  var brushSizeSection = h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Brush size"),
+    h("div", {className:"sb-slider-row"},
       h("input", {type:"range", min:1, max:10, step:1, value:cv.brushSize||1,
         onChange:function(e){ cv.setBrushSize(parseInt(e.target.value,10)); },
-        "aria-label":"Brush size",
-        style:{flex:1}}),
-      h("span", {style:{minWidth:40,textAlign:"right",fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontVariantNumeric:"tabular-nums"}},
+        "aria-label":"Brush size"}),
+      h("span", {className:"sb-slider-row__value"},
         (cv.brushSize||1) + "\xD7" + (cv.brushSize||1))
     ),
-    h("div", {style:{display:"flex",flexWrap:"wrap",gap:3}},
+    h("div", {className:"sb-chips"},
       [1,2,3,5,7,10].map(function(sz) {
         var on = (cv.brushSize||1) === sz;
-        return h("button", {
-          key:sz,
-          onClick:function(){ cv.setBrushSize(sz); },
-          "aria-pressed": on ? "true" : "false",
-          "aria-label": sz + " by " + sz + " brush",
-          style:{
-            minWidth:28,padding:"4px 8px",fontSize:'var(--text-sm)',fontWeight:on?600:400,
-            border:"1px solid "+(on?"var(--accent)":"var(--border)"),
-            background:on?"var(--accent-light)":"transparent",
-            color:on?"var(--accent)":"var(--text-secondary)",
-            borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
-          }
-        }, sz);
+        return toolBtn({on:on, onClick:function(){ cv.setBrushSize(sz); },
+          props:{key:sz, "aria-pressed": on ? "true" : "false", "aria-label": sz + " by " + sz + " brush"}}, sz);
       })
     ),
-    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
+    h("p", {className:"cs-toolsec__hint"},
       "Applies to Cross and Half stitches, the Erase tool and shapes.")
   );
 
@@ -1097,7 +967,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var shapeTools = [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()], ["text", "Text", window.Icons.textTool()]];
   var shapesSection = h("div", {className:"cs-toolsec"},
     h("div", {className:"cs-toolsec__title"}, "Shapes"),
-    h("div", {className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr"}},
+    h("div", {className:"cs-seltools"},
       shapeTools.map(function(t) {
         var on = cv.activeTool === t[0];
         return h("button", {key:t[0], type:"button", className:"cs-seltools__btn" + (on ? " cs-seltools__btn--on" : ""),
@@ -1105,7 +975,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           title: t[0] === "text" ? "Text: tap where it should start, then type" : t[1] + ": drag on the chart"}, t[2], h("span", null, t[1]));
       })
     ),
-    h("div", {role:"radiogroup", "aria-label":"Rectangle and ellipse", className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr"}},
+    h("div", {role:"radiogroup", "aria-label":"Rectangle and ellipse", className:"cs-seltools"},
       [["outline", "Outline"], ["filled", "Filled"]].map(function(o) {
         var on = (o[0] === "filled") === !!cv.shapeFilled;
         return h("button", {key:o[0], type:"button", role:"radio", "aria-checked": on ? "true" : "false",
@@ -1116,7 +986,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {className:"cs-toolsec__check"},
       h("input", {type:"checkbox", checked: !!cv.lineSnap, onChange:function(e){ if (cv.setLineSnap) cv.setLineSnap(e.target.checked); }}),
       h("span", null, "Keep lines straight or at 45\u00B0")),
-    h("div", {className:"cs-toolsec__hint"}, "Shapes stitch whole crosses in the selected colour, as wide as the brush.")
+    h("p", {className:"cs-toolsec__hint"}, "Shapes stitch whole crosses in the selected colour, as wide as the brush.")
   );
 
   var mir = cv.mirror || { on: false, axis: "v" };
@@ -1126,7 +996,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {className:"cs-toolsec__check"},
       h("input", {type:"checkbox", checked: !!mir.on, onChange:function(e){ setMir({ on: e.target.checked }); }}),
       h("span", null, "Mirror drawing")),
-    h("div", {role:"radiogroup", "aria-label":"Mirror axis", className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr 1fr"}},
+    h("div", {role:"radiogroup", "aria-label":"Mirror axis", className:"cs-seltools cs-seltools--3"},
       [["v", "Left\u2013right"], ["h", "Top\u2013bottom"], ["both", "Both"]].map(function(o) {
         var on = mir.axis === o[0];
         return h("button", {key:o[0], type:"button", role:"radio", "aria-checked": on ? "true" : "false",
@@ -1134,77 +1004,39 @@ window.CreatorSidebar = function CreatorSidebar() {
           onClick:function(){ setMir({ axis: o[0], on: true }); }}, o[1]);
       })
     ),
-    mir.on && h("button", {type:"button", className:"cs-seltools__btn", style:{marginTop:6},
+    mir.on && h("button", {type:"button", className:"cs-seltools__btn sb-block-btn",
       onClick:function(){ setMir({ ax: ctx.sW / 2, ay: ctx.sH / 2 }); }}, "Centre the axis"),
-    h("div", {className:"cs-toolsec__hint"},
+    h("p", {className:"cs-toolsec__hint"},
       "Paint, Erase, Fill, shapes and part stitches are copied across the dashed axis. Drag its handle at the chart's edge to move it.")
   );
 
   var lassoModes = [["freehand","Lasso"],["polygon","Polygon"],["magnetic","Magnetic"]];
   var curLasso = cv.lassoMode || "freehand";
-  var selectionSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
-    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
-      "Selection"),
-    h("div", {style:{display:"flex",gap:6,marginBottom:10}},
-      h("button", {
+  var selectionSection = h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Selection"),
+    h("div", {className:"cs-seltools"},
+      toolBtn({on: cv.activeTool === "magicWand", props:{"aria-pressed": cv.activeTool === "magicWand" ? "true" : "false"},
         onClick:function(){
           if (cv.activeTool === "magicWand") { cv.setActiveTool(null); }
           else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
-        },
-        "aria-pressed": cv.activeTool === "magicWand" ? "true" : "false",
-        style:{
-          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
-          fontWeight:cv.activeTool==="magicWand"?600:400,
-          border:"1px solid "+(cv.activeTool==="magicWand"?"var(--accent)":"var(--border)"),
-          background:cv.activeTool==="magicWand"?"var(--accent-light)":"transparent",
-          color:cv.activeTool==="magicWand"?"var(--accent)":"var(--text-secondary)",
-          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
-        }
-      }, "Magic Wand (W)"),
-      h("button", {
+        }}, "Magic Wand (W)"),
+      toolBtn({on: cv.activeTool === "lasso", props:{"aria-pressed": cv.activeTool === "lasso" ? "true" : "false"},
         onClick:function(){
           if (cv.activeTool === "lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
           else { cv.setActiveTool("lasso"); cv.setLassoMode(curLasso); ctx.setPartialStitchTool(null); cv.setBsStart(null); }
-        },
-        "aria-pressed": cv.activeTool === "lasso" ? "true" : "false",
-        style:{
-          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
-          fontWeight:cv.activeTool==="lasso"?600:400,
-          border:"1px solid "+(cv.activeTool==="lasso"?"var(--accent)":"var(--border)"),
-          background:cv.activeTool==="lasso"?"var(--accent-light)":"transparent",
-          color:cv.activeTool==="lasso"?"var(--accent)":"var(--text-secondary)",
-          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
+        }}, "Lasso")
+    ),
+    h("div", {className:"cv-field__label sb-subtitle"}, "Lasso mode"),
+    P.seg({label:"Lasso mode", className:"cv-seg--sub", value:curLasso,
+      onChange:function(id){
+        cv.setLassoMode(id);
+        // If lasso isn't active yet, picking a mode here activates it.
+        if (cv.activeTool !== "lasso") {
+          cv.setActiveTool("lasso"); ctx.setPartialStitchTool(null); cv.setBsStart(null);
         }
-      }, "Lasso")
-    ),
-    h("div", {style:{fontSize:10,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}},
-      "Lasso mode"),
-    h("div", {role:"radiogroup", "aria-label":"Lasso mode",
-      style:{display:"flex",gap:'var(--s-1)',marginBottom:'var(--s-2)'}},
-      lassoModes.map(function(kl) {
-        var on = curLasso === kl[0];
-        return h("button", {
-          key:kl[0],
-          role:"radio",
-          "aria-checked": on ? "true" : "false",
-          onClick:function(){
-            cv.setLassoMode(kl[0]);
-            // If lasso isn't active yet, picking a mode here activates it.
-            if (cv.activeTool !== "lasso") {
-              cv.setActiveTool("lasso"); ctx.setPartialStitchTool(null); cv.setBsStart(null);
-            }
-          },
-          style:{
-            flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:on?600:400,
-            border:"1px solid "+(on?"var(--accent)":"var(--border)"),
-            background:on?"var(--accent-light)":"transparent",
-            color:on?"var(--accent)":"var(--text-secondary)",
-            borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
-          }
-        }, kl[1]);
-      })
-    ),
-    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",lineHeight:1.4}},
+      },
+      options: lassoModes.map(function(kl){ return {id:kl[0], label:kl[1]}; })}),
+    h("p", {className:"cs-toolsec__hint"},
       "Modifier hint: Shift = add to selection, Alt = subtract."),
     // Copy, paste, flip and rotate (audit DRAW-04)
     cv.clip && (function() {
@@ -1234,76 +1066,36 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     })(),
     cv.hasSelection && h("button", {
+      type:"button", className:"cs-seltools__btn sb-block-btn sb-danger-btn",
       onClick:function(){ if (cv.deleteSelection) cv.deleteSelection(); },
-      title:"Delete the stitches in the selection (Delete)",
-      style:{
-        marginTop:'var(--s-2)',width:"100%",padding:"6px 8px",fontSize:'var(--text-xs)',
-        display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-1)',
-        border:"1px solid var(--danger)",borderRadius:'var(--radius-sm)',
-        background:"var(--danger-soft)",color:"var(--danger)",
-        cursor:"pointer",fontFamily:"inherit"
-      }
+      title:"Delete the stitches in the selection (Delete)"
     }, window.Icons && window.Icons.trash ? window.Icons.trash() : null, "Delete selected stitches"),
     (cv.hasSelection || cv.lassoInProgress) && h("button", {
-      onClick:function(){ if (cv.cancelLasso) cv.cancelLasso(); if (cv.clearSelection) cv.clearSelection(); },
-      style:{
-        marginTop:'var(--s-2)',width:"100%",padding:"6px 8px",fontSize:'var(--text-xs)',
-        border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',
-        background:"var(--surface)",color:"var(--text-secondary)",
-        cursor:"pointer",fontFamily:"inherit"
-      }
+      type:"button", className:"cs-seltools__btn sb-block-btn",
+      onClick:function(){ if (cv.cancelLasso) cv.cancelLasso(); if (cv.clearSelection) cv.clearSelection(); }
     }, "Clear selection (" + (cv.selectionCount || 0).toLocaleString() + ")")
   );
 
-  var correctSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
-    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
-      "Correct"),
-    h("div", {style:{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}},
-      h("button", {
+  var correctSection = h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Correct"),
+    h("div", {className:"cs-seltools"},
+      toolBtn({on: cv.activeTool==="cleanup", props:{"aria-pressed": cv.activeTool==="cleanup" ? "true" : "false"},
         onClick:function(){
           if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
           else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterCleanup) cv.enterCleanup(); }
-        },
-        "aria-pressed": cv.activeTool==="cleanup" ? "true" : "false",
-        style:{
-          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
-          fontWeight:cv.activeTool==="cleanup"?600:400,
-          border:"1px solid "+(cv.activeTool==="cleanup"?"var(--accent)":"var(--border)"),
-          background:cv.activeTool==="cleanup"?"var(--accent-light)":"transparent",
-          color:cv.activeTool==="cleanup"?"var(--accent)":"var(--text-secondary)",
-          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
-        }
-      }, "Fix outline colours"),
-      h("button", {
+        }}, "Fix outline colours"),
+      toolBtn({on: cv.activeTool==="denoise", props:{"aria-pressed": cv.activeTool==="denoise" ? "true" : "false"},
         onClick:function(){
           if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
           else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
-        },
-        "aria-pressed": cv.activeTool==="denoise" ? "true" : "false",
-        style:{
-          flex:1,padding:"6px 8px",fontSize:'var(--text-sm)',
-          fontWeight:cv.activeTool==="denoise"?600:400,
-          border:"1px solid "+(cv.activeTool==="denoise"?"var(--accent)":"var(--border)"),
-          background:cv.activeTool==="denoise"?"var(--accent-light)":"transparent",
-          color:cv.activeTool==="denoise"?"var(--accent)":"var(--text-secondary)",
-          borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
-        }
-      }, "Reduce confetti")
+        }}, "Reduce confetti")
     ),
-    h("button", {
-      onClick:function(){ if (app&&app.openResizeCanvas) app.openResizeCanvas(); },
-      style:{
-        width:"100%",padding:"6px 8px",fontSize:'var(--text-sm)',
-        border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',
-        background:"transparent",color:"var(--text-secondary)",
-        cursor:"pointer",fontFamily:"inherit",textAlign:"left"
-      }
-    }, "Resize canvas\u2026"),
+    toolBtn({className:"sb-block-btn", onClick:function(){ if (app&&app.openResizeCanvas) app.openResizeCanvas(); }}, "Resize canvas\u2026"),
     // Trims rows and columns with nothing on them from the chart's edges:
     // one undo step that keeps progress, backstitches and knots
     // (creator-main.js cropToStitches).
     app.cropToStitches && h("button", {
-      type:"button", className:"cs-seltools__btn", style:{width:"100%",marginTop:6},
+      type:"button", className:"cs-seltools__btn sb-block-btn",
       onClick:function(){ app.cropToStitches(); },
       title:"Remove empty rows and columns around the stitches"
     }, window.Icons.crop(), h("span", null, "Crop to the stitches"))
@@ -1312,9 +1104,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   // Navigate | Draw (audit DRAW-01). On touch it is the first control in the
   // tool strip instead, so it isn't repeated here.
   var coarseTools = !!(window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer());
-  var modeSection = (!coarseTools && window.ModeToggle) ? h("div", {style:{padding:"12px 12px 0"}},
-    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
-      "Chart mode"),
+  var modeSection = (!coarseTools && window.ModeToggle) ? h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Chart mode"),
     h(window.ModeToggle, {
       className: "mode-toggle--block",
       ariaLabel: "Chart mode",
@@ -1337,18 +1128,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     correctSection
   );
 
-  var subHeaderStyle = {padding:"10px 12px 2px",fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5};
   var viewContent = h(React.Fragment, null,
     viewToggle,
     highlightControls
-  );
-
-  var displayContent = h(React.Fragment, null,
-    viewToggle,
-    highlightControls,
-    h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),
-    h("div", {style:subHeaderStyle}, "Preview"),
-    previewPanel
   );
 
   // The tool-rail layout's View tab: the chart view and highlight, the
@@ -1363,19 +1145,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("span", null, "Show the picture")),
       cv.showOverlay && h("input", {type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
         onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
-        style:{width:"100%"}, "aria-label":"Overlay opacity"})
+        className:"sb-range", "aria-label":"Overlay opacity"})
     ),
-    h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),
-    h("div", {style:subHeaderStyle}, "Preview"),
+    h("div", {className:"cs-toolsec sb-subhead"}, h("div", {className:"cs-toolsec__title"}, "Preview")),
     previewPanel
-  );
-
-  var moreContent = h(React.Fragment, null,
-    h(Section, {title:"Project Info",defaultOpen:false},
-      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
-        ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal||ctx.pal))
-      )
-    )
   );
 
   // ── Edit mode bottom action bar (removed in Option 2) ───────────────────
@@ -1393,19 +1166,19 @@ window.CreatorSidebar = function CreatorSidebar() {
     return null;
   }
   if (ctx.pat && ctx.pal && app && app.tab === 'project') {
-    return h('aside', { className: 'cs-sidebar-fade', style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 } },
-      h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
-      h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize:'var(--text-sm)' } },
-        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Size'),
+    return h('aside', { className: 'cs-sidebar-fade cs-toolsec sb-glance' },
+      h('div', { className: 'cs-toolsec__title' }, 'Project at a glance'),
+      h('div', { className: 'sb-facts sb-facts--left' },
+        h('span', { className: 'sb-facts__k' }, 'Size'),
         h('span', null, ctx.sW + ' \u00D7 ' + ctx.sH + ' stitches'),
-        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Threads'),
+        h('span', { className: 'sb-facts__k' }, 'Threads'),
         h('span', null, window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal || ctx.pal))),
-        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Fabric'),
+        h('span', { className: 'sb-facts__k' }, 'Fabric'),
         h('span', null, (ctx.fabricCt || 14) + ' count'),
-        ctx.totalSkeins != null && h('span', { style: { color: 'var(--text-tertiary)' } }, 'Skeins'),
+        ctx.totalSkeins != null && h('span', { className: 'sb-facts__k' }, 'Skeins'),
         ctx.totalSkeins != null && h('span', null, ctx.totalSkeins)
       ),
-      h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', lineHeight: 1.4 } },
+      h('p', { className: 'cs-toolsec__hint' },
         'Use the canvas tools on the Pattern page to edit. Generation parameters are above on this page.')
     );
   }
@@ -1414,22 +1187,12 @@ window.CreatorSidebar = function CreatorSidebar() {
     // "Back to Convert" link — shown in edit mode when a source image exists.
     // Fires the back-to-convert request (may show warning modal if edits exist).
     // (The tool-rail layout has none: the Convert tab in the top bar does it.)
-    !railLayout && gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert", style:{
-      flexShrink:0, padding:"6px 12px",
-      borderBottom:"1px solid var(--line)",
-      background:"var(--surface-secondary)"
-    }},
+    !railLayout && gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert"},
       h("button", {
-        type:"button",
+        type:"button", className:"rpanel-back-to-convert__btn",
         onClick:function(){
           if(app.requestBackToConvert) app.requestBackToConvert();
           else if(app.setAppMode) app.setAppMode("create");
-        },
-        style:{
-          display:"inline-flex",alignItems:"center",gap:4,
-          background:"none",border:"none",cursor:"pointer",
-          padding:"3px 0",fontSize:"var(--text-xs)",
-          color:"var(--text-secondary)",fontFamily:"inherit"
         }
       },
         window.Icons && window.Icons.chevronLeft ? window.Icons.chevronLeft() : null,
@@ -1437,7 +1200,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       )
     ),
     tabBar,
-    h("div", {style:{overflowY:"auto",flex:1}},
+    h("div", {className:"creator-sidebar-body", id:"sidebar-panel-" + sTab, role:"tabpanel"},
       sTab === "palette" && h(React.Fragment, null,
         palChipsSection,
         coloursSection,
@@ -1457,9 +1220,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       sTab === "project" && h(React.Fragment, null,
         projectInfoSection,
         // Fabric can change after the pattern is made (audit COMMON-08).
-        h(Section, {title:"Fabric", defaultOpen:true}, h("div", {style:{padding:"4px 0 2px"}}, fabricBlock()))
+        h(Section, {title:"Fabric", defaultOpen:true}, h("div", {className:"sb-fields"}, fabricBlock()))
       ),
-      sTab === "more" && moreContent
     ),
     editActions
   );

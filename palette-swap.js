@@ -809,38 +809,43 @@ function saveCustomPalettes(palettes) {
 
 function DEBadge(props) {
   var d = props.dE;
-  var tier, bg, color;
-  if (d < 1) { tier = "Perfect"; bg = "#DEE7D2"; color = "#4F7D3F"; }
-  else if (d <= 3) { tier = "Close"; bg = "#FAF5E1"; color = "#A06F2D"; }
-  else { tier = "Approx."; bg = "#FCEFEF"; color = "#A53D3D"; }
-  return React.createElement("span", {
-    style: { fontSize: 10, padding: "1px 6px", borderRadius: 8, background: bg, color: color, whiteSpace: "nowrap" }
-  }, tier);
+  var tier = d < 1 ? "perfect" : d <= 3 ? "close" : "approx";
+  var label = d < 1 ? "Perfect" : d <= 3 ? "Close" : "Approx.";
+  return React.createElement("span", { className: "ps-badge ps-badge--" + tier }, label);
 }
 
+function LockedBadge() {
+  return React.createElement("span", { className: "ps-badge ps-badge--locked" }, "Locked");
+}
+
+// The thread's colour is the only inline style left: it is data, not design.
 function SwatchBox(props) {
   var sz = props.size || 16;
   return React.createElement("span", {
-    style: {
-      display: "inline-block", width: sz, height: sz, borderRadius: 3,
-      background: "rgb(" + props.rgb[0] + "," + props.rgb[1] + "," + props.rgb[2] + ")",
-      border: "1px solid #CFC4AC", flexShrink: 0, cursor: props.onClick ? "pointer" : "default"
-    },
+    className: "ps-swatch" + (props.onClick ? " ps-swatch--button" : ""),
+    style: { width: sz, height: sz, background: "rgb(" + props.rgb[0] + "," + props.rgb[1] + "," + props.rgb[2] + ")" },
     onClick: props.onClick || null
   });
+}
+
+// A row of preset or saved hex colours.
+function HexSwatches(props) {
+  return React.createElement("div", { className: "ps-hexes" + (props.className ? " " + props.className : "") },
+    props.colours.map(function(hex, i) {
+      return React.createElement("span", { key: i, className: "ps-hex", style: { background: hex } });
+    })
+  );
 }
 
 function LockToggle(props) {
   var locked = props.locked;
   return React.createElement("button", {
+    type: "button",
     onClick: props.onToggle,
     title: locked ? "Unlock this colour" : "Lock this colour",
-    style: {
-      width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center",
-      borderRadius: 4, border: locked ? "1px solid #E5C97D" : "1px solid #E5DCCB",
-      background: locked ? "#F2E2BE" : "#fff", color: locked ? "#8A5C26" : "#A89E89",
-      cursor: "pointer", fontSize: 11, padding: 0, lineHeight: 1
-    }
+    "aria-label": locked ? "Unlock this colour" : "Lock this colour",
+    "aria-pressed": locked ? "true" : "false",
+    className: "ps-lock" + (locked ? " ps-lock--on" : "")
   }, locked ? Icons.lock() : Icons.unlock());
 }
 
@@ -857,28 +862,36 @@ function HueSpectrumBar() {
       ctx.fillRect(x, 0, 1, h);
     }
   }, []);
-  return React.createElement("canvas", {
-    ref: ref, width: 280, height: 24,
-    style: { width: "100%", height: 24, borderRadius: 6, display: "block" }
-  });
+  return React.createElement("canvas", { ref: ref, width: 280, height: 24, className: "ps-spectrum", "aria-hidden": "true" });
+}
+
+// One of a few short choices, in the Convert panel's chip style.
+function PsChips(props) {
+  return React.createElement("div", { className: "ps-chips" + (props.fill ? " ps-chips--fill" : ""), role: "group", "aria-label": props.label },
+    props.options.map(function(o) {
+      var active = props.value === o.id;
+      return React.createElement("button", {
+        key: String(o.id), type: "button", "aria-pressed": active ? "true" : "false",
+        className: "cs-seltools__btn" + (active ? " cs-seltools__btn--on" : ""),
+        onClick: function() { props.onChange(o.id); }
+      }, o.label);
+    })
+  );
 }
 
 function QuickShiftButtons(props) {
-  var angles = [0, 30, 60, 90, 120, 180];
-  return React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap" } },
-    angles.map(function(a) {
-      var active = props.value === a;
-      return React.createElement("button", {
-        key: a,
-        onClick: function() { props.onChange(a); },
-        style: {
-          padding: "4px 10px", fontSize: 11, fontWeight: 500, borderRadius: 12, cursor: "pointer",
-          border: active ? "1px solid #B85C38" : "1px solid #E5DCCB",
-          background: active ? "#F4DDCF" : "#fff",
-          color: active ? "#B85C38" : "#5C5448"
-        }
-      }, a + "\u00B0");
-    })
+  return React.createElement(PsChips, {
+    label: "Shift by", value: props.value, onChange: props.onChange,
+    options: [0, 30, 60, 90, 120, 180].map(function(a) { return { id: a, label: a + "°" }; })
+  });
+}
+
+function ThreadPickRow(props) {
+  return React.createElement("button", { type: "button", className: "ps-pick-row", onClick: props.onClick },
+    React.createElement(SwatchBox, { rgb: props.thread.rgb }),
+    React.createElement("span", { className: "ps-pick-row__id" }, props.thread.id),
+    React.createElement("span", { className: "ps-pick-row__name" }, props.thread.name),
+    props.badge || null
   );
 }
 
@@ -887,30 +900,14 @@ function SimilarPopover(props) {
   var similar = React.useMemo(function() { return findSimilarDmc(lab, 6); }, [lab]);
   // Skip first if it's the same as current
   var filtered = similar.filter(function(s) { return s.thread.id !== props.currentId; }).slice(0, 5);
-  return React.createElement("div", {
-    style: {
-      position: "absolute", top: "100%", right: 0, zIndex: 20,
-      background: "#fff", border: "1px solid #E5DCCB", borderRadius: 8,
-      boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 6, minWidth: 200
-    }
-  },
-    React.createElement("div", { style: { fontSize: 10, color: "#A89E89", marginBottom: 4, fontWeight: 600 } }, "Similar DMC threads"),
+  return React.createElement("div", { className: "ps-popover ps-popover--right" },
+    React.createElement("div", { className: "ps-popover__title" }, "Similar DMC threads"),
     filtered.map(function(s) {
-      return React.createElement("div", {
-        key: s.thread.id,
+      return React.createElement(ThreadPickRow, {
+        key: s.thread.id, thread: s.thread,
         onClick: function() { props.onSelect(s.thread); },
-        style: {
-          display: "flex", alignItems: "center", gap: 6, padding: "3px 4px",
-          borderRadius: 4, cursor: "pointer", fontSize: 11
-        },
-        onMouseEnter: function(e) { e.currentTarget.style.background = "#EFE7D6"; },
-        onMouseLeave: function(e) { e.currentTarget.style.background = "transparent"; }
-      },
-        React.createElement(SwatchBox, { rgb: s.thread.rgb }),
-        React.createElement("span", { style: { fontWeight: 600, minWidth: 36 } }, s.thread.id),
-        React.createElement("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, s.thread.name),
-        React.createElement(DEBadge, { dE: s.dE })
-      );
+        badge: React.createElement(DEBadge, { dE: s.dE })
+      });
     })
   );
 }
@@ -925,35 +922,19 @@ function DmcPickerPopover(props) {
     }).slice(0, 40);
   }, [search]);
   return React.createElement("div", {
-    style: {
-      position: "absolute", top: "100%", left: 0, zIndex: 20,
-      background: "#fff", border: "1px solid #E5DCCB", borderRadius: 8,
-      boxShadow: "0 4px 12px rgba(0,0,0,0.1)", padding: 6, width: 260
-    },
+    className: "ps-popover ps-popover--wide",
     onClick: function(e) { e.stopPropagation(); }
   },
     React.createElement("input", {
-      type: "text", placeholder: "Search DMC # or name\u2026", value: search,
+      type: "text", placeholder: "Search DMC # or name…", value: search,
+      "aria-label": "Search DMC threads",
       onChange: function(e) { setSearch(e.target.value); },
       autoFocus: true,
-      style: { width: "100%", padding: "5px 8px", border: "0.5px solid #E5DCCB", borderRadius: 6, fontSize: 12, marginBottom: 4, boxSizing: "border-box" }
+      className: "cv-input ps-popover__search"
     }),
-    React.createElement("div", { style: { maxHeight: 200, overflow: "auto" } },
+    React.createElement("div", { className: "ps-popover__list" },
       filtered.map(function(d) {
-        return React.createElement("div", {
-          key: d.id,
-          onClick: function() { props.onSelect(d); },
-          style: {
-            display: "flex", alignItems: "center", gap: 6, padding: "3px 6px",
-            borderRadius: 4, cursor: "pointer", fontSize: 11
-          },
-          onMouseEnter: function(e) { e.currentTarget.style.background = "#EFE7D6"; },
-          onMouseLeave: function(e) { e.currentTarget.style.background = "transparent"; }
-        },
-          React.createElement(SwatchBox, { rgb: d.rgb }),
-          React.createElement("span", { style: { fontWeight: 600, minWidth: 36 } }, d.id),
-          React.createElement("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, d.name)
-        );
+        return React.createElement(ThreadPickRow, { key: d.id, thread: d, onClick: function() { props.onSelect(d); } });
       })
     )
   );
@@ -976,40 +957,30 @@ function MappingTableRow(props) {
     setShowPicker(false);
     props.onOverride(m.source.id, thread);
   }
+  function thread(t) {
+    return React.createElement("div", { className: "ps-map__thread" },
+      React.createElement(SwatchBox, { rgb: t.rgb }),
+      React.createElement("span", { className: "ps-map__id" }, t.id),
+      React.createElement("span", { className: "ps-map__name" }, t.name || "")
+    );
+  }
 
-  return React.createElement("tr", { style: { borderBottom: "0.5px solid #EFE7D6", opacity: m.locked ? 0.5 : 1 } },
-    React.createElement("td", { style: { padding: "4px 6px" } },
-      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
-        React.createElement(SwatchBox, { rgb: m.source.rgb }),
-        React.createElement("span", { style: { fontFamily: "monospace", fontSize: 11, fontWeight: 600 } }, m.source.id),
-        React.createElement("span", { style: { fontSize: 11, color: "#5C5448" } }, m.source.name || "")
-      )
-    ),
-    React.createElement("td", { style: { padding: "4px 2px", fontSize: 13, color: "#A89E89" } }, "\u2192"),
+  return React.createElement("tr", { className: "ps-map__row" + (m.locked ? " ps-map__row--locked" : "") },
+    React.createElement("td", null, thread(m.source)),
+    React.createElement("td", { className: "ps-map__arrow", "aria-label": "becomes" }, Icons.chevronRight()),
     React.createElement("td", {
-      style: { padding: "4px 6px", position: "relative", cursor: m.locked ? "default" : "pointer" },
+      className: "ps-map__dest" + (m.locked ? "" : " ps-map__dest--pick"),
       onClick: function() { if (!m.locked) setShowPicker(!showPicker); }
     },
-      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
-        React.createElement(SwatchBox, { rgb: m.dest.rgb }),
-        React.createElement("span", { style: { fontFamily: "monospace", fontSize: 11, fontWeight: 600 } }, m.dest.id),
-        React.createElement("span", { style: { fontSize: 11, color: "#5C5448" } }, m.dest.name || "")
-      ),
+      thread(m.dest),
       showPicker && React.createElement(DmcPickerPopover, { onSelect: handleSelectPicker })
     ),
-    React.createElement("td", { style: { padding: "4px 6px", textAlign: "right", fontSize: 11, color: "#A89E89" } }, (props.count || 0).toLocaleString('en-GB')),
-    React.createElement("td", { style: { padding: "4px 6px" } },
-      m.locked
-        ? React.createElement("span", { style: { fontSize: 10, color: "#8A5C26", background: "#F2E2BE", padding: "1px 6px", borderRadius: 8 } }, "Locked")
-        : React.createElement(DEBadge, { dE: m.dE })
-    ),
-    React.createElement("td", { style: { padding: "4px 6px", position: "relative" } },
+    React.createElement("td", { className: "ps-map__count" }, (props.count || 0).toLocaleString('en-GB')),
+    React.createElement("td", null, m.locked ? React.createElement(LockedBadge) : React.createElement(DEBadge, { dE: m.dE })),
+    React.createElement("td", { className: "ps-map__similar" },
       !m.locked && React.createElement("button", {
-        onClick: function(e) { e.stopPropagation(); setShowSimilar(!showSimilar); },
-        style: {
-          fontSize: 10, color: "#B85C38", background: "#F4DDCF",
-          border: "0.5px solid #E8B89A", borderRadius: 4, padding: "2px 6px", cursor: "pointer"
-        }
+        type: "button", className: "cs-seltools__btn cs-seltools__btn--on ps-small-btn",
+        onClick: function(e) { e.stopPropagation(); setShowSimilar(!showSimilar); }
       }, "Similar"),
       showSimilar && React.createElement(SimilarPopover, {
         lab: m.dest.lab, currentId: m.dest.id, onSelect: handleSelectSimilar
@@ -1025,29 +996,15 @@ function MappingTableRow(props) {
 function PresetCard(props) {
   var p = props.preset;
   var selected = props.selected;
-  var swatchColours = p.tiers[8];
-  return React.createElement("div", {
+  return React.createElement("button", {
+    type: "button",
     onClick: props.onClick,
-    className: "ps-preset-card" + (selected ? " ps-preset-card--selected" : ""),
-    style: {
-      borderRadius: 8, padding: 10, cursor: "pointer",
-      border: selected ? "2px solid #B85C38" : "1px solid #E5DCCB",
-      background: selected ? "#F4DDCF" : "#fff"
-    }
+    "aria-pressed": selected ? "true" : "false",
+    className: "ps-preset-card" + (selected ? " ps-preset-card--selected" : "")
   },
-    React.createElement("div", { style: { fontSize: 11, fontWeight: 500, marginBottom: 4, color: "#1B1814" } }, p.name),
-    React.createElement("div", { style: { display: "flex", gap: 2, flexWrap: "wrap" } },
-      swatchColours.map(function(hex, i) {
-        return React.createElement("span", {
-          key: i,
-          style: {
-            width: 16, height: 16, borderRadius: 2, display: "inline-block",
-            background: hex, border: "1px solid #CFC4AC"
-          }
-        });
-      })
-    ),
-    React.createElement("div", { style: { fontSize: 10, color: "#A89E89", marginTop: 3 } }, "8 / 16 / 24 colours")
+    React.createElement("span", { className: "ps-preset-card__name" }, p.name),
+    React.createElement(HexSwatches, { colours: p.tiers[8] }),
+    React.createElement("span", { className: "ps-preset-card__tiers" }, "8 / 16 / 24 colours")
   );
 }
 
@@ -1389,68 +1346,63 @@ function usePaletteSwap(props) {
     return { shiftSection: null, presetSection: null, confirmView: null, showConfirm: false };
   }
 
+  function warnNote(content, extra) {
+    return React.createElement("div", Object.assign({ role: "note", className: "cv-note cv-note--warning" }, extra || {}),
+      React.createElement("span", { className: "cv-note__icon", "aria-hidden": "true" }, Icons.warning()),
+      React.createElement("span", null, content));
+  }
+  var tierOptions = function(suffix) {
+    return [null, 8, 16, 24].map(function(t) {
+      return { id: t, label: t === null ? "Auto (" + autoSelectTier(pal.length) + ")" : t + suffix };
+    });
+  };
+  var collisionText = collisions.map(function(c) {
+    return threadLabel({ id: c.dmcId }) + " (" + c.sourceIds.length + " sources)";
+  }).join(", ");
+
   // ───────────── Sidebar: Shift colours Section ─────────────
   var shiftSection = React.createElement(Section, {
     title: "Shift colours", defaultOpen: false
   },
-    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginTop: 8 } },
+    React.createElement("div", { className: "ps-stack" },
       React.createElement(HueSpectrumBar, null),
       React.createElement(SliderRow, {
         label: "Shift", value: shiftDeg, min: 0, max: 360, step: 1,
         onChange: function(v) { setShiftDeg(v); setActiveMode("shift"); setActivePreset(null); setMappingOverrides(null); },
-        suffix: "\u00B0"
+        suffix: "°"
       }),
       React.createElement(QuickShiftButtons, {
         value: activeMode === "shift" ? shiftDeg : -1,
         onChange: function(v) { setShiftDeg(v); setActiveMode("shift"); setActivePreset(null); setMappingOverrides(null); }
       }),
-      React.createElement("div", { style: { borderTop: "0.5px solid #E5DCCB", margin: "4px 0" } }),
-      React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#5C5448", marginBottom: 2 } }, "Colour mapping preview"),
-      React.createElement("div", { style: { maxHeight: 250, overflow: "auto" } },
+      React.createElement("div", { className: "ps-rule" }),
+      React.createElement("div", { className: "cv-field__label ps-label" }, "Colour mapping preview"),
+      React.createElement("div", { className: "ps-shift-list" },
         sortedPal.map(function(entry) {
           var m = finalMapping[entry.id];
           if (!m) return null;
-          return React.createElement("div", {
-            key: entry.id,
-            style: { display: "flex", alignItems: "center", gap: 4, padding: "3px 0", fontSize: 11 }
-          },
+          return React.createElement("div", { key: entry.id, className: "ps-shift-row" },
             React.createElement(LockToggle, { locked: lockedIds.has(entry.id), onToggle: function() { toggleLock(entry.id); } }),
             React.createElement(SwatchBox, { rgb: m.source.rgb }),
-            React.createElement("span", { style: { fontFamily: "monospace", minWidth: 32 } }, m.source.id),
-            React.createElement("span", { style: { color: "#A89E89" } }, "\u2192"),
+            React.createElement("span", { className: "ps-map__id" }, m.source.id),
+            React.createElement("span", { className: "ps-shift-row__arrow", "aria-label": "becomes" }, Icons.chevronRight()),
             React.createElement(SwatchBox, { rgb: m.dest.rgb }),
-            React.createElement("span", { style: { fontFamily: "monospace", minWidth: 32 } }, m.dest.id),
-            React.createElement("span", { style: { color: "#5C5448", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, m.dest.name || ""),
-            m.locked
-              ? React.createElement("span", { style: { fontSize: 10, color: "#8A5C26", background: "#F2E2BE", padding: "1px 6px", borderRadius: 8 } }, "Locked")
-              : React.createElement(DEBadge, { dE: m.dE })
+            React.createElement("span", { className: "ps-map__id" }, m.dest.id),
+            React.createElement("span", { className: "ps-map__name ps-map__name--clip" }, m.dest.name || ""),
+            m.locked ? React.createElement(LockedBadge) : React.createElement(DEBadge, { dE: m.dE })
           );
         })
       ),
-      collisions.length > 0 && React.createElement("div", {
-        style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "6px 10px", fontSize: 11, color: "#A06F2D" }
-      },
-        "\u26A0 ",
-        collisions.map(function(c) {
-          return threadLabel({ id: c.dmcId }) + " (" + c.sourceIds.length + " sources)";
-        }).join(", "),
-        " \u2014 same thread collision. Pattern may lose detail."
-      ),
-      React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 4 } },
+      collisions.length > 0 && warnNote(collisionText + ": the same thread for more than one colour. The pattern may lose detail."),
+      React.createElement("div", { className: "ps-actions" },
         React.createElement("button", {
+          type: "button", className: "g-btn primary ps-actions__main",
           onClick: function() { if (hasChange) setShowConfirm(true); },
-          disabled: !hasChange,
-          style: {
-            flex: 1, padding: "8px", fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: hasChange ? "pointer" : "default",
-            background: hasChange ? "#B85C38" : "#A89E89", color: "#fff", border: "none"
-          }
+          disabled: !hasChange
         }, "Preview & Apply"),
         React.createElement("button", {
-          onClick: function() { setShiftDeg(0); setActivePreset(null); setMappingOverrides(null); },
-          style: {
-            padding: "8px 12px", fontSize: 12, borderRadius: 8, cursor: "pointer",
-            background: "#fff", color: "#5C5448", border: "1px solid #E5DCCB"
-          }
+          type: "button", className: "g-btn",
+          onClick: function() { setShiftDeg(0); setActivePreset(null); setMappingOverrides(null); }
         }, "Reset")
       )
     )
@@ -1460,34 +1412,23 @@ function usePaletteSwap(props) {
   var presetSection = React.createElement(Section, {
     title: "Palette presets", defaultOpen: false
   },
-    React.createElement("div", { style: { marginTop: 8, display: "flex", flexDirection: "column", gap: 8 } },
+    React.createElement("div", { className: "ps-stack" },
       // Tab switcher
-      React.createElement("div", {
-        style: { display: "flex", gap: 2, background: "#EFE7D6", borderRadius: 8, padding: 2 }
-      },
+      React.createElement("div", { className: "lp-segmented cv-seg", role: "tablist", "aria-label": "Palette presets" },
         ["themes", "harmony", "saved"].map(function(t) {
           var label = t.charAt(0).toUpperCase() + t.slice(1);
           var active = presetTab === t;
           return React.createElement("button", {
-            key: t,
-            onClick: function() { setPresetTab(t); },
-            style: {
-              flex: 1, padding: "5px 8px", fontSize: 11, fontWeight: active ? 500 : 400,
-              background: active ? "#fff" : "transparent", borderRadius: 6,
-              color: active ? "#1B1814" : "#5C5448", border: "none", cursor: "pointer",
-              boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none"
-            }
+            key: t, type: "button", role: "tab", "aria-selected": active ? "true" : "false",
+            className: "lp-seg" + (active ? " lp-seg--on" : ""),
+            onClick: function() { setPresetTab(t); }
           }, label);
         })
       ),
 
       // Themes tab
-      presetTab === "themes" && React.createElement("div", {
-        style: { display: "flex", flexDirection: "column", gap: 8 }
-      },
-        React.createElement("div", {
-          style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 6 }
-        },
+      presetTab === "themes" && React.createElement("div", { className: "ps-stack ps-stack--flush" },
+        React.createElement("div", { className: "ps-preset-grid" },
           allThemePresets.map(function(p) {
             return React.createElement(PresetCard, {
               key: p.id, preset: p,
@@ -1501,28 +1442,10 @@ function usePaletteSwap(props) {
           })
         ),
         // Tier selector (visible when a preset is selected)
-        activePreset && activeMode === "preset" && React.createElement("div", {
-          style: { background: "#f9fafb", borderRadius: 8, padding: "8px 10px", border: "0.5px solid #E5DCCB" }
-        },
-          React.createElement("div", { style: { fontSize: 10, fontWeight: 600, color: "#5C5448", marginBottom: 6, textTransform: "uppercase" } }, "Palette size"),
-          React.createElement("div", { style: { display: "flex", gap: 4 } },
-            [null, 8, 16, 24].map(function(t) {
-              var isAuto = t === null;
-              var label = isAuto ? "Auto (" + autoSelectTier(pal.length) + ")" : t + "";
-              var active = activeTier === t;
-              return React.createElement("button", {
-                key: String(t),
-                onClick: function() { setActiveTier(t); setMappingOverrides(null); },
-                style: {
-                  flex: 1, padding: "5px 6px", fontSize: 10, fontWeight: active ? 600 : 400,
-                  borderRadius: 6, cursor: "pointer",
-                  border: active ? "1px solid #B85C38" : "1px solid #E5DCCB",
-                  background: active ? "#F4DDCF" : "#fff",
-                  color: active ? "#B85C38" : "#5C5448"
-                }
-              }, label);
-            })
-          ),
+        activePreset && activeMode === "preset" && React.createElement("div", { className: "ps-tier" },
+          React.createElement("div", { className: "cv-field__label ps-label" }, "Palette size"),
+          React.createElement(PsChips, { label: "Palette size", fill: true, value: activeTier, options: tierOptions(""),
+            onChange: function(t) { setActiveTier(t); setMappingOverrides(null); } }),
           // Tier preview with scaling info
           (function() {
             var preset = getPresetById(activePreset);
@@ -1531,119 +1454,73 @@ function usePaletteSwap(props) {
             var colours = preset.tiers[tier] || preset.tiers[8];
             var unlockedCount = pal.filter(function(e) { return e.id !== "__skip__" && e.id !== "__empty__" && !lockedIds.has(e.id); }).length;
             var info = "";
-            if (unlockedCount > colours.length) info = "Expanding " + colours.length + " \u2192 " + unlockedCount + " via interpolation";
-            else if (unlockedCount < colours.length) info = "Reducing " + colours.length + " \u2192 " + unlockedCount + " (most distinct)";
+            if (unlockedCount > colours.length) info = "Expanding " + colours.length + " to " + unlockedCount + " colours by blending between them";
+            else if (unlockedCount < colours.length) info = "Reducing " + colours.length + " to " + unlockedCount + " (the most distinct)";
             else info = "Exact match (" + colours.length + " colours)";
-            return React.createElement("div", { style: { marginTop: 6 } },
-              React.createElement("div", { style: { display: "flex", gap: 2, flexWrap: "wrap", marginBottom: 4 } },
-                colours.map(function(hex, i) {
-                  return React.createElement("span", {
-                    key: i,
-                    style: { width: 14, height: 14, borderRadius: 2, background: hex, border: "1px solid #CFC4AC", display: "inline-block" }
-                  });
-                })
-              ),
-              React.createElement("div", { style: { fontSize: 10, color: "#5C5448" } }, info)
+            return React.createElement("div", { className: "ps-tier__preview" },
+              React.createElement(HexSwatches, { colours: colours, className: "ps-hexes--small" }),
+              React.createElement("p", { className: "cs-toolsec__hint" }, info)
             );
           })()
         )
       ),
 
       // Harmony tab
-      presetTab === "harmony" && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+      presetTab === "harmony" && React.createElement("div", { className: "ps-stack ps-stack--flush" },
+        React.createElement("div", { className: "ps-harmony-base" },
           React.createElement("label", {
             htmlFor: "harmony-base-colour-input",
-            style: {
-              width: 28, height: 28, borderRadius: 6, display: "inline-block",
-              background: harmonyBase, border: "2px solid #E5DCCB", cursor: "pointer"
-            }
+            className: "ps-harmony-base__swatch",
+            title: "Choose the base colour",
+            style: { background: harmonyBase }
           }),
           React.createElement("input", {
             id: "harmony-base-colour-input",
-            type: "color", value: harmonyBase,
-            onChange: function(e) { setHarmonyBase(e.target.value); setActiveMode("harmony"); setMappingOverrides(null); },
-            style: { width: 0, height: 0, opacity: 0, position: "absolute" }
+            type: "color", value: harmonyBase, className: "ps-visually-hidden",
+            onChange: function(e) { setHarmonyBase(e.target.value); setActiveMode("harmony"); setMappingOverrides(null); }
           }),
           React.createElement("input", {
-            type: "text", value: harmonyBase,
+            type: "text", value: harmonyBase, "aria-label": "Base colour (hex)",
+            className: "cv-input ps-hex-input",
             onChange: function(e) {
               var v = e.target.value;
               if (/^#[0-9a-fA-F]{6}$/.test(v)) { setHarmonyBase(v); setActiveMode("harmony"); setMappingOverrides(null); }
               else setHarmonyBase(v);
-            },
-            style: { fontFamily: "monospace", width: 80, padding: "4px 8px", border: "0.5px solid #E5DCCB", borderRadius: 6, fontSize: 12 }
+            }
           })
         ),
-        React.createElement("div", { style: { display: "flex", gap: 4, flexWrap: "wrap" } },
-          Object.keys(HARMONY_TYPES).map(function(ht) {
-            var active = harmonyType === ht;
-            return React.createElement("button", {
-              key: ht,
-              onClick: function() { setHarmonyType(ht); setActiveMode("harmony"); setMappingOverrides(null); },
-              style: {
-                padding: "4px 10px", fontSize: 11, fontWeight: 500, borderRadius: 12, cursor: "pointer",
-                border: active ? "1px solid #B85C38" : "1px solid #E5DCCB",
-                background: active ? "#F4DDCF" : "#fff",
-                color: active ? "#B85C38" : "#5C5448"
-              }
-            }, ht);
-          })
-        ),
+        React.createElement(PsChips, { label: "Harmony", value: harmonyType,
+          options: Object.keys(HARMONY_TYPES).map(function(ht) { return { id: ht, label: ht }; }),
+          onChange: function(ht) { setHarmonyType(ht); setActiveMode("harmony"); setMappingOverrides(null); } }),
         // Tier selector for harmony
-        React.createElement("div", { style: { display: "flex", gap: 4 } },
-          [null, 8, 16, 24].map(function(t) {
-            var isAuto = t === null;
-            var label = isAuto ? "Auto (" + autoSelectTier(pal.length) + ")" : t + " colours";
-            var active = activeTier === t;
-            return React.createElement("button", {
-              key: String(t),
-              onClick: function() { setActiveTier(t); setActiveMode("harmony"); setMappingOverrides(null); },
-              style: {
-                flex: 1, padding: "4px 6px", fontSize: 10, fontWeight: active ? 600 : 400,
-                borderRadius: 6, cursor: "pointer",
-                border: active ? "1px solid #B85C38" : "1px solid #E5DCCB",
-                background: active ? "#F4DDCF" : "#fff",
-                color: active ? "#B85C38" : "#5C5448"
-              }
-            }, label);
-          })
-        ),
-        React.createElement("div", { style: { display: "flex", gap: 3 } },
+        React.createElement(PsChips, { label: "Palette size", fill: true, value: activeTier, options: tierOptions(" colours"),
+          onChange: function(t) { setActiveTier(t); setActiveMode("harmony"); setMappingOverrides(null); } }),
+        React.createElement("div", { className: "ps-harmony-threads" },
           harmonyDmc.map(function(m, i) {
-            return React.createElement("div", { key: i, style: { textAlign: "center" } },
+            return React.createElement("div", { key: i, className: "ps-harmony-threads__item" },
               React.createElement(SwatchBox, { rgb: m.rgb, size: 22 }),
-              React.createElement("div", { style: { fontSize: 9, color: "#A89E89" } }, m.id)
+              React.createElement("div", { className: "ps-harmony-threads__id" }, m.id)
             );
           })
         ),
         React.createElement("button", {
+          type: "button", className: "g-btn primary ps-wide-btn",
           onClick: function() { if (activeMode === "harmony") setShowConfirm(true); },
-          disabled: activeMode !== "harmony",
-          style: {
-            padding: "8px", fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: activeMode === "harmony" ? "pointer" : "default",
-            background: activeMode === "harmony" ? "#B85C38" : "#A89E89", color: "#fff", border: "none"
-          }
+          disabled: activeMode !== "harmony"
         }, "Preview Harmony")
       ),
 
       // Saved tab
-      presetTab === "saved" && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
-        customPalettes.length === 0 && React.createElement("div", {
-          style: { fontSize: 11, color: "#A89E89", textAlign: "center", padding: "12px 0" }
-        }, "No saved palettes yet. Apply a swap and click \u201CSave palette\u201D."),
+      presetTab === "saved" && React.createElement("div", { className: "ps-stack ps-stack--flush ps-stack--tight" },
+        customPalettes.length === 0 && React.createElement("p", { className: "pal-pick-empty" },
+          "No saved palettes yet. Apply a swap and click “Save palette”."),
         customPalettes.map(function(cp, idx) {
-          return React.createElement("div", {
-            key: idx,
-            style: {
-              borderRadius: 8, padding: 8, border: "1px solid #E5DCCB", background: "#fff",
-              display: "flex", flexDirection: "column", gap: 4
-            }
-          },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
-              React.createElement("span", { style: { fontSize: 11, fontWeight: 500 } }, cp.name),
-              React.createElement("div", { style: { display: "flex", gap: 4 } },
+          return React.createElement("div", { key: idx, className: "ps-saved" },
+            React.createElement("div", { className: "ps-saved__head" },
+              React.createElement("span", { className: "ps-saved__name" }, cp.name),
+              React.createElement("div", { className: "ps-saved__actions" },
                 React.createElement("button", {
+                  type: "button", className: "cs-seltools__btn cs-seltools__btn--on ps-small-btn",
                   onClick: function() {
                     // Store saved palette colours as the active preset source so
                     // mapping and collision detection are derived from the same state.
@@ -1651,91 +1528,73 @@ function usePaletteSwap(props) {
                     setActiveMode("preset");
                     setMappingOverrides(null);
                     setShowConfirm(true);
-                  },
-                  style: { fontSize: 10, padding: "2px 8px", borderRadius: 6, border: "1px solid #E8B89A", background: "#F4DDCF", color: "#B85C38", cursor: "pointer" }
+                  }
                 }, "Apply"),
                 React.createElement("button", {
-                  onClick: function() { deleteCustomPalette(idx); },
-                  style: { fontSize: 10, padding: "2px 6px", borderRadius: 6, border: "1px solid #ECC8C8", background: "#FCEFEF", color: "#A53D3D", cursor: "pointer" }
-                }, "\u00D7")
+                  type: "button", className: "cs-seltools__btn sb-danger-btn ps-small-btn",
+                  "aria-label": "Delete " + cp.name, title: "Delete this palette",
+                  onClick: function() { deleteCustomPalette(idx); }
+                }, Icons.x())
               )
             ),
-            React.createElement("div", { style: { display: "flex", gap: 2 } },
-              cp.colours.slice(0, 8).map(function(hex, ci) {
-                return React.createElement("span", {
-                  key: ci,
-                  style: { width: 14, height: 14, borderRadius: 2, background: hex, border: "1px solid #CFC4AC", display: "inline-block" }
-                });
-              })
-            )
+            React.createElement(HexSwatches, { colours: cp.colours.slice(0, 8), className: "ps-hexes--small" })
           );
         })
       ),
 
       // Custom hex input at bottom
-      presetTab === "themes" && React.createElement("div", {
-        style: { display: "flex", gap: 4, alignItems: "center", borderTop: "0.5px solid #E5DCCB", paddingTop: 6 }
-      },
+      presetTab === "themes" && React.createElement("div", { className: "ps-custom-hex" },
         React.createElement("input", {
-          type: "text", placeholder: "#hex", value: customHex,
-          onChange: function(e) { setCustomHex(e.target.value); },
-          style: { fontFamily: "monospace", width: 72, padding: "4px 8px", border: "0.5px solid #E5DCCB", borderRadius: 6, fontSize: 12 }
+          type: "text", placeholder: "#hex", value: customHex, "aria-label": "Add a colour by hex",
+          className: "cv-input ps-hex-input",
+          onChange: function(e) { setCustomHex(e.target.value); }
         }),
         React.createElement("button", {
-          onClick: addCustomHexColour,
-          style: { fontSize: 11, padding: "4px 10px", borderRadius: 6, border: "1px solid #E5DCCB", background: "#FBF8F3", cursor: "pointer" }
-        }, "+ Add")
+          type: "button", className: "cs-seltools__btn",
+          onClick: addCustomHexColour
+        }, Icons.plus(), React.createElement("span", null, "Add"))
       ),
 
       // Apply preset button (Themes/Saved)
       (presetTab === "themes" && activePreset) && (function() {
         var pName = Array.isArray(activePreset) ? "Saved Palette" : (getPresetById(activePreset) || {}).name || activePreset;
         return React.createElement("button", {
-          onClick: function() { setShowConfirm(true); },
-          style: {
-            padding: "8px", fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: "pointer",
-            background: "#B85C38", color: "#fff", border: "none"
-          }
-        }, "Preview \u201C" + pName + "\u201D");
+          type: "button", className: "g-btn primary ps-wide-btn",
+          onClick: function() { setShowConfirm(true); }
+        }, "Preview “" + pName + "”");
       })()
     )
   );
 
   // ───────────── Main Content: Confirmation View ─────────────
-  var confirmView = showConfirm ? React.createElement("div", {
-    className: "ps-confirm-overlay",
-    style: { background: "#fff", borderRadius: 10, border: "1px solid #E5DCCB", padding: 16 }
-  },
-    // Preview canvases
-    React.createElement("div", { style: { display: "flex", gap: 12, marginBottom: 16 } },
-      React.createElement("div", { style: { flex: 1 } },
-        React.createElement("div", { style: { fontSize: 11, color: "#A89E89", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 } }, "Before"),
-        React.createElement("div", { style: { borderRadius: 8, background: "#EFE7D6", overflow: "hidden", aspectRatio: sW + "/" + sH } },
-          React.createElement("canvas", { ref: beforeRef, style: { width: "100%", height: "100%", display: "block", imageRendering: "pixelated" } })
-        )
-      ),
-      React.createElement("div", { style: { flex: 1 } },
-        React.createElement("div", { style: { fontSize: 11, color: "#A89E89", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 } },
-          "After" + (activeMode === "shift" ? " (" + shiftDeg + "\u00B0 shift)" : activeMode === "preset" && activePreset ? " (\u201C" + (Array.isArray(activePreset) ? "Saved Palette" : (getPresetById(activePreset) || {}).name || activePreset) + "\u201D)" : "")
-        ),
-        React.createElement("div", { style: { borderRadius: 8, background: "#EFE7D6", overflow: "hidden", aspectRatio: sW + "/" + sH } },
-          React.createElement("canvas", { ref: afterRef, style: { width: "100%", height: "100%", display: "block", imageRendering: "pixelated" } })
-        )
+  function previewCanvas(label, ref) {
+    return React.createElement("div", { className: "ps-confirm__side" },
+      React.createElement("div", { className: "cs-toolsec__title" }, label),
+      // The box keeps the pattern's shape while the canvas draws.
+      React.createElement("div", { className: "ps-confirm__frame", style: { aspectRatio: sW + "/" + sH } },
+        React.createElement("canvas", { ref: ref, className: "ps-confirm__canvas" })
       )
+    );
+  }
+  var confirmView = showConfirm ? React.createElement("div", { className: "ps-confirm-overlay" },
+    // Preview canvases
+    React.createElement("div", { className: "ps-confirm__pair" },
+      previewCanvas("Before", beforeRef),
+      previewCanvas("After" + (activeMode === "shift" ? " (" + shiftDeg + "° shift)" : activeMode === "preset" && activePreset ? " (“" + (Array.isArray(activePreset) ? "Saved Palette" : (getPresetById(activePreset) || {}).name || activePreset) + "”)" : ""), afterRef)
     ),
 
     // Mapping table
-    React.createElement("div", { style: { fontSize: 11, fontWeight: 600, color: "#5C5448", marginBottom: 4 } }, "Colour mapping"),
-    React.createElement("div", { style: { overflow: "auto", maxHeight: 300, marginBottom: 12 } },
-      React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+    React.createElement("div", { className: "cv-field__label ps-label" }, "Colour mapping"),
+    React.createElement("div", { className: "ps-map" },
+      React.createElement("table", { className: "ps-map__table" },
         React.createElement("thead", null,
-          React.createElement("tr", { style: { fontSize: 10, textTransform: "uppercase", color: "#A89E89" } },
-            React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", fontWeight: 600 } }, "Source"),
-            React.createElement("th", { style: { padding: "2px 2px" } }),
-            React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", fontWeight: 600 } }, "Destination"),
-            React.createElement("th", { style: { textAlign: "right", padding: "2px 6px", fontWeight: 600 } }, "Stitches"),
-            React.createElement("th", { style: { textAlign: "left", padding: "2px 6px", fontWeight: 600 } }, "Match"),
-            React.createElement("th", { style: { padding: "2px 6px" } })
+          React.createElement("tr", null,
+            React.createElement("th", null, "Source"),
+            React.createElement("th", null),
+            React.createElement("th", null, "Destination"),
+            React.createElement("th", { className: "ps-map__count" }, "Stitches"),
+            React.createElement("th", null, "Match"),
+            React.createElement("th", null)
           )
         ),
         React.createElement("tbody", null,
@@ -1754,83 +1613,41 @@ function usePaletteSwap(props) {
     ),
 
     // Contrast warnings
-    contrastWarnings.length > 0 && React.createElement("div", {
-      style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#A06F2D", marginBottom: 8 }
-    },
+    contrastWarnings.length > 0 && warnNote(React.createElement(React.Fragment, null,
       React.createElement("strong", null, "Low contrast pairs: "),
       contrastWarnings.map(function(w, i) {
-        return React.createElement("span", { key: i, style: { display: "inline-flex", alignItems: "center", gap: 2, marginRight: 8 } },
+        return React.createElement("span", { key: i, className: "ps-contrast" },
           React.createElement(SwatchBox, { rgb: w.a.rgb, size: 12 }),
           React.createElement(SwatchBox, { rgb: w.b.rgb, size: 12 }),
           React.createElement("span", null, " " + w.ratio + ":1")
         );
       })
-    ),
+    )),
 
     // Tracking progress warning
-    doneCount > 0 && React.createElement("div", {
-      style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#A06F2D", marginBottom: 8 }
-    },
-      "This pattern has tracking progress (" + doneCount.toLocaleString('en-GB') + " stitches marked). Applying a palette swap will reset your progress."
-    ),
+    doneCount > 0 && warnNote("This pattern has tracking progress (" + doneCount.toLocaleString('en-GB') + " stitches marked). Applying a palette swap will reset your progress."),
 
     // Collision warnings
-    collisions.length > 0 && React.createElement("div", {
-      style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "6px 10px", fontSize: 11, color: "#A06F2D", marginBottom: 8 }
-    },
-      "\u26A0 Collision: ",
-      collisions.map(function(c) { return threadLabel({ id: c.dmcId }) + " (" + c.sourceIds.length + " sources)"; }).join(", "),
-      " \u2014 multiple source colours map to the same thread."
-    ),
+    collisions.length > 0 && warnNote("Collision: " + collisionText + ". More than one source colour maps to the same thread."),
 
     // Action bar
-    React.createElement("div", {
-      style: {
-        display: "flex", alignItems: "center", gap: 8,
-        background: "#FBF8F3", borderTop: "0.5px solid #E5DCCB", padding: "10px 0", marginTop: 8
-      }
-    },
-      React.createElement("button", {
-        onClick: savePalette,
-        style: {
-          fontSize: 12, padding: "8px 14px", borderRadius: 8, cursor: "pointer",
-          background: "#fff", color: "#5C5448", border: "1px solid #E5DCCB", marginRight: "auto"
-        }
-      }, "Save palette"),
-      React.createElement("button", {
-        onClick: function() { setShowConfirm(false); },
-        style: {
-          fontSize: 12, padding: "8px 14px", borderRadius: 8, cursor: "pointer",
-          background: "#fff", color: "#5C5448", border: "1px solid #E5DCCB"
-        }
-      }, "Cancel"),
-      React.createElement("button", {
-        onClick: applySwap,
-        style: {
-          fontSize: 13, fontWeight: 600, padding: "8px 20px", borderRadius: 8, cursor: "pointer",
-          background: "#B85C38", color: "#fff", border: "none"
-        }
-      }, "Apply Swap")
+    React.createElement("div", { className: "ps-confirm__bar" },
+      React.createElement("button", { type: "button", className: "g-btn ps-confirm__save", onClick: savePalette }, "Save palette"),
+      React.createElement("button", { type: "button", className: "g-btn", onClick: function() { setShowConfirm(false); } }, "Cancel"),
+      React.createElement("button", { type: "button", className: "g-btn primary", onClick: applySwap }, "Apply Swap")
     )
   ) : null;
 
   // Return the component parts for the host CreatorApp to place
   var revertSection = genPatSnapshot
-    ? React.createElement('div', { style: { marginTop: 4, paddingTop: 8, borderTop: '1px solid var(--line)' } },
+    ? React.createElement('div', { className: 'ps-revert' },
         React.createElement('button', {
+          type: 'button', className: 'cs-seltools__btn sb-block-btn ps-revert__btn',
           onClick: revertToGenPalette,
           disabled: !hasPaletteChanged,
           title: hasPaletteChanged
             ? 'Restore the palette from when this pattern was generated'
-            : 'Palette is already at the generated state',
-          style: {
-            width: '100%', fontSize: 12, padding: '7px 12px',
-            borderRadius: 'var(--radius-sm)',
-            cursor: hasPaletteChanged ? 'pointer' : 'default',
-            background: 'var(--surface)', color: 'var(--text-primary)',
-            border: '1px solid var(--line)', opacity: hasPaletteChanged ? 1 : 0.5,
-            display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center'
-          }
+            : 'Palette is already at the generated state'
         },
           typeof Icons !== 'undefined' && Icons.undo ? Icons.undo() : null,
           'Revert to generated palette'
