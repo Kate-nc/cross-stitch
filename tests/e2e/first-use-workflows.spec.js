@@ -88,7 +88,7 @@ test.describe('Workflow switching', () => {
     await page.goto('/home.html');
     await expect(page.locator('.home-continue')).toBeVisible();
     await page.locator('.home-continue').getByRole('button',{name:'Edit pattern'}).click();
-    await expect(page.locator('.creator-rail, .toolbar-row').first()).toBeVisible();
+    await expect(page.locator('.creator-rail, .toolbar-row, .creator-drail').first()).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(await page.evaluate(()=>ProjectStorage.getActiveProjectId())).toBe(id);
     expect((await page.evaluate(()=>BlobStore.list('draft:')))).toHaveLength(1);

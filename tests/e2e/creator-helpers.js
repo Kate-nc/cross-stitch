@@ -185,6 +185,25 @@ async function backToConvert(page) {
   await page.getByRole('tab', { name: 'Convert' }).click();
 }
 
+// Choose a tool by its toolbar name ('Text tool', 'Magic wand', 'Line tool'…):
+// on the tool rail when it is there (shapes from its Shapes menu), otherwise
+// from More tools.
+const RAIL_TOOL = { 'Paint tool': 'paint', 'Fill tool': 'fill', 'Erase tool': 'erase', 'Eyedropper tool': 'pick',
+  'Magic wand': 'wand', 'Lasso': 'lasso', 'Text tool': 'text', 'Navigate': 'hand' };
+const RAIL_SHAPE = { 'Line tool': 'Line', 'Rectangle tool': 'Rectangle', 'Ellipse tool': 'Ellipse' };
+async function chooseTool(page, name) {
+  if (await isRailLayout(page)) {
+    if (RAIL_TOOL[name]) { await page.locator('.creator-drail [data-tool="' + RAIL_TOOL[name] + '"]').click(); return; }
+    if (RAIL_SHAPE[name]) {
+      await page.locator('.creator-drail [data-tool="shapes"]').click();
+      await page.getByRole('menu', { name: 'Shapes' }).getByRole('menuitemradio', { name: RAIL_SHAPE[name] }).click();
+      return;
+    }
+  }
+  await page.getByRole('button', { name: 'More tools' }).click();
+  await page.getByRole('button', { name: name }).click();
+}
+
 // Crop to the stitches: the Tools tab, or with the tool rail the Pattern menu.
 async function cropToStitches(page) {
   if (await isRailLayout(page)) {
@@ -226,5 +245,5 @@ async function previewView(page, id) {
 module.exports = {
   LOGO, DESKTOP, device, quietOnboarding, skipTourIfShown, openConvertWithLogo, continueFromFrame, reframe,
   startBlankGrid, clickGenerate, waitForEdit, generateLogo, isCompact, isRailLayout, railPref, closeMorePanel,
-  zoomUntilScrollable, pickDarkSwatch, undoButton, backToConvert, cropToStitches, convertStep, previewView, confirmReplaceChart,
+  zoomUntilScrollable, pickDarkSwatch, undoButton, backToConvert, cropToStitches, chooseTool, convertStep, previewView, confirmReplaceChart,
 };

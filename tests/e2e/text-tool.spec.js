@@ -2,7 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, quietOnboarding } = require('./creator-helpers');
+const { device, quietOnboarding, chooseTool } = require('./creator-helpers');
 
 const G = 28;
 const SW = 30, SH = 30;
@@ -115,8 +115,7 @@ test.describe('Text tool on a desktop', function() {
 
   test('text wider than the pattern is flagged, and a smaller font offered', async function({ page }) {
     await openFixture(page);
-    await page.getByRole('button', { name: 'More tools' }).click();
-    await page.getByRole('button', { name: 'Text tool' }).click();
+    await chooseTool(page, 'Text tool');
     const p = await cellPoint(page, 0, 0);
     await page.mouse.click(p.x, p.y);
     const sheet = page.getByRole('dialog', { name: 'Add text' });
@@ -136,8 +135,7 @@ test.describe('Text tool on a desktop', function() {
 
   test('Ctrl+Z in the text box and a trip to another tab keep the text', async function({ page }) {
     await openFixture(page);
-    await page.getByRole('button', { name: 'More tools' }).click();
-    await page.getByRole('button', { name: 'Text tool' }).click();
+    await chooseTool(page, 'Text tool');
     const p = await cellPoint(page, 2, 2);
     await page.mouse.click(p.x, p.y);
     const sheet = page.getByRole('dialog', { name: 'Add text' });
