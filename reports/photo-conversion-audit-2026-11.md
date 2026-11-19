@@ -29,7 +29,8 @@ Earlier work: [photo-conversion-accuracy-review.md](photo-conversion-accuracy-re
     `gridPixels`);
   - only a genuinely see-through stitch (alpha below 128) switches colour removal off.
 
-  The ΔE2000 tolerance and crop fixes (recommendations 2 and 6) are not done.
+  The crop fixes (recommendation 6) came with `main`'s Frame the picture. The ΔE2000
+  tolerance is done since (see below).
 - **Wording:** *Stitch Cleanup* text follows the picture type and says what Off still
   changes; the tidied count is now exactly what Reduce confetti changed (`tidiedCells`).
 - **Blends** are mixed as light everywhere a blend's colour is worked out
@@ -75,6 +76,17 @@ Earlier work: [photo-conversion-accuracy-review.md](photo-conversion-accuracy-re
     the unsharpened picture rises 4.74 to 4.90, as any sharpening must; on average one
     thread of the final pattern differs, a rarely used one dropping out. The background
     mask no longer depends on it: sharpening comes after.
+- **How close a match in ΔE2000** (`prepareConversionPixels`, `BG_TOLERANCE_DEFAULT`):
+  the tolerance was ΔE76, which doesn't weigh differences as they look. Its default, 15,
+  is ΔE2000 9 for a shade of white that much darker, 9.5 to 10 for pale greys and
+  creams, 13.5 for mid grey, but 3.1 to 3.2 towards a more or less saturated version of
+  a saturated yellow or red. The default is now ΔE2000 9 (a white background is left out
+  exactly as before); the slider runs 1 to 30. Saved projects and drafts carry
+  `bgThUnit: 'de2000'`; without it, `bgToleranceFromDE76` converts the saved value for the
+  saved background colour along lightness (the mean ΔE2000 of a shade that much lighter
+  and darker), so what a lighter or darker shade left out before it leaves out now. The
+  stripe fixtures (240 border) behave as before at the default: 225, 215 and 205 go
+  (ΔE2000 3.2, 5.5, 7.9), 195 stays (10.3).
   - Global changes such as Brightness +3 still change many stitches (52% before, 47% now;
     13 to 19% even with the palette held fixed), because they really do change the colours.
 

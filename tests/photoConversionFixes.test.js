@@ -68,6 +68,75 @@ describe('background removal', () => {
   });
 });
 
+describe('How close a match is ΔE2000', () => {
+  const W = runtime();
+  const io = fs.readFileSync('creator/useProjectIO.js', 'utf8');
+  const lab = (c) => W.rgbToLab(c[0], c[1], c[2]);
+  // A 9 × 9 picture: the border colour, with a stripe through the middle
+  // touching both edges. Returns how many stripe stitches are left out.
+  const stripeLeftOut = (border, stripe, bgTh) => {
+    const data = picture(9, 9, (x, y) => (y === 4 ? stripe : border));
+    const mask = W.prepareConversionPixels(new Uint8ClampedArray(data), 9, 9, settings({ skipBg: true, bgCol: border, bgTh }));
+    return Array.from(mask.slice(36, 45)).filter((v) => !v).length;
+  };
+
+  test('a stripe goes with the background only when it looks closer than the tolerance', () => {
+    // The audit's pale stripes on a 240 grey border: ΔE2000 3.2, 5.5, 7.9 and 10.3.
+    expect([225, 215, 205, 195].map((g) => stripeLeftOut([240, 240, 240], [g, g, g], 9))).toEqual([9, 9, 9, 0]);
+    expect(stripeLeftOut([240, 240, 240], [205, 205, 205], 7.5)).toBe(0);
+  });
+
+  test('a colour change counts as it looks, not by Lab distance', () => {
+    // On a saturated red, a more saturated red and a darker red, each ΔE76 15
+    // away. They look very different (ΔE2000 about 3 and 11): only the first
+    // goes with the background now. Under ΔE76 15 neither did.
+    const red = [200, 30, 40], L = lab(red), C = Math.hypot(L[1], L[2]);
+    const toRgb = (l) => W.labToRgb(l[0], l[1], l[2]).map(Math.round);
+    const moreRed = toRgb([L[0], L[1] + L[1] / C * 15, L[2] + L[2] / C * 15]);
+    const darker = toRgb([L[0] - 15, L[1], L[2]]);
+    expect(W.dE2000(lab(moreRed), L)).toBeLessThan(4.5);
+    expect(W.dE2000(lab(darker), L)).toBeGreaterThan(10);
+    expect(stripeLeftOut(red, moreRed, 9)).toBe(9);
+    expect(stripeLeftOut(red, darker, 9)).toBe(0);
+  });
+
+  test('a tolerance saved as ΔE76 is converted for its background colour', () => {
+    expect(W.BG_TOLERANCE_DEFAULT).toBe(9);
+    // The old default on white is the new default: a white background is left out as before.
+    expect(W.bgToleranceFromDE76(15, [255, 255, 255])).toBe(9);
+    expect(W.bgToleranceFromDE76(15, [128, 128, 128])).toBe(13.5);
+    expect(W.bgToleranceFromDE76(50, [255, 255, 255])).toBe(30);
+    expect(W.bgToleranceFromDE76(undefined, [0, 0, 0])).toBe(9);
+    // What a lighter or darker shade left out before, it leaves out now.
+    for (const [bg, old] of [[[255, 255, 255], 15], [[236, 234, 230], 20], [[107, 145, 196], 12]]) {
+      const L = lab(bg);
+      for (const d of [old * 0.8, old * 1.2]) {
+        const shade = W.labToRgb(Math.max(0, L[0] - d), L[1], L[2]).map(Math.round);
+        const before = Math.hypot(...lab(shade).map((v, i) => v - L[i])) < old;   // the old ΔE76 test
+        expect(stripeLeftOut(bg, shade, W.bgToleranceFromDE76(old, bg)) === 9).toBe(before);
+      }
+    }
+  });
+
+  test('saved with its unit; older projects and drafts are converted on opening', () => {
+    expect(io.match(/bgThUnit: 'de2000'/g)).toHaveLength(3);   // the three project-save paths
+    const g = { BG_TOLERANCE_DEFAULT: 9, bgToleranceFromDE76: W.bgToleranceFromDE76, window: {} };
+    const src = io.slice(io.indexOf('var DRAFT_SETTING_KEYS = ['), io.indexOf('window.CREATOR_DRAFT_SETTING_KEYS'));
+    const fns = new Function('g', 'with (g) { ' + src + ' return { creatorRestoredBgTolerance, creatorDraftSettings, creatorApplyDraftSettings }; }')(g);   // eslint-disable-line no-new-func
+    expect(fns.creatorRestoredBgTolerance(12.5, 'de2000', [255, 255, 255])).toBe(12.5);
+    expect(fns.creatorRestoredBgTolerance(15, undefined, [255, 255, 255])).toBe(9);
+    expect(fns.creatorRestoredBgTolerance(undefined, undefined, undefined)).toBe(9);
+    expect(io).toMatch(/state\.setBgTh\(creatorRestoredBgTolerance\(s\.bgTh, s\.bgThUnit, s\.bgCol\)\);/);
+    // Drafts carry the unit; one without it is converted.
+    expect(fns.creatorDraftSettings({ bgTh: 6, bgCol: [1, 2, 3] })).toMatchObject({ bgTh: 6, bgThUnit: 'de2000' });
+    const set = [];
+    const state = { setBgTh: (v) => set.push(v), setBgCol: () => {} };
+    fns.creatorApplyDraftSettings(state, { bgTh: 15, bgCol: [255, 255, 255] });
+    fns.creatorApplyDraftSettings(state, { bgTh: 6, bgThUnit: 'de2000', bgCol: [255, 255, 255] });
+    expect(set).toEqual([9, 6]);
+  });
+});
+
 describe('the edge-shade fold', () => {
   function countFolds(cleanup) {
     const W = runtime();

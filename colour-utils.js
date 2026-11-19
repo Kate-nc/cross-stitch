@@ -267,6 +267,31 @@ function trackerGridLook(opts) {
  * Mutates this pipeline's private pixel buffer, not the source or preview cache.
  * Returns a Uint8Array coverage mask (1 = stitchable, 0 = empty).
  */
+// How close a match counts as background (Leave background unstitched's How
+// close a match, `bgTh`): ΔE2000, the measure the rest of the conversion uses
+// for how different two colours look. It was ΔE76, which doesn't weigh
+// differences as they look: the old default, 15, is ΔE2000 9 for a shade of
+// white that much darker, 9.5 to 10 for pale greys and creams, 13.5 for mid
+// grey, but as little as 3.2 towards a more or less saturated version of a
+// saturated background (reports/photo-conversion-audit-2026-11.md). 9 keeps a
+// white background as it was.
+var BG_TOLERANCE_DEFAULT = 9, BG_TOLERANCE_MIN = 1, BG_TOLERANCE_MAX = 30;
+// A tolerance saved as ΔE76 (`bgTh` without bgThUnit 'de2000'), in ΔE2000 for
+// that background colour: the ΔE2000 of a shade that much lighter or darker
+// (how a background varies: shadow, vignetting), the mean of the two where both
+// exist. So what a lighter or darker shade of the background left out before,
+// it leaves out now. Rounded to the slider's 0.5 steps.
+function bgToleranceFromDE76(old, bgCol) {
+  if (!(typeof old === "number" && old > 0)) return BG_TOLERANCE_DEFAULT;
+  var c = Array.isArray(bgCol) && bgCol.length >= 3 ? bgCol : [255, 255, 255];
+  var lab = rgbToLab(c[0], c[1], c[2]), sum = 0, k = 0;
+  if (lab[0] + old <= 100) { sum += _dE2000Core(lab[0], lab[1], lab[2], lab[0] + old, lab[1], lab[2]); k++; }
+  if (lab[0] - old >= 0) { sum += _dE2000Core(lab[0], lab[1], lab[2], lab[0] - old, lab[1], lab[2]); k++; }
+  if (!k) sum = _dE2000Core(lab[0], lab[1], lab[2], lab[0] < 50 ? 100 : 0, lab[1], lab[2]) * old / 100, k = 1;
+  var v = Math.round(sum / k * 2) / 2;
+  return Math.max(BG_TOLERANCE_MIN, Math.min(BG_TOLERANCE_MAX, v));
+}
+
 function prepareConversionPixels(data, w, h, opts) {
   var n = w * h, mask = new Uint8Array(n), hasTransparency = false;
   for (var i = 0; i < n; i++) {
@@ -275,11 +300,13 @@ function prepareConversionPixels(data, w, h, opts) {
   }
   if (opts.skipBg && !hasTransparency) {
     var bgLab = rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]);
+    var tol = typeof opts.bgTh === "number" ? opts.bgTh : BG_TOLERANCE_DEFAULT;   // ΔE2000
     var seen = new Uint8Array(n), queue = [];
     function visit(i) {
       if (seen[i]) return;
       seen[i] = 1;
-      if (dE(rgbToLab(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]), bgLab) < opts.bgTh) {
+      var p = rgbToLab(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
+      if (_dE2000Core(p[0], p[1], p[2], bgLab[0], bgLab[1], bgLab[2]) < tol) {
         mask[i] = 0; queue.push(i);
       }
     }
@@ -3718,4 +3745,4 @@ _colourUtilsGlobal.RARE_COLOUR_CONTRAST_GUARD_DE = RARE_COLOUR_CONTRAST_GUARD_DE
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, applyImageAdjustments, prepareConversionPixels, blankUncovered, sharpenStitches, blendThreadRgb, legacyBlendRgb, makeThreadBlend, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, applyImageAdjustments, prepareConversionPixels, BG_TOLERANCE_DEFAULT, bgToleranceFromDE76, blankUncovered, sharpenStitches, blendThreadRgb, legacyBlendRgb, makeThreadBlend, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }

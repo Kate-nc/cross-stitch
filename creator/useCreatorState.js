@@ -637,7 +637,8 @@ window.useCreatorState = function useCreatorState() {
   // True while skipBg was switched on from the plain-background offer
   // (useProjectIO.offerBackground), so the next picture starts with it off.
   var bgAutoSkippedRef = useRef(false);
-  var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
+  // How close a match counts as background, in ΔE2000 (BG_TOLERANCE_DEFAULT, colour-utils.js).
+  var _bgTh   = useState(typeof BG_TOLERANCE_DEFAULT === "number" ? BG_TOLERANCE_DEFAULT : 9); var bgTh = _bgTh[0], setBgTh = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
   var _pickBg = useState(false);      var pickBg = _pickBg[0], setPickBg = _pickBg[1];
   var _minSt  = useState(function () { var v = loadUserPref("creatorMinStitchesPerColour", 0); return (typeof v === "number" && v >= 0) ? v : 0; });
