@@ -1573,20 +1573,57 @@ function CreatorApp({
   const stableCropToStitches = useCallback(function () {
     cropToStitchesRef.current();
   }, []);
-  const handleRequestBackToConvert = React.useCallback(function () {
-    if (state.editHistory && state.editHistory.length > 0) {
-      state.setConfirmBackToConvert(true);
-    } else {
-      state.setAppMode("create");
-      state.setTab("pattern");
+  const savedChartScrollRef = React.useRef(null);
+  React.useEffect(function () {
+    savedChartScrollRef.current = null;
+  }, [state.lastGenSnapshot]);
+  React.useEffect(function () {
+    if (state.appMode !== "edit" || state.tab !== "pattern" || !state.pat) return;
+    var pos = savedChartScrollRef.current;
+    if (!pos) return;
+    savedChartScrollRef.current = null;
+    function apply() {
+      var el = state.scrollRef && state.scrollRef.current;
+      if (!el) return;
+      el.scrollLeft = pos.left;
+      el.scrollTop = pos.top;
     }
-  }, [state.editHistory, state.setConfirmBackToConvert, state.setAppMode, state.setTab]);
+    apply();
+    var raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame(apply) : null;
+    return function () {
+      if (raf != null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(raf);
+    };
+  }, [state.appMode, state.tab, state.pat, state.scrollRef]);
+  const handleRequestBackToConvert = React.useCallback(function () {
+    if (state.appMode === "edit" && state.tab === "pattern" && state.scrollRef && state.scrollRef.current) {
+      savedChartScrollRef.current = {
+        left: state.scrollRef.current.scrollLeft,
+        top: state.scrollRef.current.scrollTop
+      };
+    }
+    state.setAppMode("create");
+    state.setTab("pattern");
+  }, [state.appMode, state.tab, state.setAppMode, state.setTab, state.scrollRef]);
+  const handleTabChange = React.useCallback(function (t) {
+    if (state.appMode === "edit" && state.tab === "pattern" && t !== "pattern" && state.scrollRef && state.scrollRef.current) {
+      savedChartScrollRef.current = {
+        left: state.scrollRef.current.scrollLeft,
+        top: state.scrollRef.current.scrollTop
+      };
+    }
+    if (state.pat && state.pal && state.appMode !== "edit") {
+      state.setAppMode("edit");
+    }
+    state.setTab(t);
+  }, [state.appMode, state.tab, state.pat, state.pal, state.setAppMode, state.setTab, state.scrollRef]);
 
   // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
   const genCtx = useMemo(function () {
     return {
       img: state.img,
       setImg: state.setImg,
+      convertW: state.convertW,
+      convertH: state.convertH,
       isUploading: state.isUploading,
       setIsUploading: state.setIsUploading,
       isDragging: state.isDragging,
@@ -1714,7 +1751,7 @@ function CreatorApp({
       setConvertStage: state.setConvertStage,
       srcClick: stableSrcClick
     };
-  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.keepColours, state.pickKeep, state.keepUnavailable, state.keepOverLimit, state.addKeepColourById, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.crispEdges, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.ownedThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.convertW, state.convertH, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.keepColours, state.pickKeep, state.keepUnavailable, state.keepOverLimit, state.addKeepColourById, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.crispEdges, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.convertStage, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.ownedThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {
@@ -2379,7 +2416,7 @@ function CreatorApp({
   }), /*#__PURE__*/React.createElement(Header, {
     page: state.appMode === 'edit' ? 'editor' : 'creator',
     tab: state.tab,
-    onPageChange: state.setTab,
+    onPageChange: handleTabChange,
     onOpen: () => state.loadRef.current.click(),
     onSave: state.pat && state.pal ? io.saveProject : null,
     onTrack: state.pat && state.pal ? stableHandleOpenInTracker : null,
@@ -2547,9 +2584,7 @@ function CreatorApp({
     canRename: !!(state.pat && state.pal) || !!_convertName,
     saveStatus: state.saveStatus,
     savedAt: state.savedAt,
-    onTabChange: function (t) {
-      state.setTab(t);
-    },
+    onTabChange: handleTabChange,
     onRequestBackToConvert: handleRequestBackToConvert,
     onPrintPdf: printPdfWithNameNudge,
     onTrackPattern: stableHandleOpenInTracker,
@@ -2584,9 +2619,7 @@ function CreatorApp({
     appMode: state.appMode,
     tab: state.tab,
     pat: !!(state.pat && state.pal),
-    onTabChange: function (t) {
-      state.setTab(t);
-    },
+    onTabChange: handleTabChange,
     onRequestBackToConvert: handleRequestBackToConvert,
     onPrintPdf: printPdfWithNameNudge,
     onTrackPattern: stableHandleOpenInTracker,
@@ -2795,8 +2828,8 @@ function CreatorApp({
   }), state.previewUrl && window.CreatorCompareStrip && /*#__PURE__*/React.createElement(window.CreatorCompareStrip, {
     img: state.img,
     settings: state.conversionSettings,
-    sW: state.sW,
-    sH: state.sH,
+    sW: state.convertW,
+    sH: state.convertH,
     maxC: state.maxC,
     arLock: state.arLock,
     ar: state.ar,
@@ -2834,80 +2867,7 @@ function CreatorApp({
   }), state.modal === "shortcuts" && /*#__PURE__*/React.createElement(SharedModals.Help, {
     defaultTab: "shortcuts",
     onClose: () => state.setModal(null)
-  }), state.confirmBackToConvert && /*#__PURE__*/React.createElement("div", {
-    role: "dialog",
-    "aria-modal": "true",
-    "aria-label": "Switch to Convert?",
-    style: {
-      position: "fixed",
-      inset: 0,
-      zIndex: 1900,
-      background: "rgba(0,0,0,0.5)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 16
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "var(--surface)",
-      borderRadius: "var(--radius-md)",
-      padding: 24,
-      maxWidth: 400,
-      width: "100%",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.18)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: "var(--text-md,14px)",
-      fontWeight: 700,
-      color: "var(--text-primary)",
-      marginBottom: 8
-    }
-  }, "Switch to Convert?"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: "var(--text-sm,13px)",
-      color: "var(--text-secondary)",
-      marginBottom: 20,
-      lineHeight: 1.5
-    }
-  }, "Your " + (state.editHistory ? state.editHistory.length : 0) + " manual " + (state.editHistory && state.editHistory.length === 1 ? "edit is" : "edits are") + " already saved to this project. Going to Convert clears the undo history, and running Generate again will replace the current pattern."), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8,
-      justifyContent: "flex-end"
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => state.setConfirmBackToConvert(false),
-    style: {
-      padding: "7px 14px",
-      fontSize: 13,
-      fontWeight: 500,
-      border: "1px solid var(--line)",
-      borderRadius: "var(--radius-sm)",
-      background: "var(--surface)",
-      color: "var(--text-secondary)",
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
-  }, "Stay in Edit"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      state.setConfirmBackToConvert(false);
-      state.setAppMode("create");
-      state.setTab("pattern");
-    },
-    style: {
-      padding: "7px 14px",
-      fontSize: 13,
-      fontWeight: 600,
-      border: "none",
-      borderRadius: "var(--radius-sm)",
-      background: "var(--accent)",
-      color: "var(--surface)",
-      cursor: "pointer",
-      fontFamily: "inherit"
-    }
-  }, "Go to Convert"))))), state.busy && window.CreatorGenerateProgress && /*#__PURE__*/React.createElement(window.CreatorGenerateProgress, {
+  })), state.busy && window.CreatorGenerateProgress && /*#__PURE__*/React.createElement(window.CreatorGenerateProgress, {
     stage: state.progressStage,
     onCancel: state.cancelGenerate,
     cancellable: state.generateCancellable

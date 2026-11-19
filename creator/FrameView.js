@@ -190,7 +190,8 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   // The background Generate will leave out, striped on the picture while
   // Leave background unstitched is on. Worked out a moment after the last
   // change, so dragging the match slider stays smooth.
-  var sW = pd && pd.sW, sH = pd && pd.sH;
+  var sW = (gen && gen.convertW != null) ? gen.convertW : (pd && pd.sW);
+  var sH = (gen && gen.convertH != null) ? gen.convertH : (pd && pd.sH);
   var bgActive = !!(gen.skipBg && !gen.exactPixelArt && gen.img && gen.img.src && sW && sH);
   var _bgInfo = React.useState(null); var bgInfo = _bgInfo[0], setBgInfo = _bgInfo[1];
   var _showBg = React.useState(true); var showBg = _showBg[0], setShowBg = _showBg[1];

@@ -178,7 +178,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   });
   tabs.push({
     id: "materials", label: "Materials", icon: Icons.layers,
-    active: currentTab === "materials",
+    active: appMode === "edit" && currentTab === "materials",
     disabled: !hasPat,
     title: hasPat ? "Materials \u2014 thread count, export options" : "Generate a pattern first",
     onClick: !hasPat ? undefined : function() {

@@ -7133,8 +7133,15 @@ window.useCreatorState = function useCreatorState() {
   var _img    = useState(null);       var img    = _img[0],    setImg    = _img[1];
   var _upload = useState(false);      var isUploading = _upload[0], setIsUploading = _upload[1];
   var _drag   = useState(false);      var isDragging  = _drag[0],   setIsDragging  = _drag[1];
-  var _sW     = useState(80);         var sW     = _sW[0],     setSW     = _sW[1];
-  var _sH     = useState(80);         var sH     = _sH[0],     setSH     = _sH[1];
+  var _sW     = useState(80);         var sW     = _sW[0],     _setSWRaw = _sW[1];
+  var _sH     = useState(80);         var sH     = _sH[0],     _setSHRaw = _sH[1];
+  // Convert's own target size, kept separate from the generated chart's sW/sH
+  // so changing width or height in Convert without Regenerating never alters
+  // the existing chart.
+  var _convertW = useState(80);       var convertW = _convertW[0], setConvertW = _convertW[1];
+  var _convertH = useState(80);       var convertH = _convertH[0], setConvertH = _convertH[1];
+  var setSW = useCallback(function(v) { _setSWRaw(v); setConvertW(v); }, []);
+  var setSH = useCallback(function(v) { _setSHRaw(v); setConvertH(v); }, []);
   var _arLock = useState(true);       var arLock = _arLock[0], setArLock = _arLock[1];
   var _ar     = useState(1);          var ar     = _ar[0],     setAr     = _ar[1];
 
@@ -7458,12 +7465,21 @@ window.useCreatorState = function useCreatorState() {
   // (reports/create-from-image-workflow, Phase B). presetUntouched says
   // whether every value the type set is still as it set it.
   var _exactPixel = useState(false), exactPixelArt = _exactPixel[0], setExactPixelArt = _exactPixel[1];
+  var patRef = useRef(null); patRef.current = pat;
+  var setConvertDims = useCallback(function(w, h) {
+    if (w != null) setConvertW(w);
+    if (h != null) setConvertH(h);
+    if (!patRef.current || isScratchModeRef.current) {
+      if (w != null) _setSWRaw(w);
+      if (h != null) _setSHRaw(h);
+    }
+  }, []);
   useEffect(function() {
     if (!exactPixelArt || !img || appMode !== "create") return;
     var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
     if (w > 500 || h > 500) { setExactPixelArt(false); return; }
-    setSW(w); setSH(h);
-  }, [exactPixelArt, img, sW, sH, appMode]);
+    setConvertDims(w, h);
+  }, [exactPixelArt, img, convertW, convertH, appMode, setConvertDims]);
   var _picInfo = useState(null);     var pictureInfo = _picInfo[0], setPictureInfo = _picInfo[1];
   var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
   var pictureInfoRef = useRef(null);
@@ -7478,14 +7494,14 @@ window.useCreatorState = function useCreatorState() {
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
     if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails, foldEdgeShades: v.foldEdgeShades }); });
     if (v.orphans != null) setOrphans(v.orphans);
-    if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
+    if (v.sW && v.sH) { setConvertDims(v.sW, v.sH); }
     setPresetApplied(opts && opts.guessed ? { id: id, values: v, guessed: true } : { id: id, values: v });
-  }, []);
+  }, [setConvertDims]);
   // The Detail and tidiness step is its own choice: changing it keeps the
   // picture type, so its keys are not compared here.
   var presetUntouched = (function () {
     if (!presetApplied) return false;
-    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: sW, sH: sH };
+    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: convertW, sH: convertH };
     for (var k in v) {
       if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
       if (cur[k] !== v[k]) return false;
@@ -7916,6 +7932,7 @@ window.useCreatorState = function useCreatorState() {
   var workerRef      = useRef(null); // null | Worker | 'unavailable'
   var applyResultRef = useRef(null); // updated each render, captures fresh state
   var genBrandRef = useRef(null);    // { reqId, brand }: the brand a generation chose from
+  var genDimsRef  = useRef(null);    // { reqId, w, h }: the dimensions a generation ran at
   var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
 
   var G = 28;
@@ -8184,13 +8201,13 @@ window.useCreatorState = function useCreatorState() {
 
   function chgW(v) {
     var w = Math.max(10, Math.min(500, parseInt(v) || 10));
-    setSW(w);
-    if (arLock) setSH(Math.max(10, Math.min(500, Math.round(w / ar))));
+    var nextH = arLock ? Math.max(10, Math.min(500, Math.round(w / ar))) : null;
+    setConvertDims(w, nextH);
   }
   function chgH(v) {
     var h = Math.max(10, Math.min(500, parseInt(v) || 10));
-    setSH(h);
-    if (arLock) setSW(Math.max(10, Math.min(500, Math.round(h * ar))));
+    var nextW = arLock ? Math.max(10, Math.min(500, Math.round(h * ar))) : null;
+    setConvertDims(nextW, h);
   }
   function slRsz(v) { chgW(v); }
 
@@ -8540,7 +8557,11 @@ window.useCreatorState = function useCreatorState() {
   applyResultRef.current = function(result) {
     // Discard results from a superseded generation or a mismatched grid size
     if (result.reqId !== genReqIdRef.current) { setBusy(false); return; }
-    if (result.mapped && result.mapped.length !== sW * sH) { setBusy(false); return; }
+    var genW = genDimsRef.current && genDimsRef.current.reqId === result.reqId ? genDimsRef.current.w : convertW;
+    var genH = genDimsRef.current && genDimsRef.current.reqId === result.reqId ? genDimsRef.current.h : convertH;
+    if (result.mapped && result.mapped.length !== genW * genH) { setBusy(false); return; }
+    // Commit Convert's target dimensions to the chart now that Generate succeeded.
+    _setSWRaw(genW); _setSHRaw(genH);
     // The brand this generation chose from (P4-5): its cells and palette
     // carry it, and the pattern is saved in it.
     var resBrand = genBrandRef.current && genBrandRef.current.reqId === result.reqId ? genBrandRef.current.brand : "dmc";
@@ -8599,7 +8620,7 @@ window.useCreatorState = function useCreatorState() {
     setAppMode("edit");
     setSidebarTab("palette");
     // Fallback zoom now; the real fit runs once the Edit view has mounted.
-    setZoom(creatorFitZoom(sW, sH, null, null, G));
+    setZoom(creatorFitZoom(genW, genH, null, null, G));
     pendingFitRef.current = true;
     setBusy(false);
     // One "Your pattern is ready" bar above the chart says what was made
@@ -8764,6 +8785,7 @@ window.useCreatorState = function useCreatorState() {
     }
     var reqId = ++genReqIdRef.current;
     genBrandRef.current = { reqId: reqId, brand: convertBrand };
+    genDimsRef.current  = { reqId: reqId, w: convertW, h: convertH };
 
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
     var _subset = (overrides && overrides.subset !== undefined) ? overrides.subset : variationSubset;
@@ -8808,7 +8830,7 @@ window.useCreatorState = function useCreatorState() {
         setGenerateCancellable(false);
         try {
           var exact = runExactPixelPipeline(img, { allowedPalette: allowedPalette });
-          if (exact.width !== sW || exact.height !== sH) throw new Error("Wait for the source pixel dimensions to update before generating.");
+          if (exact.width !== convertW || exact.height !== convertH) throw new Error("Wait for the source pixel dimensions to update before generating.");
           applyResultRef.current({ reqId: reqId, mapped: exact.pat, pal: exact.pal, cmap: exact.cmap, confettiData: exact.confettiData });
         } catch (err) { addToast(err.message, { type: "error" }); setBusy(false); }
         return;
@@ -8819,7 +8841,7 @@ window.useCreatorState = function useCreatorState() {
         // Brightness, Contrast and Saturation are applied in the worker,
         // after the background mask (runCleanupPipeline).
         // Sharpen details too: the pipeline sharpens the stitches.
-        imageData = gridPixels(img, sW, sH, { crisp: crispEdges });
+        imageData = gridPixels(img, convertW, convertH, { crisp: crispEdges });
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -8836,7 +8858,7 @@ window.useCreatorState = function useCreatorState() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
             var result = runGenerationPipeline(img, {
-              sW: sW, sH: sH, exactPixelArt: exactPixelArt, maxC: effMaxC, bri: bri, con: con, sat: sat,
+              sW: convertW, sH: convertH, exactPixelArt: exactPixelArt, maxC: effMaxC, bri: bri, con: con, sat: sat,
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends, maxBlends: maxBlends,
@@ -8857,8 +8879,8 @@ window.useCreatorState = function useCreatorState() {
         type: 'generate',
         reqId: reqId,
         pixels: imageData.data.buffer,
-        width: sW,
-        height: sH,
+        width: convertW,
+        height: convertH,
         settings: {
           bri: bri, con: con, sat: sat,
           maxC: effMaxC, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: effAllowBlends, maxBlends: maxBlends,
@@ -8878,7 +8900,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, disambig, disambigLevel, keepColours, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
+  }, [exactPixelArt, img, convertW, convertH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, disambig, disambigLevel, keepColours, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -8963,7 +8985,7 @@ window.useCreatorState = function useCreatorState() {
       setTimeout(function() {
         var slotSubset = useRoulette ? _buildRoulette(pool, rouletteN, slotSeed) : pool;
         var MAX_GAL = 2500;
-        var gw = sW, gh = sH;
+        var gw = convertW, gh = convertH;
         if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
         // The same picture-to-stitches step as Generate (gridPixels), so a
         // thumbnail matches the chart it makes.
@@ -9009,7 +9031,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, keepColours]);
+  }, [exactPixelArt, img, convertW, convertH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, keepColours]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -9222,7 +9244,7 @@ window.useCreatorState = function useCreatorState() {
       : allowBlends;
     return Object.freeze({
       // Geometry
-      sW: sW, sH: sH, exactPixelArt: exactPixelArt,
+      sW: convertW, sH: convertH, exactPixelArt: exactPixelArt,
       // Image adjustments
       bri: bri, con: con, sat: sat,
       smooth: smooth, smoothType: smoothType,
@@ -9250,7 +9272,7 @@ window.useCreatorState = function useCreatorState() {
       stashCount: stashInfo.count,
     });
   }, [
-    exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges,
+    exactPixelArt, convertW, convertH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount, crispEdges,
     maxC, dith, dithMode, dithStrength, allowBlends, maxBlends,
     skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
     disambig, disambigLevel, keepColours,
@@ -9328,15 +9350,14 @@ window.useCreatorState = function useCreatorState() {
   }
 
   // Capture editable values, including those masked by stash constraints.
-  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, crispEdges: crispEdges, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied, keepColours: keepColours};
+  var previewRestoreSettings = {sW: convertW, sH: convertH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, crispEdges: crispEdges, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied, keepColours: keepColours};
   function pinPreview() {
     if (!previewLoading && previewSnapshot) setPinnedPreview(previewSnapshot);
   }
   function applyPinnedSettings() {
     if (!pinnedPreview) return;
     var values = pinnedPreview.restore;
-    setSW(values.sW);
-    setSH(values.sH);
+    setConvertDims(values.sW, values.sH);
     setBri(values.bri);
     setCon(values.con);
     setSat(values.sat);
@@ -9373,7 +9394,7 @@ window.useCreatorState = function useCreatorState() {
   // ─── Return everything ───────────────────────────────────────────────────────
   return {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
-    sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
+    sW, setSW, sH, setSH, convertW, setConvertW, convertH, setConvertH, setConvertDims, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     exactPixelArt, setExactPixelArt,
     pictureInfo, setPictureInfo, pictureType, presetUntouched, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
@@ -13216,7 +13237,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     state.setOrigH(hh);
     var newAr = w / hh;
     state.setAr(newAr);
-    if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
+    var curW = state.convertW != null ? state.convertW : state.sW;
+    if (state.arLock) {
+      var nextH = Math.max(10, Math.round(curW / newAr));
+      if (state.setConvertDims) state.setConvertDims(null, nextH);
+      else state.setSH(nextH);
+    }
     state.setCropRect(null);
     var examine = state.pictureExaminerRef && state.pictureExaminerRef.current;
     if (typeof examine === "function") examine(newImg, { reframed: true });
@@ -13602,7 +13628,12 @@ var DRAFT_SETTING_KEYS = [
 ];
 function creatorDraftSettings(state) {
   var o = {};
-  DRAFT_SETTING_KEYS.forEach(function(k) { if (state[k] !== undefined) o[k] = state[k]; });
+  DRAFT_SETTING_KEYS.forEach(function(k) {
+    var v = k === 'sW' && state.convertW != null ? state.convertW
+      : k === 'sH' && state.convertH != null ? state.convertH
+      : state[k];
+    if (v !== undefined) o[k] = v;
+  });
   if (o.bgTh !== undefined) o.bgThUnit = 'de2000';
   return o;
 }
@@ -17548,7 +17579,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         onClick: function () { if (appMode !== "create" && typeof props.onOpenCanvas === "function") props.onOpenCanvas(); } } : null,
       { id: "edit", label: "Edit", icon: Icons.pencil, active: appMode === "edit" && tab === "pattern", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("pattern"); } },
-      { id: "materials", label: "Materials", icon: Icons.layers, active: tab === "materials", disabled: !hasPat,
+      { id: "materials", label: "Materials", icon: Icons.layers, active: appMode === "edit" && tab === "materials", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("materials"); } }
     ].filter(Boolean);
     var modeSwitch = h("div", { className: "cc-modes", role: "tablist", "aria-label": "Creator section" },
@@ -17585,8 +17616,10 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         type: "button", className: "cc-continue", onClick: props.onContinue, "data-onboard": "frame-continue",
         "aria-label": "Continue", title: "Continue to size, threads and detail"
       }, h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null) :
-      // Convert: Generate stays one tap away (it is also in the settings drawer).
-      appMode === "create" && props.hasImage && sourceTab === "convert" ? h("button", {
+      // Convert (before a chart exists): Generate stays one tap away. Once a
+      // chart exists, keep the Convert / Edit / Materials switcher visible so
+      // the user can always return to Edit or Materials without regenerating.
+      appMode === "create" && props.hasImage && sourceTab === "convert" && !hasPat ? h("button", {
         type: "button", className: "cc-generate",
         "data-onboard": "creator-generate",
         disabled: !!props.generatingPattern,
@@ -19786,7 +19819,8 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   // The background Generate will leave out, striped on the picture while
   // Leave background unstitched is on. Worked out a moment after the last
   // change, so dragging the match slider stays smooth.
-  var sW = pd && pd.sW, sH = pd && pd.sH;
+  var sW = (gen && gen.convertW != null) ? gen.convertW : (pd && pd.sW);
+  var sH = (gen && gen.convertH != null) ? gen.convertH : (pd && pd.sH);
   var bgActive = !!(gen.skipBg && !gen.exactPixelArt && gen.img && gen.img.src && sW && sH);
   var _bgInfo = React.useState(null); var bgInfo = _bgInfo[0], setBgInfo = _bgInfo[1];
   var _showBg = React.useState(true); var showBg = _showBg[0], setShowBg = _showBg[1];
@@ -22231,21 +22265,23 @@ window.CreatorSidebar = function CreatorSidebar() {
 
     var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
     var ps = app.previewStats;
+    var cw = gen.convertW != null ? gen.convertW : ctx.sW;
+    var ch = gen.convertH != null ? gen.convertH : ctx.sH;
 
     // ═══ Size ══════════════════════════════════════════════════════════════
     var sizeSec = sec("size", null, null,
       window.CreatorSizeField ? h(window.CreatorSizeField, {
-        sW: ctx.sW, sH: ctx.sH, chgW: ctx.chgW, chgH: ctx.chgH, arLock: ctx.arLock, setArLock: ctx.setArLock, ar: ctx.ar,
+        sW: cw, sH: ch, chgW: ctx.chgW, chgH: ctx.chgH, arLock: ctx.arLock, setArLock: ctx.setArLock, ar: ctx.ar,
         fabricCt: ctx.fabricCt, origW: gen.origW, origH: gen.origH
       }) : null,
       hint("Between 10 and 500 stitches each way."),
-      (ctx.sW > 250 || ctx.sH > 250) && note("info", "Large pattern: 15 to 25 threads keep generation fast and the result clean.")
+      (cw > 250 || ch > 250) && note("info", "Large pattern: 15 to 25 threads keep generation fast and the result clean.")
     );
     var fabricSec = sec("fabric", null, null,
       h(window.CreatorFabricBlock, {
         fabricCt: ctx.fabricCt, setFabricCt: ctx.setFabricCt,
         fabricColour: app.fabricColour, setFabricColour: app.setFabricColour,
-        sW: ctx.sW, sH: ctx.sH
+        sW: cw, sH: ch
       }),
       hint("Skein estimates assume 2 strands and 8 m per skein.")
     );
@@ -22467,7 +22503,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // The finished chart's count (after look-alike separation and the thread limit).
     var confettiNow = ps ? (ps.confettiFinalSingles != null ? ps.confettiFinalSingles
       : ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
-    var warning = sc2.enabled ? cleanupWarning(ctx.sW, ctx.sH, gen.orphans, ps) : null;
+    var warning = sc2.enabled ? cleanupWarning(cw, ch, gen.orphans, ps) : null;
     var stepsSec = sec("style", "Detail and tidiness",
       "More detail keeps every shade and small shape, with the most confetti stitches (single stitches of a colour on their own; slow to stitch). Balanced merges most of them and keeps outlines. Tidier merges nearly all. Easiest to stitch gives big blocks of colour.",
       seg({ label: "Detail and tidiness", attr: "data-stitch-style", className: "cv-seg--grid stitch-style__seg", value: styleNow,
@@ -22625,7 +22661,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : null;
     var summary = gen.exactPixelArt
       ? "Exact pixel art · one stitch per pixel"
-      : [typeLabel || "Your defaults", ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
+      : [typeLabel || "Your defaults", cw + " × " + ch + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
          window.STITCH_STYLE_LABELS && window.STITCH_STYLE_LABELS[styleNow] ? window.STITCH_STYLE_LABELS[styleNow] : "Custom detail"].join(" · ");
     var editCount = (cv.editHistory && cv.editHistory.length) || 0;
     var chartState = ctx.pat ? app.convertChartState : null;
@@ -25641,7 +25677,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   });
   tabs.push({
     id: "materials", label: "Materials", icon: Icons.layers,
-    active: currentTab === "materials",
+    active: appMode === "edit" && currentTab === "materials",
     disabled: !hasPat,
     title: hasPat ? "Materials \u2014 thread count, export options" : "Generate a pattern first",
     onClick: !hasPat ? undefined : function() {

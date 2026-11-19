@@ -1656,7 +1656,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     state.setOrigH(hh);
     var newAr = w / hh;
     state.setAr(newAr);
-    if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
+    var curW = state.convertW != null ? state.convertW : state.sW;
+    if (state.arLock) {
+      var nextH = Math.max(10, Math.round(curW / newAr));
+      if (state.setConvertDims) state.setConvertDims(null, nextH);
+      else state.setSH(nextH);
+    }
     state.setCropRect(null);
     var examine = state.pictureExaminerRef && state.pictureExaminerRef.current;
     if (typeof examine === "function") examine(newImg, { reframed: true });

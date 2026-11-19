@@ -91,7 +91,7 @@
         onClick: function () { if (appMode !== "create" && typeof props.onOpenCanvas === "function") props.onOpenCanvas(); } } : null,
       { id: "edit", label: "Edit", icon: Icons.pencil, active: appMode === "edit" && tab === "pattern", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("pattern"); } },
-      { id: "materials", label: "Materials", icon: Icons.layers, active: tab === "materials", disabled: !hasPat,
+      { id: "materials", label: "Materials", icon: Icons.layers, active: appMode === "edit" && tab === "materials", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("materials"); } }
     ].filter(Boolean);
     var modeSwitch = h("div", { className: "cc-modes", role: "tablist", "aria-label": "Creator section" },
@@ -128,8 +128,10 @@
         type: "button", className: "cc-continue", onClick: props.onContinue, "data-onboard": "frame-continue",
         "aria-label": "Continue", title: "Continue to size, threads and detail"
       }, h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null) :
-      // Convert: Generate stays one tap away (it is also in the settings drawer).
-      appMode === "create" && props.hasImage && sourceTab === "convert" ? h("button", {
+      // Convert (before a chart exists): Generate stays one tap away. Once a
+      // chart exists, keep the Convert / Edit / Materials switcher visible so
+      // the user can always return to Edit or Materials without regenerating.
+      appMode === "create" && props.hasImage && sourceTab === "convert" && !hasPat ? h("button", {
         type: "button", className: "cc-generate",
         "data-onboard": "creator-generate",
         disabled: !!props.generatingPattern,
