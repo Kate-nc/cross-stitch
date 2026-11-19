@@ -650,6 +650,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // bottom tool rail replace the header, action bar and tool strip.
   // body.creator-compact keys the CSS (styles.css, "Compact phone chrome").
   const _compact = window.useCreatorCompact ? window.useCreatorCompact() : false;
+  // Tool-rail layout (Stage 2, creator.desktopRail, mouse only): a tool rail
+  // on the left, one options bar above the chart, and the pattern actions in
+  // the header row. body.creator-drail-layout keys the CSS (styles.css, "Desktop
+  // tool rail"); body.creator-drail-tools is set while the rail is showing.
+  // (The hook runs on every render: React needs the same hooks each time.)
+  const _desktopRailPref = window.useCreatorDesktopRail ? window.useCreatorDesktopRail() : false;
+  const _desktopRail = !_compact && _desktopRailPref;
   // The Creator's first tab (audit COMMON-10): Convert when there is a
   // picture to convert, Canvas for a design drawn from scratch (its size and
   // fabric), and neither for a chart imported without a picture.
@@ -698,6 +705,14 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     document.body.classList.toggle('creator-compact', on);
     return ()=>{ document.body.classList.remove('creator-compact'); };
   },[_compact,isActive]);
+  const _railTools = !!(_desktopRail && isActive && state.appMode==='edit' && state.tab==='pattern' && state.pat && state.pal);
+  // A layout effect, so the classes (and the chart box's size) are in place
+  // before Fit measures the box after a generate or a load.
+  React.useLayoutEffect(()=>{
+    document.body.classList.toggle('creator-drail-layout', !!(_desktopRail && isActive));
+    document.body.classList.toggle('creator-drail-tools', _railTools);
+    return ()=>{ document.body.classList.remove('creator-drail-layout'); document.body.classList.remove('creator-drail-tools'); };
+  },[_desktopRail,isActive,_railTools]);
   const [pendingNamedAction, setPendingNamedAction] = React.useState(null);
   const _histRef = React.useRef(null);  _histRef.current = history;
 
@@ -1031,6 +1046,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleOpenInTracker: stableHandleOpenInTracker, printPdf: stablePrintPdf,
     pictureFromTracker: !!window.__creatorPictureFromTracker,
     readyBarOpen: state.readyBarOpen, setReadyBarOpen: state.setReadyBarOpen, coachTipActive: coachTipActive, compact: _compact,
+    desktopRail: _desktopRail,
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
     cropToStitches: stableCropToStitches,
     isScratchMode: state.isScratchMode,
@@ -1038,7 +1054,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     setTracePicture: io.setTracePicture, removeTracePicture: io.removeTracePicture,
     isActive: isActive,
   }; }, [
-    _sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, _compact, handleTabChange,
+    _sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, _compact, _desktopRail, handleTabChange,
     state.saveStatus, state.savedAt, state.saveError,
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot, convertChartState,
@@ -1356,6 +1372,46 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     runNamedAction(key);
   }, [pendingNamedAction, state.namePromptOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const printPdfWithNameNudge = () => _nameNudgeRef.current('pdf');
+  // Tool-rail layout: the pattern commands that left More (Stage 2 C) are in
+  // the header's Pattern menu. Replace colour and Petite and long stitches
+  // open in the options bar (creator/DesktopRail.js, cs:creator-command).
+  const _railCommand = (id)=>{ try { window.dispatchEvent(new CustomEvent('cs:creator-command',{detail:{id:id}})); } catch(_){} };
+  const _railPatternMenu = (_desktopRail && state.appMode==='edit' && state.pat && state.pal) ? [
+    { id:'resize', label:'Resize canvas\u2026', title:'Crop or expand the pattern bounds', onClick:()=>state.setResizeCanvasOpen(true) },
+    { id:'crop', label:'Crop to the stitches', title:'Remove empty rows and columns around the stitches', onClick:()=>stableCropToStitches() },
+    (state.img && state.img.src && !state.isScratchMode) ? { id:'regenerate', label:'Re-generate from image\u2026', title:'Return to the picture settings and generate the pattern again', onClick:handleRequestBackToConvert } : null,
+    // These two open in the options bar, which is only there with the chart.
+    state.tab==='pattern' ? { id:'replace', label:'Replace colour', title:'Click a stitch to replace every stitch of its colour (R)', onClick:()=>_railCommand('replace') } : null,
+    state.tab==='pattern' ? { id:'specialty', label:'Petite and long stitches\u2026', title:'Add or edit petite crosses and long stitches', onClick:()=>_railCommand('specialty') } : null,
+  ].filter(Boolean) : undefined;
+  // Shared by the action bar and, in the tool-rail layout, the header row.
+  const _actionBarProps = {
+    ready: !!(state.pat&&state.pal),
+    sW: state.sW,
+    sH: state.sH,
+    fabricCt: state.fabricCt,
+    colourCount: state.pal?state.pal.length:0,
+    threadCounts: state.threadCounts,
+    skeinEstimate: state.totalSkeins,
+    totalStitchable: state.totalStitchable,
+    difficulty: state.difficulty,
+    confetti: state.confettiStats,
+    stitchSpeed: state.stitchSpeed,
+    doneCount: state.doneCount,
+    appMode: state.appMode,
+    tab: state.tab,
+    pat: !!(state.pat&&state.pal),
+    onTabChange: handleTabChange,
+    onRequestBackToConvert: handleRequestBackToConvert,
+    onPrintPdf: printPdfWithNameNudge,
+    onTrackPattern: stableHandleOpenInTracker,
+    pictureFromTracker: !!window.__creatorPictureFromTracker,
+    onSaveJson: io.saveProject,
+    onMoreExports: ()=>_nameNudgeRef.current('exports'),
+    hasImage: !!(state.img&&state.img.src)&&!state.isScratchMode,
+    sourceTab: _sourceTab,
+    onOpenCanvas: handleOpenCanvas,
+  };
   // Audit IMPORT-05: files from other design programs (.pat, .xsp …)
   // and other non-images are turned away with a plain-English toast instead
   // of being handed to the image converter (import-engine/ui/importErrors.js).
@@ -1473,7 +1529,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         saveStatus={state.saveStatus}
         savedAt={state.savedAt}
         saveError={state.saveError}
-        onRetrySave={io.retryAutoSave} />
+        onRetrySave={io.retryAutoSave}
+        compactProject={_desktopRail}
+        pageMenuItems={_railPatternMenu}
+        actions={_desktopRail&&window.CreatorActionBar?<window.CreatorActionBar {..._actionBarProps} inline={true}/>:undefined} />
       {state.preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>state.setPreferencesOpen(false)})}
       {state.adaptModalOpen&&extrasReady&&typeof window.AdaptModal!=='undefined'&&React.createElement(window.AdaptModal,{
         mode:state.adaptModalMode,
@@ -1609,31 +1668,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         stitchSpeed={state.stitchSpeed}
         doneCount={state.doneCount}
       />}
-      {!_compact&&window.CreatorActionBar&&<window.CreatorActionBar
-        ready={!!(state.pat&&state.pal)}
-        sW={state.sW} sH={state.sH}
-        fabricCt={state.fabricCt}
-        colourCount={state.pal?state.pal.length:0} threadCounts={state.threadCounts}
-        skeinEstimate={state.totalSkeins}
-        totalStitchable={state.totalStitchable}
-        difficulty={state.difficulty}
-        confetti={state.confettiStats}
-        stitchSpeed={state.stitchSpeed}
-        doneCount={state.doneCount}
-        appMode={state.appMode}
-        tab={state.tab}
-        pat={!!(state.pat&&state.pal)}
-        onTabChange={handleTabChange}
-        onRequestBackToConvert={handleRequestBackToConvert}
-        onPrintPdf={printPdfWithNameNudge}
-        onTrackPattern={stableHandleOpenInTracker}
-        pictureFromTracker={!!window.__creatorPictureFromTracker}
-        onSaveJson={io.saveProject}
-        onMoreExports={()=>_nameNudgeRef.current('exports')}
-        hasImage={!!(state.img&&state.img.src)&&!state.isScratchMode}
-        sourceTab={_sourceTab}
-        onOpenCanvas={handleOpenCanvas}
-      />}
+      {/* In the tool-rail layout the header row carries these from 1280px up;
+          narrower windows keep this row (styles.css, "Desktop tool rail"). */}
+      {!_compact&&window.CreatorActionBar&&<window.CreatorActionBar {..._actionBarProps}/>}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
         {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
@@ -1773,19 +1810,26 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onSkip: ()=>_coach.skip('firstStitch_creator'),
         onSkipAll: ()=>_coach.skipAll()
       })}
-      {_showToolsUnlockedCoach && window.Coachmark && React.createElement(window.Coachmark, {
+      {_showToolsUnlockedCoach && window.Coachmark && React.createElement(window.Coachmark, Object.assign({
         id: 'toolsTab_unlocked',
         target: '.creator-sidebar-tab[data-tab-id="tools"]',
         title: 'Tools and View are now unlocked',
         body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Palette and View are beside it.',
         placement: 'left',
+      }, _railTools ? {
+        // Tool-rail layout: the tools are on the rail, not in a Tools tab.
+        target: '[data-onboard="creator-drail"]',
+        title: 'Every tool is on the left',
+        body: 'Paint, Fill, Erase, Pick, Wand, Lasso, Shapes, Text and Hand are one click each, with Undo and Redo at the foot. The row above the chart shows the chosen tool\u2019s options.',
+        placement: 'right',
+      } : {}, {
         showHighlight: true,
         completeOnTargetClick: true,
         helpTopic: 'painting',
         onComplete: ()=>_coach.complete('toolsTab_unlocked'),
         onSkip: ()=>_coach.skip('toolsTab_unlocked'),
         onSkipAll: ()=>_coach.skipAll()
-      })}
+      }))}
     </window.HoverContext.Provider>
     </window.PatternDataContext.Provider>
     </window.CanvasContext.Provider>

@@ -13,8 +13,7 @@ const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const {
-  device, quietOnboarding, openConvertWithLogo, clickGenerate, waitForEdit, pickDarkSwatch, undoButton, startBlankGrid,
-} = require('./creator-helpers');
+  device, quietOnboarding, openConvertWithLogo, clickGenerate, waitForEdit, pickDarkSwatch, undoButton, startBlankGrid, railPref } = require('./creator-helpers');
 
 // Share of the viewport where the chart's scroll box is actually visible:
 // clipped to the screen, below the top bars and above the bottom rail or a
@@ -145,6 +144,9 @@ test.describe('Desktop keeps the action bar', function() {
   test.use(device('desktop'));
 
   test('header, action bar and tool strip are unchanged; no rail', async function({ page }) {
+    // The toolbar layout (Preferences > Pattern Creator > Editing layout off);
+    // creator-desktop-rail.spec.js covers the tool rail.
+    await railPref(page, false);
     await openConvertWithLogo(page);
     await clickGenerate(page);
     await waitForEdit(page);

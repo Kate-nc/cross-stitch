@@ -84,9 +84,12 @@ describe('Edit-mode toolbar consolidation — Tools sidebar tab', () => {
     expect(TOOLSTRIP_SRC).toMatch(/"Paint \(P\)"/);
     expect(TOOLSTRIP_SRC).toMatch(/"Fill \(F\)"/);
     expect(TOOLSTRIP_SRC).toMatch(/"Erase \(5\)"/);
-    expect(TOOLSTRIP_SRC).toMatch(/"Eyedropper \(I\)"/);
-    expect(TOOLSTRIP_SRC).toMatch(/"Magic Wand \(W\)"/);
-    expect(TOOLSTRIP_SRC).toMatch(/title:"Lasso \\u2014 mode in Tools tab"/);
+    // Pick, Wand and Lasso come from the one tool list (creator/toolRegistry.js).
+    const reg = require('../creator/toolRegistry.js');
+    expect(reg.get('pick').title).toBe('Eyedropper (I)');
+    expect(reg.get('wand').title).toBe('Magic Wand (W)');
+    expect(reg.get('lasso').title).toBe('Lasso \u2014 mode in Tools tab');
+    expect(TOOLSTRIP_SRC).toMatch(/ToolReg\.moreTools\(/);
   });
 
   test('T cycles the stitch type forward', () => {

@@ -86,7 +86,7 @@ test.describe('Starting a pattern on desktop', function() {
   test('the action bar of an empty grid has no Print, Export or Tracker', async function({ page }) {
     await quietOnboarding(page);
     await startBlankGrid(page);
-    await page.waitForSelector('.toolbar-row', { timeout: 15000 });
+    await page.waitForSelector('.toolbar-row, .creator-drail', { timeout: 15000 });
     const bar = page.locator('.creator-actionbar');
     await expect(bar.getByRole('tab', { name: 'Canvas' })).toBeVisible();
     await expect(bar.getByRole('button', { name: /Print PDF/ })).toHaveCount(0);

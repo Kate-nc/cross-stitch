@@ -50,9 +50,12 @@
   // panel on the right on wider screens; Print PDF and Open in Tracker in the
   // top bar's More menu on phones; Generate as its button reads. Built when
   // the tour opens (creatorDevice()), at most 4 steps each.
-  function creatorDeviceWords(coarse, compact) {
+  function creatorDeviceWords(coarse, compact, rail) {
     return {
-      coarse: coarse, compact: compact,
+      coarse: coarse, compact: compact, rail: !!rail,
+      // Where Edit's drawing tools are: down the left with the tool rail
+      // (creator.desktopRail), otherwise in the toolbar.
+      tools: rail ? "Edit has the drawing tools down the left of the chart" : "Edit has the drawing tools",
       Tap: coarse ? "Tap" : "Click", tap: coarse ? "tap" : "click",
       settings: compact ? "the Settings sheet" : "the panel on the right",
       actions: compact ? "the Project menu at the top" : "the bar at the top",
@@ -72,7 +75,9 @@
         : !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
     } catch (_) {}
     try { compact = !!(document.body && document.body.classList.contains("creator-compact")); } catch (_) {}
-    return creatorDeviceWords(coarse, compact);
+    var rail = false;
+    try { rail = !compact && !coarse && typeof window.creatorDesktopRailOn === "function" && window.creatorDesktopRailOn(); } catch (_) {}
+    return creatorDeviceWords(coarse, compact, rail);
   }
 
   var CREATOR_TOURS = {
@@ -111,7 +116,7 @@
         },
         {
           title: "Edit, then print or stitch",
-          body: "Edit has the drawing tools and Materials lists the threads to buy. Print PDF and Open in Tracker are in " + d.actions + " once the pattern is made. " + d.help
+          body: d.tools + " and Materials lists the threads to buy. Print PDF and Open in Tracker are in " + d.actions + " once the pattern is made. " + d.help
         }
       ];
     },

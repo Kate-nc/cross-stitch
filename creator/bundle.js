@@ -7611,6 +7611,29 @@ window.useCreatorState = function useCreatorState() {
     v = !!v; precisionCursorRef.current = v; _precision[1](v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.precisionCursor", v); } catch (_) {}
   }, []);
+  // Pen, Magnifier and Precision cursor can also change in Preferences >
+  // Pattern Creator > Touch and pen (Stage 2): follow those changes here
+  // without writing the preference back.
+  useEffect(function () {
+    function onPref(e) {
+      var k = e && e.detail ? e.detail.key : null;
+      if (k == null || k === "creator.penNavigation") {
+        var pn = loadUserPref("creator.penNavigation", false) === true;
+        penNavigationRef.current = pn; _penNav[1](pn);
+      }
+      if (k == null || k === "creator.magnifier") {
+        var mg = loadUserPref("creator.magnifier", null);
+        mg = mg === true || mg === false ? mg : !isFinePointerNow();
+        magnifierRef.current = mg; _magnifier[1](mg);
+      }
+      if (k == null || k === "creator.precisionCursor") {
+        var pc = loadUserPref("creator.precisionCursor", false) === true;
+        precisionCursorRef.current = pc; _precision[1](pc);
+      }
+    }
+    window.addEventListener("cs:prefchange", onPref);
+    return function () { window.removeEventListener("cs:prefchange", onPref); };
+  }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   // French knots [{x, y, id, rgb}] in half-stitch units (knots.js).
   var _specialtySelected=useState(null),specialtySelected=_specialtySelected[0],setSpecialtySelected=_specialtySelected[1];
@@ -11779,6 +11802,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var suppressPointersRef = React.useRef(false); // navigation owns this contact sequence
   var navTapRef            = React.useRef(null);  // last Navigate tap, for double-tap zoom
   var navTapTimerRef       = React.useRef(null);
+  var spaceHeldRef         = React.useRef(false); // Space held: drag pans (tool-rail layout)
 
   var TC = (typeof window !== 'undefined' && window.TouchConstants) || null;
   var TOUCH_TAP_SLOP = TC ? TC.TAP_SLOP_PX : 10;
@@ -11842,6 +11866,46 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // mouse drag pans, a tap shows the stitch's thread, a long-press opens the
   // menu. Two fingers pan and zoom in either mode.
   function isNavigate() { return !!(state.drawModeRef && state.drawModeRef.current === false); }
+  // Tool-rail layout (Stage 2, body.creator-drail-tools): Space and drag, or
+  // a middle-button drag, moves around the chart whatever tool is chosen.
+  function tempPanAllowed() {
+    return typeof document !== "undefined" && !!document.body && document.body.classList.contains("creator-drail-tools");
+  }
+  if (React.useEffect) React.useEffect(function() {
+    function isSpace(e) { return e.code === "Space" || e.key === " "; }
+    // Typing, or a focused control that Space would press, keeps Space. A
+    // slider (the zoom) has no use for it, so Space still pans there.
+    function keepsSpace(t) {
+      if (!t) return false;
+      if (t.tagName === "INPUT") return !/^(range|color)$/i.test(t.type || "");
+      return !!(t.isContentEditable || /^(TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName) || (t.getAttribute && /^(button|menuitem|menuitemradio|menuitemcheckbox|radio|tab|checkbox|switch)$/.test(t.getAttribute("role") || "")));
+    }
+    function release() {
+      spaceHeldRef.current = false;
+      document.body.classList.remove("creator-space-pan");
+    }
+    function onDown(e) {
+      if (!isSpace(e) || !tempPanAllowed() || keepsSpace(e.target)) return;
+      e.preventDefault();
+      if (!spaceHeldRef.current) { spaceHeldRef.current = true; document.body.classList.add("creator-space-pan"); }
+    }
+    function onUp(e) { if (isSpace(e) && spaceHeldRef.current) { e.preventDefault(); release(); } }
+    // The browser's own middle-click scrolling would fight the pan.
+    function onMouseDown(e) {
+      if (e.button === 1 && tempPanAllowed() && e.target && e.target.closest && e.target.closest(".cs-chart-scroll")) e.preventDefault();
+    }
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", release);
+    window.addEventListener("mousedown", onMouseDown, true);
+    return function() {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", release);
+      window.removeEventListener("mousedown", onMouseDown, true);
+      release();
+    };
+  }, []);
 
   // Open the stitch context menu for the cell under a viewport point.
   function openCellMenuAt(clientX, clientY) {
@@ -12912,6 +12976,21 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatPointerDown(e) {
     var activeTool = state.activeTool, partialStitchTool = state.partialStitchTool;
     var scrollRef = state.scrollRef;
+    // Space-drag or middle-button drag: pan with any tool (tool-rail layout).
+    if (e.pointerType !== "touch" && tempPanAllowed() && scrollRef.current && activePointersRef.current.size === 0 &&
+        (e.button === 1 || (isPrimaryButton(e) && spaceHeldRef.current))) {
+      var panTarget = e.currentTarget || e.target;
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType, target: panTarget });
+      if (panTarget && panTarget.setPointerCapture) { try { panTarget.setPointerCapture(e.pointerId); } catch (_) {} }
+      panStateRef.current = {
+        pointerId: e.pointerId, moved: false,
+        startX: e.clientX, startY: e.clientY,
+        scrollLeft: scrollRef.current.scrollLeft, scrollTop: scrollRef.current.scrollTop,
+      };
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
     if (!isPrimaryButton(e)) return;
 
     // Drawing cannot use coordinates while a pinch transform is settling.
@@ -13648,6 +13727,384 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     ]);
   }
 };
+
+
+/* ─── toolRegistry.js ─── */
+/* creator/toolRegistry.js — the one list of Edit tools.
+ *
+ * Every surface that shows a tool button reads it from here: the touch
+ * bottom rail (CompactBar / ToolStrip `compact`), the More panel and, behind
+ * the creator.desktopRail preference, the desktop tool rail. A tool's label,
+ * icon, shortcut and what a click does are written once.
+ *
+ * Fields
+ *   id          stable id (also the button's data-tool attribute)
+ *   label       accessible name ("Paint tool")
+ *   text        short visible word under or beside the icon ("Paint")
+ *   title       tooltip; includes the shortcut where there is one
+ *   icon        name of a window.Icons function
+ *   shortcut    the key as registered in creator/useKeyboardShortcuts.js
+ *               (null when the tool has none)
+ *   shortcutId  that registration's id, so a test can check they agree
+ *   group       draw | select | shape | view | adjust | cleanup | history
+ *   kind        tool (a mode the chart click uses), toggle (on/off setting)
+ *               or action (does something once)
+ *   surfaces    where the button appears:
+ *                 touchRail   the bottom rail on phones and narrow windows
+ *                 more        the More panel
+ *                 desktopRail the left tool rail (creator.desktopRail on)
+ *   railLabel, railText  the rail's wording when it differs (Hand)
+ *   pointer     "fine" when the button only appears with a mouse
+ *   parent      for Line, Rectangle and Ellipse: the "shapes" rail button
+ *
+ * Behaviour
+ *   isOn(api)     whether the button shows as pressed
+ *   activate(api) what a click does
+ *   visible(api)  optional; false hides the button
+ *   disabled(api) optional; true disables it
+ * `api` is { cv, ctx, coarse, palData } from the component rendering it.
+ */
+(function (root) {
+  "use strict";
+
+  function clearOthers(api) {
+    api.ctx.setPartialStitchTool(null);
+    api.cv.setBsStart(null);
+  }
+
+  // Paint and Fill: a second tap on the active button goes back to
+  // Navigate on touch; the first pick chooses a colour if there is none.
+  function pickBrush(api, mode, isOn) {
+    var cv = api.cv;
+    if (api.coarse && isOn) { cv.setDrawMode(false); return; }
+    if (!cv.selectedColorId && api.palData && api.palData.length > 0) cv.setSelectedColorId(api.palData[0].id);
+    cv.setBrushAndActivate(mode);
+  }
+
+  function shapeTool(id, label) {
+    return {
+      id: id, label: label + " tool", text: label,
+      title: label + " — drag on the chart; outline or filled in the Tools tab",
+      icon: id === "line" ? "shapeLine" : id === "rect" ? "shapeRect" : "shapeEllipse",
+      shortcut: null, shortcutId: null,
+      group: "shape", kind: "tool", parent: "shapes",
+      surfaces: ["more"],
+      isOn: function (api) { return api.cv.activeTool === id; },
+      activate: function (api) {
+        var cv = api.cv;
+        if (cv.activeTool === id) { cv.setActiveTool(null); return; }
+        cv.setActiveTool(id); clearOthers(api);
+        if (cv.cancelLasso) cv.cancelLasso();
+        if (!cv.drawMode) cv.setDrawMode(true);
+      }
+    };
+  }
+
+  var TOOLS = [
+    {
+      id: "paint", label: "Paint tool", text: "Paint", title: "Paint (P)",
+      icon: "brush", shortcut: "p", shortcutId: "creator.tool.paint",
+      group: "draw", kind: "tool", surfaces: ["touchRail", "desktopRail"],
+      isOn: function (api) { return api.cv.activeTool === "paint" && api.cv.brushMode === "paint"; },
+      activate: function (api) { pickBrush(api, "paint", TOOLS_BY_ID.paint.isOn(api)); }
+    },
+    {
+      id: "fill", label: "Fill tool", text: "Fill", title: "Fill (F)",
+      icon: "bucketPour", shortcut: "f", shortcutId: "creator.tool.fill",
+      group: "draw", kind: "tool", surfaces: ["touchRail", "desktopRail"],
+      isOn: function (api) { return api.cv.activeTool === "fill" && api.cv.brushMode === "fill"; },
+      activate: function (api) { pickBrush(api, "fill", TOOLS_BY_ID.fill.isOn(api)); }
+    },
+    {
+      id: "erase", label: "Erase tool", text: "Erase", title: "Erase (5)",
+      icon: "eraser", shortcut: "5", shortcutId: "creator.stitch.erase",
+      group: "draw", kind: "tool", surfaces: ["touchRail", "desktopRail"],
+      isOn: function (api) { return api.cv.stitchType === "erase"; },
+      // The touch rail always goes back to Navigate on a second tap; the
+      // desktop pill only does on a coarse pointer.
+      activate: function (api) {
+        if (TOOLS_BY_ID.erase.isOn(api) && (api.coarse || api.surface === "touchRail")) api.cv.setDrawMode(false);
+        else api.cv.selectStitchType("erase");
+      }
+    },
+    {
+      id: "pick", label: "Eyedropper tool", text: "Pick", title: "Eyedropper (I)",
+      railLabel: "Pick colour (eyedropper)",
+      icon: "eyedropper", shortcut: "i", shortcutId: "creator.tool.eyedropper",
+      group: "select", kind: "tool", surfaces: ["more", "desktopRail"],
+      isOn: function (api) { return api.cv.activeTool === "eyedropper"; },
+      activate: function (api) { api.cv.setActiveTool("eyedropper"); clearOthers(api); }
+    },
+    {
+      id: "wand", label: "Magic wand", text: "Wand", title: "Magic Wand (W)",
+      icon: "wand", shortcut: "w", shortcutId: "creator.tool.wand",
+      group: "select", kind: "tool", surfaces: ["more", "desktopRail"],
+      isOn: function (api) { return api.cv.activeTool === "magicWand"; },
+      activate: function (api) {
+        var cv = api.cv;
+        if (cv.activeTool === "magicWand") cv.setActiveTool(null);
+        else { cv.setActiveTool("magicWand"); clearOthers(api); if (cv.cancelLasso) cv.cancelLasso(); }
+      }
+    },
+    {
+      id: "lasso", label: "Lasso", text: "Lasso", title: "Lasso — mode in Tools tab",
+      icon: "lasso", shortcut: null, shortcutId: null,
+      group: "select", kind: "tool", surfaces: ["more", "desktopRail"],
+      isOn: function (api) { return api.cv.activeTool === "lasso"; },
+      activate: function (api) {
+        var cv = api.cv;
+        if (cv.activeTool === "lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
+        else { cv.setActiveTool("lasso"); cv.setLassoMode(cv.lassoMode || "freehand"); clearOthers(api); }
+      }
+    },
+    {
+      id: "move", label: "Move selection", text: "Move",
+      title: "Move selection — drag selected cells to a new position",
+      icon: "move", shortcut: null, shortcutId: null,
+      group: "select", kind: "tool", surfaces: ["more"],
+      isOn: function (api) { return api.cv.activeTool === "move"; },
+      disabled: function (api) { return !api.cv.hasSelection; },
+      activate: function (api) {
+        var cv = api.cv;
+        if (cv.activeTool === "move") { if (cv.cancelMove) cv.cancelMove(); cv.setActiveTool(null); }
+        else { cv.setActiveTool("move"); clearOthers(api); if (cv.cancelLasso) cv.cancelLasso(); }
+      }
+    },
+    {
+      id: "paste", label: "Paste", text: "Paste", title: "Paste, then drag it into place (Ctrl+V)",
+      icon: "clipboard", shortcut: "mod+v", shortcutId: "creator.paste",
+      group: "select", kind: "action", surfaces: ["more"],
+      visible: function (api) { return !!(api.cv.clip && api.cv.clip.hasClipboard); },
+      isOn: function () { return false; },
+      activate: function (api) { api.cv.clip.paste(); }
+    },
+    // One rail button stands for Line, Rectangle and Ellipse.
+    {
+      id: "shapes", label: "Shapes", text: "Shapes", title: "Shapes: line, rectangle or ellipse",
+      icon: "shapeRect", shortcut: null, shortcutId: null,
+      group: "shape", kind: "tool", surfaces: ["desktopRail"],
+      children: ["line", "rect", "ellipse"],
+      isOn: function (api) { var t = api.cv.activeTool; return t === "line" || t === "rect" || t === "ellipse"; },
+      activate: function (api) {
+        // Picks the shape used last (or Line); the rail opens the menu too.
+        var last = api.lastShape || "line";
+        if (!TOOLS_BY_ID.shapes.isOn(api)) TOOLS_BY_ID[last].activate(api);
+      }
+    },
+    shapeTool("line", "Line"),
+    shapeTool("rect", "Rectangle"),
+    shapeTool("ellipse", "Ellipse"),
+    {
+      id: "text", label: "Text tool", text: "Text", title: "Text — tap where it should start, then type",
+      icon: "textTool", shortcut: null, shortcutId: null,
+      group: "shape", kind: "tool", surfaces: ["more", "desktopRail"],
+      isOn: function (api) { return api.cv.activeTool === "text"; },
+      activate: function (api) {
+        var cv = api.cv;
+        if (cv.activeTool === "text") { cv.setActiveTool(null); return; }
+        cv.setActiveTool("text"); clearOthers(api);
+        if (cv.cancelLasso) cv.cancelLasso();
+        if (!cv.drawMode) cv.setDrawMode(true);
+      }
+    },
+    {
+      id: "mirror", label: "Mirror drawing", text: "Mirror", title: "Mirror drawing — axis in the Tools tab",
+      icon: "mirror", shortcut: null, shortcutId: null,
+      group: "draw", kind: "toggle", surfaces: ["more"],
+      // With the desktop rail on, Mirror is a switch in the options bar.
+      inOptionsBar: true,
+      isOn: function (api) { return !!(api.cv.mirror && api.cv.mirror.on); },
+      activate: function (api) {
+        if (api.cv.setMirror) api.cv.setMirror(function (m) { return Object.assign({}, m, { on: !m.on }); });
+      }
+    },
+    {
+      id: "replace", label: "Replace colour tool", text: "Replace",
+      title: "Replace colour (R) — click a stitch to replace every stitch of that colour",
+      icon: "colourSwap", shortcut: "r", shortcutId: "creator.tool.replace",
+      group: "adjust", kind: "tool", surfaces: ["more"],
+      isOn: function (api) { return api.cv.activeTool === "colourReplace"; },
+      activate: function (api) {
+        var cv = api.cv;
+        if (cv.activeTool === "colourReplace") cv.setActiveTool(null);
+        else { cv.setActiveTool("colourReplace"); clearOthers(api); if (cv.cancelLasso) cv.cancelLasso(); }
+      }
+    },
+    // Hand: on a mouse it is the old Navigate mode (H still flips it).
+    {
+      id: "hand", label: "Navigate", text: "Navigate", railLabel: "Hand tool", railText: "Hand",
+      title: "Navigate — drag to move around the chart (H)",
+      icon: "hand", shortcut: "h", shortcutId: "creator.tool.hand",
+      group: "view", kind: "tool", surfaces: ["more", "desktopRail"], pointer: "fine",
+      isOn: function (api) { return !api.cv.drawMode; },
+      activate: function (api) { api.cv.setDrawMode(!api.cv.drawMode); }
+    },
+    {
+      id: "cleanup", label: "Fix outline colours", text: "Fix outline colours",
+      title: "Fix outline colours: replace stitches where an outline was blended into the colours around it",
+      icon: "cleanup", shortcut: null, shortcutId: null,
+      group: "cleanup", kind: "tool", surfaces: ["more"],
+      isOn: function (api) { return api.cv.activeTool === "cleanup"; },
+      activate: function (api) {
+        var cv = api.cv;
+        if (cv.activeTool === "cleanup") { if (cv.exitCleanup) cv.exitCleanup(); return; }
+        clearOthers(api); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterCleanup) cv.enterCleanup();
+      }
+    },
+    {
+      id: "denoise", label: "Reduce confetti", text: "Reduce confetti",
+      // The title adds the confetti definition at render time (CONFETTI_HELP).
+      title: "Reduce confetti: merge confetti stitches, smooth ragged edges and combine near-duplicate threads",
+      icon: "sparkles", shortcut: null, shortcutId: null,
+      group: "cleanup", kind: "tool", surfaces: ["more"],
+      isOn: function (api) { return api.cv.activeTool === "denoise"; },
+      activate: function (api) {
+        var cv = api.cv;
+        if (cv.activeTool === "denoise") { if (cv.exitDenoise) cv.exitDenoise(); return; }
+        clearOthers(api); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise();
+      }
+    },
+    {
+      id: "undo", label: "Undo", text: "Undo", title: "Undo (Ctrl+Z)",
+      icon: "undo", shortcut: "mod+z", shortcutId: "creator.undo",
+      group: "history", kind: "action", surfaces: ["touchRail", "desktopRail"],
+      isOn: function () { return false; },
+      disabled: function (api) { return !(api.cv.editHistory && api.cv.editHistory.length); },
+      activate: function (api) { api.cv.undoEdit(); }
+    },
+    {
+      id: "redo", label: "Redo", text: "Redo", title: "Redo (Ctrl+Y)",
+      icon: "redo", shortcut: "mod+y", shortcutId: "creator.redo",
+      group: "history", kind: "action", surfaces: ["desktopRail"],
+      isOn: function () { return false; },
+      disabled: function (api) { return !(api.cv.redoHistory && api.cv.redoHistory.length); },
+      activate: function (api) { api.cv.redoEdit(); }
+    }
+  ];
+
+  // Where each control of the desktop More panel lives with the tool rail on
+  // (Stage 2), and how many clicks it takes from Edit. More itself is gone
+  // from that layout. tests/creatorRailHomes.test.js checks every row.
+  var RAIL_HOMES = [
+    { control: "Navigate", home: "Rail > Hand", clicks: 1 },
+    { control: "Pick", home: "Rail > Pick", clicks: 1 },
+    { control: "Wand", home: "Rail > Wand", clicks: 1 },
+    { control: "Lasso", home: "Rail > Lasso", clicks: 1 },
+    { control: "Line", home: "Rail > Shapes > Line", clicks: 2 },
+    { control: "Rectangle", home: "Rail > Shapes > Rectangle", clicks: 2 },
+    { control: "Ellipse", home: "Rail > Shapes > Ellipse", clicks: 2 },
+    { control: "Text", home: "Rail > Text", clicks: 1 },
+    { control: "Move", home: "Options bar > Selection > Move selection (with a selection)", clicks: 2 },
+    { control: "Paste", home: "Options bar > Paste (once something is copied)", clicks: 1 },
+    { control: "Mirror", home: "Rail > Paint, then Options bar > Mirror", clicks: 2 },
+    { control: "Replace", home: "Pattern menu > Replace colour", clicks: 2 },
+    { control: "Fix outline colours", home: "Options bar > Clean up > Fix outline colours", clicks: 2 },
+    { control: "Reduce confetti", home: "Options bar > Clean up > Reduce confetti", clicks: 2 },
+    { control: "Stitch type", home: "Rail > Paint, then Options bar > Stitch", clicks: 2 },
+    { control: "Brush size", home: "Rail > Paint, then Options bar > Size", clicks: 2 },
+    { control: "Resize canvas", home: "Pattern menu > Resize canvas", clicks: 2 },
+    { control: "Re-generate from image", home: "Pattern menu > Re-generate from image", clicks: 2 },
+    { control: "Petite and long stitches", home: "Pattern menu > Petite and long stitches", clicks: 2 },
+    { control: "Overlay", home: "Side panel > View > Show the picture", clicks: 2 },
+    { control: "Pen draws; fingers navigate", home: "File > Preferences (opens on Pattern Creator) > Touch and pen", clicks: 2 },
+    { control: "Magnifier", home: "File > Preferences (opens on Pattern Creator) > Touch and pen", clicks: 2 },
+    { control: "Precision cursor", home: "File > Preferences (opens on Pattern Creator) > Touch and pen", clicks: 2 }
+  ];
+
+  var TOOLS_BY_ID = {};
+  TOOLS.forEach(function (t) { TOOLS_BY_ID[t.id] = t; });
+
+  // The desktop rail's order, top to bottom (Stage 2 brief). Undo and Redo
+  // sit at its foot under the working thread's swatch.
+  var DESKTOP_RAIL = ["paint", "fill", "erase", "pick", "wand", "lasso", "shapes", "text", "hand"];
+  var DESKTOP_RAIL_FOOT = ["undo", "redo"];
+  var TOUCH_RAIL = ["paint", "fill", "erase"];
+  var TOUCH_RAIL_FOOT = ["undo"];
+  // The More panel's Tools section and its two clean-up buttons, in order.
+  var MORE_TOOLS = ["hand", "pick", "wand", "lasso", "move", "paste", "line", "rect", "ellipse", "text", "mirror", "replace"];
+  var MORE_CLEANUP = ["cleanup", "denoise"];
+
+  function get(id) { return TOOLS_BY_ID[id] || null; }
+
+  function on(surface) {
+    return function (t) { return t.surfaces.indexOf(surface) !== -1; };
+  }
+
+  // Tools listed in the More panel. With the desktop rail on, anything the
+  // rail already shows is left out, so no tool appears twice on screen.
+  function moreTools(opts, ids) {
+    opts = opts || {};
+    return (ids || MORE_TOOLS).map(get).filter(function (t) {
+      if (!t) return false;
+      if (t.pointer === "fine" && opts.coarse) return false;
+      if (opts.desktopRail) {
+        if (t.surfaces.indexOf("desktopRail") !== -1 || t.inOptionsBar) return false;
+        if (t.parent && get(t.parent) && get(t.parent).surfaces.indexOf("desktopRail") !== -1) return false;
+      }
+      return true;
+    });
+  }
+
+  // Which desktop rail button the chart's current state belongs to. Paint
+  // covers every stitch type it draws (half, quarter, backstitch, knot);
+  // Move, Replace and the clean-up tools have no rail button (null).
+  function currentRailTool(api) {
+    var cv = api.cv, t = cv.activeTool;
+    if (!cv.drawMode) return "hand";
+    if (t === "eyedropper") return "pick";
+    if (t === "magicWand") return "wand";
+    if (t === "lasso") return "lasso";
+    if (t === "line" || t === "rect" || t === "ellipse") return "shapes";
+    if (t === "text") return "text";
+    if (cv.stitchType === "erase" || t === "eraseAll" || t === "eraseBs") return "erase";
+    if (t === "fill") return "fill";
+    if (t === "paint" || t === "backstitch" || t === "knot" || (api.ctx && api.ctx.partialStitchTool)) return "paint";
+    return null;
+  }
+
+  // A rail click picks the tool. Unlike the More panel, clicking the tool
+  // that is already on keeps it on (a rail always has one tool chosen).
+  function railActivate(t, api) {
+    if (t.kind === "tool" && currentRailTool(api) === t.id) return false;
+    t.activate(api);
+    return true;
+  }
+
+  function isVisible(t, api) { return !t.visible || !!t.visible(api); }
+  function isDisabled(t, api) { return !!(t.disabled && t.disabled(api)); }
+
+  // The shortcut as people read it ("Ctrl+Z", "P").
+  function shortcutLabel(t) {
+    if (!t || !t.shortcut) return "";
+    return t.shortcut.split("+").map(function (p) {
+      if (p === "mod") return "Ctrl";
+      if (p === "shift") return "Shift";
+      return p.length === 1 ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1);
+    }).join("+");
+  }
+
+  var api = {
+    TOOLS: TOOLS,
+    DESKTOP_RAIL: DESKTOP_RAIL,
+    DESKTOP_RAIL_FOOT: DESKTOP_RAIL_FOOT,
+    TOUCH_RAIL: TOUCH_RAIL,
+    TOUCH_RAIL_FOOT: TOUCH_RAIL_FOOT,
+    MORE_TOOLS: MORE_TOOLS,
+    MORE_CLEANUP: MORE_CLEANUP,
+    RAIL_HOMES: RAIL_HOMES,
+    get: get,
+    list: function (ids) { return ids.map(get).filter(Boolean); },
+    forSurface: function (surface) { return TOOLS.filter(on(surface)); },
+    moreTools: moreTools,
+    currentRailTool: currentRailTool,
+    railActivate: railActivate,
+    isVisible: isVisible,
+    isDisabled: isDisabled,
+    shortcutLabel: shortcutLabel
+  };
+  root.CreatorToolRegistry = api;
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+})(typeof window !== "undefined" ? window : globalThis);
 
 
 /* ─── useProjectIO.js ─── */
@@ -17797,6 +18254,581 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
 };
 
 
+/* ─── DesktopRail.js ─── */
+/* creator/DesktopRail.js — the tool-rail layout for Edit with a mouse (Stage 2).
+ *
+ * Behind the creator.desktopRail preference (Preferences > Pattern Creator >
+ * Editing layout). With it on and a fine pointer:
+ *   - CreatorDesktopRail: a 56px rail down the left edge with every drawing
+ *     tool (creator/toolRegistry.js DESKTOP_RAIL), and at its foot the working
+ *     thread's swatch (opens the Palette tab), Undo and Redo.
+ *   - CreatorOptionsBar: one 44px row above the chart, replacing the toolbar
+ *     pill, the colour row and the wand strip. What it shows depends on the
+ *     tool; Zoom and Fit sit at its right end.
+ * creator/ToolStrip.js renders both in place of the pill; creator-main.js sets
+ * body.creator-drail-layout / body.creator-drail-tools for the CSS (styles.css,
+ * "Desktop tool rail").
+ *
+ * Exposes window.useCreatorDesktopRail, window.creatorDesktopRailOn,
+ * window.CreatorDesktopRail and window.CreatorOptionsBar.
+ */
+(function () {
+  "use strict";
+
+  var FINE_QUERY = "(pointer: fine)";
+
+  function compactQuery() { return window.CREATOR_COMPACT_QUERY || "(max-width: 899px)"; }
+
+  // On by default (Stage 2 D); Preferences turns it off for one release.
+  function prefOn() {
+    try { return !window.UserPrefs || window.UserPrefs.get("creator.desktopRail") !== false; } catch (_) { return true; }
+  }
+  function finePointer() {
+    try {
+      if (!window.matchMedia) return false;
+      return window.matchMedia(FINE_QUERY).matches && !window.matchMedia(compactQuery()).matches;
+    } catch (_) { return false; }
+  }
+
+  // True when the preference is on and this is a mouse at desktop width.
+  window.creatorDesktopRailOn = function creatorDesktopRailOn() { return prefOn() && finePointer(); };
+
+  window.useCreatorDesktopRail = function useCreatorDesktopRail() {
+    var st = React.useState(window.creatorDesktopRailOn);
+    var on = st[0], setOn = st[1];
+    React.useEffect(function () {
+      function update() { setOn(window.creatorDesktopRailOn()); }
+      var mqs = [];
+      if (window.matchMedia) {
+        mqs = [window.matchMedia(FINE_QUERY), window.matchMedia(compactQuery())];
+        mqs.forEach(function (mq) { if (mq.addEventListener) mq.addEventListener("change", update); else if (mq.addListener) mq.addListener(update); });
+      }
+      function onPref(e) { var k = e && e.detail && e.detail.key; if (k == null || k === "creator.desktopRail") update(); }
+      window.addEventListener("cs:prefchange", onPref);
+      update();
+      return function () {
+        mqs.forEach(function (mq) { if (mq.removeEventListener) mq.removeEventListener("change", update); else if (mq.removeListener) mq.removeListener(update); });
+        window.removeEventListener("cs:prefchange", onPref);
+      };
+    }, []);
+    return on;
+  };
+
+  var STITCH_TYPES = [
+    ["cross", "Cross"],
+    ["half-fwd", "Half /"],
+    ["half-bck", "Half \\"],
+    ["quarter", "¼ stitch"],
+    ["three-quarter", "¾ stitch"],
+    ["backstitch", "Backstitch"],
+    ["knot", "French knot"]
+  ];
+  var BRUSH_SIZES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  var SHAPES = [["line", "Line"], ["rect", "Rectangle"], ["ellipse", "Ellipse"]];
+
+  function icon(name) {
+    return window.Icons && typeof window.Icons[name] === "function" ? window.Icons[name]() : null;
+  }
+  function threadText(p, variant) {
+    if (!p) return "";
+    return typeof window.formatThread === "function" ? window.formatThread(p, variant ? { variant: variant } : undefined) : String(p.id);
+  }
+  function sortedPalette(ctx) {
+    return (ctx.displayPal || ctx.pal || []).slice().sort(function (a, b) { return (b.count || 0) - (a.count || 0); });
+  }
+
+  function keepFocus(e) { if (e.button === 0) e.preventDefault(); }
+
+  // Esc goes through the shared stack (keyboard-utils.js), so only the
+  // topmost overlay closes: a menu or sheet here, or a dialog opened over it.
+  function useEscapeWhile(open, close) {
+    var ref = React.useRef(close); ref.current = close;
+    var handler = React.useCallback(function () { ref.current(); }, []);
+    if (typeof window.useEscape === "function") window.useEscape(open ? handler : null);
+  }
+
+  // Menus open with position: fixed (the options bar scrolls sideways when
+  // a tool has many options, which would clip an absolutely placed menu).
+  function menuSpot(el, side) {
+    if (!el || !el.getBoundingClientRect) return { top: 96, left: 64 };
+    var r = el.getBoundingClientRect();
+    if (side === "right") return { top: Math.round(r.bottom + 4), right: Math.max(8, Math.round(window.innerWidth - r.right)) };
+    if (side === "beside") return { top: Math.round(r.top), left: Math.round(r.right + 6) };
+    return { top: Math.round(r.bottom + 4), left: Math.round(r.left) };
+  }
+
+  // The shape picked last, so the Shapes button goes back to it.
+  var lastShapeStore = { id: "line" };
+
+  // ─── Rail ────────────────────────────────────────────────────────────────
+  window.CreatorDesktopRail = function CreatorDesktopRail() {
+    var ctx = window.usePatternData();
+    var cv = window.useCanvas();
+    var app = window.useApp();
+    var h = React.createElement;
+    var Reg = window.CreatorToolRegistry;
+
+    var _menu = React.useState(false); var shapesOpen = _menu[0], setShapesOpen = _menu[1];
+    var menuRef = React.useRef(null);
+    var shapesBtnRef = React.useRef(null);
+
+    React.useEffect(function () {
+      var t = cv.activeTool;
+      if (t === "line" || t === "rect" || t === "ellipse") lastShapeStore.id = t;
+    }, [cv.activeTool]);
+
+    React.useEffect(function () {
+      if (!shapesOpen) return undefined;
+      function onDown(e) {
+        if (menuRef.current && menuRef.current.contains(e.target)) return;
+        if (shapesBtnRef.current && shapesBtnRef.current.contains(e.target)) return;
+        setShapesOpen(false);
+      }
+      document.addEventListener("pointerdown", onDown);
+      return function () { document.removeEventListener("pointerdown", onDown); };
+    }, [shapesOpen]);
+    useEscapeWhile(!!shapesOpen, function () { setShapesOpen(false); if (shapesBtnRef.current) shapesBtnRef.current.focus(); });
+
+    var palData = sortedPalette(ctx);
+    var api = { cv: cv, ctx: ctx, coarse: false, palData: palData, surface: "desktopRail", lastShape: lastShapeStore.id };
+    var current = Reg.currentRailTool(api);
+
+    function railButton(t) {
+      var isShapes = t.id === "shapes";
+      var on = current === t.id;
+      var props = {
+        key: t.id, type: "button", "data-tool": t.id,
+        className: "creator-drail__btn" + (on ? " creator-drail__btn--on" : ""),
+        "aria-label": t.railLabel || t.label,
+        title: t.title,
+        "aria-pressed": on ? "true" : "false",
+        // A mouse click leaves focus where it was, so Space still pans.
+        onMouseDown: keepFocus,
+        onClick: function (e) {
+          Reg.railActivate(t, api);
+          if (isShapes) { var el = e.currentTarget; setShapesOpen(function (o) { return o ? false : menuSpot(el, "beside"); }); }
+        }
+      };
+      if (isShapes) {
+        props.ref = shapesBtnRef;
+        props["aria-haspopup"] = "menu";
+        props["aria-expanded"] = shapesOpen ? "true" : "false";
+      }
+      var shown = isShapes && on ? Reg.get(cv.activeTool) : t;
+      return h("button", props,
+        icon(shown.icon),
+        h("span", { className: "creator-drail__label" }, t.railText || t.text));
+    }
+
+    var shapesMenu = shapesOpen ? h("div", { ref: menuRef, className: "creator-drail__menu", role: "menu", "aria-label": "Shapes", style: shapesOpen },
+      Reg.get("shapes").children.map(function (id) {
+        var t = Reg.get(id);
+        var on = cv.activeTool === id;
+        return h("button", {
+          key: id, type: "button", role: "menuitemradio", "aria-checked": on ? "true" : "false",
+          className: "creator-drail__menu-item" + (on ? " creator-drail__menu-item--on" : ""),
+          onClick: function () { if (!on) t.activate(api); lastShapeStore.id = id; setShapesOpen(false); }
+        }, icon(t.icon), h("span", null, t.text));
+      })
+    ) : null;
+
+    var selCol = cv.selectedColorId && ctx.cmap ? ctx.cmap[cv.selectedColorId] : null;
+    var swatch = h("button", {
+      type: "button", className: "creator-drail__btn creator-drail__colour",
+      "aria-label": selCol ? ("Working thread " + threadText(selCol) + " — open the palette") : "Choose a thread — open the palette",
+      title: selCol ? threadText(selCol, "title") : "Choose a thread",
+      onClick: function () {
+        if (app.setSidebarTab) app.setSidebarTab("palette");
+        if (app.setPanelOpen) app.setPanelOpen(true);
+      }
+    },
+      h("span", { className: "creator-drail__swatch", style: { background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)" } }),
+      h("span", { className: "creator-drail__label" }, selCol ? selCol.id : "Thread"));
+
+    function footButton(t) {
+      var dis = Reg.isDisabled(t, api);
+      return h("button", {
+        key: t.id, type: "button", "data-tool": t.id,
+        className: "creator-drail__btn",
+        "aria-label": t.label, title: t.title,
+        disabled: dis,
+        onMouseDown: keepFocus,
+        onClick: function () { t.activate(api); }
+      }, icon(t.icon), h("span", { className: "creator-drail__label" }, t.text));
+    }
+
+    return h("nav", { className: "creator-drail", "aria-label": "Tools", "data-onboard": "creator-drail" },
+      h("div", { className: "creator-drail__tools", role: "toolbar", "aria-orientation": "vertical", "aria-label": "Drawing tools" },
+        Reg.list(Reg.DESKTOP_RAIL).map(railButton)
+      ),
+      shapesMenu,
+      h("div", { className: "creator-drail__foot" },
+        swatch,
+        Reg.list(Reg.DESKTOP_RAIL_FOOT).map(footButton)
+      )
+    );
+  };
+
+  // ─── Options bar ─────────────────────────────────────────────────────────
+  window.CreatorOptionsBar = function CreatorOptionsBar(props) {
+    var ctx = window.usePatternData();
+    var cv = window.useCanvas();
+    var app = window.useApp();
+    var h = React.createElement;
+    var Reg = window.CreatorToolRegistry;
+    props = props || {};
+
+    var _sm = React.useState(false); var selMenuOpen = _sm[0], setSelMenuOpen = _sm[1];
+    var _cm = React.useState(false); var cleanMenuOpen = _cm[0], setCleanMenuOpen = _cm[1];
+    var selMenuRef = React.useRef(null);
+    var cleanMenuRef = React.useRef(null);
+    React.useEffect(function () {
+      if (!selMenuOpen && !cleanMenuOpen) return undefined;
+      function onDown(e) {
+        if (selMenuRef.current && selMenuRef.current.contains(e.target)) return;
+        if (cleanMenuRef.current && cleanMenuRef.current.contains(e.target)) return;
+        setSelMenuOpen(false); setCleanMenuOpen(false);
+      }
+      document.addEventListener("pointerdown", onDown);
+      return function () { document.removeEventListener("pointerdown", onDown); };
+    }, [selMenuOpen, cleanMenuOpen]);
+    useEscapeWhile(!!(selMenuOpen || cleanMenuOpen), function () { setSelMenuOpen(false); setCleanMenuOpen(false); });
+
+    var palData = sortedPalette(ctx);
+    var api = { cv: cv, ctx: ctx, coarse: false, palData: palData, surface: "desktopRail" };
+    var tool = Reg.currentRailTool(api);
+
+    // Commands from the header's Pattern menu (creator-main.js).
+    var _sp = React.useState(false); var specialtyOpen = _sp[0], setSpecialtyOpen = _sp[1];
+    var apiRef = React.useRef(api); apiRef.current = api;
+    React.useEffect(function () {
+      function onCommand(e) {
+        var id = e && e.detail && e.detail.id;
+        if (id === "specialty") setSpecialtyOpen(true);
+        else if (id === "replace") {
+          var t = Reg.get("replace");
+          if (!t.isOn(apiRef.current)) t.activate(apiRef.current);
+        }
+      }
+      window.addEventListener("cs:creator-command", onCommand);
+      return function () { window.removeEventListener("cs:creator-command", onCommand); };
+    }, []);
+    var specialtyRef = React.useRef(null);
+    React.useEffect(function () {
+      if (!specialtyOpen || !specialtyRef.current) return undefined;
+      // Open its list straight away, and give it focus.
+      var d = specialtyRef.current.querySelector("details");
+      if (d) d.open = true;
+      specialtyRef.current.focus();
+    }, [specialtyOpen]);
+    useEscapeWhile(specialtyOpen, function () { setSpecialtyOpen(false); });
+    var raw = cv.activeTool;
+
+    // Small building blocks ---------------------------------------------------
+    function label(text) { return h("span", { className: "creator-optbar__label" }, text); }
+    function sep(key) { return h("span", { key: key, className: "creator-optbar__sep", "aria-hidden": "true" }); }
+    function hint(text) { return h("span", { className: "creator-optbar__hint" }, text); }
+    function btn(text, onClick, o) {
+      o = o || {};
+      return h("button", {
+        key: o.key || text, type: "button",
+        className: "creator-optbar__btn" + (o.on ? " creator-optbar__btn--on" : "") + (o.danger ? " creator-optbar__btn--danger" : ""),
+        onClick: onClick, title: o.title, disabled: o.disabled,
+        "aria-pressed": o.pressed == null ? undefined : (o.pressed ? "true" : "false"),
+        "aria-label": o.ariaLabel
+      }, o.icon || null, text);
+    }
+    function segmented(ariaLabel, options, value, onPick) {
+      return h("div", { className: "creator-optbar__seg", role: "radiogroup", "aria-label": ariaLabel },
+        options.map(function (o) {
+          var on = value === o[0];
+          return h("button", {
+            key: o[0], type: "button", role: "radio", "aria-checked": on ? "true" : "false",
+            className: "creator-optbar__seg-btn" + (on ? " creator-optbar__seg-btn--on" : ""),
+            title: o[2], onClick: function () { onPick(o[0]); }
+          }, o[1]);
+        })
+      );
+    }
+    function select(ariaLabel, options, value, onPick) {
+      return h("select", {
+        className: "creator-optbar__select", "aria-label": ariaLabel, value: value,
+        onChange: function (e) { onPick(e.target.value); }
+      }, options.map(function (o) { return h("option", { key: o[0], value: o[0] }, o[1]); }));
+    }
+
+    // Shared groups ------------------------------------------------------------
+    var curStitch = cv.stitchType && cv.stitchType !== "erase" ? cv.stitchType : "cross";
+    function stitchTypeGroup() {
+      return h(React.Fragment, { key: "st" },
+        label("Stitch"),
+        select("Stitch type", STITCH_TYPES, curStitch, function (v) { cv.selectStitchType(v); })
+      );
+    }
+    function brushSizeGroup() {
+      var size = cv.brushSize || 1;
+      return h(React.Fragment, { key: "bs" },
+        label("Size"),
+        select("Brush size", BRUSH_SIZES.map(function (n) { return [String(n), n + "×" + n]; }), String(size),
+          function (v) { cv.setBrushSize(parseInt(v, 10)); })
+      );
+    }
+    var mir = cv.mirror || { on: false, axis: "v" };
+    function setMir(patch) { if (cv.setMirror) cv.setMirror(function (m) { return Object.assign({}, m, patch); }); }
+    function mirrorGroup() {
+      return h(React.Fragment, { key: "mir" },
+        btn("Mirror", function () { setMir({ on: !mir.on }); }, { pressed: !!mir.on, on: !!mir.on, icon: icon("mirror"), title: "Mirror drawing across the dashed axis" }),
+        mir.on && select("Mirror axis", [["v", "Left–right"], ["h", "Top–bottom"], ["both", "Both"]], mir.axis || "v",
+          function (v) { setMir({ axis: v, on: true }); }),
+        mir.on && btn("Centre", function () { setMir({ ax: ctx.sW / 2, ay: ctx.sH / 2 }); }, { key: "mircentre", title: "Put the mirror axis back in the centre of the pattern", ariaLabel: "Centre the mirror axis" })
+      );
+    }
+    function opGroup() {
+      var ops = [["replace", "New", "New selection — replaces any existing"],
+        ["add", "Add", "Add to selection (hold Shift)"],
+        ["subtract", "Subtract", "Subtract from selection (hold Alt)"],
+        ["intersect", "Intersect", "Keep only the overlap (hold Shift+Alt)"]];
+      return h("div", { key: "ops", className: "creator-optbar__seg", role: "radiogroup", "aria-label": "Selection mode" },
+        ops.map(function (o) {
+          var on = cv.wandOpMode === o[0];
+          var held = cv.selectionModifier === o[0];
+          return h("button", {
+            key: o[0], type: "button", role: "radio", "aria-checked": on ? "true" : "false",
+            className: "creator-optbar__seg-btn" + (on ? " creator-optbar__seg-btn--on" : "") + (held ? " creator-optbar__seg-btn--held" : ""),
+            title: o[2], onClick: function () { cv.setSelectionOpMode(o[0]); }
+          }, o[1]);
+        })
+      );
+    }
+
+    // "Replace colour…" from a selection: the shared modal, for the most
+    // common colour in it (as the wand strip did).
+    function openReplaceModal() {
+      var rows = cv.selectionStats && cv.selectionStats.rows;
+      cv.setWandPanel(null);
+      if (!rows || !rows.length) {
+        if (app.addToast) app.addToast("Select some stitches first.", { type: "info", duration: 2500 });
+        return;
+      }
+      var top = rows[0];
+      cv.setColourReplaceModal({ srcId: top.id, srcName: top.name || top.id, srcRgb: top.rgb });
+    }
+
+    function selectionGroup() {
+      var n = cv.selectionCount || 0;
+      var panel = cv.wandPanel;
+      var items = [
+        ["confetti", "Reduce confetti…"],
+        ["reduce", "Reduce colours…"],
+        ["replace", "Replace colour…"],
+        ["info", "Stitch info…"],
+        ["outline", "Outline…"]
+      ];
+      return h(React.Fragment, { key: "sel" },
+        h("span", { className: "creator-optbar__count", role: "status" },
+          n.toLocaleString("en-GB") + " stitch" + (n === 1 ? "" : "es") + " selected"),
+        btn("Deselect", function () { if (cv.cancelLasso) cv.cancelLasso(); cv.clearSelection(); }, { title: "Deselect (Esc)" }),
+        btn("Invert", cv.invertSelection, { title: "Invert the selection (Ctrl+Shift+I)" }),
+        btn("Select all", cv.selectAll, { title: "Select every stitch (Ctrl+A)" }),
+        h("div", { key: "selmenu", ref: selMenuRef, className: "creator-optbar__menu-wrap" },
+          btn("Selection", function (e) { var el = e.currentTarget; setSelMenuOpen(function (o) { return o ? false : menuSpot(el, "left"); }); }, {
+            on: selMenuOpen || !!panel, icon: null, title: "Things to do with the selection",
+            ariaLabel: "Selection menu"
+          }),
+          selMenuOpen && h("div", { className: "creator-optbar__menu", role: "menu", "aria-label": "Selection", style: selMenuOpen },
+            items.map(function (it) {
+              return h("button", {
+                key: it[0], type: "button", role: "menuitem",
+                className: "creator-optbar__menu-item" + (panel === it[0] ? " creator-optbar__menu-item--on" : ""),
+                onClick: function () {
+                  setSelMenuOpen(false);
+                  if (it[0] === "replace") { openReplaceModal(); return; }
+                  cv.setWandPanel(panel === it[0] ? null : it[0]);
+                }
+              }, it[1]);
+            }),
+            h("button", {
+              type: "button", role: "menuitem", "data-tool": "move",
+              className: "creator-optbar__menu-item" + (raw === "move" ? " creator-optbar__menu-item--on" : ""),
+              title: Reg.get("move").title,
+              onClick: function () { setSelMenuOpen(false); if (raw !== "move") Reg.get("move").activate(api); }
+            }, icon("move"), "Move selection"),
+            // Copy, cut, duplicate, flip and rotate (the Tools tab had them;
+            // the right-click menu and the shortcuts do too).
+            cv.clip && h("div", { className: "creator-optbar__menu-sep", role: "separator" }),
+            cv.clip && [
+              ["copy", "Copy", "Copy (Ctrl+C)", "copy", function () { cv.clip.copy(); }],
+              ["cut", "Cut", "Cut (Ctrl+X)", "scissors", function () { cv.clip.cut(); }],
+              ["dup", "Duplicate", "Duplicate (Ctrl+D)", "duplicate", function () { cv.clip.duplicate(); }],
+              ["flipH", "Flip horizontally", "Flip left to right (Shift+H)", "flipHorizontal", function () { cv.clip.transform("flipH"); }],
+              ["flipV", "Flip vertically", "Flip upside down (Shift+V)", "flipVertical", function () { cv.clip.transform("flipV"); }],
+              ["rotCCW", "Rotate left", "Rotate anticlockwise (,)", "rotateCcw", function () { cv.clip.transform("rotCCW"); }],
+              ["rotCW", "Rotate right", "Rotate clockwise (.)", "rotateCw", function () { cv.clip.transform("rotCW"); }]
+            ].map(function (a) {
+              return h("button", {
+                key: a[0], type: "button", role: "menuitem", className: "creator-optbar__menu-item", title: a[2],
+                onClick: function () { setSelMenuOpen(false); a[4](); }
+              }, icon(a[3]), a[1]);
+            }),
+            h("div", { className: "creator-optbar__menu-sep", role: "separator" }),
+            h("button", {
+              type: "button", role: "menuitem", className: "creator-optbar__menu-item creator-optbar__menu-item--danger",
+              onClick: function () { setSelMenuOpen(false); cv.deleteSelection(); }
+            }, "Delete selected stitches")
+          )
+        )
+      );
+    }
+
+    // What the chosen tool shows -------------------------------------------
+    var parts = [];
+    // Fix outline colours and Reduce confetti bring their own controls
+    // (props.modeRow), drawn outside the sideways-scrolling tool area so the
+    // target-colour picker can open below the bar.
+    if (!props.modeRow) {
+      if (tool === "paint") {
+        parts.push(stitchTypeGroup());
+        if (curStitch === "backstitch") {
+          parts.push(h("label", { key: "bscont", className: "creator-optbar__check" },
+            h("input", { type: "checkbox", checked: !!cv.bsContinuous, onChange: function (e) { cv.setBsContinuous(e.target.checked); cv.setBsStart(null); } }),
+            h("span", null, "Continuous")));
+        } else if (curStitch !== "knot") {
+          parts.push(brushSizeGroup());
+        }
+        parts.push(sep("s1"), mirrorGroup());
+      } else if (tool === "erase") {
+        parts.push(label("Erase"),
+          segmented("What to erase", [["eraseAll", "Everything", "Erase every kind of stitch"], ["eraseBs", "Backstitch only", "Erase only backstitch lines"]],
+            raw === "eraseBs" ? "eraseBs" : "eraseAll", function (v) { cv.setActiveTool(v); }));
+        if (raw !== "eraseBs") parts.push(brushSizeGroup());
+        parts.push(sep("s1"), mirrorGroup());
+      } else if (tool === "fill") {
+        parts.push(stitchTypeGroup(),
+          hint(cv.hasSelection ? "Fills this patch: the touching stitches of the colour you click, inside the selection."
+            : "Fills this patch: the touching stitches of the colour you click."));
+      } else if (tool === "pick") {
+        parts.push(hint("Click a stitch to make its thread the working thread."));
+      } else if (tool === "wand") {
+        parts.push(label("Tolerance"),
+          h("input", { key: "tol", type: "range", min: 0, max: 100, step: 1, value: cv.wandTolerance, className: "creator-optbar__range",
+            "aria-label": "Tolerance", onChange: function (e) { cv.setWandTolerance(Number(e.target.value)); } }),
+          h("span", { key: "tolv", className: "creator-optbar__value" },
+            cv.wandTolerance + " " + (cv.wandTolerance === 0 ? "exact" : cv.wandTolerance <= 5 ? "similar" : cv.wandTolerance <= 15 ? "broad" : "very broad")),
+          segmented("What a click selects", [["conn", "Connected only", "Only stitches connected to the one you click"], ["all", "All matching", "Every stitch of this colour anywhere on the chart"]],
+            cv.wandContiguous ? "conn" : "all", function (v) { cv.setWandContiguous(v === "conn"); }),
+          opGroup());
+      } else if (tool === "lasso") {
+        parts.push(label("Lasso"),
+          segmented("Lasso mode", [["freehand", "Freehand"], ["polygon", "Polygon"], ["magnetic", "Magnetic"]], cv.lassoMode || "freehand",
+            function (v) { cv.setLassoMode(v); }),
+          opGroup());
+      } else if (tool === "shapes") {
+        // Picking the shape that is already on keeps it (activate() toggles).
+        parts.push(segmented("Shape", SHAPES, raw, function (v) { if (v !== raw) Reg.get(v).activate(api); lastShapeStore.id = v; }));
+        if (raw === "line") {
+          parts.push(h("label", { key: "snap", className: "creator-optbar__check" },
+            h("input", { type: "checkbox", checked: !!cv.lineSnap, onChange: function (e) { if (cv.setLineSnap) cv.setLineSnap(e.target.checked); } }),
+            h("span", null, "Straight or 45°")));
+        } else {
+          parts.push(segmented("Rectangle and ellipse", [["outline", "Outline"], ["filled", "Filled"]], cv.shapeFilled ? "filled" : "outline",
+            function (v) { if (cv.setShapeFilled) cv.setShapeFilled(v === "filled"); }));
+        }
+        parts.push(brushSizeGroup(), sep("s1"), mirrorGroup());
+      } else if (tool === "text") {
+        parts.push(hint("Click where the text should start, then type."));
+      } else if (tool === "hand") {
+        parts.push(hint("Drag to move around the chart. Space and drag, or drag with the middle button, moves it with any tool."));
+      } else if (raw === "colourReplace") {
+        parts.push(label("Replace colour"), hint("Click a stitch to replace every stitch of its colour."),
+          btn("Done", function () { cv.setActiveTool(null); }, {}));
+      } else if (raw === "move" || raw === "float") {
+        parts.push(hint("Drag the selection to move it. Arrow keys nudge it one square."));
+      } else if (!cv.hasSelection) {
+        parts.push(hint("Choose a tool on the left."));
+      }
+      // A selection's controls come first, so they stay in view when the
+      // tool's own options need more room than the bar has.
+      if (cv.hasSelection) {
+        if (parts.length) parts.unshift(sep("s-sel"));
+        parts.unshift(selectionGroup());
+      }
+    }
+
+    // Clean up: Fix outline colours and Reduce confetti (they used to be in More).
+    var cleanTools = Reg.list(Reg.MORE_CLEANUP);
+    var cleanOn = cleanTools.some(function (t) { return t.isOn(api); });
+    var cleanUp = h("div", { key: "clean", ref: cleanMenuRef, className: "creator-optbar__menu-wrap" },
+      btn("Clean up", function (e) { var el = e.currentTarget; setCleanMenuOpen(function (o) { return o ? false : menuSpot(el, "right"); }); }, {
+        on: cleanMenuOpen || cleanOn, icon: icon("cleanup"), title: "Fix outline colours or reduce confetti",
+        ariaLabel: "Clean up menu"
+      }),
+      cleanMenuOpen && h("div", { className: "creator-optbar__menu", role: "menu", "aria-label": "Clean up", style: cleanMenuOpen },
+        cleanTools.map(function (t) {
+          var on = t.isOn(api);
+          return h("button", {
+            key: t.id, type: "button", role: "menuitemcheckbox", "aria-checked": on ? "true" : "false", "data-tool": t.id,
+            className: "creator-optbar__menu-item" + (on ? " creator-optbar__menu-item--on" : ""),
+            title: t.id === "denoise" && window.CONFETTI_HELP
+              ? "Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads"
+              : t.title,
+            onClick: function () { setCleanMenuOpen(false); t.activate(api); }
+          }, icon(t.icon), h("span", null, t.text));
+        })
+      )
+    );
+
+    // A highlighted thread (Palette > Show on chart).
+    var hi = cv.hiId && ctx.cmap ? ctx.cmap[cv.hiId] : null;
+    var hiChip = cv.hiId ? h("div", { key: "hi", className: "creator-optbar__hi", role: "status" },
+      h("span", { className: "creator-optbar__hi-swatch", style: { background: hi ? "rgb(" + hi.rgb + ")" : "var(--surface-tertiary)" }, "aria-hidden": "true" }),
+      h("span", null, "Showing " + (hi ? threadText(hi, "short") : cv.hiId) + " on chart"),
+      btn("Clear", function () { cv.setHiId(null); }, { title: "Stop showing this thread", ariaLabel: "Clear the highlighted thread" })
+    ) : null;
+
+    var zoom = h("div", { key: "zoom", className: "creator-optbar__zoom", role: "group", "aria-label": "Zoom" },
+      h("button", { type: "button", className: "creator-optbar__icon-btn", "aria-label": "Zoom out", title: "Zoom out (−)",
+        onClick: function () { cv.setZoom(Math.max(0.05, Math.round((cv.zoom - 0.1) * 100) / 100)); } }, icon("minus")),
+      h(window.CreatorZoomSlider, { zoom: cv.zoom, setZoom: cv.setZoom, maxZoom: cv.maxZoom, style: { width: 90 }, labelClassName: "creator-optbar__zoom-pct" }),
+      h("button", { type: "button", className: "creator-optbar__icon-btn", "aria-label": "Zoom in", title: "Zoom in (+)",
+        onClick: function () { cv.setZoom(Math.min(cv.maxZoom || 3, Math.round((cv.zoom + 0.1) * 100) / 100)); } }, icon("plus")),
+      h("button", { type: "button", className: "creator-optbar__btn creator-optbar__fit", title: "Fit the chart to the window (0)", onClick: cv.fitZ }, "Fit")
+    );
+
+    // Paste, once something is copied (Ctrl+V does the same).
+    var pasteTool = Reg.get("paste");
+    var paste = Reg.isVisible(pasteTool, api) ? btn("Paste", function () { pasteTool.activate(api); }, {
+      key: "paste", icon: icon(pasteTool.icon), title: pasteTool.title
+    }) : null;
+
+    var specialty = specialtyOpen && window.SpecialtyStitchPanel ? h("div", {
+      ref: specialtyRef, tabIndex: -1, className: "creator-optbar__sheet", role: "dialog", "aria-label": "Petite and long stitches"
+    },
+      h("div", { className: "creator-optbar__sheet-head" },
+        h("strong", null, "Petite and long stitches"),
+        h("button", { type: "button", className: "creator-optbar__icon-btn", "aria-label": "Close petite and long stitches", title: "Close (Esc)",
+          onClick: function () { setSpecialtyOpen(false); } }, icon("x"))),
+      h(window.SpecialtyStitchPanel, {
+        objects: ctx.specialtyStitches || [], w: ctx.sW, h: ctx.sH, threads: ctx.displayPal || ctx.pal || [], brand: ctx.threadBrand,
+        onSelect: cv.setSpecialtySelected,
+        onChange: function (next) {
+          cv.setEditHistory(function (prev) { return prev.concat([{ type: "specialty", changes: [], specialtyStitches: ctx.specialtyStitches || [] }]).slice(-cv.EDIT_HISTORY_MAX); });
+          cv.setRedoHistory([]);
+          ctx.setSpecialtyStitches(next);
+        }
+      })
+    ) : null;
+
+    return h("div", { className: "creator-optbar", role: "toolbar", "aria-label": "Tool options", "data-tool-options": tool || raw || "none" },
+      props.modeRow
+        ? h("div", { className: "creator-optbar__mode" }, props.modeRow)
+        : h("div", { className: "creator-optbar__tool" }, parts),
+      h("div", { className: "creator-optbar__end" }, paste, hiChip, cleanUp, props.more || null, zoom),
+      specialty
+    );
+  };
+})();
+
+
 /* ─── ToolStrip.js ─── */
 /* creator/ToolStrip.js — The main tool strip bar above the pattern canvas.
    Reads from CreatorContext and GenerationContext.
@@ -18601,6 +19633,36 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     { id:"knot", label:"French knot" }
   ];
 
+  // Tool buttons come from the one list in creator/toolRegistry.js.
+  var ToolReg = window.CreatorToolRegistry;
+  var toolApi = { cv: cv, ctx: ctx, coarse: coarsePointer, palData: palData };
+  // Tool-rail layout (creator.desktopRail): the rail and the options bar hold
+  // the tools, stitch type, brush size, Mirror and Clean up, so More leaves
+  // them out (no control shows in two places).
+  var railLayout = !compact && !!app.desktopRail;
+  // The More panel keeps its own small glyphs for these (Pick is text only).
+  var moreIconOverride = {
+    pick: null, wand: svgWand,
+    lasso: cv.lassoMode==="polygon"?svgPolygon:cv.lassoMode==="magnetic"?svgMagnetic:svgFreehand
+  };
+  function toolIcon(t) {
+    return window.Icons && window.Icons[t.icon] ? window.Icons[t.icon]() : null;
+  }
+  function moreToolBtn(t, extra) {
+    if (!ToolReg.isVisible(t, toolApi)) return null;
+    var on = t.isOn(toolApi);
+    var props = Object.assign({
+      key:"tool-" + t.id, "data-tool":t.id,
+      className:"tb-btn"+(on?" tb-btn--on":""),
+      onClick:function(){ t.activate(toolApi); setMorePanelOpen(false); },
+      title:t.title, "aria-label":t.label
+    }, extra || {});
+    if (t.kind !== "action") props["aria-pressed"] = on ? "true" : "false";
+    if (t.disabled) { props.disabled = ToolReg.isDisabled(t, toolApi); props["aria-disabled"] = props.disabled; }
+    var icon = Object.prototype.hasOwnProperty.call(moreIconOverride, t.id) ? moreIconOverride[t.id] : toolIcon(t);
+    return h("button", props, icon, icon ? " " + t.text : t.text);
+  }
+
   var morePanelContent = morePanelOpen ? h("div", {
     ref:morePanelRef,
     className:"tb-more-panel",
@@ -18665,135 +19727,23 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         style:{width:"100%",justifyContent:"flex-start"}
       }, window.Icons&&window.Icons.sliders?window.Icons.sliders():null, " Re-generate from image\u2026")
     ),
-    // ── Tools ──
+    // ── Tools (from creator/toolRegistry.js) ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Tools"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
         // Navigate replaces the separate Hand tool. On touch the Navigate |
-        // Draw toggle is always in the strip, so it isn't repeated here.
-        !coarsePointer && h("button", {
-          className:"tb-btn"+(!cv.drawMode?" tb-btn--on":""),
-          onClick:function(){
-            cv.setDrawMode(!cv.drawMode);
-            setMorePanelOpen(false);
-          },
-          title:"Navigate — drag to move around the chart (H)", "aria-label":"Navigate",
-          "aria-pressed": !cv.drawMode?"true":"false"
-        }, window.Icons.hand(), " Navigate"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
-          onClick:function(){
-            cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);
-            setMorePanelOpen(false);
-          },
-          title:"Eyedropper (I)", "aria-label":"Eyedropper tool"
-        }, "Pick"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="magicWand"?" tb-btn--on":""),
-          onClick:function(){
-            if (cv.activeTool==="magicWand") cv.setActiveTool(null);
-            else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
-            setMorePanelOpen(false);
-          },
-          title:"Magic Wand (W)", "aria-label":"Magic wand",
-          "aria-pressed": cv.activeTool==="magicWand"?"true":"false"
-        }, svgWand, " Wand"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="lasso"?" tb-btn--on":""),
-          onClick:function(){
-            if (cv.activeTool==="lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
-            else { cv.setActiveTool("lasso"); cv.setLassoMode(cv.lassoMode||"freehand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); }
-            setMorePanelOpen(false);
-          },
-          title:"Lasso \u2014 mode in Tools tab", "aria-label":"Lasso",
-          "aria-pressed": cv.activeTool==="lasso"?"true":"false"
-        }, cv.lassoMode==="polygon"?svgPolygon:cv.lassoMode==="magnetic"?svgMagnetic:svgFreehand, " Lasso"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="move"?" tb-btn--on":""),
-          onClick:function(){
-            if (cv.activeTool==="move") { if (cv.cancelMove) cv.cancelMove(); cv.setActiveTool(null); }
-            else { cv.setActiveTool("move"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
-            setMorePanelOpen(false);
-          },
-          disabled: !cv.hasSelection,
-          title:"Move selection \u2014 drag selected cells to a new position",
-          "aria-label":"Move selection",
-          "aria-pressed": cv.activeTool==="move"?"true":"false",
-          "aria-disabled": !cv.hasSelection
-        }, window.Icons&&window.Icons.move?window.Icons.move():null, " Move"),
-        // Paste the copied stitches (audit DRAW-04); only once something is copied.
-        cv.clip && cv.clip.hasClipboard && h("button", {
-          className:"tb-btn",
-          onClick:function(){ cv.clip.paste(); setMorePanelOpen(false); },
-          title:"Paste, then drag it into place (Ctrl+V)", "aria-label":"Paste"
-        }, window.Icons.clipboard(), " Paste"),
-        // Shapes (audit DRAW-04): drag on the chart to draw one.
-        [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()], ["text", "Text", window.Icons.textTool()]].map(function(t) {
-          var on = cv.activeTool === t[0];
-          return h("button", {
-            key:"shape-" + t[0], className:"tb-btn"+(on?" tb-btn--on":""),
-            onClick:function(){
-              if (on) cv.setActiveTool(null);
-              else {
-                cv.setActiveTool(t[0]); ctx.setPartialStitchTool(null); cv.setBsStart(null);
-                if (cv.cancelLasso) cv.cancelLasso();
-                if (!cv.drawMode) cv.setDrawMode(true);
-              }
-              setMorePanelOpen(false);
-            },
-            title: t[0] === "text" ? "Text \u2014 tap where it should start, then type" : t[1] + " \u2014 drag on the chart; outline or filled in the Tools tab", "aria-label":t[1] + " tool",
-            "aria-pressed": on ? "true" : "false"
-          }, t[2], " " + t[1]);
-        }),
-        // Mirror drawing (audit DRAW-04)
-        h("button", {
-          className:"tb-btn"+(cv.mirror && cv.mirror.on?" tb-btn--on":""),
-          onClick:function(){ if (cv.setMirror) cv.setMirror(function(m){ return Object.assign({}, m, { on: !m.on }); }); setMorePanelOpen(false); },
-          title:"Mirror drawing \u2014 axis in the Tools tab", "aria-label":"Mirror drawing",
-          "aria-pressed": cv.mirror && cv.mirror.on ? "true" : "false"
-        }, window.Icons.mirror(), " Mirror"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
-          onClick:function(){
-            if (cv.activeTool==="colourReplace") cv.setActiveTool(null);
-            else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
-            setMorePanelOpen(false);
-          },
-          title:"Replace colour (R) \u2014 click a stitch to replace every stitch of that colour", "aria-label":"Replace colour tool",
-          "aria-pressed": cv.activeTool==="colourReplace"?"true":"false"
-        }, window.Icons.colourSwap(), " Replace")
+        // Draw toggle is always in the strip, so the registry leaves it out.
+        ToolReg.moreTools({ coarse: coarsePointer, desktopRail: railLayout }).map(function(t) { return moreToolBtn(t); })
       )
     ),
-    // ── Cleanup ──
-    h("div", {className:"tb-more-panel__section tb-more-panel__section--cleanup"},
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="cleanup"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
-          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterCleanup) cv.enterCleanup(); }
-          setMorePanelOpen(false);
-        },
-        title:"Fix outline colours: replace stitches where an outline was blended into the colours around it", "aria-label":"Fix outline colours",
-        "aria-pressed": cv.activeTool==="cleanup"?"true":"false",
-        style:{width:"100%",justifyContent:"flex-start"}
-      }, window.Icons&&window.Icons.cleanup?window.Icons.cleanup():null, " Fix outline colours")
-    ),
-    // ── Denoise ──
-    h("div", {className:"tb-more-panel__section"},
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
-          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
-          setMorePanelOpen(false);
-        },
-        title:"Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads", "aria-label":"Reduce confetti",
-        "aria-pressed": cv.activeTool==="denoise"?"true":"false",
-        style:{width:"100%",justifyContent:"flex-start"}
-      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Reduce confetti")
-    ),
+    // ── Cleanup and denoise ──
+    !railLayout && ToolReg.moreTools({ coarse: coarsePointer }, ToolReg.MORE_CLEANUP).map(function(t) {
+      return h("div", {key:"sec-" + t.id, className:"tb-more-panel__section" + (t.id === "cleanup" ? " tb-more-panel__section--cleanup" : "")},
+        moreToolBtn(t, {style:{width:"100%",justifyContent:"flex-start"},
+          title: t.id === "denoise" ? "Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads" : t.title}));
+    }),
     // ── Stitch type ──
-    h("div", {className:"tb-more-panel__section"},
+    !railLayout && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Stitch type"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
         stitchTypeOptions.map(function(st) {
@@ -18808,7 +19758,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       )
     ),
     // ── Brush size ──
-    h("div", {className:"tb-more-panel__section"},
+    !railLayout && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Brush size"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
         [1,2,3,5,7,10].map(function(sz) {
@@ -18867,6 +19817,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:onClick
       }, extra || {}), icon, h("span", {className:"creator-rail__label"}, text));
     };
+    var railApi = Object.assign({}, toolApi, { surface: "touchRail" });
+    var railTool = function(t) {
+      var extra = { "data-tool": t.id };
+      if (t.kind === "action") { extra["aria-pressed"] = undefined; extra.disabled = ToolReg.isDisabled(t, railApi); }
+      return railBtn(t.id, t.label, t.text, toolIcon(t), t.isOn(railApi), function(){ t.activate(railApi); }, extra);
+    };
     var railToggle = window.ModeToggle ? h(window.ModeToggle, {
       compact:true, className:"tb-mode-toggle creator-rail__mode", ariaLabel:"Chart mode",
       value: cv.drawMode ? "draw" : "navigate",
@@ -18885,9 +19841,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       denoiseRow,
       h("div", {className:"creator-rail__row"},
         railToggle,
-        railBtn("paint", "Paint tool", "Paint", window.Icons.brush(), paintOn, function(){ pickBrush("paint", paintOn); }),
-        railBtn("fill", "Fill tool", "Fill", window.Icons.bucketPour(), fillOn, function(){ pickBrush("fill", fillOn); }),
-        railBtn("erase", "Erase tool", "Erase", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
+        ToolReg.list(ToolReg.TOUCH_RAIL).map(railTool),
         h("button", {
           key:"colour", type:"button", className:"creator-rail__btn creator-rail__colour",
           "aria-label": selCol ? ("Colour " + formatThread(selCol) + " — open the palette") : "Choose a colour",
@@ -18895,9 +19849,20 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
         }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}}),
           h("span", {className:"creator-rail__label"}, selCol ? selCol.id : "Colour")),
-        railBtn("undo", "Undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
+        ToolReg.list(ToolReg.TOUCH_RAIL_FOOT).map(railTool),
         morePanelWrap
       )
+    );
+  }
+
+  if (railLayout) {
+    // ── Desktop tool rail and options bar (creator/DesktopRail.js) ──
+    return h(React.Fragment, null,
+      h(window.CreatorDesktopRail, null),
+      // More has gone: everything in it has a home on the rail, in the
+      // options bar, the Pattern menu, the View tab or Preferences
+      // (creator/toolRegistry.js RAIL_HOMES).
+      h(window.CreatorOptionsBar, { modeRow: cleanupRow || denoiseRow })
     );
   }
 
@@ -19359,7 +20324,9 @@ window.MagicWandPanel = function MagicWandPanel() {
     )
   ) : null;
 
-  var topRows = shouldMergeRows
+  // Tool-rail layout: the options bar (creator/DesktopRail.js) has the wand,
+  // lasso and selection controls; only the panels they open show here.
+  var topRows = (app.desktopRail && !app.compact) ? null : shouldMergeRows
     ? mergedRow
     : h(React.Fragment, null, optionsRow, selRow);
 
@@ -21222,10 +22189,24 @@ window.CreatorSidebar = function CreatorSidebar() {
     {id:"preview",    label:"Preview",    icon:"image"},
     {id:"project",    label:"Project",    icon:"folder"}
   ];
+  // Tool-rail layout (creator.desktopRail, Stage 2): the rail and the
+  // options bar hold what was in Tools, so the tabs are Palette, View (with
+  // Preview in it) and Project.
+  var railLayout = !!app.desktopRail && !app.compact;
+  if (railLayout) {
+    editTabs = [
+      {id:"palette", label:"Palette", icon:"palette"},
+      {id:"view",    label:"View",    icon:"eye",
+        disabled: !hasPattern,
+        disabledHint:"Generate a pattern to unlock display options."},
+      {id:"project", label:"Project", icon:"folder"}
+    ];
+  }
   var tabs = editTabs;
   // A stored tab Edit doesn't have (the old Convert ids "image",
   // "dimensions" or "settings") opens the first Edit tab that is available.
   var sTab = app.sidebarTab;
+  if (railLayout && sTab === "preview") sTab = "view";
   var sTabMeta = tabs.find(function(t) { return t.id === sTab; });
   if (!sTabMeta || sTabMeta.disabled) {
     sTab = (tabs.find(function(t) { return !t.disabled; }) || tabs[0]).id;
@@ -21917,6 +22898,25 @@ window.CreatorSidebar = function CreatorSidebar() {
     previewPanel
   );
 
+  // The tool-rail layout's View tab: the chart view and highlight, the
+  // picture overlay (from More) and Preview.
+  var railViewContent = h(React.Fragment, null,
+    viewToggle,
+    highlightControls,
+    (gen.img && gen.img.src) && h("div", {className:"cs-toolsec"},
+      h("div", {className:"cs-toolsec__title"}, "Your picture over the chart"),
+      h("label", {className:"cs-toolsec__check"},
+        h("input", {type:"checkbox", checked:!!cv.showOverlay, onChange:function(e){ cv.setShowOverlay(e.target.checked); }}),
+        h("span", null, "Show the picture")),
+      cv.showOverlay && h("input", {type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
+        onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
+        style:{width:"100%"}, "aria-label":"Overlay opacity"})
+    ),
+    h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),
+    h("div", {style:subHeaderStyle}, "Preview"),
+    previewPanel
+  );
+
   var moreContent = h(React.Fragment, null,
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
@@ -21960,7 +22960,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   return h(React.Fragment, null,
     // "Back to Convert" link — shown in edit mode when a source image exists.
     // Fires the back-to-convert request (may show warning modal if edits exist).
-    gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert", style:{
+    // (The tool-rail layout has none: the Convert tab in the top bar does it.)
+    !railLayout && gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert", style:{
       flexShrink:0, padding:"6px 12px",
       borderBottom:"1px solid var(--line)",
       background:"var(--surface-secondary)"
@@ -21998,7 +22999,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       sTab === "tools" && toolsContent,
-      sTab === "view" && viewContent,
+      sTab === "view" && (railLayout ? railViewContent : viewContent),
       sTab === "preview" && previewPanel,
       sTab === "project" && h(React.Fragment, null,
         projectInfoSection,
@@ -23476,7 +24477,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     // The shortcuts hint and review note wait while "Your pattern is ready"
     // or a one-off tip is showing, so notices come one at a time.
-    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && h("div", {
+    // The tool rail's tooltips name each shortcut, so it has no hint row.
+    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && !app.desktopRail && h("div", {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
@@ -23635,7 +24637,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       );
     })(),
 
-    h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
+    // Clear for a highlighted thread; in the tool-rail layout it is in the options bar.
+    !app.desktopRail && h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
         style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer"}
@@ -25693,6 +26696,13 @@ window.ResizeCanvasModal = function ResizeCanvasModal(props) {
  * Print PDF, Export and Open in Tracker, and the difficulty chip, appear
  * only once the pattern has stitches (an empty scratch grid has nothing to
  * print or track).
+ *
+ *   inline           — true in the tool-rail layout (creator.desktopRail):
+ *                      the bar sits in the header row. Print PDF is the one
+ *                      primary button with Export and Open in Tracker beside
+ *                      it as secondary buttons (Open in Tracker is primary
+ *                      for a picture that came from the Tracker), and the
+ *                      difficulty is read in Pattern info.
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
@@ -25884,7 +26894,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
           title: t.title
         },
         t.icon ? t.icon() : null,
-        h("span", null, t.label)
+        h("span", { className: "creator-actionbar__label" }, t.label)
       );
     })
   );
@@ -25913,7 +26923,21 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("span", null, "Open in Tracker")
   ) : null;
 
-  var trackBtn = hasStitches && !fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
+  var inline = !!props.inline;
+  // Tool-rail layout: a secondary button beside Export, not a step arrow.
+  var trackSecondaryBtn = inline && hasStitches && !fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
+      key: "track-secondary",
+      type: "button",
+      className: "creator-actionbar__btn creator-actionbar__btn--ghost",
+      onClick: props.onTrackPattern,
+      title: "Open this pattern in the Stitch Tracker",
+      "aria-label": "Open in Tracker"
+    },
+    Icons.pointing ? Icons.pointing() : null,
+    h("span", { className: "creator-actionbar__label" }, "Open in Tracker")
+  ) : null;
+
+  var trackBtn = !inline && hasStitches && !fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -25926,7 +26950,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
 
   // Difficulty badge — always-visible tier chip, e.g. "Intermediate".
   // Full breakdown is inside the Pattern info popover.
-  var difficultyBadge = (hasStitches && props.difficulty) ? h("span", {
+  var difficultyBadge = (!inline && hasStitches && props.difficulty) ? h("span", {
     className: "creator-actionbar__difficulty-chip",
     style: { color: props.difficulty.color, borderColor: props.difficulty.color },
     title: "Difficulty: " + props.difficulty.label + " \u00B7 " + (props.difficulty.score != null ? props.difficulty.score + " / 100" : "") + ". Open \u2018Pattern info\u2019 for the full breakdown."
@@ -25944,10 +26968,11 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         onClick: function() { setInfoOpen(!infoOpen); },
         "aria-haspopup": "dialog",
         "aria-expanded": infoOpen ? "true" : "false",
-        title: "Pattern dimensions, fabric, colours, skeins"
+        title: inline ? "Pattern info: dimensions, fabric, colours, skeins and difficulty" : "Pattern dimensions, fabric, colours, skeins"
       },
-      h("span", null, "Pattern info"),
-      Icons.chevronDown ? Icons.chevronDown() : null
+      inline && Icons.info ? Icons.info() : null,
+      h("span", { className: "creator-actionbar__label" }, "Pattern info"),
+      inline ? null : (Icons.chevronDown ? Icons.chevronDown() : null)
     ),
     infoOpen && typeof window.CreatorPatternInfoPopover !== "undefined"
       ? h(window.CreatorPatternInfoPopover, {
@@ -25974,12 +26999,13 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   // (reports/create-from-image-workflow, F4).
 
   return h("div", {
-      className: "creator-actionbar",
+      className: "creator-actionbar" + (inline ? " creator-actionbar--inline" : ""),
       role: "toolbar",
       "aria-label": "Pattern actions"
     },
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
+    inline && hasPat ? infoChip : null,
     hasStitches ? h("div", { className: "creator-actionbar__primary" },
       trackPrimaryBtn,
       printBtn,
@@ -25991,10 +27017,10 @@ window.CreatorActionBar = function CreatorActionBar(props) {
             onClick: function() { setMenuOpen(!menuOpen); },
             "aria-haspopup": "menu",
             "aria-expanded": menuOpen ? "true" : "false",
-            title: "Other export options"
+            title: inline ? "Export: save the project file, or more export options" : "Other export options"
           },
           Icons.document ? Icons.document() : null,
-          h("span", null, "Export\u2026"),
+          h("span", { className: "creator-actionbar__label" }, "Export\u2026"),
           Icons.chevronDown ? Icons.chevronDown() : null
         ),
         menuOpen && h("div", {
@@ -26022,10 +27048,11 @@ window.CreatorActionBar = function CreatorActionBar(props) {
             h("span", null, "More export options\u2026")
           )
         )
-      )
+      ),
+      trackSecondaryBtn
     ) : h("div", { className: "creator-actionbar__primary" }),
     hasStitches ? trackBtn : null,
-    hasPat ? infoChip : null
+    !inline && hasPat ? infoChip : null
   )
   );
 };

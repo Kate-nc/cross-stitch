@@ -56,7 +56,7 @@ describe('Replace colour shortcut', () => {
 
   test('help drawer and toolbar tooltip mention the shortcut', () => {
     expect(read('help-drawer.js')).toMatch(/id: "c\.replace", scope: "creator", keys: \["R"\]/);
-    expect(read('creator/ToolStrip.js')).toMatch(/title:"Replace colour \(R\)/);
+    expect(require('../creator/toolRegistry.js').get('replace').title).toMatch(/^Replace colour \(R\)/);
   });
 });
 

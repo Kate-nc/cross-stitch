@@ -801,6 +801,36 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     { id:"knot", label:"French knot" }
   ];
 
+  // Tool buttons come from the one list in creator/toolRegistry.js.
+  var ToolReg = window.CreatorToolRegistry;
+  var toolApi = { cv: cv, ctx: ctx, coarse: coarsePointer, palData: palData };
+  // Tool-rail layout (creator.desktopRail): the rail and the options bar hold
+  // the tools, stitch type, brush size, Mirror and Clean up, so More leaves
+  // them out (no control shows in two places).
+  var railLayout = !compact && !!app.desktopRail;
+  // The More panel keeps its own small glyphs for these (Pick is text only).
+  var moreIconOverride = {
+    pick: null, wand: svgWand,
+    lasso: cv.lassoMode==="polygon"?svgPolygon:cv.lassoMode==="magnetic"?svgMagnetic:svgFreehand
+  };
+  function toolIcon(t) {
+    return window.Icons && window.Icons[t.icon] ? window.Icons[t.icon]() : null;
+  }
+  function moreToolBtn(t, extra) {
+    if (!ToolReg.isVisible(t, toolApi)) return null;
+    var on = t.isOn(toolApi);
+    var props = Object.assign({
+      key:"tool-" + t.id, "data-tool":t.id,
+      className:"tb-btn"+(on?" tb-btn--on":""),
+      onClick:function(){ t.activate(toolApi); setMorePanelOpen(false); },
+      title:t.title, "aria-label":t.label
+    }, extra || {});
+    if (t.kind !== "action") props["aria-pressed"] = on ? "true" : "false";
+    if (t.disabled) { props.disabled = ToolReg.isDisabled(t, toolApi); props["aria-disabled"] = props.disabled; }
+    var icon = Object.prototype.hasOwnProperty.call(moreIconOverride, t.id) ? moreIconOverride[t.id] : toolIcon(t);
+    return h("button", props, icon, icon ? " " + t.text : t.text);
+  }
+
   var morePanelContent = morePanelOpen ? h("div", {
     ref:morePanelRef,
     className:"tb-more-panel",
@@ -865,135 +895,23 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         style:{width:"100%",justifyContent:"flex-start"}
       }, window.Icons&&window.Icons.sliders?window.Icons.sliders():null, " Re-generate from image\u2026")
     ),
-    // ── Tools ──
+    // ── Tools (from creator/toolRegistry.js) ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Tools"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
         // Navigate replaces the separate Hand tool. On touch the Navigate |
-        // Draw toggle is always in the strip, so it isn't repeated here.
-        !coarsePointer && h("button", {
-          className:"tb-btn"+(!cv.drawMode?" tb-btn--on":""),
-          onClick:function(){
-            cv.setDrawMode(!cv.drawMode);
-            setMorePanelOpen(false);
-          },
-          title:"Navigate — drag to move around the chart (H)", "aria-label":"Navigate",
-          "aria-pressed": !cv.drawMode?"true":"false"
-        }, window.Icons.hand(), " Navigate"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
-          onClick:function(){
-            cv.setActiveTool("eyedropper"); cv.setBsStart(null); ctx.setPartialStitchTool(null);
-            setMorePanelOpen(false);
-          },
-          title:"Eyedropper (I)", "aria-label":"Eyedropper tool"
-        }, "Pick"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="magicWand"?" tb-btn--on":""),
-          onClick:function(){
-            if (cv.activeTool==="magicWand") cv.setActiveTool(null);
-            else { cv.setActiveTool("magicWand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
-            setMorePanelOpen(false);
-          },
-          title:"Magic Wand (W)", "aria-label":"Magic wand",
-          "aria-pressed": cv.activeTool==="magicWand"?"true":"false"
-        }, svgWand, " Wand"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="lasso"?" tb-btn--on":""),
-          onClick:function(){
-            if (cv.activeTool==="lasso") { if (cv.cancelLasso) cv.cancelLasso(); cv.setActiveTool(null); }
-            else { cv.setActiveTool("lasso"); cv.setLassoMode(cv.lassoMode||"freehand"); ctx.setPartialStitchTool(null); cv.setBsStart(null); }
-            setMorePanelOpen(false);
-          },
-          title:"Lasso \u2014 mode in Tools tab", "aria-label":"Lasso",
-          "aria-pressed": cv.activeTool==="lasso"?"true":"false"
-        }, cv.lassoMode==="polygon"?svgPolygon:cv.lassoMode==="magnetic"?svgMagnetic:svgFreehand, " Lasso"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="move"?" tb-btn--on":""),
-          onClick:function(){
-            if (cv.activeTool==="move") { if (cv.cancelMove) cv.cancelMove(); cv.setActiveTool(null); }
-            else { cv.setActiveTool("move"); ctx.setPartialStitchTool(null); cv.setBsStart(null); if (cv.cancelLasso) cv.cancelLasso(); }
-            setMorePanelOpen(false);
-          },
-          disabled: !cv.hasSelection,
-          title:"Move selection \u2014 drag selected cells to a new position",
-          "aria-label":"Move selection",
-          "aria-pressed": cv.activeTool==="move"?"true":"false",
-          "aria-disabled": !cv.hasSelection
-        }, window.Icons&&window.Icons.move?window.Icons.move():null, " Move"),
-        // Paste the copied stitches (audit DRAW-04); only once something is copied.
-        cv.clip && cv.clip.hasClipboard && h("button", {
-          className:"tb-btn",
-          onClick:function(){ cv.clip.paste(); setMorePanelOpen(false); },
-          title:"Paste, then drag it into place (Ctrl+V)", "aria-label":"Paste"
-        }, window.Icons.clipboard(), " Paste"),
-        // Shapes (audit DRAW-04): drag on the chart to draw one.
-        [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()], ["text", "Text", window.Icons.textTool()]].map(function(t) {
-          var on = cv.activeTool === t[0];
-          return h("button", {
-            key:"shape-" + t[0], className:"tb-btn"+(on?" tb-btn--on":""),
-            onClick:function(){
-              if (on) cv.setActiveTool(null);
-              else {
-                cv.setActiveTool(t[0]); ctx.setPartialStitchTool(null); cv.setBsStart(null);
-                if (cv.cancelLasso) cv.cancelLasso();
-                if (!cv.drawMode) cv.setDrawMode(true);
-              }
-              setMorePanelOpen(false);
-            },
-            title: t[0] === "text" ? "Text \u2014 tap where it should start, then type" : t[1] + " \u2014 drag on the chart; outline or filled in the Tools tab", "aria-label":t[1] + " tool",
-            "aria-pressed": on ? "true" : "false"
-          }, t[2], " " + t[1]);
-        }),
-        // Mirror drawing (audit DRAW-04)
-        h("button", {
-          className:"tb-btn"+(cv.mirror && cv.mirror.on?" tb-btn--on":""),
-          onClick:function(){ if (cv.setMirror) cv.setMirror(function(m){ return Object.assign({}, m, { on: !m.on }); }); setMorePanelOpen(false); },
-          title:"Mirror drawing \u2014 axis in the Tools tab", "aria-label":"Mirror drawing",
-          "aria-pressed": cv.mirror && cv.mirror.on ? "true" : "false"
-        }, window.Icons.mirror(), " Mirror"),
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
-          onClick:function(){
-            if (cv.activeTool==="colourReplace") cv.setActiveTool(null);
-            else { cv.setActiveTool("colourReplace"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
-            setMorePanelOpen(false);
-          },
-          title:"Replace colour (R) \u2014 click a stitch to replace every stitch of that colour", "aria-label":"Replace colour tool",
-          "aria-pressed": cv.activeTool==="colourReplace"?"true":"false"
-        }, window.Icons.colourSwap(), " Replace")
+        // Draw toggle is always in the strip, so the registry leaves it out.
+        ToolReg.moreTools({ coarse: coarsePointer, desktopRail: railLayout }).map(function(t) { return moreToolBtn(t); })
       )
     ),
-    // ── Cleanup ──
-    h("div", {className:"tb-more-panel__section tb-more-panel__section--cleanup"},
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="cleanup"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
-          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterCleanup) cv.enterCleanup(); }
-          setMorePanelOpen(false);
-        },
-        title:"Fix outline colours: replace stitches where an outline was blended into the colours around it", "aria-label":"Fix outline colours",
-        "aria-pressed": cv.activeTool==="cleanup"?"true":"false",
-        style:{width:"100%",justifyContent:"flex-start"}
-      }, window.Icons&&window.Icons.cleanup?window.Icons.cleanup():null, " Fix outline colours")
-    ),
-    // ── Denoise ──
-    h("div", {className:"tb-more-panel__section"},
-      h("button", {
-        className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
-        onClick:function(){
-          if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
-          else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
-          setMorePanelOpen(false);
-        },
-        title:"Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads", "aria-label":"Reduce confetti",
-        "aria-pressed": cv.activeTool==="denoise"?"true":"false",
-        style:{width:"100%",justifyContent:"flex-start"}
-      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Reduce confetti")
-    ),
+    // ── Cleanup and denoise ──
+    !railLayout && ToolReg.moreTools({ coarse: coarsePointer }, ToolReg.MORE_CLEANUP).map(function(t) {
+      return h("div", {key:"sec-" + t.id, className:"tb-more-panel__section" + (t.id === "cleanup" ? " tb-more-panel__section--cleanup" : "")},
+        moreToolBtn(t, {style:{width:"100%",justifyContent:"flex-start"},
+          title: t.id === "denoise" ? "Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads" : t.title}));
+    }),
     // ── Stitch type ──
-    h("div", {className:"tb-more-panel__section"},
+    !railLayout && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Stitch type"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
         stitchTypeOptions.map(function(st) {
@@ -1008,7 +926,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       )
     ),
     // ── Brush size ──
-    h("div", {className:"tb-more-panel__section"},
+    !railLayout && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Brush size"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
         [1,2,3,5,7,10].map(function(sz) {
@@ -1067,6 +985,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         onClick:onClick
       }, extra || {}), icon, h("span", {className:"creator-rail__label"}, text));
     };
+    var railApi = Object.assign({}, toolApi, { surface: "touchRail" });
+    var railTool = function(t) {
+      var extra = { "data-tool": t.id };
+      if (t.kind === "action") { extra["aria-pressed"] = undefined; extra.disabled = ToolReg.isDisabled(t, railApi); }
+      return railBtn(t.id, t.label, t.text, toolIcon(t), t.isOn(railApi), function(){ t.activate(railApi); }, extra);
+    };
     var railToggle = window.ModeToggle ? h(window.ModeToggle, {
       compact:true, className:"tb-mode-toggle creator-rail__mode", ariaLabel:"Chart mode",
       value: cv.drawMode ? "draw" : "navigate",
@@ -1085,9 +1009,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       denoiseRow,
       h("div", {className:"creator-rail__row"},
         railToggle,
-        railBtn("paint", "Paint tool", "Paint", window.Icons.brush(), paintOn, function(){ pickBrush("paint", paintOn); }),
-        railBtn("fill", "Fill tool", "Fill", window.Icons.bucketPour(), fillOn, function(){ pickBrush("fill", fillOn); }),
-        railBtn("erase", "Erase tool", "Erase", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
+        ToolReg.list(ToolReg.TOUCH_RAIL).map(railTool),
         h("button", {
           key:"colour", type:"button", className:"creator-rail__btn creator-rail__colour",
           "aria-label": selCol ? ("Colour " + formatThread(selCol) + " — open the palette") : "Choose a colour",
@@ -1095,9 +1017,20 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
         }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}}),
           h("span", {className:"creator-rail__label"}, selCol ? selCol.id : "Colour")),
-        railBtn("undo", "Undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
+        ToolReg.list(ToolReg.TOUCH_RAIL_FOOT).map(railTool),
         morePanelWrap
       )
+    );
+  }
+
+  if (railLayout) {
+    // ── Desktop tool rail and options bar (creator/DesktopRail.js) ──
+    return h(React.Fragment, null,
+      h(window.CreatorDesktopRail, null),
+      // More has gone: everything in it has a home on the rail, in the
+      // options bar, the Pattern menu, the View tab or Preferences
+      // (creator/toolRegistry.js RAIL_HOMES).
+      h(window.CreatorOptionsBar, { modeRow: cleanupRow || denoiseRow })
     );
   }
 

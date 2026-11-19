@@ -31,6 +31,7 @@ Convert images into stitchable charts, or design patterns from scratch.
 - Replace colour: swap every stitch of one colour for another thread, with a preview (right-click, palette swap button, or `R`).
 - Cleanup mode for line-art borders and Denoise mode (palette merge, speckle, fringe).
 - Full undo / redo history.
+- On a computer, a tool rail down the left of the chart (every drawing tool one click away, with the working thread, Undo and Redo) and one options row above it that follows the chosen tool, so the chart fills the window. Space and drag, or a middle-button drag, pans with any tool. Preferences > Pattern Creator > Editing layout turns it off for the toolbar above the chart; phones and tablets keep their own layout.
 - Realistic preview from plain chart up to a hoop or frame mock-up, and a split-pane view of chart and preview side by side.
 - Ready to stitch review: current-chart effort metrics, visual comparisons and material assumptions.
 
@@ -454,7 +455,7 @@ Initial PCStitch `.pat` import supports the unencrypted version 7 layout, retain
 
 Import review shows separate verification checks for recognised cells, legend matches, stitch types, dimensions, unsupported content and declared counts. Unknown source totals are unverified, and a PDF key percentage describes only legend matching. Use Palette for unresolved symbols, Pages for PDF page arrangements, or repair the source and re-import missing objects. The original file is retained with the import and can be downloaded during review.
 
-Petite crosses and long stitches can be created and edited in **More tools > Petite and long stitches**, then marked in the Tracker chart or Layers panel. Native JSON preserves objects and marks; PNG renders them. See the [capability matrix and compatibility contract](docs/petite-long-lifecycle.md) for import/export support and progress weights.
+Petite crosses and long stitches can be created and edited in **More tools > Petite and long stitches** (with the desktop tool rail, the **Pattern** menu > **Petite and long stitches**), then marked in the Tracker chart or Layers panel. Native JSON preserves objects and marks; PNG renders them. See the [capability matrix and compatibility contract](docs/petite-long-lifecycle.md) for import/export support and progress weights.
 
 Bead progress: the Tracker Beads list selects and marks individual beads, including overlaps. Bead counts are separate from stitch percentages. Undo/Redo, project saves, backups and sync retain marks. See [the Tracker guide](wiki/Stitch-Tracker-Guide.md) for lifecycle and export limits.
 
@@ -499,7 +500,7 @@ this workflow does not add a new importer or guarantee every external format.
 
 ### Tablet editing and exact pixel art
 
-Creator **More tools > Pen draws; fingers navigate** enables pen tools with
+Creator **More tools > Pen draws; fingers navigate** (also **Preferences > Pattern Creator > Touch and pen**) enables pen tools with
 one-finger pan and two-finger pan/pinch. It is opt-in: if the browser cannot
 reliably distinguish the stylus, leave it off and switch explicitly between
 **Navigate** and **Draw**. Mixed pen/finger contact interrupts drawing; a remaining

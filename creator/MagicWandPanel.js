@@ -432,7 +432,9 @@ window.MagicWandPanel = function MagicWandPanel() {
     )
   ) : null;
 
-  var topRows = shouldMergeRows
+  // Tool-rail layout: the options bar (creator/DesktopRail.js) has the wand,
+  // lasso and selection controls; only the panels they open show here.
+  var topRows = (app.desktopRail && !app.compact) ? null : shouldMergeRows
     ? mergedRow
     : h(React.Fragment, null, optionsRow, selRow);
 

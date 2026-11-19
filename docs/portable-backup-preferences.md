@@ -40,6 +40,7 @@ values fall back to defaults; no coercion of strings into numbers or booleans.
 - `cs_pref_autoLibraryLink`
 - `cs_pref_coverageAutoSync`
 - `cs_pref_coverageManualValue`
+- `cs_pref_creator.desktopRail`
 - `cs_pref_creator.pdfWorkshopTheme`
 - `cs_pref_creatorAllowBlends`
 - `cs_pref_creatorCanvasTexture`

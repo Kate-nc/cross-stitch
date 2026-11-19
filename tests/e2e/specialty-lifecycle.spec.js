@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
-const { quietOnboarding, device } = require('./creator-helpers');
+const { quietOnboarding, device, railPref } = require('./creator-helpers');
 const { TRACKER_CANVAS } = require('./touch-helpers');
 test.use(device('desktop'));
 
@@ -74,6 +74,8 @@ test('Tracker selects overlapping objects separately, marks/unmarks, undo/redo, 
 });
 
 test('Creator creates, edits geometry/thread, deletes and undoes objects; native handoff retains marks',async({page})=>{
+ // The panel in More (toolbar layout); with the tool rail it is Pattern menu > Petite and long stitches.
+ await railPref(page,false);
  await page.goto('/create.html');await page.waitForSelector('.cs-chart-scroll canvas');
  await page.getByRole('button',{name:'More tools',exact:true}).click();
  await page.getByText('Petite and long stitches (3)',{exact:true}).click();

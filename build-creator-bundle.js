@@ -66,6 +66,9 @@ const ORDER = [
   'Loupe.js',
   'useCanvasInteraction.js',
   'useKeyboardShortcuts.js',
+  // The one list of Edit tools: touch rail, More panel and desktop rail
+  // (Stage 2). Data plus small click handlers; read at render time.
+  'toolRegistry.js',
   'useProjectIO.js',
   'usePreview.js',
   'CompareOptions.js',
@@ -79,6 +82,8 @@ const ORDER = [
   'SplitPane.js',
   'CompactBar.js',
   'SpecialtyStitchPanel.js',
+  // Tool rail and options bar for the creator.desktopRail layout (Stage 2).
+  'DesktopRail.js',
   'ToolStrip.js',
   'MagicWandPanel.js',
   'BulkAddModal.js',

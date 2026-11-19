@@ -94,7 +94,7 @@ async function clickGenerate(page) {
 // opened, so wait for the edit tools instead.
 async function waitForEdit(page) {
   await page.waitForSelector('.rpanel--edit', { state: 'attached', timeout: 20000 });
-  await page.waitForSelector('.creator-rail, .toolbar-row', { timeout: 20000 });
+  await page.waitForSelector('.creator-rail, .toolbar-row, .creator-drail', { timeout: 20000 });
   await page.waitForTimeout(300);
 }
 
@@ -106,6 +106,16 @@ async function generateLogo(page) {
 }
 
 const isCompact = (page) => page.evaluate(function() { return document.body.classList.contains('creator-compact'); });
+// Edit with the desktop tool rail (creator.desktopRail, on by default with a mouse).
+const isRailLayout = (page) => page.evaluate(function() { return document.body.classList.contains('creator-drail-tools'); });
+
+// Sets creator.desktopRail before the page loads: true for the tool rail,
+// false for the toolbar above the chart (the layout kept for one release).
+function railPref(page, on) {
+  return page.addInitScript(function(v) {
+    try { localStorage.setItem('cs_pref_creator.desktopRail', JSON.stringify(v)); } catch (e) {}
+  }, on);
+}
 
 async function closeMorePanel(page) {
   if (await page.locator('.tb-more-panel').count()) {
@@ -128,7 +138,7 @@ async function zoomUntilScrollable(page) {
     }
     await closeMorePanel(page);
   } else {
-    await page.locator('.tb-zoom-grp input[type=range]').fill('1.5');
+    await page.locator('.tb-zoom-grp input[type=range], .creator-optbar__zoom input[type=range]').first().fill('1.5');
   }
   await box.evaluate(function(el) {
     el.scrollLeft = Math.floor((el.scrollWidth - el.clientWidth) / 2);
@@ -146,10 +156,17 @@ async function pickDarkSwatch(page) {
     if (!(await strip.isChecked())) await strip.check();
     await closeMorePanel(page);
   }
-  const swatches = page.locator('.swatch-scroll-inner button');
+  // The tool-rail layout has no swatch strip: choose a row in the Palette tab.
+  const rail = await isRailLayout(page);
+  if (rail) {
+    const tab = page.locator('.creator-sidebar-tab[data-tab-id="palette"]');
+    if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+  }
+  const swatches = page.locator(rail ? '.pal-rows .pal-row' : '.swatch-scroll-inner button');
   const idx = await swatches.evaluateAll(function(els) {
     return els.findIndex(function(el) {
-      const rgb = (getComputedStyle(el).backgroundColor.match(/\d+/g) || []).map(Number);
+      const sw = el.querySelector('.pal-row__swatch') || el;
+      const rgb = (getComputedStyle(sw).backgroundColor.match(/\d+/g) || []).map(Number);
       // Tapping the selected swatch deselects it, so skip that one.
       return rgb.length >= 3 && (rgb[0] + rgb[1] + rgb[2]) < 600 && el.getAttribute('aria-pressed') !== 'true';
     });
@@ -159,6 +176,44 @@ async function pickDarkSwatch(page) {
 }
 
 const undoButton = (page) => page.getByRole('button', { name: 'Undo', exact: true }).first();
+
+// From Edit back to Convert: the side panel's Back to Convert, or with the
+// tool rail (which has none) the Convert tab in the top bar.
+async function backToConvert(page) {
+  const back = page.getByRole('button', { name: 'Back to Convert' });
+  if (await back.count()) { await back.click(); return; }
+  await page.getByRole('tab', { name: 'Convert' }).click();
+}
+
+// Choose a tool by its toolbar name ('Text tool', 'Magic wand', 'Line tool'…):
+// on the tool rail when it is there (shapes from its Shapes menu), otherwise
+// from More tools.
+const RAIL_TOOL = { 'Paint tool': 'paint', 'Fill tool': 'fill', 'Erase tool': 'erase', 'Eyedropper tool': 'pick',
+  'Magic wand': 'wand', 'Lasso': 'lasso', 'Text tool': 'text', 'Navigate': 'hand' };
+const RAIL_SHAPE = { 'Line tool': 'Line', 'Rectangle tool': 'Rectangle', 'Ellipse tool': 'Ellipse' };
+async function chooseTool(page, name) {
+  if (await isRailLayout(page)) {
+    if (RAIL_TOOL[name]) { await page.locator('.creator-drail [data-tool="' + RAIL_TOOL[name] + '"]').click(); return; }
+    if (RAIL_SHAPE[name]) {
+      await page.locator('.creator-drail [data-tool="shapes"]').click();
+      await page.getByRole('menu', { name: 'Shapes' }).getByRole('menuitemradio', { name: RAIL_SHAPE[name] }).click();
+      return;
+    }
+  }
+  await page.getByRole('button', { name: 'More tools' }).click();
+  await page.getByRole('button', { name: name }).click();
+}
+
+// Crop to the stitches: the Tools tab, or with the tool rail the Pattern menu.
+async function cropToStitches(page) {
+  if (await isRailLayout(page)) {
+    await page.locator('[data-onboard="creator-pages"]').click();
+    await page.locator('.tb-page-dropdown [data-command="crop"]').click();
+    return;
+  }
+  await page.locator('.creator-sidebar-tab[data-tab-id="tools"]').click();
+  await page.getByRole('button', { name: 'Crop to the stitches' }).click();
+}
 
 // Convert's settings are in steps (Picture, Size, Threads, Detail, Project).
 // Opens the Settings drawer on phones, then the step.
@@ -189,6 +244,6 @@ async function previewView(page, id) {
 
 module.exports = {
   LOGO, DESKTOP, device, quietOnboarding, skipTourIfShown, openConvertWithLogo, continueFromFrame, reframe,
-  startBlankGrid, clickGenerate, waitForEdit, generateLogo, isCompact, closeMorePanel,
-  zoomUntilScrollable, pickDarkSwatch, undoButton, convertStep, previewView, confirmReplaceChart,
+  startBlankGrid, clickGenerate, waitForEdit, generateLogo, isCompact, isRailLayout, railPref, closeMorePanel,
+  zoomUntilScrollable, pickDarkSwatch, undoButton, backToConvert, cropToStitches, chooseTool, convertStep, previewView, confirmReplaceChart,
 };

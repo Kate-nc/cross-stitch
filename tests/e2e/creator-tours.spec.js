@@ -122,3 +122,47 @@ test.describe('Creator tours on a desktop', function() {
     await expect(tourCard(page)).toHaveCount(0);
   });
 });
+
+test.describe('Creator tours with the tool rail (creator.desktopRail)', function() {
+  test.use(device('desktop'));
+  test.setTimeout(90000);
+
+  test('the converting tour says where the drawing tools are', async function({ page }) {
+    await page.addInitScript(function() { try { localStorage.setItem('cs_pref_creator.desktopRail', 'true'); } catch (e) {} });
+    await onlyCreatorTours(page);
+    await page.goto('/home.html?tab=create');
+    await page.locator('input.home-create-file-input').setInputFiles(LOGO);
+    await page.waitForURL(/create\.html/);
+    await tourCard(page).getByRole('button', { name: 'Skip tour' }).click();
+    await page.locator('[data-onboard="frame-continue"]').click();
+    const card = tourCard(page);
+    await expect(card.getByRole('heading', { name: 'Turn your picture into a pattern' })).toBeVisible({ timeout: 15000 });
+    await card.getByRole('button', { name: 'Next' }).click();
+    await card.getByRole('button', { name: 'Next' }).click();
+    await expect(card.getByRole('heading', { name: 'Edit, then print or stitch' })).toBeVisible();
+    expect(await card.innerText()).toMatch(/drawing tools down the left of the chart/);
+  });
+
+  test('after Generate the tools coachmark points at the rail, not a Tools tab', async function({ page }) {
+    await page.addInitScript(function() {
+      try {
+        localStorage.setItem('cs_pref_creator.desktopRail', 'true');
+        ['tracker', 'manager', 'home', 'creator'].forEach(function(k) { localStorage.setItem('cs_welcome_' + k + '_done', '1'); });
+        ['firstStitch_creator', 'import', 'undo', 'progress', 'save'].forEach(function(k) {
+          localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true');
+        });
+      } catch (e) {}
+    });
+    await page.goto('/home.html?tab=create');
+    await page.locator('input.home-create-file-input').setInputFiles(LOGO);
+    await page.waitForURL(/create\.html/);
+    await continueFromFrame(page);
+    await page.locator('.cv-generate').click();
+    await page.waitForSelector('.creator-drail', { timeout: 30000 });
+    // The coachmark waits for "Your pattern is ready" to close.
+    await page.locator('.ready-bar__close').click();
+    const coach = page.getByRole('dialog').filter({ hasText: 'Every tool is on the left' });
+    await expect(coach).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.creator-sidebar-tab[data-tab-id="tools"]')).toHaveCount(0);
+  });
+});

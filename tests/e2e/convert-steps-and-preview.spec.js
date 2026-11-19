@@ -13,7 +13,7 @@ test.beforeEach(async ({ context, page }) => {
     } });
   });
 });
-const { device, openConvertWithLogo, clickGenerate, waitForEdit, convertStep, previewView } = require('./creator-helpers');
+const { device, openConvertWithLogo, clickGenerate, waitForEdit, convertStep, previewView, backToConvert, cropToStitches } = require('./creator-helpers');
 
 const settled = (page) => expect(page.getByRole('status', { name: 'Updating preview' })).toHaveCount(0, { timeout: 20000 });
 
@@ -104,7 +104,7 @@ test.describe('Convert steps and preview on desktop', function() {
     await openConvertWithLogo(page);
     await clickGenerate(page);
     await waitForEdit(page);
-    await page.getByRole('button', { name: 'Back to Convert' }).click();
+    await backToConvert(page);
     await expect(page.locator('.cvp')).toBeVisible();
     await expect(page.locator('.cs-chart-scroll')).toHaveCount(0);
     await settled(page);
@@ -119,7 +119,7 @@ test.describe('Convert steps and preview on desktop', function() {
     await openConvertWithLogo(page);
     await clickGenerate(page);
     await waitForEdit(page);
-    await page.getByRole('button', { name: 'Back to Convert' }).click();
+    await backToConvert(page);
     await settled(page);
     await expect(page.locator('.cv-footer__state')).toHaveAttribute('data-chart-state', 'same');
     await convertStep(page, 'threads');
@@ -135,7 +135,7 @@ test.describe('Convert steps and preview on desktop', function() {
     await page.evaluate(() => { window.__patBefore = window.__cs.pat; window.__cs.setEditHistory([{ type: 'test-edit' }]); });
     // Going to Convert loses nothing, so there is no confirmation dialog;
     // Regenerate itself guards replacing the edited chart.
-    await page.getByRole('button', { name: 'Back to Convert' }).click();
+    await backToConvert(page);
     await expect(page.getByRole('dialog', { name: 'Switch to Convert?' })).toHaveCount(0);
     await expect(page.locator('.cv-footer__state')).toContainText('then edited');
     await clickGenerate(page);
@@ -189,8 +189,7 @@ test.describe('Crop to the stitches on desktop', function() {
       done[first] = 1; s.setDone(done);
       return { w: s.sW, h: s.sH, stitched: s.pat.filter(c => c.id !== '__skip__' && c.id !== '__empty__').length };
     });
-    await page.locator('.creator-sidebar-tab[data-tab-id="tools"]').click();
-    await page.getByRole('button', { name: 'Crop to the stitches' }).click();
+    await cropToStitches(page);
     await expect.poll(() => page.evaluate(() => window.__cs.sW)).toBeLessThan(before.w);
     const after = await page.evaluate(() => {
       const s = window.__cs;

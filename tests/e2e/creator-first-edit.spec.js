@@ -3,7 +3,7 @@ const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 const {
   LOGO, device, quietOnboarding, continueFromFrame, clickGenerate, waitForEdit,
-  generateLogo, isCompact, undoButton, zoomUntilScrollable,
+  generateLogo, isCompact, isRailLayout, undoButton, zoomUntilScrollable,
 } = require('./creator-helpers');
 
 test.beforeEach(async ({ context, page }) => {
@@ -84,6 +84,12 @@ for (const target of ['desktop', 'Pixel 5']) {
         activeCode = (await page.locator('.creator-rail__colour .creator-rail__label').textContent()).trim();
         expect(activeCode).not.toBe('');
         expect(activeCode).not.toBe('Colour');
+      } else if (await isRailLayout(page)) {
+        // The tool rail: the working thread's code is under its swatch.
+        activeCode = (await page.locator('.creator-drail__colour .creator-drail__label').textContent()).trim();
+        expect(activeCode).not.toBe('');
+        expect(activeCode).not.toBe('Thread');
+        await expect(page.locator('.pal-rows .pal-row--selected')).toHaveAttribute('data-colour-id', activeCode);
       } else {
         // Read the active thread's code directly from the swatch strip's active chip.
         const shortText = (await page.locator('.swatch-strip-row > span').nth(1).locator('span').nth(1).textContent()).trim();

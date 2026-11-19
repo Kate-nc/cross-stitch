@@ -188,6 +188,20 @@ After generating, the sidebar gains **Tools** and **View** tabs alongside **Pale
 
 ## Editing Your Pattern
 
+### The tool rail (on a computer)
+
+With a mouse, Edit has a **tool rail** down the left of the chart and one **options row** above it, so the chart gets most of the window (at 1440 × 900 it starts 92 pixels from the top).
+
+- **The rail**, top to bottom: **Paint**, **Fill**, **Erase**, **Pick**, **Wand**, **Lasso**, **Shapes** (a menu of Line, Rectangle and Ellipse), **Text** and **Hand**. One click picks a tool. At its foot are your working thread (click it to open the Palette tab), **Undo** and **Redo**. Each tooltip names the tool's shortcut.
+- **The options row** shows what the chosen tool needs: stitch type, brush size and **Mirror** for Paint and Erase; what a click fills for Fill; tolerance, **Connected only** or **All matching**, and **New**, **Add**, **Subtract** or **Intersect** for the Wand; the lasso mode for Lasso; the shape, Outline or Filled for Shapes. With stitches selected it starts with how many, **Deselect**, **Invert**, **Select all** and a **Selection** menu (Reduce confetti, Reduce colours, Replace colour, Stitch info, Outline, Move selection, Copy, Cut, Duplicate, Flip, Rotate and Delete selected stitches). **Paste** appears once something is copied, a thread shown on the chart is named with **Clear**, **Clean up** has Fix outline colours and Reduce confetti, and **Zoom** and **Fit** are at the right end.
+- **Hand** moves around the chart. **Space and drag**, or dragging with the middle mouse button, does the same whatever tool is chosen.
+- The steps (**Convert**, **Edit**, **Materials**), **Pattern info**, **Print PDF**, **Export** and **Open in Tracker** are in the top bar (on a window narrower than 1280 pixels they keep their own row under it).
+- The **Pattern** menu at the top has **Resize canvas**, **Crop to the stitches**, **Re-generate from image**, **Replace colour** and **Petite and long stitches**.
+- The side panel has **Palette**, **View** (the chart view, highlighting, your picture over the chart and the preview) and **Project**.
+- **Pen draws; fingers navigate**, **Magnifier** and **Precision cursor** are in **Preferences > Pattern Creator > Touch and pen**.
+
+To go back to the toolbar above the chart, turn off **Preferences > Pattern Creator > Editing layout > Tool rail on the left**. That switch stays for one release. Phones and tablets keep their own layout, described below and in the help.
+
 ### Tools
 
 Choose a colour in the **Palette** tab, then a tool:

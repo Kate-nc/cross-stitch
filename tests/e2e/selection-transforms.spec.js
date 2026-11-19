@@ -2,7 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, quietOnboarding } = require('./creator-helpers');
+const { device, quietOnboarding, chooseTool } = require('./creator-helpers');
 
 const G = 28;
 const SW = 30, SH = 30;
@@ -168,8 +168,7 @@ test.describe('Selection shortcuts on a desktop', function() {
     await openFixture(page);
     await expect.poll(async () => stitched(await saved(page) || []), { timeout: 10000 }).toBe(13);
     // Wand-select the block, rotate clockwise, place by clicking outside.
-    await page.getByRole('button', { name: 'More tools' }).click();
-    await page.getByRole('button', { name: 'Magic wand' }).click();
+    await chooseTool(page, 'Magic wand');
     const p = await cellPoint(page, 4, 4);
     await page.mouse.click(p.x, p.y);
     await page.keyboard.press('.');

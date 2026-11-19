@@ -1069,6 +1069,29 @@ window.useCreatorState = function useCreatorState() {
     v = !!v; precisionCursorRef.current = v; _precision[1](v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.precisionCursor", v); } catch (_) {}
   }, []);
+  // Pen, Magnifier and Precision cursor can also change in Preferences >
+  // Pattern Creator > Touch and pen (Stage 2): follow those changes here
+  // without writing the preference back.
+  useEffect(function () {
+    function onPref(e) {
+      var k = e && e.detail ? e.detail.key : null;
+      if (k == null || k === "creator.penNavigation") {
+        var pn = loadUserPref("creator.penNavigation", false) === true;
+        penNavigationRef.current = pn; _penNav[1](pn);
+      }
+      if (k == null || k === "creator.magnifier") {
+        var mg = loadUserPref("creator.magnifier", null);
+        mg = mg === true || mg === false ? mg : !isFinePointerNow();
+        magnifierRef.current = mg; _magnifier[1](mg);
+      }
+      if (k == null || k === "creator.precisionCursor") {
+        var pc = loadUserPref("creator.precisionCursor", false) === true;
+        precisionCursorRef.current = pc; _precision[1](pc);
+      }
+    }
+    window.addEventListener("cs:prefchange", onPref);
+    return function () { window.removeEventListener("cs:prefchange", onPref); };
+  }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   // French knots [{x, y, id, rgb}] in half-stitch units (knots.js).
   var _specialtySelected=useState(null),specialtySelected=_specialtySelected[0],setSpecialtySelected=_specialtySelected[1];

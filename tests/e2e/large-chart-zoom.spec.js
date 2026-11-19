@@ -3,7 +3,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, quietOnboarding } = require('./creator-helpers');
+const { device, quietOnboarding, isRailLayout, railPref } = require('./creator-helpers');
 
 const COLOURS = [['310', [0, 0, 0]], ['666', [227, 29, 66]], ['799', [116, 142, 182]], ['742', [255, 191, 87]],
   ['702', [71, 167, 47]], ['3865', [249, 247, 241]], ['550', [92, 24, 78]], ['517', [59, 118, 143]]];
@@ -99,11 +99,14 @@ test.describe('Large selections and the tools panel', function() {
     }));
     expect(longTasks.length, 'long tasks while idle: ' + JSON.stringify(longTasks)).toBeLessThanOrEqual(2);
     await page.keyboard.press('w');
-    // The tool badge in the toolbar says so.
-    await expect(page.getByText('Magic Wand', { exact: true }).first()).toBeVisible();
+    // The toolbar's tool badge, or the tool rail's Wand button, says so.
+    if (await isRailLayout(page)) await expect(page.locator('.creator-drail [data-tool="wand"]')).toHaveAttribute('aria-pressed', 'true');
+    else await expect(page.getByText('Magic Wand', { exact: true }).first()).toBeVisible();
   });
 
   test("the Tools tab scrolls inside the sidebar, and the chart stays where it is", async function({ page }) {
+    // The Tools tab is in the toolbar layout only.
+    await railPref(page, false);
     await open(page, bigProject(80, 1));
     await page.getByRole('tab', { name: 'Tools' }).first().click();
     const chartTop = await page.evaluate(() => document.querySelector('.cs-chart-scroll').getBoundingClientRect().top);

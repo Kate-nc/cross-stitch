@@ -2,7 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, generateLogo, isCompact, undoButton, zoomUntilScrollable } = require('./creator-helpers');
+const { device, generateLogo, isCompact, undoButton, zoomUntilScrollable, isRailLayout } = require('./creator-helpers');
 const { dispatchTouchSequence } = require('./touch-helpers');
 
 async function openPaletteTab(page) {
@@ -192,7 +192,8 @@ test.describe('Choosing a thread on desktop (X2)', function() {
     await expect(showBtn).toHaveAttribute('aria-pressed', 'true');
     await expect(row0).toHaveClass(/pal-row--hi/);
     await expect(row1).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.swatch-scroll-inner button[aria-pressed="true"]')).toHaveAttribute('aria-label', new RegExp('DMC ' + id1 + '\\b'));
+    if (await isRailLayout(page)) await expect(page.locator('.creator-drail__colour .creator-drail__label')).toHaveText(id1);
+    else await expect(page.locator('.swatch-scroll-inner button[aria-pressed="true"]')).toHaveAttribute('aria-label', new RegExp('DMC ' + id1 + '\\b'));
 
     // Toggling "Show on chart" again clears highlight while keeping working colour.
     await showBtn.click();

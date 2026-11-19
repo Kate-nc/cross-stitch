@@ -45,6 +45,13 @@
  * Print PDF, Export and Open in Tracker, and the difficulty chip, appear
  * only once the pattern has stitches (an empty scratch grid has nothing to
  * print or track).
+ *
+ *   inline           — true in the tool-rail layout (creator.desktopRail):
+ *                      the bar sits in the header row. Print PDF is the one
+ *                      primary button with Export and Open in Tracker beside
+ *                      it as secondary buttons (Open in Tracker is primary
+ *                      for a picture that came from the Tracker), and the
+ *                      difficulty is read in Pattern info.
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
@@ -236,7 +243,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
           title: t.title
         },
         t.icon ? t.icon() : null,
-        h("span", null, t.label)
+        h("span", { className: "creator-actionbar__label" }, t.label)
       );
     })
   );
@@ -265,7 +272,21 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     h("span", null, "Open in Tracker")
   ) : null;
 
-  var trackBtn = hasStitches && !fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
+  var inline = !!props.inline;
+  // Tool-rail layout: a secondary button beside Export, not a step arrow.
+  var trackSecondaryBtn = inline && hasStitches && !fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
+      key: "track-secondary",
+      type: "button",
+      className: "creator-actionbar__btn creator-actionbar__btn--ghost",
+      onClick: props.onTrackPattern,
+      title: "Open this pattern in the Stitch Tracker",
+      "aria-label": "Open in Tracker"
+    },
+    Icons.pointing ? Icons.pointing() : null,
+    h("span", { className: "creator-actionbar__label" }, "Open in Tracker")
+  ) : null;
+
+  var trackBtn = !inline && hasStitches && !fromTracker && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -278,7 +299,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
 
   // Difficulty badge — always-visible tier chip, e.g. "Intermediate".
   // Full breakdown is inside the Pattern info popover.
-  var difficultyBadge = (hasStitches && props.difficulty) ? h("span", {
+  var difficultyBadge = (!inline && hasStitches && props.difficulty) ? h("span", {
     className: "creator-actionbar__difficulty-chip",
     style: { color: props.difficulty.color, borderColor: props.difficulty.color },
     title: "Difficulty: " + props.difficulty.label + " \u00B7 " + (props.difficulty.score != null ? props.difficulty.score + " / 100" : "") + ". Open \u2018Pattern info\u2019 for the full breakdown."
@@ -296,10 +317,11 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         onClick: function() { setInfoOpen(!infoOpen); },
         "aria-haspopup": "dialog",
         "aria-expanded": infoOpen ? "true" : "false",
-        title: "Pattern dimensions, fabric, colours, skeins"
+        title: inline ? "Pattern info: dimensions, fabric, colours, skeins and difficulty" : "Pattern dimensions, fabric, colours, skeins"
       },
-      h("span", null, "Pattern info"),
-      Icons.chevronDown ? Icons.chevronDown() : null
+      inline && Icons.info ? Icons.info() : null,
+      h("span", { className: "creator-actionbar__label" }, "Pattern info"),
+      inline ? null : (Icons.chevronDown ? Icons.chevronDown() : null)
     ),
     infoOpen && typeof window.CreatorPatternInfoPopover !== "undefined"
       ? h(window.CreatorPatternInfoPopover, {
@@ -326,12 +348,13 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   // (reports/create-from-image-workflow, F4).
 
   return h("div", {
-      className: "creator-actionbar",
+      className: "creator-actionbar" + (inline ? " creator-actionbar--inline" : ""),
       role: "toolbar",
       "aria-label": "Pattern actions"
     },
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
+    inline && hasPat ? infoChip : null,
     hasStitches ? h("div", { className: "creator-actionbar__primary" },
       trackPrimaryBtn,
       printBtn,
@@ -343,10 +366,10 @@ window.CreatorActionBar = function CreatorActionBar(props) {
             onClick: function() { setMenuOpen(!menuOpen); },
             "aria-haspopup": "menu",
             "aria-expanded": menuOpen ? "true" : "false",
-            title: "Other export options"
+            title: inline ? "Export: save the project file, or more export options" : "Other export options"
           },
           Icons.document ? Icons.document() : null,
-          h("span", null, "Export\u2026"),
+          h("span", { className: "creator-actionbar__label" }, "Export\u2026"),
           Icons.chevronDown ? Icons.chevronDown() : null
         ),
         menuOpen && h("div", {
@@ -374,10 +397,11 @@ window.CreatorActionBar = function CreatorActionBar(props) {
             h("span", null, "More export options\u2026")
           )
         )
-      )
+      ),
+      trackSecondaryBtn
     ) : h("div", { className: "creator-actionbar__primary" }),
     hasStitches ? trackBtn : null,
-    hasPat ? infoChip : null
+    !inline && hasPat ? infoChip : null
   )
   );
 };

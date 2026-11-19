@@ -2,7 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, quietOnboarding } = require('./creator-helpers');
+const { device, quietOnboarding, railPref } = require('./creator-helpers');
 
 const G = 28;
 const SW = 30, SH = 30;
@@ -116,6 +116,8 @@ test.describe('Shapes and mirror on a desktop', function() {
   test.setTimeout(90000);
 
   test('a snapped line, a filled ellipse and a moved mirror axis', async function({ page }) {
+    // The toolbar layout's Tools tab and More; the rail's shapes are in creator-desktop-rail.spec.js.
+    await railPref(page, false);
     await openFixture(page);
     await expect.poll(async () => stitched(await saved(page) || []), { timeout: 10000 }).toBe(2);
     const drag = async (a, b) => {

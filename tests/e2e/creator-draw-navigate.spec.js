@@ -4,7 +4,7 @@ const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { dispatchTouchSequence } = require('./touch-helpers');
-const { device, generateLogo, zoomUntilScrollable, pickDarkSwatch, undoButton } = require('./creator-helpers');
+const { device, generateLogo, zoomUntilScrollable, pickDarkSwatch, undoButton, railPref } = require('./creator-helpers');
 
 async function swipe(page, box) {
   const b = await box.boundingBox();
@@ -63,6 +63,8 @@ test.describe('Desktop', function() {
   test.use(device('desktop'));
 
   test('opens in Navigate like touch does; choosing Paint switches to Draw (UX-009)', async function({ page }) {
+    // The toolbar layout (Preferences > Pattern Creator > Editing layout off).
+    await railPref(page, false);
     await generateLogo(page);
     await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'false');
     await expect(page.locator('.tb-status')).toContainText('Drag to pan. Choose Paint, Fill or Erase (P, F, 5) to change stitches.');
@@ -72,5 +74,20 @@ test.describe('Desktop', function() {
     await page.getByRole('button', { name: 'Paint tool' }).click();
     await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('group', { name: 'Chart mode' }).locator('[data-mode="draw"]')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('with the tool rail, it opens on Hand; choosing Paint switches to Draw', async function({ page }) {
+    await railPref(page, true);
+    await generateLogo(page);
+    const hand = page.locator('.creator-drail [data-tool="hand"]');
+    await expect(hand).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.tb-mode-toggle')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Paint tool' }).click();
+    await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(hand).toHaveAttribute('aria-pressed', 'false');
+    // H goes back to Navigate, as before.
+    await page.keyboard.press('h');
+    await expect(hand).toHaveAttribute('aria-pressed', 'true');
   });
 });
