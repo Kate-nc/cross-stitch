@@ -12,7 +12,7 @@ const BUNDLES = [
   {
     script: 'build-creator-bundle.js',
     directory: 'creator',
-    outputs: ['creator/bundle.js', 'creator/extras-bundle.js', 'creator/import-wizard-bundle.js'],
+    outputs: ['creator/bundle.js', 'creator/extras-bundle.js'],
   },
   {
     script: 'build-import-bundle.js',

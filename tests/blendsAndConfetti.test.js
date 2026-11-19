@@ -137,7 +137,7 @@ describe('Ready to stitch and Pattern info show the same count', () => {
 
 describe('Reduce confetti is the one name', () => {
   const files = ['creator/Sidebar.js', 'creator/ToolStrip.js', 'creator/MagicWandPanel.js', 'creator/PatternTab.js',
-    'preferences-modal.js', 'help-drawer.js', 'creator/ImportWizard.js', 'creator/useDenoiseMode.js', 'creator/useCreatorState.js'];
+    'preferences-modal.js', 'help-drawer.js', 'creator/FrameView.js', 'creator/useDenoiseMode.js', 'creator/useCreatorState.js'];
 
   test('the old names are gone from the app', () => {
     const old = [/Tidy stray stitches/, /Tidy stray/, /Confetti Cleanup/, /Remove Orphans/i, /stray stitches/i, /isolated (full )?(stitch|cross)/i];
@@ -234,11 +234,10 @@ describe('blends are explained once, in plain language', () => {
     expect(has(read('user-prefs.js'), /creatorAllowBlends:\s*true/)).toBe(true);
   });
 
-  test('the Convert result toast offers What\'s a blend? when the pattern has blends', () => {
-    const state = read('creator/useCreatorState.js');
-    expect(has(state, /var blendAction = tc\.blends > 0 && typeof openBlendHelp === "function"/)).toBe(true);
-    expect(has(state, /\{ label: window\.BLEND_HELP\.title, onClick: openBlendHelp \}/)).toBe(true);
-    expect(has(state, /action: blendAction/)).toBe(true);
+  test('"Your pattern is ready" offers What\'s a blend? when the pattern has blends', () => {
+    const bar = read('creator/ReadyBar.js');
+    expect(has(bar, /s\.blends > 0 && window\.openBlendHelp && window\.BLEND_HELP/)).toBe(true);
+    expect(has(bar, /onClick: function \(\) \{ window\.openBlendHelp\(\); \} \}, window\.BLEND_HELP\.title\)/)).toBe(true);
   });
 
   test('openBlendHelp opens the glossary at its blends section', () => {

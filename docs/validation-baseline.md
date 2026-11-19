@@ -20,7 +20,7 @@ node build-runtime-js.js --check
 node build-sw.js --check
 node scripts/check-generated-bundles.js  # read-only Creator/import verification
 # Generators must leave the committed outputs unchanged:
-git diff --exit-code -- creator/bundle.js creator/extras-bundle.js creator/import-wizard-bundle.js import-engine/bundle.js compiled/ sw.js
+git diff --exit-code -- creator/bundle.js creator/extras-bundle.js import-engine/bundle.js compiled/ sw.js
 E2E_FRESH_SERVER=1 E2E_LOCAL_CDN=1 npm run test:e2e -- --workers=2
 ```
 

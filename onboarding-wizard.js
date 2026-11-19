@@ -56,9 +56,11 @@
       Tap: coarse ? "Tap" : "Click", tap: coarse ? "tap" : "click",
       settings: compact ? "the Settings sheet" : "the panel on the right",
       actions: compact ? "the More menu at the top" : "the bar at the top",
-      // The compact bar's button is labelled Generate, the action bar's
-      // Generate Pattern.
-      generate: compact ? "Generate" : "Generate Pattern"
+      // The compact bar's button is labelled Generate; on wider screens the
+      // button at the foot of the Convert panel reads Generate Pattern.
+      generate: compact ? "Generate" : "Generate Pattern",
+      // Phones have no keyboard for "?"; Help is in the top bar's More menu.
+      help: compact ? "Help is in the More menu at the top." : "Press ? at any time for help."
     };
   }
 
@@ -74,23 +76,42 @@
   }
 
   var CREATOR_TOURS = {
+    // Frame the picture, the first screen for a picture just added
+    // (creator/FrameView.js). The convert tour follows once you Continue.
+    frame: function (d) {
+      return [
+        {
+          title: "Frame your picture",
+          body: "First, the picture itself. Drag on it to crop it to the part you want to stitch, or choose a shape such as Square. Turn left and Turn right fix a photo that is on its side, and Undo takes back the last crop or turn. Then check the picture type and background the Creator chose; you can change either."
+        },
+        {
+          title: "Then Continue",
+          body: "When the picture looks right, " + d.tap + " Continue. Size, Threads and Detail come next, with a live preview, then Generate. Reframe, beside your picture, brings you back here.",
+          target: "[data-onboard=\"frame-continue\"]",
+          // The compact bar's Continue is at the top; the panel's at the foot.
+          placement: d.compact ? "bottom" : "top",
+          dismissOnTargetClick: true
+        }
+      ];
+    },
     convert: function (d) {
       return [
         {
           title: "Turn your picture into a pattern",
-          body: "Work through the steps in " + d.settings + " from left to right: Picture, Size, Threads and Detail. The preview shows your pattern as stitches and says what each change did; Compare options shows neighbouring sizes and thread counts side by side."
+          body: "The steps in " + d.settings + " come in the order you would decide them: Size, Threads and Detail. Each starts from a good guess for your picture, so change only what you want. The preview shows your pattern as stitches and says what each change did; Compare options shows neighbouring sizes and thread counts side by side. Reframe, beside your picture, goes back to cropping it."
         },
         {
           title: "Generate",
           body: "When the preview looks right, " + d.tap + " " + d.generate + ". You can cancel while it works.",
           tip: "Pressing the highlighted button generates the pattern and closes this tour.",
           target: "[data-onboard=\"creator-generate\"]",
-          placement: "bottom",
+          // The compact bar's button is at the top; the panel's at the foot.
+          placement: d.compact ? "bottom" : "top",
           dismissOnTargetClick: true
         },
         {
           title: "Edit, then print or stitch",
-          body: "Edit has the drawing tools and Materials lists the threads to buy. Print PDF and Open in Tracker are in " + d.actions + " once the pattern is made. Press ? at any time for help."
+          body: "Edit has the drawing tools and Materials lists the threads to buy. Print PDF and Open in Tracker are in " + d.actions + " once the pattern is made. " + d.help
         }
       ];
     },
@@ -106,7 +127,7 @@
         },
         {
           title: "Print or stitch it",
-          body: "Once the grid has stitches, Print PDF and Open in Tracker appear in " + d.actions + ". Press ? at any time for help."
+          body: "Once the grid has stitches, Print PDF and Open in Tracker appear in " + d.actions + ". " + d.help
         }
       ];
     },
@@ -118,7 +139,7 @@
         },
         {
           title: "Print or stitch it",
-          body: "Print PDF makes a printable chart and Open in Tracker lets you mark stitches as you go; both are in " + d.actions + ". Press ? at any time for help."
+          body: "Print PDF makes a printable chart and Open in Tracker lets you mark stitches as you go; both are in " + d.actions + ". " + d.help
         }
       ];
     }
@@ -173,11 +194,12 @@
 
   // The Creator's tours, by way in. "creator" is the picture tour, kept for
   // callers and replays that name the page only.
+  STEPS["creator-frame"] = CREATOR_TOURS.frame;
   STEPS["creator-convert"] = CREATOR_TOURS.convert;
   STEPS["creator-scratch"] = CREATOR_TOURS.scratch;
   STEPS["creator-import"] = CREATOR_TOURS.import;
   STEPS.creator = CREATOR_TOURS.convert;
-  var CREATOR_VARIANTS = ["creator-convert", "creator-scratch", "creator-import"];
+  var CREATOR_VARIANTS = ["creator-frame", "creator-convert", "creator-scratch", "creator-import"];
 
   // A page's steps: an array, or a function of the device for the Creator.
   function stepsFor(page) {

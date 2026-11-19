@@ -49,6 +49,7 @@ values fall back to defaults; no coercion of strings into numbers or booleans.
 - `cs_pref_creatorDefaultViewMode`
 - `cs_pref_creatorFabricColour`
 - `cs_pref_creatorGuessPictureType`
+- `cs_pref_creatorShowFrameStep`
 - `cs_pref_creatorMinStitchesPerColour`
 - `cs_pref_creatorOrphanRemovalStrength`
 - `cs_pref_creatorProtectDetails`
@@ -157,7 +158,6 @@ conflict/hotkey policies must be chosen locally.
 - `cs_pref_creatorColourDisclaimerDismissed`
 - `cs_pref_crossTabConflictPolicy`
 - `cs_pref_experimental.embroideryTool`
-- `cs_pref_experimental.importWizard`
 - `cs_pref_fabricMeasurementUnit`
 - `cs_pref_flagExperimentalPreview`
 - `cs_pref_onboarding.coached.firstStitch_creator`

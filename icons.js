@@ -571,14 +571,14 @@ window.Icons = (function() {
         l(7, 16, 17, 16)
       );
     },
-    // Crop — replaces ✂ (used by the C7 image-import wizard, step 1)
+    // Crop — replaces ✂ (Frame the picture's Apply crop)
     crop: function() {
       return svg(
         p('M6 2v14a2 2 0 0 0 2 2h14'),
         p('M18 22V8a2 2 0 0 0-2-2H2')
       );
     },
-    // Ruler — replaces 📏 (used by the C7 image-import wizard, step 3)
+    // Ruler — replaces 📏 (Convert's Size step)
     ruler: function() {
       return svg(
         p('M21.3 8.7L8.7 21.3a1 1 0 0 1-1.4 0L2.7 16.7a1 1 0 0 1 0-1.4L15.3 2.7a1 1 0 0 1 1.4 0l4.6 4.6a1 1 0 0 1 0 1.4z'),

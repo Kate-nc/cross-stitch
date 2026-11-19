@@ -5,8 +5,11 @@
    The Convert settings panel (creator/ConvertPanel.js), rendered with stub
    Creator contexts:
    - laid out like Edit: the same tab strip and section headings, with the
-     steps in the order the choices are made (Picture, Size, Threads, Detail,
-     then Project) and a Next button that falls through to the next step;
+     steps in the order the choices are made (Size, Threads, Detail; what the
+     picture is and its background come first, in Frame the picture, from
+     CreatorPictureSections)
+     and a Next button that falls through to the next step; within a step a
+     setting comes before the ones it limits (the stash first in Threads);
    - every setting appears once, in one step, and each has a named hint;
    - Generate is pinned underneath with a summary of what it will make, and
      says when a chart already exists and the settings have moved on.
@@ -70,7 +73,7 @@ function fresh() {
     generate: set(), hasGenerated: false, busy: false, origW: 400, origH: 300
   };
   ctx = { sW: 100, sH: 75, fabricCt: 14, chgW: set(), chgH: set(), setArLock: set(), arLock: true, ar: 4 / 3, setFabricCt: set(), pat: null, setGlobalStash: set() };
-  app = { convertTab: 'picture', previewStats: null, previewLoading: false, fabricColour: '#FFFFFF', setFabricColour: set(), lastGenSnapshot: null };
+  app = { convertTab: 'size', previewStats: null, previewLoading: false, fabricColour: '#FFFFFF', setFabricColour: set(), lastGenSnapshot: null };
   app.setConvertTab = jest.fn((id) => { app.convertTab = id; draw(); });
   cv = { editHistory: [] };
   window.usePatternData = () => ctx;
@@ -78,7 +81,10 @@ function fresh() {
   window.useApp = () => app;
   window.useGeneration = () => gen;
 }
-function draw() { act(() => root.render(React.createElement(window.CreatorConvertPanel, {}))); }
+let drawing = 'panel';
+function draw() { act(() => root.render(React.createElement(drawing === 'picture' ? window.CreatorPictureSections : window.CreatorConvertPanel, {}))); }
+// Frame the picture's settings, rendered on their own.
+function drawPicture() { drawing = 'picture'; draw(); }
 function q(sel) { return container.querySelector(sel); }
 function all(sel) { return Array.from(container.querySelectorAll(sel)); }
 function text() { return container.textContent; }
@@ -86,6 +92,7 @@ function hints() { return all('button.info-icon__btn').map((b) => b.getAttribute
 function headings() { return all('h3.cs-toolsec__title').map((h) => h.textContent); }
 
 beforeEach(() => {
+  drawing = 'panel';
   fresh();
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -95,61 +102,70 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); container.remove(); });
 
 describe('laid out like Edit, in the order the choices are made', () => {
-  test('the steps are the Edit tab strip: Picture, Size, Threads, Detail, Project', () => {
+  test('the steps are the Edit tab strip: Size, Threads, Detail', () => {
     expect(q('[role="tablist"] .creator-sidebar-tabs')).not.toBeNull();
     const tabs = all('[role="tab"].creator-sidebar-tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['Picture', 'Size', 'Threads', 'Detail', 'Project']);
+    expect(tabs.map((t) => t.textContent)).toEqual(['Size', 'Threads', 'Detail']);
     expect(tabs[0].getAttribute('aria-selected')).toBe('true');
-    expect(q('[role="tabpanel"]').getAttribute('aria-labelledby')).toBe('convert-tab-picture');
+    expect(q('[role="tabpanel"]').getAttribute('aria-labelledby')).toBe('convert-tab-size');
   });
 
-  test('sections use the Edit panel headings (cs-toolsec)', () => {
+  test('sections use the Edit panel headings (cs-toolsec); the picture fixes are folded away', () => {
+    drawPicture();
     expect(all('section.cs-toolsec').length).toBeGreaterThan(0);
-    expect(headings()).toEqual(['Picture type', 'Background', 'Adjust picture']);
+    expect(headings()).toEqual(['Picture type', 'Background']);
+    const fix = q('details[data-cv-fix]');
+    expect(fix.querySelector('summary').textContent).toBe('Fix the picture');
+    expect(fix.open).toBe(false);
+    gen.con = 10; draw();
+    expect(q('details[data-cv-fix]').open).toBe(true);
   });
 
-  test('Next falls through Picture, Size, Threads and Detail to Project', () => {
+  test('Next falls through Size and Threads to Detail, which points to Generate', () => {
     const seen = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 2; i++) {
       const next = all('.cv-next__btn')[0];
       seen.push(next.textContent);
       act(() => next.click());
     }
-    expect(seen).toEqual(['Next: Size and fabric', 'Next: Threads', 'Next: Detail and tidiness', 'Next: Project']);
-    expect(app.convertTab).toBe('project');
+    expect(seen).toEqual(['Next: Threads', 'Next: Detail and tidiness']);
+    expect(app.convertTab).toBe('detail');
     expect(q('.cv-next__btn')).toBeNull();
+    // The last step says Generate comes next; the name is in the header now.
+    expect(q('[data-last-step]').textContent).toMatch(/Generate the pattern below/);
+    expect(q('input.cv-input[placeholder$="pattern"]')).toBeNull();
   });
 
   test('arrow keys move between the steps', () => {
-    const first = q('#convert-tab-picture');
+    const first = q('#convert-tab-size');
     act(() => { first.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); });
+    expect(app.convertTab).toBe('threads');
+    act(() => { q('#convert-tab-threads').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); });
     expect(app.convertTab).toBe('size');
-    act(() => { q('#convert-tab-size').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); });
-    expect(app.convertTab).toBe('picture');
   });
 
-  test('an unknown stored step opens Picture', () => {
-    app.convertTab = 'dimensions';
+  test('an unknown stored step (such as the old Picture) opens Size', () => {
+    app.convertTab = 'picture';
     draw();
-    expect(q('#convert-tab-picture').getAttribute('aria-selected')).toBe('true');
+    expect(q('#convert-tab-size').getAttribute('aria-selected')).toBe('true');
   });
 });
 
 describe('each setting once, each with a named hint', () => {
   const byTab = {
-    picture: { headings: ['Picture type', 'Background', 'Adjust picture'],
-      hints: ['About Picture type', 'About Background', 'About Adjust picture',
+    picture: { headings: ['Picture type', 'Background'],
+      hints: ['About Picture type', 'About Background',
         'About Brightness', 'About Contrast', 'About Saturation', 'About Sharpen details', 'About Soften grainy photos'] },
     size: { headings: [], stubs: ['size-field', 'fabric-block'] },
-    threads: { headings: ['Thread brand', 'Number of threads', 'Blends', 'Rare colours', 'Stash'],
-      hints: ['About Thread brand', 'About Threads (max)', 'About Allow two-thread blends', 'About Min stitches per colour', 'About Use only stash threads'] },
-    detail: { headings: ['Detail and tidiness', 'Shading pattern', 'Tidying', 'Look-alike colours'],
+    threads: { headings: ['Stash', 'Number of threads', 'Blends', 'Thread brand'],
+      hints: ['About Use only stash threads', 'About Threads (max)', 'About Allow two-thread blends', 'About Thread brand'] },
+    detail: { headings: ['Detail and tidiness', 'Shading pattern', 'Tidying', 'Rare colours', 'Look-alike colours'],
       hints: ['About Detail and tidiness', 'About Shading pattern', 'About Stitch Cleanup', 'About Reduce confetti', 'About Protect fine details',
-        'About Keep look-alike colours apart', 'About How strict'] },
-    project: { headings: ['Project info'] }
+        'About Min stitches per colour', 'About Keep look-alike colours apart', 'About How strict'] }
   };
+  function show(tab) { if (tab === 'picture') drawPicture(); else { drawing = 'panel'; app.convertTab = tab; draw(); } }
   test.each(Object.keys(byTab))('the %s step', (tab) => {
-    app.convertTab = tab; draw();
+    show(tab);
     expect(headings()).toEqual(byTab[tab].headings);
     (byTab[tab].hints || []).forEach((h) => expect(hints()).toContain(h));
     (byTab[tab].stubs || []).forEach((s) => expect(q('[data-stub="' + s + '"]')).not.toBeNull());
@@ -158,7 +174,7 @@ describe('each setting once, each with a named hint', () => {
   test('no setting is in two steps', () => {
     const where = {};
     Object.keys(byTab).forEach((tab) => {
-      app.convertTab = tab; draw();
+      show(tab);
       headings().concat(hints()).forEach((name) => {
         expect(where[name]).toBeUndefined();
         where[name] = tab;
@@ -167,15 +183,22 @@ describe('each setting once, each with a named hint', () => {
   });
 
   test('radio rows have one Tab stop and arrow keys choose', () => {
+    drawPicture();
     const radios = all('[role="radiogroup"][aria-label="What kind of picture is this?"] [role="radio"]');
-    expect(radios.map((r) => r.textContent)).toEqual(['Graphic or logo', 'Photo', 'Pixel art', 'Custom']);
+    // No Custom: the type says what the picture is (Detail has its own Custom).
+    expect(radios.map((r) => r.textContent)).toEqual(['Graphic or logo', 'Photo', 'Pixel art']);
     expect(radios.filter((r) => r.tabIndex === 0).map((r) => r.textContent)).toEqual(['Photo']);
-    expect(radios[3].disabled).toBe(true);
     act(() => { radios[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); });
     expect(gen.applyPicturePreset).toHaveBeenLastCalledWith('pixel');
-    // Custom is a state, not a choice: arrows skip it.
     act(() => { radios[2].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); });
     expect(gen.applyPicturePreset).toHaveBeenLastCalledWith('graphic');
+  });
+
+  test('with no type chosen, none is selected and the hint says the defaults are used', () => {
+    gen.pictureType = null; drawPicture();
+    const radios = all('[role="radiogroup"][aria-label="What kind of picture is this?"] [role="radio"]');
+    expect(radios.filter((r) => r.getAttribute('aria-checked') === 'true')).toHaveLength(0);
+    expect(text()).toContain('No type chosen: your Preferences defaults are used.');
   });
 
   test('checkbox hints sit outside their <label>s', () => {
@@ -183,6 +206,7 @@ describe('each setting once, each with a named hint', () => {
   });
 
   test('Reset adjustments appears once the picture is adjusted, and resets it', () => {
+    drawPicture();
     expect(text()).not.toContain('Reset adjustments');
     gen.bri = 10; draw();
     const reset = all('button').find((b) => b.textContent === 'Reset adjustments');

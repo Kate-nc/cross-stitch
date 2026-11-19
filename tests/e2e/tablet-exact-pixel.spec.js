@@ -35,6 +35,8 @@ test('exact PNG import previews native pixels, alpha and remapping before genera
  const settings = page.locator('.rpanel-drawer-header');
  if(await settings.isVisible() && await settings.getAttribute('aria-expanded')==='false') await settings.click();
  await page.getByRole('checkbox',{name:'Exact pixel-art import',exact:true}).check();
+ // The checkbox is in Frame the picture; the preview is after Continue.
+ await page.locator('[data-onboard="frame-continue"]:visible, .cc-continue:visible').first().click();
  if(await settings.isVisible() && await settings.getAttribute('aria-expanded')==='true') await settings.click();
  await expect.poll(()=>page.evaluate(()=>[window.__tabletState.sW,window.__tabletState.sH])).toEqual([9,7]);
  await expect(page.getByText('Source colours mapped to threads', {exact:false})).toBeVisible();
@@ -47,7 +49,7 @@ test('exact PNG import previews native pixels, alpha and remapping before genera
  // An asynchronously unavailable stash must not fall back to catalogue colours.
  await page.evaluate(()=>{window.__tabletState.setStashConstrained(true);window.__tabletState.setGlobalStash(null);});
  await clickGenerate(page);
- await expect(page.getByText('Your stash is empty', {exact:false})).toBeVisible();
+ await expect(page.getByText('so there are none to use', {exact:false})).toBeVisible();
  expect(await page.evaluate(()=>window.__tabletState.pat)).toBeNull();
  await page.evaluate(()=>window.__tabletState.setStashConstrained(false));
  await clickGenerate(page);await waitForEdit(page);

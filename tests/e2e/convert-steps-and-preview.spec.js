@@ -21,20 +21,25 @@ test.describe('Convert steps and preview on desktop', function() {
   test.use(device('desktop'));
   test.setTimeout(90000);
 
-  test('the steps run Picture, Size, Threads, Detail, and Next falls through them', async function({ page }) {
-    await openConvertWithLogo(page);
-    const tabs = page.getByRole('tablist', { name: 'Convert steps' }).getByRole('tab');
-    await expect(tabs).toHaveText(['Picture', 'Size', 'Threads', 'Detail', 'Project']);
-    await expect(page.locator('#convert-tab-picture')).toHaveAttribute('aria-selected', 'true');
+  test('Frame the picture comes first, then the steps run Size, Threads, Detail and Next falls through them', async function({ page }) {
+    await openConvertWithLogo(page, { frame: true });
+    // Frame: what the picture is, with no Generate yet.
     await expect(page.getByRole('radiogroup', { name: 'What kind of picture is this?' })).toBeVisible();
-    await page.getByRole('button', { name: 'Next: Size and fabric' }).click();
+    await expect(page.getByRole('button', { name: 'Generate pattern' })).toHaveCount(0);
+    await page.locator('[data-onboard="frame-continue"]').click();
+    const tabs = page.getByRole('tablist', { name: 'Convert steps' }).getByRole('tab');
+    await expect(tabs).toHaveText(['Size', 'Threads', 'Detail']);
+    await expect(page.locator('#convert-tab-size')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('.size-field').getByLabel('Width in stitches')).toBeVisible();
     await page.getByRole('button', { name: 'Next: Threads' }).click();
     await expect(page.getByRole('slider', { name: 'Threads (max)' })).toBeVisible();
     await page.getByRole('button', { name: 'Next: Detail and tidiness' }).click();
     await expect(page.getByRole('radiogroup', { name: 'Detail and tidiness' })).toBeVisible();
-    await page.getByRole('button', { name: 'Next: Project' }).click();
-    await expect(page.getByLabel('Pattern name')).toBeVisible();
+    // The last step points to Generate; there is no other Generate on screen.
+    await expect(page.locator('[data-last-step]')).toContainText('Generate the pattern below');
+    await expect(page.getByRole('button', { name: 'Generate pattern' })).toHaveCount(1);
+    // The pattern is already named after the picture, in the header.
+    await expect(page.locator('.tb-proj-switcher')).toContainText('logo');
     // Generate stays at the foot with what it will make.
     await expect(page.locator('[data-convert-summary]')).toContainText('stitches');
     await expect(page.locator('[data-convert-summary]')).toContainText('DMC threads');

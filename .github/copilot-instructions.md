@@ -57,7 +57,7 @@ There is **no in-browser Babel**. The large JSX entry files (`tracker-app.js`, `
 
 | Edit | Then run | Regenerates |
 |---|---|---|
-| any `creator/*.js` | `node build-creator-bundle.js` | `creator/bundle.js`, `creator/extras-bundle.js`, `creator/import-wizard-bundle.js` |
+| any `creator/*.js` | `node build-creator-bundle.js` | `creator/bundle.js`, `creator/extras-bundle.js` |
 | `tracker-app.js`, `creator-main.js`, `manager-app.js`, `embroidery.js` | `node build-runtime-js.js` | `compiled/*.compiled.js` |
 | any `import-engine/**` | `node build-import-bundle.js` | `import-engine/bundle.js` |
 | deployment assets (after other generators) | `node build-sw.js` | fingerprints in `sw.js` |

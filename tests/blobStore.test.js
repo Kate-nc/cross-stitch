@@ -108,16 +108,38 @@ describe('drafts stay out of projects, stats, backups and sync', () => {
   });
 });
 
+describe('handing a picture to the Creator', () => {
+  test('keeps the picture, marks it for a reload, and says where it came from', async () => {
+    const store = {};
+    global.sessionStorage = { setItem: (k, v) => { store[k] = v; }, getItem: (k) => store[k] || null };
+    const file = { name: 'IMG_2041.jpg', type: 'image/jpeg', size: 10 };
+    const url = await BlobStore.handOffPicture(file, { from: 'tracker' });
+    const id = decodeURIComponent(url.match(/handoff=([^&]+)/)[1]);
+    expect(url).toBe('create.html?action=home-image-pending&from=tracker&handoff=' + encodeURIComponent(id));
+    expect(id).toMatch(/^handoff:/);
+    expect(store.cs_pending_image_handoff).toBe(id);
+    const rec = await BlobStore.get(id);
+    expect(rec.name).toBe('IMG_2041.jpg');
+    expect(rec.type).toBe('image/jpeg');
+    // Home is the default.
+    expect(await BlobStore.handOffPicture(file)).toMatch(/&from=home&/);
+    delete global.sessionStorage;
+  });
+});
+
 describe('wiring', () => {
   const home = loadSource('home-app.js');
   const io = loadSource('creator/useProjectIO.js');
   const main = loadSource('creator-main.js');
 
   test('Home hands pictures over through IndexedDB, keeping sessionStorage as a fallback', () => {
-    expect(home).toMatch(/BS\.put\(id, \{ blob: blob, name: file\.name/);
-    expect(home).toMatch(/create\.html\?action=home-image-pending&from=home&handoff=/);
+    expect(home).toMatch(/window\.BlobStore\.handOffPicture\(file, \{ from: 'home' \}\)\.then\(navigateAfterPaint\)/);
     expect(home).toMatch(/function handOffViaSession\(file\)/);
-    expect(home).toMatch(/var MAX_HANDOFF_PX = 4000;/);
+    expect(loadSource('blob-store.js')).toMatch(/var MAX_HANDOFF_PX = 4000;/);
+  });
+
+  test('the Stitch Tracker hands pictures to Convert the same way', () => {
+    expect(loadSource('tracker-app.js')).toMatch(/BS\.handOffPicture\(f, \{ from: 'tracker' \}\)/);
   });
 
   test('the Creator reads the handoff, then deletes it', () => {

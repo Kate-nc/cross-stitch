@@ -1,7 +1,7 @@
 /* creator/ResizeCanvasModal.js — Modal for resizing (crop / expand) the
    cross-stitch pattern canvas.
 
-   This is DISTINCT from CropModal.js, which crops the SOURCE IMAGE before
+   This is DISTINCT from FrameView.js (Frame the picture), which crops the SOURCE IMAGE before
    pattern generation. This modal operates on the already-generated pattern
    grid: it lets users grow or shrink the canvas in any direction and
    reposition the existing stitches within the new bounds.

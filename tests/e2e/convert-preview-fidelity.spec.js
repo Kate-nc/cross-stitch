@@ -15,7 +15,7 @@ test.beforeEach(async ({ context, page }) => {
     } });
   });
 });
-const { device, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit, convertStep } = require('./creator-helpers');
+const { device, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit, convertStep, continueFromFrame } = require('./creator-helpers');
 
 const FABRIC = '#E8D9B5';
 const FABRIC_RGB = 'rgb(232, 217, 181)';
@@ -57,7 +57,7 @@ async function openConvert(page) {
   await skipTourIfShown(page);
   await page.locator('input.home-create-file-input').setInputFiles({ name: 'bordered.png', mimeType: 'image/png', buffer: borderedPng() });
   await page.waitForURL(/create\.html/);
-  await page.waitForSelector('.rpanel', { state: 'attached' });
+  await continueFromFrame(page);
   await skipTourIfShown(page);
   await expect(page.getByTestId('cmp-preview-layer')).toBeVisible({ timeout: 20000 });
   // The first pass is the quick one; wait for the settled picture and spinner.

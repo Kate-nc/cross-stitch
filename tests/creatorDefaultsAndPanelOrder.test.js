@@ -93,7 +93,7 @@ describe('defaults', () => {
     // border check, then the skip and the picture-type guess are applied.
     expect(io).toMatch(/window\.analysePicture\(data, imgEl\.width, imgEl\.height\)/);
     expect(io).toMatch(/window\.detectUniformBorder\(data\)/);
-    expect(io).toMatch(/autoSkipBackground\(info \? info\.border : null\)/);
+    expect(io).toMatch(/autoSkipBackground\(info \? info\.border : null, reframed\)/);
     expect(io).toMatch(/state\.addToast\("Background left unstitched\.", \{[\s\S]*?label: "Undo"/);
     expect((io.match(/examinePicture\((i|scaledImg)\)/g) || []).length).toBe(2);
   });
@@ -104,20 +104,23 @@ describe('Convert panel order', () => {
   // this pins the order in the source.
   const cp = loadSource('creator/ConvertPanel.js');
 
-  test('steps: Picture (type, background, adjust), Size (size, fabric), Threads, Detail, Project', () => {
-    expect(cp).toMatch(/if \(tab === "picture"\) content = \[pictureType, background, adjust\];/);
-    expect(cp).toMatch(/else if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
-    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[brandSec, countSec, blendSec, rareSec, stashSec\];/);
-    expect(cp).toMatch(/else if \(tab === "detail"\) content = \[stepsSec, shadingSec, tidySec, lookSec\];/);
-    expect(cp).toMatch(/else content = \[projectSec\];/);
+  // A setting comes before the ones it limits: the stash before the thread
+  // count; rare colours sit with the other tidying (reports/create-from-image-workflow).
+  test('steps: Size (size, fabric), Threads (stash first), Detail; the picture is framed first', () => {
+    expect(cp).toMatch(/if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
+    // Frame the picture: type, background, and fixes folded away.
+    expect(cp).toMatch(/return h\(React\.Fragment, null, pictureType, background,\s*h\("details", \{ className: "cv-fix"/);
+    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[stashSec, countSec, blendSec, brandSec, stashToolsSec\];/);
+    expect(cp).toMatch(/else content = \[stepsSec, shadingSec, tidySec, rareSec, lookSec\];/);
+    expect(cp).not.toMatch(/projectSec/);
   });
 
   test('section headings', () => {
-    ['"picture-type", "Picture type"', '"background", "Background"', '"adjust", "Adjust picture"',
+    ['"picture-type", "Picture type"', '"background", "Background"', '"adjust", null, null',
      '"brand", "Thread brand"', '"count", "Number of threads"', '"blends", "Blends"', '"rare", "Rare colours"',
      '"style", "Detail and tidiness"', '"shading", "Shading pattern"', '"tidying", "Tidying"', '"lookalike", "Look-alike colours"']
       .forEach((h) => expect(cp).toContain('sec(' + h));
-    // Min stitches per colour is a thread choice, in Threads.
+    // Min stitches per colour merges rare colours away; it is in Detail with tidying.
     const rare = cp.slice(cp.indexOf('var rareSec = '), cp.indexOf('var stashSec = '));
     expect(rare).toMatch(/label: "Min stitches per colour"/);
   });
@@ -125,6 +128,7 @@ describe('Convert panel order', () => {
   test('no accordion open-state is kept for Convert any more', () => {
     const st = loadSource('creator/useCreatorState.js');
     expect(st).not.toMatch(/_dimOpen|_palOpen|_adjOpen|_clOpen|_bgOpen/);
-    expect(st).toMatch(/var _convertTab = useState\("picture"\);/);
+    expect(st).toMatch(/var _convertTab = useState\("size"\);/);
+    expect(st).toMatch(/var _convertStage = useState\("make"\);/);
   });
 });

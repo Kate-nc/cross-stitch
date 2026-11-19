@@ -4634,11 +4634,16 @@ html.pref-dark .modal,
 html.pref-dark .toolbar,
 html.pref-dark .sidebar { background: var(--surface) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
 /* The Stash Manager's list and tab bar style their own controls from the
-   theme tokens; this blanket rule would flatten selected states. */
-html.pref-dark input:not(.stash-page *):not(.stash-st *),
+   theme tokens; this blanket rule would flatten selected states.
+   The exclusions are inside :where() so they add no specificity: the rule
+   always weighs html.pref-dark button (0,1,2), and the doubled-class
+   overrides further down (Home, Convert, Frame) keep winning however many
+   exclusions are added here. Without it, two more exclusions (Stock-take)
+   out-ranked them and turned Generate and every chosen option grey. */
+html.pref-dark input:where(:not(.stash-page *):not(.stash-st *)),
 html.pref-dark select,
 html.pref-dark textarea,
-html.pref-dark button:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch):not(.ppal-size-btn):not(.stash-page *):not(.mgr-tab-bar *):not(.stash-st *):not(.stash-fab) {
+html.pref-dark button:where(:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch):not(.ppal-size-btn):not(.stash-page *):not(.mgr-tab-bar *):not(.stash-st *):not(.stash-fab)) {
   background: var(--surface-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border) !important;
 }
 html.pref-dark a { color: var(--accent); }
@@ -8428,8 +8433,8 @@ body.creator-compact .cs-page-content{padding-bottom:calc(var(--creator-rail-h) 
 body.creator-compact .rpanel.rpanel--edit{bottom:calc(var(--creator-rail-h) + env(safe-area-inset-bottom,0px));}
 body.creator-compact .rpanel.rpanel--edit:not(.rpanel--open){display:none;}
 body.creator-compact .rpanel.rpanel--edit.rpanel--open{max-height:calc(100dvh - 48px - var(--creator-rail-h) - 16px);}
-.cc-generate{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border:none;border-radius:var(--radius-md);background:var(--accent);color:var(--surface);font:inherit;font-size:var(--text-sm);font-weight:600;cursor:pointer;flex-shrink:0;}
-.cc-generate svg{width:16px;height:16px;}
+.cc-generate,.cc-continue{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border:none;border-radius:var(--radius-md);background:var(--accent);color:var(--surface);font:inherit;font-size:var(--text-sm);font-weight:600;cursor:pointer;flex-shrink:0;}
+.cc-generate svg,.cc-continue svg{width:16px;height:16px;}
 .cc-generate:disabled{opacity:0.6;cursor:default;}
 /* The chart fills the space between the top bar and the rail, leaving two
    lines for the status text under it. */
@@ -8981,6 +8986,33 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .ready-review-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
 .ready-review-images--sample { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: var(--s-3); }
 .ready-review-note { border-left: 3px solid var(--accent); padding-left: var(--s-3); }
+/* "Your pattern is ready" after Generate (creator/ReadyBar.js): what was
+   made, and Print PDF / Open in Tracker / Threads to buy. */
+.ready-bar { position: relative; display: flex; align-items: flex-start; gap: var(--s-3); flex-wrap: wrap; padding: var(--s-3); margin-bottom: var(--s-2); background: var(--success-soft); border: 1px solid var(--line); border-left: 3px solid var(--success); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-sm); }
+.ready-bar__icon { display: inline-flex; color: var(--success-text); margin-top: 2px; }
+.ready-bar__icon svg { width: 18px; height: 18px; }
+.ready-bar__text { flex: 1 1 260px; padding-right: 28px; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.4; }
+.ready-bar__title { font-size: var(--text-md); }
+.ready-bar__summary { color: var(--text-secondary); }
+.ready-bar__links { display: flex; gap: var(--s-3); flex-wrap: wrap; }
+.ready-bar__link { background: none; border: none; padding: 0; color: var(--accent-text); text-decoration: underline; cursor: pointer; font: inherit; }
+.ready-bar__actions { display: flex; margin-right: 28px; gap: var(--s-2); flex-wrap: wrap; align-items: center; }
+.ready-bar__actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ready-bar__actions svg, .ready-bar__close svg { width: 16px; height: 16px; }
+.ready-bar__close { position: absolute; top: var(--s-2); right: var(--s-2); background: none; border: none; padding: 4px; cursor: pointer; color: var(--text-secondary); display: inline-flex; border-radius: var(--radius-sm); }
+@media (hover: hover) { .ready-bar__close:hover { background: var(--surface); color: var(--text-primary); } }
+/* On a phone the bar floats above the bottom toolbar, where the Creator's
+   notices appear, so the chart keeps its whole height: compact, with the
+   links left to the More menu. It sits under the settings drawer (z 500),
+   so opening the drawer is never half-covered by it. */
+body.creator-compact .ready-bar { position: fixed; left: 8px; right: 8px; bottom: calc(var(--creator-rail-h) + env(safe-area-inset-bottom, 0px) + var(--creator-status-h)); z-index: 450; margin: 0; padding: var(--s-2) var(--s-3); gap: var(--s-2); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); }
+body.creator-compact .ready-bar__icon, body.creator-compact .ready-bar__links { display: none; }
+body.creator-compact .ready-bar__text { flex-basis: 100%; }
+body.creator-compact .ready-bar__summary { font-size: var(--text-xs); }
+body.creator-compact .ready-bar__actions { margin-right: 0; }
+body.creator-compact .ready-bar__actions .btn { white-space: nowrap; }
+/* Palette notes in Edit (creator/Sidebar.js): small print, not body text. */
+.convert-first-use { margin: 0 0 var(--s-2); font-size: var(--text-xs); line-height: 1.4; color: var(--text-secondary); }
 @media (max-width: 700px) {
   .ready-review-images, .ready-review-summary { grid-template-columns: minmax(0, 1fr); }
   .ready-review-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -9095,7 +9127,7 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .cv-input--area { resize: vertical; min-height: 54px; }
 .cv-input--seed { width: 84px; }
 .cv-link { background: none; border: none; padding: 0; font: inherit; font-size: var(--text-xs); color: var(--accent); cursor: pointer; }
-.cv-link:focus-visible, .cv-next__btn:focus-visible, .cv-generate:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cv-link:focus-visible, .cv-next__btn:focus-visible, .cv-generate:focus-visible, .fr-continue:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cv-disclosure { display: inline-flex; align-items: center; gap: 4px; margin-top: var(--s-2); color: var(--text-secondary); }
 .cv-disclosure__chev { display: inline-flex; width: 12px; height: 12px; transition: transform var(--motion, 0.15s); }
 .cv-disclosure[aria-expanded="true"] .cv-disclosure__chev { transform: rotate(90deg); }
@@ -9131,10 +9163,50 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .cv-footer__summary { margin: 0; font-size: var(--text-xs); line-height: 1.4; color: var(--text-secondary); }
 .cv-footer__state { margin: 0; font-size: var(--text-xs); line-height: 1.4; color: var(--text-tertiary); }
 .cv-footer__empty { text-align: center; }
-.cv-generate { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; font: inherit; font-size: var(--text-md); font-weight: 600; color: var(--surface); background: var(--accent); border: none; border-radius: var(--radius-md); cursor: pointer; }
+.cv-generate, .fr-continue { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; font: inherit; font-size: var(--text-md); font-weight: 600; color: var(--surface); background: var(--accent); border: none; border-radius: var(--radius-md); cursor: pointer; }
 .cv-generate--quiet { color: var(--text-primary); background: var(--surface-tertiary); }
 .cv-generate:disabled { cursor: wait; color: var(--surface); background: var(--text-tertiary); }
-@media (hover: hover) { .cv-generate:not(:disabled):not(.cv-generate--quiet):hover { background: var(--accent-hover); } }
+@media (hover: hover) { .cv-generate:not(:disabled):not(.cv-generate--quiet):hover, .fr-continue:hover { background: var(--accent-hover); } }
+.cv-generate svg, .fr-continue svg { width: 16px; height: 16px; }
+/* "Fix the picture" in Frame the picture: brightness and the rest, folded away. */
+.cv-fix { border-top: 1px solid var(--border); }
+.cv-fix > summary { padding: 12px; cursor: pointer; font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+.cv-fix__on { font-weight: 400; color: var(--text-secondary); }
+.cv-fix > .cs-toolsec { border-top: none; padding-top: 0; }
+
+/* Frame the picture (creator/FrameView.js): the picture to crop and turn on
+   the left, what it is and its background on the right, Continue below. */
+.fr-layout { flex: 1; min-height: 0; display: flex; gap: var(--s-4); padding: 12px 16px 16px; }
+.fr-stage { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.fr-tools { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.fr-shapes { flex: 0 1 320px; }
+.fr-tools__group { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.fr-tools__group .cs-seltools__btn svg, .fr-cropbar .cs-seltools__btn svg { width: 16px; height: 16px; }
+.fr-picture { flex: 1; min-height: 240px; display: flex; align-items: center; justify-content: center; padding: var(--s-3); background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.fr-picture__crop { position: relative; display: inline-block; touch-action: none; user-select: none; cursor: crosshair; line-height: 0; }
+.fr-picture--pick .fr-picture__crop { cursor: copy; }
+.fr-picture__img { display: block; max-width: 100%; max-height: calc(100vh - 260px); width: auto; height: auto; }
+.fr-picture__img--small { image-rendering: pixelated; }
+.fr-picture__rect { position: absolute; border: 2px dashed var(--accent); box-sizing: border-box; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35); }
+.fr-cropbar { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; min-height: 32px; font-size: var(--text-sm); color: var(--text-secondary); }
+.fr-cropbar__hint { flex: 1 1 200px; }
+.fr-cropbar__size { color: var(--text-tertiary); font-size: var(--text-xs); }
+.fr-panel { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 140px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+.fr-panel__head { padding: 12px 12px 4px; }
+.fr-panel__title { margin: 0 0 4px; font-size: var(--text-lg); color: var(--text-primary); }
+.fr-panel__body { flex: 1; min-height: 0; overflow-y: auto; }
+.fr-footer { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; padding: 12px; border-top: 1px solid var(--border); background: var(--surface); }
+.fr-footer__note { margin: 0; text-align: center; }
+@media (max-width: 899px) {
+  .fr-layout { flex-direction: column; padding: 8px 8px 0; gap: var(--s-2); }
+  .fr-shapes { flex-basis: 100%; }
+  .fr-tools__group { margin-left: 0; }
+  .fr-picture { min-height: 0; padding: var(--s-2); }
+  .fr-picture__img { max-height: 55vh; }
+  .fr-panel { width: auto; max-height: none; overflow: visible; }
+  .fr-panel__body { overflow: visible; }
+  .fr-footer { position: sticky; bottom: 0; z-index: 11; }
+}
 @media (max-width: 899px) {
   /* In the bottom drawer the whole panel scrolls; Generate stays at its foot. */
   .cv-footer { position: sticky; bottom: 0; z-index: 11; }
@@ -9179,12 +9251,15 @@ html.pref-dark button.creator-sidebar-tab.creator-sidebar-tab[aria-selected="tru
 html.pref-dark button.cs-seltools__btn.cs-seltools__btn.cs-seltools__btn--on { background: var(--accent-soft) !important; color: var(--accent-ink) !important; border-color: var(--accent) !important; }
 html.pref-dark button.cv-generate.cv-generate.cv-generate:not(.cv-generate--quiet):not(:disabled) { background: var(--accent) !important; color: var(--text-on-accent) !important; border-color: var(--accent) !important; }
 html.pref-dark button.cv-next__btn.cv-next__btn.cv-next__btn { background: var(--accent-soft) !important; color: var(--accent-ink) !important; border-color: var(--accent) !important; }
+html.pref-dark button.fr-continue.fr-continue,
+html.pref-dark button.cc-continue.cc-continue { background: var(--accent) !important; color: var(--text-on-accent) !important; border-color: var(--accent) !important; }
 html.pref-dark button.cv-bgpick__swatch.cv-bgpick__swatch.cv-bgpick__swatch,
 html.pref-dark button.fabric-block__swatch.fabric-block__swatch.fabric-block__swatch { background: var(--swatch, var(--surface-tertiary)) !important; }
 
 /* Convert's middle column shares the settings section type and spacing. */
 .cvp-source { flex: 0 0 auto; width: min(30%, 220px); min-width: 0; }
 .cvp-source__controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; border-top: 1px solid var(--line); }
+.cvp-source__btn { font: inherit; font-size: var(--text-xs); padding: 2px 7px; cursor: pointer; border: 0.5px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text-primary); }
 .cvp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
 .cv-estimates { color: var(--text-primary); font-size: var(--text-sm); }
 .cv-thread-list { display: flex; flex-direction: column; max-height: 240px; overflow-y: auto; }

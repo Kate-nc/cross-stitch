@@ -94,8 +94,10 @@ test.describe('Workflow switching', () => {
     expect((await page.evaluate(()=>BlobStore.list('draft:')))).toHaveLength(1);
     await page.goto('/home.html?tab=projects');
     await page.locator('.home-draft-row').getByRole('button',{name:'Continue',exact:true}).click();
-    // A resumed draft opens on the first step; its size is in the Size step.
-    await expect(page.locator('#convert-tab-picture')).toHaveAttribute('aria-selected','true');
+    // A resumed draft skips Frame the picture (it was framed before) and
+    // opens on the first step, Size.
+    await expect(page.locator('[data-frame-view]')).toHaveCount(0);
+    await expect(page.locator('#convert-tab-size')).toHaveAttribute('aria-selected','true');
     await convertStep(page,'size');
     await expect(width).toHaveValue('123');
     await expect(page.getByRole('dialog')).toHaveCount(0);

@@ -33,6 +33,9 @@ test.describe('Desktop keeps keyboard hints', function() {
   test('the shortcuts hint still shows', async function({ page }) {
     await openConvert(page);
     await generate(page);
+    // It waits while "Your pattern is ready" shows, then comes back.
+    await expect(page.getByText('for keyboard shortcuts')).toHaveCount(0);
+    await page.getByRole('region', { name: 'Your pattern is ready' }).getByRole('button', { name: 'Close: keep editing' }).click();
     await expect(page.getByText('for keyboard shortcuts')).toBeVisible();
   });
 

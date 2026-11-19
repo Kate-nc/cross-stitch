@@ -384,6 +384,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 
   // ─── processLoadedProject ────────────────────────────────────────────────────
   function processLoadedProject(project) {
+    // A saved project opens on its chart or Convert's settings, never on
+    // Frame the picture (which is for a picture just added).
+    if (state.setConvertStage) state.setConvertStage("make");
     if(!project)return;
     // INT-7 Phase B-1: seed the last-seen cache so the next save() from this
     // tab has a baseline to compare against for stale-read detection.
@@ -732,6 +735,101 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     return true;
   }
 
+  // Look at a picture: plain backgrounds are left unstitched automatically
+  // (if the outer 2% is one colour, skip it, with Undo), and the picture type
+  // is guessed and its preset applied (audit IMG-01). On upload every value
+  // is set. After a crop (opts.reframed) the cropped picture is looked at
+  // again, without undoing choices the user made: the type is guessed again
+  // only while it is the Creator's own guess and nothing it set has changed,
+  // and a background the user chose is left as it is.
+  function examinePicture(imgEl, opts) {
+    var reframed = !!(opts && opts.reframed);
+    if (reframed) reframeDraft(imgEl);
+    var info = null;
+    try { info = creatorExaminePicture(imgEl); }
+    catch (err) { console.warn("useProjectIO: picture check failed", err); }
+    var typeBefore = state.pictureType;
+    // After a crop, guess again only while the type is the Creator's own
+    // guess and nothing it set has been changed.
+    var guessedUntouched = !!(state.presetApplied && state.presetApplied.guessed && state.presetUntouched);
+    var guess = true;
+    try { guess = typeof UserPrefs === "undefined" || UserPrefs.get("creatorGuessPictureType") !== false; } catch (_) {}
+    var applyType = !!(info && info.w && guess && state.applyPicturePreset && typeof window.guessPictureType === "function" &&
+      (!reframed || guessedUntouched));
+    var newType = applyType ? window.guessPictureType(info) : null;
+    autoSkipBackground(info ? info.border : null, reframed);
+    if (info && info.w && state.setPictureInfo) {
+      state.setPictureInfo(info);
+      // Preferences > Pattern Creator > Guess the picture type. Off: the
+      // Preferences defaults stay, and no type is chosen.
+      if (applyType) {
+        state.applyPicturePreset(newType, info, { guessed: true });
+        if (reframed && newType !== typeBefore && state.addToast && window.PICTURE_PRESETS && window.PICTURE_PRESETS[newType]) {
+          state.addToast("The cropped picture looks like " + (newType === "photo" ? "a photo" : newType === "pixel" ? "pixel art" : "a graphic or logo") + ", so Convert now starts from its settings.", { type: "info", duration: 6000 });
+        }
+      }
+    }
+  }
+  function autoSkipBackground(found, reframed) {
+    if (!state.setSkipBg) return;
+    var autoRef = state.bgAutoSkippedRef;
+    var auto = !!(autoRef && autoRef.current);
+    // A background the user chose themselves stays after a crop.
+    if (reframed && state.skipBg && !auto) return;
+    if (!found) {
+      // A skip we switched on for the previous picture shouldn't carry over.
+      if (auto) {
+        state.setSkipBg(false); autoRef.current = false;
+        if (reframed && state.addToast) state.addToast("The cropped picture has no plain border, so its background is stitched.", { type: "info", duration: 6000 });
+      }
+      return;
+    }
+    var same = state.skipBg && state.bgCol && String(state.bgCol.slice(0, 3)) === String(found.rgb.slice(0, 3));
+    state.setBgCol(found.rgb);
+    state.setSkipBg(true);
+    if (autoRef) autoRef.current = true;
+    if (reframed && same) return;
+    if (state.addToast) {
+      state.addToast("Background left unstitched.", {
+        type: "info", duration: 8000,
+        action: { label: "Undo", onClick: function () {
+          state.setSkipBg(false);
+          if (autoRef) autoRef.current = false;
+        } }
+      });
+    }
+  }
+  if (state.pictureExaminerRef) state.pictureExaminerRef.current = examinePicture;
+
+  // A crop or turn is kept in the Convert draft, so continuing the draft
+  // later starts from the framed picture, not the whole one.
+  function reframeDraft(imgEl) {
+    var d = draftRef.current;
+    if (!d || !d.id || state.pat || !window.BlobStore || typeof document === "undefined") return;
+    try {
+      var c = document.createElement("canvas");
+      c.width = imgEl.naturalWidth || imgEl.width; c.height = imgEl.naturalHeight || imgEl.height;
+      var cx = c.getContext("2d");
+      if (!cx || !c.toBlob) return;
+      cx.drawImage(imgEl, 0, 0);
+      c.toBlob(function (b) {
+        if (!b || draftRef.current !== d) return;
+        d.blob = b; d.type = "image/png";
+        window.BlobStore.put(d.id, { blob: b, name: d.name, type: d.type, createdAt: d.createdAt,
+          settings: creatorDraftSettings(state) }).catch(function () {});
+      }, "image/png");
+    } catch (err) { console.warn("useProjectIO: could not keep the framed picture in the draft", err); }
+  }
+
+  // Which part of Convert a picture opens on: Frame the picture, unless
+  // Preferences > Pattern Creator turns it off or a draft is being
+  // continued (it was framed then).
+  function openingStage(resuming) {
+    if (resuming) return "make";
+    try { if (typeof UserPrefs !== "undefined" && UserPrefs.get("creatorShowFrameStep") === false) return "make"; } catch (_) {}
+    return "frame";
+  }
+
   function handleFile(e) {
     var f = e.target ? e.target.files[0] : e;
     if (!f) return;
@@ -744,6 +842,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // app into create mode so the correct sidebar tabs render.
     if (typeof state.setAppMode === "function") state.setAppMode("create");
     state.setIsUploading(true);
+    var resumingDraft = !!(draftRef.current && draftRef.current.restore);
     // Name the project after the image ("IMG_2041.jpg" gives "IMG_2041")
     // instead of asking. A name the user typed before generating is kept.
     function nameFromImage() {
@@ -753,46 +852,6 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (typedBeforeGenerate) return;
       var fromFile = window.projectNameFromFile ? window.projectNameFromFile(f.name) : (f.name || "");
       state.setAutoProjectName(fromFile || "Untitled design");
-    }
-    // Look at the picture once: plain backgrounds are left unstitched
-    // automatically (if the outer 2% is one colour, skip it, with Undo), and
-    // the picture type is guessed and its preset applied (audit IMG-01).
-    function examinePicture(imgEl) {
-      var info = null;
-      try { info = creatorExaminePicture(imgEl); }
-      catch (err) { console.warn("useProjectIO: picture check failed", err); }
-      autoSkipBackground(info ? info.border : null);
-      if (info && info.w && state.setPictureInfo) {
-        state.setPictureInfo(info);
-        // Preferences > Pattern Creator > Guess the picture type. Off: the
-        // Preferences defaults stay, and the control shows Custom.
-        var guess = true;
-        try { guess = typeof UserPrefs === "undefined" || UserPrefs.get("creatorGuessPictureType") !== false; } catch (_) {}
-        if (guess && state.applyPicturePreset && typeof window.guessPictureType === "function") {
-          state.applyPicturePreset(window.guessPictureType(info), info);
-        }
-      }
-    }
-    function autoSkipBackground(found) {
-      if (!state.setSkipBg) return;
-      var autoRef = state.bgAutoSkippedRef;
-      if (!found) {
-        // A skip we switched on for the previous picture shouldn't carry over.
-        if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
-        return;
-      }
-      state.setBgCol(found.rgb);
-      state.setSkipBg(true);
-      if (autoRef) autoRef.current = true;
-      if (state.addToast) {
-        state.addToast("Background left unstitched.", {
-          type: "info", duration: 8000,
-          action: { label: "Undo", onClick: function () {
-            state.setSkipBg(false);
-            if (autoRef) autoRef.current = false;
-          } }
-        });
-      }
     }
     var rd = new FileReader();
     rd.onload = function(ev) {
@@ -820,7 +879,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setOrigW(targetW); state.setOrigH(targetH);
                 var a = targetW / targetH; state.setAr(a);
                 var size = creatorInitialSize(targetW, targetH); state.setSW(size.w); state.setSH(size.h);
-                state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); state.setIsUploading(false); startDraft(f);
+                state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); if (state.setConvertStage) state.setConvertStage(openingStage(resumingDraft)); state.setIsUploading(false); startDraft(f);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
             // PNG retains the coverage mask when large uploads are resized.
@@ -831,7 +890,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setOrigW(i.width); state.setOrigH(i.height);
           var a2 = i.width / i.height; state.setAr(a2);
           var size2 = creatorInitialSize(i.width, i.height); state.setSW(size2.w); state.setSH(size2.h);
-          state.setImg(i); state.resetAll(); nameFromImage(); examinePicture(i); state.setIsUploading(false); startDraft(f);
+          state.setImg(i); state.resetAll(); nameFromImage(); examinePicture(i); if (state.setConvertStage) state.setConvertStage(openingStage(resumingDraft)); state.setIsUploading(false); startDraft(f);
         } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
       if (typeof i.decode === "function") {

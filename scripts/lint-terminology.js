@@ -54,7 +54,8 @@ const TARGET_FILES = [
   "creator/LegendTab.js",
   "creator/ProjectTab.js",
   "creator/PatternTab.js",
-  "creator/ImportWizard.js"
+  "creator/FrameView.js",
+  "creator/ReadyBar.js"
 ];
 
 // Forbidden → preferred. Each rule is matched as a whole word with the given
