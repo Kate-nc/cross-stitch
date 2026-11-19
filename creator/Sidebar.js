@@ -132,7 +132,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     }
 
     var chips = displayPal.map(function(p) {
-      var ips = isPaintMode && cv.selectedColorId === p.id;
+      var isSelected = cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
       var isUnused = app.appMode === "edit" && p.count === 0;
       var stashStatus = stashStatusForChip(p);
@@ -147,20 +147,17 @@ window.CreatorSidebar = function CreatorSidebar() {
       // The one thread label and the strands and skeins this symbol takes (UX-013, UX-014).
       var keyRow = window.threadKeyRow ? window.threadKeyRow(p, { fabricCount: fabricCtForStash }) : null;
       function choose() {
-        if (isPaintMode) {
-          cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
-        } else {
-          cv.setHiId(cv.hiId === p.id ? null : p.id);
-        }
+        if (cv.chooseThread) cv.chooseThread(p.id);
+        else cv.setSelectedColorId(p.id);
       }
       return h("div", {
         key: p.id,
         role: "button",
         tabIndex: 0,
-        "aria-pressed": ips || ihs,
+        "aria-pressed": isSelected,
         "aria-label": (window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p)) + (keyRow && keyRow.usageTitle ? ". " + keyRow.usageTitle : ""),
         title: keyRow ? keyRow.title : undefined,
-        className: "pal-row" + (ips ? " pal-row--selected" : ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
+        className: "pal-row" + (isSelected ? " pal-row--selected" : "") + (ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
         "data-colour-id": p.id,
         onClick: choose,
         onKeyDown: function(e) {
@@ -183,6 +180,17 @@ window.CreatorSidebar = function CreatorSidebar() {
           "aria-label": "Stash status: " + stashStatus,
           style: { background: STASH_DOT[stashStatus] }
         }),
+        app.appMode === "edit" && h("button", {
+          type: "button",
+          className: "pal-row__btn pal-row__btn--hi" + (ihs ? " pal-row__btn--on" : ""),
+          title: ihs ? "Stop showing on chart" : "Show on chart",
+          "aria-label": "Show on chart \u2014 " + formatThread(p),
+          "aria-pressed": ihs ? "true" : "false",
+          onClick: function(e) {
+            e.stopPropagation();
+            cv.setHiId(cv.hiId === p.id ? null : p.id);
+          }
+        }, Icons.eye ? Icons.eye() : null),
         app.appMode === "edit" && h("button", {
           type: "button",
           className: "pal-row__btn",

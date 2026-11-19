@@ -1074,6 +1074,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     brushMode: state.brushMode, setBrushMode: state.setBrushMode, brushModeRef: state.brushModeRef,
     brushSize: state.brushSize, setBrushSize: state.setBrushSize,
     selectedColorId: state.selectedColorId, setSelectedColorId: state.setSelectedColorId,
+    chooseThread: state.chooseThread,
     view: state.view, setView: state.setView,
     zoom: state.zoom, setZoom: state.setZoom,
     hiId: state.hiId, setHiId: state.setHiId,
@@ -1198,7 +1199,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   }; }, [
     state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet,
     state.activeTool, state.drawMode, state.penNavigation, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize,
-    state.selectedColorId, state.view, state.zoom,
+    state.selectedColorId, state.chooseThread, state.view, state.zoom,
     state.hiId, state.showCtr, state.showOverlay, state.showStitched, state.overlayOpacity,
     state.highlightMode, state.bgDimOpacity, state.hiAdvanced,
     state.bgDimDesaturation, state.dimFraction, state.dimHiId,

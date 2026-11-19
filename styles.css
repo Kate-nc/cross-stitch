@@ -8236,8 +8236,8 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 }
 .pal-row:hover { background: var(--surface-secondary); }
 .pal-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.pal-row--selected { border-color: var(--accent); background: var(--accent-light); }
 .pal-row--hi { border-color: var(--accent-hover); background: var(--surface-tertiary); }
+.pal-row--selected { border-color: var(--accent); background: var(--accent-light); }
 .pal-row--unused { opacity: 0.6; }
 .pal-row__swatch {
   width: 28px; height: 28px; flex-shrink: 0; border-radius: var(--radius-sm);
@@ -8262,6 +8262,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
   background: transparent; color: var(--text-tertiary); cursor: pointer;
 }
 .pal-row__btn:hover, .pal-row__btn:focus-visible { color: var(--accent); border-color: var(--border); background: var(--surface); }
+.pal-row__btn--on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .pal-row__btn svg { width: 16px; height: 16px; }
 
 .pal-symbols {

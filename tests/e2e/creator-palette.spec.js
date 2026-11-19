@@ -2,7 +2,8 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, generateLogo, isCompact, undoButton } = require('./creator-helpers');
+const { device, generateLogo, isCompact, undoButton, zoomUntilScrollable } = require('./creator-helpers');
+const { dispatchTouchSequence } = require('./touch-helpers');
 
 async function openPaletteTab(page) {
   if (await isCompact(page)) {
@@ -124,5 +125,79 @@ test.describe('Swatch symbols on Pixel 5', function() {
     // The long-press didn't also select the colour.
     await page.waitForTimeout(300);
     await expect(sw).toHaveAttribute('aria-pressed', pressedBefore);
+  });
+
+  test('choosing a thread on touch leaves Navigate on and a drag still pans (X2)', async function({ page }) {
+    await generateLogo(page);
+    const closeReady = page.locator('.ready-bar__close');
+    if (await closeReady.isVisible().catch(() => false)) await closeReady.click();
+
+    await expect(page.locator('.tb-mode-toggle [data-mode="navigate"]')).toHaveAttribute('aria-pressed', 'true');
+    // Pick a different thread from the Palette drawer.
+    await openPaletteTab(page);
+    const secondRow = page.locator('.pal-rows .pal-row').nth(1);
+    const secondId = await secondRow.getAttribute('data-colour-id');
+    await secondRow.click();
+    await expect(secondRow).toHaveAttribute('aria-pressed', 'true');
+    // Choosing the selected thread again keeps it selected.
+    await secondRow.click();
+    await expect(secondRow).toHaveAttribute('aria-pressed', 'true');
+    // Close the palette drawer.
+    await page.locator('.rpanel-backdrop').click({ position: { x: 10, y: 10 } });
+    // Navigate is still active; Paint is not pressed.
+    await expect(page.locator('.tb-mode-toggle [data-mode="navigate"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.creator-rail__colour')).toHaveAttribute('aria-label', new RegExp('DMC ' + secondId + '\\b'));
+
+    // A one-finger drag still pans the chart without making an edit.
+    const box = await zoomUntilScrollable(page);
+    const before = await box.evaluate((el) => el.scrollLeft + ',' + el.scrollTop);
+    const b = await box.boundingBox();
+    const x0 = b.x + b.width * 0.7, y0 = b.y + b.height * 0.6;
+    const steps = [{ type: 'touchStart', touchPoints: [{ id: 1, x: x0, y: y0 }] }];
+    for (let i = 1; i <= 12; i++) steps.push({ type: 'touchMove', touchPoints: [{ id: 1, x: x0 - i * 12, y: y0 - i * 6 }] });
+    steps.push({ type: 'touchEnd', touchPoints: [] });
+    await dispatchTouchSequence(page, steps);
+    await expect.poll(() => box.evaluate((el) => el.scrollLeft + ',' + el.scrollTop)).not.toBe(before);
+    await expect(undoButton(page)).toBeDisabled();
+  });
+});
+
+test.describe('Choosing a thread on desktop (X2)', function() {
+  test.use(device('desktop'));
+
+  test('choosing a Palette row in Navigate selects working colour and Paint without highlighting; Show on chart highlights independently', async function({ page }) {
+    await generateLogo(page);
+    await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'false');
+
+    const rows = page.locator('.pal-rows .pal-row');
+    const row0 = rows.nth(0);
+    const row1 = rows.nth(1);
+    const id1 = await row1.getAttribute('data-colour-id');
+
+    // Choose the second Palette row while in Navigate.
+    await row1.click();
+    await expect(row1).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'true');
+    // No highlight appears when choosing a thread.
+    await expect(page.locator('.pal-row--hi')).toHaveCount(0);
+
+    // Choosing the same row again keeps it selected.
+    await row1.click();
+    await expect(row1).toHaveAttribute('aria-pressed', 'true');
+
+    // "Show on chart" on the first row toggles highlight without changing the working colour.
+    const showBtn = row0.getByRole('button', { name: /Show on chart/i });
+    await showBtn.click();
+    await expect(showBtn).toHaveAttribute('aria-pressed', 'true');
+    await expect(row0).toHaveClass(/pal-row--hi/);
+    await expect(row1).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.swatch-scroll-inner button[aria-pressed="true"]')).toHaveAttribute('aria-label', new RegExp('DMC ' + id1 + '\\b'));
+
+    // Toggling "Show on chart" again clears highlight while keeping working colour.
+    await showBtn.click();
+    await expect(showBtn).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.pal-row--hi')).toHaveCount(0);
+    await expect(row1).toHaveAttribute('aria-pressed', 'true');
   });
 });

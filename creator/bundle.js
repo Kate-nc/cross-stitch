@@ -8261,6 +8261,31 @@ window.useCreatorState = function useCreatorState() {
     if (t) setDrawMode(true);
     selectStitchType(t);
   }
+  // One meaning for choosing a thread anywhere (Palette row or swatch strip):
+  // always sets the working colour (choosing the selected thread again keeps it
+  // selected). With a mouse it also selects Paint and switches to Draw (keeping
+  // an already-active drawing tool like Fill/Backstitch/Shapes if in Draw);
+  // on touch it only sets the working colour and leaves Navigate on.
+  var chooseThread = useCallback(function(id) {
+    if (!id) return;
+    setSelectedColorId(id);
+    var coarse = (typeof window !== "undefined" && window.Platform && typeof window.Platform.isCoarsePointer === "function")
+      ? window.Platform.isCoarsePointer()
+      : !isFinePointerNow();
+    if (!coarse) {
+      var curTool = activeToolRef.current;
+      var curPs = partialStitchToolRef.current;
+      var keepDrawTool = drawModeRef.current && (
+        curTool === "paint" || curTool === "fill" || curTool === "backstitch" || curTool === "knot" ||
+        curTool === "line" || curTool === "rect" || curTool === "ellipse" ||
+        (curPs && curPs !== "erase")
+      );
+      if (!keepDrawTool) {
+        setBrushAndActivate("paint");
+      }
+      setDrawMode(true);
+    }
+  }, [setDrawMode]);
   function chooseBrush(mode) {
     setDrawMode(true);
     setBrushAndActivate(mode);
@@ -9437,7 +9462,7 @@ window.useCreatorState = function useCreatorState() {
     bsLines, setBsLines, bsStart, setBsStart,
     specialtyStitches, setSpecialtyStitches, specialtySelected,setSpecialtySelected,
     knots, setKnots,
-    bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
+    bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId, chooseThread,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
@@ -18386,9 +18411,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             // A long-press shows the tooltip; it doesn't also change the colour.
             var press = swatchPressRef.current;
             if (press && press.fired && press.id === p.id) { swatchPressRef.current = null; return; }
-            // Choosing a colour is choosing to edit: leave Navigate (UX-009).
-            if (cv.selectedColorId !== p.id && cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
-            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
+            if (cv.chooseThread) cv.chooseThread(p.id);
+            else cv.setSelectedColorId(p.id);
           },
           onPointerDown: function(e) { swatchPressStart(e, p); },
           onPointerUp: swatchPressEnd,
@@ -20657,7 +20681,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     }
 
     var chips = displayPal.map(function(p) {
-      var ips = isPaintMode && cv.selectedColorId === p.id;
+      var isSelected = cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
       var isUnused = app.appMode === "edit" && p.count === 0;
       var stashStatus = stashStatusForChip(p);
@@ -20672,20 +20696,17 @@ window.CreatorSidebar = function CreatorSidebar() {
       // The one thread label and the strands and skeins this symbol takes (UX-013, UX-014).
       var keyRow = window.threadKeyRow ? window.threadKeyRow(p, { fabricCount: fabricCtForStash }) : null;
       function choose() {
-        if (isPaintMode) {
-          cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
-        } else {
-          cv.setHiId(cv.hiId === p.id ? null : p.id);
-        }
+        if (cv.chooseThread) cv.chooseThread(p.id);
+        else cv.setSelectedColorId(p.id);
       }
       return h("div", {
         key: p.id,
         role: "button",
         tabIndex: 0,
-        "aria-pressed": ips || ihs,
+        "aria-pressed": isSelected,
         "aria-label": (window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p)) + (keyRow && keyRow.usageTitle ? ". " + keyRow.usageTitle : ""),
         title: keyRow ? keyRow.title : undefined,
-        className: "pal-row" + (ips ? " pal-row--selected" : ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
+        className: "pal-row" + (isSelected ? " pal-row--selected" : "") + (ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
         "data-colour-id": p.id,
         onClick: choose,
         onKeyDown: function(e) {
@@ -20708,6 +20729,17 @@ window.CreatorSidebar = function CreatorSidebar() {
           "aria-label": "Stash status: " + stashStatus,
           style: { background: STASH_DOT[stashStatus] }
         }),
+        app.appMode === "edit" && h("button", {
+          type: "button",
+          className: "pal-row__btn pal-row__btn--hi" + (ihs ? " pal-row__btn--on" : ""),
+          title: ihs ? "Stop showing on chart" : "Show on chart",
+          "aria-label": "Show on chart \u2014 " + formatThread(p),
+          "aria-pressed": ihs ? "true" : "false",
+          onClick: function(e) {
+            e.stopPropagation();
+            cv.setHiId(cv.hiId === p.id ? null : p.id);
+          }
+        }, Icons.eye ? Icons.eye() : null),
         app.appMode === "edit" && h("button", {
           type: "button",
           className: "pal-row__btn",

@@ -1730,6 +1730,31 @@ window.useCreatorState = function useCreatorState() {
     if (t) setDrawMode(true);
     selectStitchType(t);
   }
+  // One meaning for choosing a thread anywhere (Palette row or swatch strip):
+  // always sets the working colour (choosing the selected thread again keeps it
+  // selected). With a mouse it also selects Paint and switches to Draw (keeping
+  // an already-active drawing tool like Fill/Backstitch/Shapes if in Draw);
+  // on touch it only sets the working colour and leaves Navigate on.
+  var chooseThread = useCallback(function(id) {
+    if (!id) return;
+    setSelectedColorId(id);
+    var coarse = (typeof window !== "undefined" && window.Platform && typeof window.Platform.isCoarsePointer === "function")
+      ? window.Platform.isCoarsePointer()
+      : !isFinePointerNow();
+    if (!coarse) {
+      var curTool = activeToolRef.current;
+      var curPs = partialStitchToolRef.current;
+      var keepDrawTool = drawModeRef.current && (
+        curTool === "paint" || curTool === "fill" || curTool === "backstitch" || curTool === "knot" ||
+        curTool === "line" || curTool === "rect" || curTool === "ellipse" ||
+        (curPs && curPs !== "erase")
+      );
+      if (!keepDrawTool) {
+        setBrushAndActivate("paint");
+      }
+      setDrawMode(true);
+    }
+  }, [setDrawMode]);
   function chooseBrush(mode) {
     setDrawMode(true);
     setBrushAndActivate(mode);
@@ -2906,7 +2931,7 @@ window.useCreatorState = function useCreatorState() {
     bsLines, setBsLines, bsStart, setBsStart,
     specialtyStitches, setSpecialtyStitches, specialtySelected,setSpecialtySelected,
     knots, setKnots,
-    bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
+    bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId, chooseThread,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
     shortcutsHintDismissed, setShortcutsHintDismissed,
