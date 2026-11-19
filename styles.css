@@ -8439,6 +8439,12 @@ body.creator-compact .rpanel.rpanel--edit.rpanel--open{max-height:calc(100dvh - 
 .cc-generate:disabled{opacity:0.6;cursor:default;}
 /* The chart fills the space between the top bar and the rail, leaving two
    lines for the status text under it. */
+/* Centre the chart inside its scroll container when smaller than the canvas area,
+   without negative-scroll clipping when zoomed in larger than the box (B4). */
+.cs-chart-scroll { display: flex; }
+.cs-chart-scroll > canvas,
+.cs-chart-scroll > .preview-wrap { margin: auto; flex-shrink: 0; }
+
 body.creator-compact .cs-chart-scroll{height:calc(100dvh - 48px - env(safe-area-inset-top,0px) - var(--creator-rail-h) - env(safe-area-inset-bottom,0px) - var(--creator-status-h))!important;max-height:none!important;min-height:0!important;}
 body.creator-compact .cs-page-content{padding-top:4px;}
 /* The hint under the chart wraps rather than clipping; the coordinates and colour readout drop to a line of their own. */

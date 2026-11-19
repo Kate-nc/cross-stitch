@@ -11734,14 +11734,16 @@ window.nudgeCropRect = nudgeCropRect;
    point that was under the starting midpoint under the current midpoint,
    after scaling by `ratio` (current zoom / starting zoom). With ratio 1 this
    is a plain pan: the chart follows the fingers. */
-window.computePinchScroll = function computePinchScroll(pinch, midX, midY, ratio) {
+window.computePinchScroll = function computePinchScroll(pinch, midX, midY, ratio, nextPad) {
   var originX = pinch.originX || 0, originY = pinch.originY || 0;
   var padX = pinch.padX || 0, padY = pinch.padY || 0;
+  var outPadX = nextPad && nextPad.padX != null ? nextPad.padX : padX;
+  var outPadY = nextPad && nextPad.padY != null ? nextPad.padY : padY;
   var focalX = pinch.startScrollLeft + (pinch.startMidX - originX) - padX;
   var focalY = pinch.startScrollTop + (pinch.startMidY - originY) - padY;
   return {
-    scrollLeft: Math.max(0, focalX * ratio + padX - (midX - originX)),
-    scrollTop: Math.max(0, focalY * ratio + padY - (midY - originY)),
+    scrollLeft: Math.max(0, focalX * ratio + outPadX - (midX - originX)),
+    scrollTop: Math.max(0, focalY * ratio + outPadY - (midY - originY)),
   };
 };
 
@@ -12097,10 +12099,20 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var canvas = state.pcRef.current, scrollRef = state.scrollRef;
     pinch.previewing = false;
     var zoom = pinch.pendingZoom;
-    var next = window.computePinchScroll(pinch, pinch.lastMidX, pinch.lastMidY, zoom / pinch.startZoom);
     function settle() {
       if (canvas) { canvas.style.transform = ""; canvas.style.transformOrigin = ""; canvas.style.willChange = ""; }
-      if (scrollRef.current) { scrollRef.current.scrollLeft = next.scrollLeft; scrollRef.current.scrollTop = next.scrollTop; }
+      var sc = scrollRef.current;
+      var nextPad = null;
+      if (sc && canvas && sc.getBoundingClientRect && canvas.getBoundingClientRect) {
+        var cRect = sc.getBoundingClientRect();
+        var pRect = canvas.getBoundingClientRect();
+        nextPad = {
+          padX: pRect.left - cRect.left + sc.scrollLeft,
+          padY: pRect.top - cRect.top + sc.scrollTop,
+        };
+      }
+      var next = window.computePinchScroll(pinch, pinch.lastMidX, pinch.lastMidY, zoom / pinch.startZoom, nextPad);
+      if (sc) { sc.scrollLeft = next.scrollLeft; sc.scrollTop = next.scrollTop; }
     }
     if (zoom === state.zoom) { settle(); return; }
     // Settle once PatternCanvas has resized the canvas for the new zoom (in
