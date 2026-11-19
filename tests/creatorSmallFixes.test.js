@@ -22,8 +22,9 @@ describe('Stage 1 Task 7 small fixes', () => {
 
   test('D5: sentence case for Shift colours and Palette presets', () => {
     const ps = read('palette-swap.js');
-    expect(ps).toContain('title: "Shift colours"');
-    expect(ps).toContain('title: "Palette presets"');
+    // Stage 3 (D3): disclosures inside Recolour the chart, not cards.
+    expect(ps).toMatch(/createElement\("summary", null,[^\n]*"Shift colours"\)/);
+    expect(ps).toMatch(/createElement\("summary", null,[^\n]*"Palette presets"\)/);
     expect(ps).not.toContain('title: "Shift Colours"');
     expect(ps).not.toContain('title: "Palette Presets"');
   });
@@ -40,7 +41,9 @@ describe('Stage 1 Task 7 small fixes', () => {
   test('F2: Palette instruction paragraphs moved behind InfoIcon button', () => {
     const sb = read('creator/Sidebar.js');
     expect(sb).not.toContain('pal-key-note');
-    expect(sb).toMatch(/h\(InfoIcon,\s*\{[\s\S]*?label:\s*"Palette"[\s\S]*?Use Change symbol beside a thread/);
+    // Stage 3 (D3): the info button is the section header's, built by
+    // Convert's sec() helper (title, info text), which renders the InfoIcon.
+    expect(sb).toMatch(/P\.sec\("pal-threads", "In this pattern",\s*app\.appMode === "edit" \? "Use Change symbol beside a thread/);
   });
 
   test('F3: per-thread Change symbol and Replace buttons have visible Tooltip wrappers and accessible names', () => {

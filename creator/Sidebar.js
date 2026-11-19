@@ -1,7 +1,7 @@
 /* creator/Sidebar.js — Settings sidebar for the Creator app.
    Reads from CreatorContext and GenerationContext.
    Concatenated into creator/bundle.js, which the page loads before creator-main.
-   Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext, GenerationContext (context.js) */
+   Depends on: SliderRow, Tooltip, InfoIcon (components.js), CreatorPanelParts (ConvertPanel.js), CreatorContext, GenerationContext (context.js) */
 
 // Use the same stitch renderer as Ready to stitch, alongside the flat swatch.
 window.BlendRecipePreview = function BlendRecipePreview(props) {
@@ -27,7 +27,10 @@ window.CreatorSidebar = function CreatorSidebar() {
   var gen = window.useGeneration();
   var h = React.createElement;
   var traceInputRef = React.useRef(null);
-  var _pco = React.useState(true); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
+  // Convert's building blocks (creator/ConvertPanel.js): every section here
+  // is P.sec, so Convert and Edit share one header, spacing and hint style.
+  // ConvertPanel.js is later in the bundle; these run at render.
+  var P = window.CreatorPanelParts;
   var _anchorReady = React.useState(typeof ANCHOR !== 'undefined'); var anchorDataReady = _anchorReady[0], setAnchorDataReady = _anchorReady[1];
 
   React.useEffect(function () {
@@ -222,30 +225,17 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     }).filter(Boolean);
     var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
-    return h("div", {className:"pal-sec"},
-      h("div", {
-        className:"pal-sec__head",
-        onClick:function(){setPalChipsOpen(function(o){return !o;});}
-      },
-        h("div", {className:"pal-sec__lead"},
-          h("span", {"aria-hidden":"true", className:"pal-sec__chev" + (palChipsOpen ? " pal-sec__chev--open" : "")}, Icons.chevronRight()),
-          h("span", {className:"pal-sec__title"}, "In this pattern"),
-          app.appMode === "edit" && typeof InfoIcon !== "undefined" && h(InfoIcon, {
-            label: "Palette",
-            width: 260,
-            text: "Use Change symbol beside a thread to choose a different chart symbol. Strands and skeins are for each symbol on its own; Materials adds up the threads that several symbols share."
-          })
-        ),
-        h("div", {className:"pal-sec__actions"},
+    return P.sec("pal-threads", "In this pattern",
+      app.appMode === "edit" ? "Use Change symbol beside a thread to choose a different chart symbol. Strands and skeins are for each symbol on its own; Materials adds up the threads that several symbols share." : null,
+        h("div", {key:"actions", className:"pal-sec__actions"},
           app.appMode === "edit" && unusedCount > 0 && h("button", {
             type: "button", className: "sb-mini-btn",
-            onClick: function(e) { e.stopPropagation(); if (typeof ctx.removeUnusedColours === 'function') ctx.removeUnusedColours(); },
+            onClick: function() { if (typeof ctx.removeUnusedColours === 'function') ctx.removeUnusedColours(); },
             title: "Remove all colours not used in the pattern"
           }, "Remove unused (" + unusedCount + ")"),
           app.appMode === "edit" && ctx.pal && ctx.pal.length > 1 && h("button", {
             type: "button", className: "sb-mini-btn",
-            onClick: function(e) {
-              e.stopPropagation();
+            onClick: function() {
               cv.setActiveTool("magicWand");
               ctx.setPartialStitchTool && ctx.setPartialStitchTool(null);
               cv.setBsStart && cv.setBsStart(null);
@@ -260,9 +250,8 @@ window.CreatorSidebar = function CreatorSidebar() {
             title: symbolLimitMsg,
             "aria-label": symbolLimitMsg
           }, Icons.warning())
-        )
-      ),
-      palChipsOpen && h("div", {className:"pal-sec__body"},
+        ),
+      h("div", {key:"body", className:"pal-sec__body"},
       window.BlendHelpNote && window.creatorThreadCounts(displayPal).blends > 0 && h(window.BlendHelpNote, null),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {className:"pal-stash-filter"},
@@ -505,7 +494,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           Icons.plus(), "Add colour"))
     : h("div", {className: "pal-picker", role: "region", "aria-label": "Add colour"},
       h("div", {className: "pal-picker__head"},
-        h("span", {className: "pal-picker__title"}, "Add colour"),
+        h("h3", {className: "cs-toolsec__title pal-picker__title"}, "Add colour"),
         !palIsEmpty && h("button", {type: "button", className: "pal-row__btn", "aria-label": "Close", title: "Close",
           onClick: function() { ctx.setColPickerOpen(false); }}, Icons.x())
       ),
@@ -683,14 +672,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
-  // Convert's building blocks (creator/ConvertPanel.js), so the two panels
-  // read the same. ConvertPanel.js is later in the bundle; these run at render.
-  var P = window.CreatorPanelParts;
-
   // ─── View toggle (shared between View tab content in both modes) ─────────
-  var viewToggle = (ctx.pat && ctx.pal) ? h("div", {className:"cs-toolsec sb-viewrow"},
-    h("span", {className:"cs-toolsec__title sb-viewrow__label", id:"sb-view-label"}, "View"),
-    P.seg({label:"View", className:"sb-viewrow__seg", value:cv.view, onChange:function(id){ cv.setView(id); },
+  var viewToggle = (ctx.pat && ctx.pal) ? P.sec("chart-view", "Chart view", null,
+    P.seg({label:"Chart view", value:cv.view, onChange:function(id){ cv.setView(id); },
       options:[["color","Colour"],["symbol","Symbol"],["both","Both"]].map(function(kl){ return {id:kl[0], label:kl[1], title:"Cycle view (V)"}; })})
   ) : null;
 
@@ -701,9 +685,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("input", {type:"range",min:0,max:1,step:0.05,value:value,
         onChange:function(e){set(parseFloat(e.target.value));}}));
   }
-  var highlightControls = cv.hiId ? h("div", {className:"cs-toolsec"},
-    h("div", {className:"cs-toolsec__title"}, "Highlight Mode"),
-    P.seg({label:"Highlight mode", className:"cv-seg--sub", value:cv.highlightMode, onChange:function(id){ cv.setHighlightMode(id); },
+  var highlightControls = cv.hiId ? P.sec("highlight", "Highlight", "How the chart shows the thread you chose with Show on chart in the Palette.",
+    P.seg({label:"Highlight", className:"cv-seg--sub", value:cv.highlightMode, onChange:function(id){ cv.setHighlightMode(id); },
       options:[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(function(kl){ return {id:kl[0], label:kl[1]}; })}),
     cv.highlightMode === "isolate" && dimSlider(cv.bgDimOpacity, cv.setBgDimOpacity),
     cv.highlightMode === "tint" && h("div", {className:"sb-slider-row"},
@@ -719,15 +702,15 @@ window.CreatorSidebar = function CreatorSidebar() {
   var isRealistic = app.previewMode === "realistic";
   var chartModeNow = !app.previewActive ? "chart" : app.previewMode;
   var coverageNow = app.coverageOverride;
-  var previewPanel = h("div", {className:"cs-toolsec sb-preview"},
-    h("div", {className:"cs-toolsec__title"}, "Chart Mode"),
+  var previewSec = P.sec("preview", "Preview", null,
+    h("div", {key:"mode-label", className:"cv-field__label"}, "Chart mode"),
     P.seg({label:"Chart mode", value:chartModeNow, onChange:function(id){
         if (id === "chart") { app.setPreviewActive(false); }
         else { app.setPreviewActive(true); app.setPreviewMode(id); }
       },
       options:[{id:"chart",label:"Chart"},{id:"pixel",label:"Pixel"},{id:"realistic",label:"Realistic"}]}),
     isRealistic && app.previewActive && h(React.Fragment, null,
-      h("div", {className:"cs-toolsec__title sb-subtitle"}, "Quality Level"),
+      h("div", {className:"cv-field__label sb-subtitle"}, "Quality level"),
       P.seg({label:"Quality level", className:"cv-seg--sub", value:app.realisticLevel, onChange:function(id){ app.setRealisticLevel(id); },
         options:[1,2,3,4].map(function(lv){ return {id:lv, label:"Level " + lv}; })})
     ),
@@ -753,10 +736,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {className:"cs-toolsec__check"},
       h("input", {type:"checkbox",checked:app.previewFabricBg,onChange:function(){app.setPreviewFabricBg(!app.previewFabricBg);}}),
       h("span", null, "Fabric background")
-    ),
-    // ── Split / compare view (moved here from the top toolbar) ──────────
-    (ctx.pat && ctx.pal) && h("div", {className:"sb-compare"},
-      h("div", {className:"cs-toolsec__title"}, "Compare"),
+    )
+  );
+  // ── Split / compare view (moved here from the top toolbar) ──────────
+  var compareSec = (ctx.pat && ctx.pal) ? P.sec("compare", "Compare", null,
       h("button", {
         type:"button",
         onClick:function(){
@@ -771,11 +754,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         Icons.splitView(),
         app.splitPaneEnabled ? "Exit compare" : "Compare side-by-side"
       ),
-      h("p", {className:"cs-toolsec__hint"},
-        "Shows the editable chart on the left and the realistic preview on the right."
-      )
-    )
-  );
+      P.hint("Shows the editable chart on the left and the realistic preview on the right.")
+  ) : null;
+  var previewPanel = h(React.Fragment, null, previewSec, compareSec);
 
   // ─── Create Mode Sidebar ─────────────────────────────────────────────────
   if (mode === "create") {
@@ -802,26 +783,26 @@ window.CreatorSidebar = function CreatorSidebar() {
     //    changes go through Resize canvas, which keeps the stitches. ──
     if (app.sourceTab === "canvas") {
       var canvasPanel = h("div", {className:"creator-canvas-panel"},
-        h(Section, {title:"Size & fabric", defaultOpen:true},
-          h("div", {className:"sb-facts"},
+        P.sec("canvas-size", "Size and fabric", null,
+          h("div", {key:"facts", className:"sb-facts"},
             h("span", {className:"sb-facts__k"}, "Grid"),
             h("span", {className:"sb-facts__v"}, ctx.sW + " \u00D7 " + ctx.sH + " stitches")
           ),
           h("button", {
-            type:"button", className:"g-btn sb-block-btn",
+            key:"resize", type:"button", className:"g-btn sb-block-btn",
             onClick:function(){ if (app.openResizeCanvas) app.openResizeCanvas(); }
           }, window.Icons && window.Icons.canvasResize ? window.Icons.canvasResize() : null, "Resize canvas\u2026"),
           fabricBlock()
         ),
         // Tracing picture (audit DRAW-02): shown faintly under the grid,
         // never converted. Kept with the project as trace:<projectId>.
-        h(Section, {title:"Tracing picture", defaultOpen:true},
-          h("input", {type:"file", accept:"image/*", ref:traceInputRef, hidden:true,
+        P.sec("canvas-trace", "Tracing picture", null,
+          h("input", {key:"file", type:"file", accept:"image/*", ref:traceInputRef, hidden:true,
             "aria-label":"Choose a picture to trace",
             onChange:function(e){ var f = e.target.files && e.target.files[0]; e.target.value = "";
               if (f && app.setTracePicture) app.setTracePicture(f, typeof cv.overlayOpacity === "number" ? cv.overlayOpacity : 0.3); }}),
           (gen.img && gen.img.src)
-            ? h("div", {className:"canvas-trace"},
+            ? h("div", {key:"trace", className:"canvas-trace"},
                 h("img", {src:gen.img.src, alt:"Tracing picture", className:"canvas-trace__img"}),
                 h("label", {className:"cs-toolsec__check"},
                   h("input", {type:"checkbox", checked:!!cv.showOverlay, onChange:function(e){ cv.setShowOverlay(e.target.checked); }}),
@@ -835,7 +816,7 @@ window.CreatorSidebar = function CreatorSidebar() {
                   h("button", {type:"button", className:"g-btn", onClick:function(){ traceInputRef.current && traceInputRef.current.click(); }}, "Change"),
                   h("button", {type:"button", className:"g-btn", onClick:function(){ if (app.removeTracePicture) app.removeTracePicture(); }}, "Remove"))
               )
-            : h("div", {className:"canvas-trace"},
+            : h("div", {key:"trace", className:"canvas-trace"},
                 h("p", {className:"cs-toolsec__hint"}, "Show a picture faintly under the grid to draw over. It isn\u2019t converted."),
                 h("button", {type:"button", className:"g-btn sb-start", onClick:function(){ traceInputRef.current && traceInputRef.current.click(); }},
                   window.Icons && window.Icons.image ? window.Icons.image() : null, "Add a tracing picture"))
@@ -860,8 +841,8 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Project Info Section (shared between Create and Edit modes) ──────────
   // Name, designer, and description fields. Always-editable in both modes.
-  var projectInfoSection = h(Section, {title:"Project info", defaultOpen:true},
-    h("div", {className:"sb-fields"},
+  var projectInfoSection = P.sec("project-info", "Project info", null,
+    h("div", {key:"fields", className:"sb-fields"},
       h("label", {className:"sb-field"},
         "Pattern name",
         h("input", {
@@ -915,8 +896,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       onClick:o.onClick
     }), label);
   }
-  var stitchTypeSection = h("div", {className:"cs-toolsec"},
-    h("div", {className:"cs-toolsec__title"}, "Stitch type"),
+  var stitchTypeSection = P.sec("stitch-type", "Stitch type", null,
     h("div", {role:"radiogroup", "aria-label":"Stitch type", className:"cs-seltools"},
       stitchOpts.map(function(kl) {
         var on = curStitch === kl[0];
@@ -928,8 +908,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       "Shortcuts: 1\u20134 for Cross / Half\u2009/ / Half\u2009\\ / Backstitch \u00B7 T cycles, Shift+T reverses.")
   );
 
-  var bsContSection = (curStitch === "backstitch") ? h("div", {className:"cs-toolsec"},
-    h("div", {className:"cs-toolsec__title"}, "Backstitch options"),
+  var bsContSection = (curStitch === "backstitch") ? P.sec("backstitch-options", "Backstitch options", null,
     h("label", {className:"cs-toolsec__check"},
       h("input", {type:"checkbox", checked: !!cv.bsContinuous,
         onChange:function(e){ cv.setBsContinuous(e.target.checked); cv.setBsStart(null); }}),
@@ -937,8 +916,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   ) : null;
 
-  var brushSizeSection = h("div", {className:"cs-toolsec"},
-    h("div", {className:"cs-toolsec__title"}, "Brush size"),
+  var brushSizeSection = P.sec("brush-size", "Brush size", null,
     h("div", {className:"sb-slider-row"},
       h("input", {type:"range", min:1, max:10, step:1, value:cv.brushSize||1,
         onChange:function(e){ cv.setBrushSize(parseInt(e.target.value,10)); },
@@ -965,8 +943,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
   }
   var shapeTools = [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()], ["text", "Text", window.Icons.textTool()]];
-  var shapesSection = h("div", {className:"cs-toolsec"},
-    h("div", {className:"cs-toolsec__title"}, "Shapes"),
+  var shapesSection = P.sec("shapes", "Shapes", null,
     h("div", {className:"cs-seltools"},
       shapeTools.map(function(t) {
         var on = cv.activeTool === t[0];
@@ -991,8 +968,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   var mir = cv.mirror || { on: false, axis: "v" };
   function setMir(patch) { if (cv.setMirror) cv.setMirror(function(m) { return Object.assign({}, m, patch); }); }
-  var mirrorSection = h("div", {className:"cs-toolsec"},
-    h("div", {className:"cs-toolsec__title"}, "Mirror"),
+  var mirrorSection = P.sec("mirror", "Mirror", null,
     h("label", {className:"cs-toolsec__check"},
       h("input", {type:"checkbox", checked: !!mir.on, onChange:function(e){ setMir({ on: e.target.checked }); }}),
       h("span", null, "Mirror drawing")),
@@ -1012,8 +988,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   var lassoModes = [["freehand","Lasso"],["polygon","Polygon"],["magnetic","Magnetic"]];
   var curLasso = cv.lassoMode || "freehand";
-  var selectionSection = h("div", {className:"cs-toolsec"},
-    h("div", {className:"cs-toolsec__title"}, "Selection"),
+  var selectionSection = P.sec("selection", "Selection", null,
     h("div", {className:"cs-seltools"},
       toolBtn({on: cv.activeTool === "magicWand", props:{"aria-pressed": cv.activeTool === "magicWand" ? "true" : "false"},
         onClick:function(){
@@ -1076,8 +1051,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     }, "Clear selection (" + (cv.selectionCount || 0).toLocaleString() + ")")
   );
 
-  var correctSection = h("div", {className:"cs-toolsec"},
-    h("div", {className:"cs-toolsec__title"}, "Correct"),
+  var correctSection = P.sec("correct", "Correct", null,
     h("div", {className:"cs-seltools"},
       toolBtn({on: cv.activeTool==="cleanup", props:{"aria-pressed": cv.activeTool==="cleanup" ? "true" : "false"},
         onClick:function(){
@@ -1104,8 +1078,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // Navigate | Draw (audit DRAW-01). On touch it is the first control in the
   // tool strip instead, so it isn't repeated here.
   var coarseTools = !!(window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer());
-  var modeSection = (!coarseTools && window.ModeToggle) ? h("div", {className:"cs-toolsec"},
-    h("div", {className:"cs-toolsec__title"}, "Chart mode"),
+  var modeSection = (!coarseTools && window.ModeToggle) ? P.sec("chart-mode", "Chart mode", null,
     h(window.ModeToggle, {
       className: "mode-toggle--block",
       ariaLabel: "Chart mode",
@@ -1138,16 +1111,14 @@ window.CreatorSidebar = function CreatorSidebar() {
   var railViewContent = h(React.Fragment, null,
     viewToggle,
     highlightControls,
-    (gen.img && gen.img.src) && h("div", {className:"cs-toolsec"},
-      h("div", {className:"cs-toolsec__title"}, "Your picture over the chart"),
-      h("label", {className:"cs-toolsec__check"},
+    (gen.img && gen.img.src) && P.sec("overlay", "Your picture over the chart", null,
+      h("label", {key:"show", className:"cs-toolsec__check"},
         h("input", {type:"checkbox", checked:!!cv.showOverlay, onChange:function(e){ cv.setShowOverlay(e.target.checked); }}),
         h("span", null, "Show the picture")),
       cv.showOverlay && h("input", {type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
         onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
-        className:"sb-range", "aria-label":"Overlay opacity"})
+        className:"sb-range", "aria-label":"Overlay opacity", key:"opacity"})
     ),
-    h("div", {className:"cs-toolsec sb-subhead"}, h("div", {className:"cs-toolsec__title"}, "Preview")),
     previewPanel
   );
 
@@ -1207,11 +1178,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         // Recolouring the chart: shift every colour, apply a preset palette,
         // or go back to the generated palette. These change the chart, so they
         // live here rather than in Convert.
-        cv.paletteSwap && (cv.paletteSwap.shiftSection || cv.paletteSwap.presetSection) && h("div", {className:"cs-toolsec cv-recolour"},
-          h("div", {className:"cs-toolsec__title"}, "Recolour the chart"),
-          cv.paletteSwap.shiftSection,
-          cv.paletteSwap.presetSection,
-          cv.paletteSwap.revertSection
+        cv.paletteSwap && (cv.paletteSwap.shiftSection || cv.paletteSwap.presetSection) && P.sec("recolour", "Recolour the chart",
+          "Changes every stitch of the chart's colours at once. You see the chart before and after, and can cancel, before anything changes.",
+          h("div", {key:"parts", className:"cv-recolour"},
+            cv.paletteSwap.shiftSection,
+            cv.paletteSwap.presetSection,
+            cv.paletteSwap.revertSection)
         )
       ),
       sTab === "tools" && toolsContent,
@@ -1220,7 +1192,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       sTab === "project" && h(React.Fragment, null,
         projectInfoSection,
         // Fabric can change after the pattern is made (audit COMMON-08).
-        h(Section, {title:"Fabric", defaultOpen:true}, h("div", {className:"sb-fields"}, fabricBlock()))
+        P.sec("fabric", "Fabric", null, fabricBlock())
       ),
     ),
     editActions

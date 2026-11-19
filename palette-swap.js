@@ -1361,9 +1361,8 @@ function usePaletteSwap(props) {
   }).join(", ");
 
   // ───────────── Sidebar: Shift colours Section ─────────────
-  var shiftSection = React.createElement(Section, {
-    title: "Shift colours", defaultOpen: false
-  },
+  var shiftSection = React.createElement("details", { className: "sb-disclosure" },
+    React.createElement("summary", null, React.createElement("span", { className: "sb-disclosure__chev", "aria-hidden": "true" }, Icons.chevronRight()), "Shift colours"),
     React.createElement("div", { className: "ps-stack" },
       React.createElement(HueSpectrumBar, null),
       React.createElement(SliderRow, {
@@ -1409,9 +1408,8 @@ function usePaletteSwap(props) {
   );
 
   // ───────────── Sidebar: Palette presets Section ─────────────
-  var presetSection = React.createElement(Section, {
-    title: "Palette presets", defaultOpen: false
-  },
+  var presetSection = React.createElement("details", { className: "sb-disclosure" },
+    React.createElement("summary", null, React.createElement("span", { className: "sb-disclosure__chev", "aria-hidden": "true" }, Icons.chevronRight()), "Palette presets"),
     React.createElement("div", { className: "ps-stack" },
       // Tab switcher
       React.createElement("div", { className: "lp-segmented cv-seg", role: "tablist", "aria-label": "Palette presets" },
