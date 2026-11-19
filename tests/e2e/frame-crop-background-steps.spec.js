@@ -118,6 +118,43 @@ test.describe('Frame on desktop', function () {
     expect(skipped).toBe(striped);
   });
 
+  test('with Sharpen details on, the striped count is still what Generate leaves out', async function ({ page }) {
+    await openFrame(page, PANORAMA);
+    // A sky-blue background on a photo: sharpening moves the edge of the match.
+    await page.evaluate(() => {
+      const s = window.__frameState;
+      s.setSkipBg(true); s.setBgCol([107, 145, 196]); s.setBgTh(12);
+      s.setPreSharpen(true); s.setPreSharpenAmount(2);
+    });
+    await expect(page.locator('[data-bg-count]')).toHaveCount(1);
+    await page.waitForTimeout(400);
+    const striped = Number(await page.locator('[data-bg-count]').getAttribute('data-bg-count'));
+    await continueFromFrame(page);
+    await clickGenerate(page);
+    await waitForEdit(page);
+    const skipped = await page.evaluate(() => window.__frameState.pat.filter(c => c.id === '__skip__').length);
+    expect(skipped).toBeGreaterThan(0);
+    expect(striped).toBe(skipped);
+  });
+
+  test('the stripes step aside while you pick the background colour', async function ({ page }) {
+    await openFrame(page, path.join(__dirname, '..', 'fixtures', 'logo.png'));
+    await expect(page.locator('[data-bg-overlay]')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Pick from picture' }).click();
+    await expect(page.locator('[data-bg-overlay]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[data-bg-overlay]')).toHaveCount(1);
+  });
+
+  test('exact pixel art has no stripes, and the hint does not promise them', async function ({ page }) {
+    await openFrame(page, path.join(__dirname, '..', 'fixtures', 'pixel-art-crisp.png'));
+    await page.getByRole('checkbox', { name: 'Exact pixel-art import', exact: true }).check();
+    await page.evaluate(() => window.__frameState.setSkipBg(true));
+    await expect(page.getByText('Only plain areas that touch the picture\'s edge are left unstitched.', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-bg-overlay]')).toHaveCount(0);
+    await expect(page.locator('[data-bg-key]')).toHaveCount(0);
+  });
+
   test('a looser or stricter match changes the stripes, and turning it off removes them', async function ({ page }) {
     await openFrame(page, path.join(__dirname, '..', 'fixtures', 'logo.png'));
     const count = () => page.locator('[data-bg-count]').getAttribute('data-bg-count').then(Number);
@@ -168,6 +205,22 @@ test.describe('Frame on desktop', function () {
     // Frame goes back to Frame the picture.
     await bar.getByRole('button', { name: /Frame/ }).click();
     await expect(page.locator('[data-frame-view]')).toHaveCount(1);
+  });
+
+  test('with Frame the picture turned off, Frame is not ticked as done', async function ({ page }) {
+    await page.addInitScript(() => { try { localStorage.setItem('cs_pref_creatorShowFrameStep', 'false'); } catch (e) {} });
+    await quietOnboarding(page);
+    await page.goto('/home.html?tab=create');
+    await page.locator('input.home-create-file-input').setInputFiles(PANORAMA);
+    await page.waitForURL(/create\.html/);
+    await page.waitForSelector('.rpanel', { state: 'attached' });
+    const bar = page.getByRole('navigation', { name: 'Steps to your pattern' });
+    await expect(bar.locator('[data-step="size"]')).toHaveAttribute('data-step-state', 'current');
+    await expect(bar.locator('[data-step="frame"]')).toHaveAttribute('data-step-state', 'todo');
+    await bar.getByRole('button', { name: /Frame/ }).click();
+    await page.waitForSelector('[data-frame-view]');
+    await continueFromFrame(page);
+    await expect(bar.locator('[data-step="frame"]')).toHaveAttribute('data-step-state', 'done');
   });
 
   test('a new picture starts the steps again', async function ({ page }) {

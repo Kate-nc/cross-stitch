@@ -197,7 +197,7 @@
             Icons.eyedropper(), h("span", null, gen.pickBg ? "Click the picture…" : "Pick from picture"))),
         h(SliderRow, { label: "How close a match", value: gen.bgTh, min: 3, max: 50, onChange: gen.setBgTh,
           helpText: "How closely a pixel must match the background colour to be left unstitched. Higher leaves out more." }),
-        hint(gen.convertStage === "frame"
+        hint(gen.convertStage === "frame" && !gen.exactPixelArt
           ? "Only plain areas that touch the picture's edge are left unstitched. They are striped on the picture, so you can see what will be left out."
           : "Only plain areas that touch the picture's edge are left unstitched.")
       ) : hint("Off: every pixel is stitched, background included.")
@@ -261,7 +261,7 @@
     var steps = [{ id: "frame", label: "Frame" }].concat(CONVERT_TABS.map(function (t) { return { id: t.id, label: t.label }; }))
       .concat([{ id: "generate", label: gen.hasGenerated ? "Regenerate" : "Generate" }]);
     function stateOf(id) {
-      if (id === "frame") return framing ? "current" : "done";
+      if (id === "frame") return framing ? "current" : seen.frame ? "done" : "todo";
       if (id === "generate") return gen.hasGenerated ? "done" : "todo";
       if (!framing && id === tab) return "current";
       return seen[id] ? "done" : "todo";

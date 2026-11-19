@@ -63,25 +63,44 @@ window.framePictureFilter = function framePictureFilter(bri, con, sat) {
 };
 
 // Which stitches Generate leaves unstitched as background, on the grid of
-// sW × sH stitches: the same grid (gridPixels, with brightness, contrast and
-// saturation) and the same test (prepareConversionPixels: matching colours
-// joined to the edge, or the clear parts of a picture that has them) as
-// Generate. Returns { mask (1 = left out), count } or null.
+// sW × sH stitches: the same grid (gridPixels, with brightness, contrast,
+// saturation and Sharpen details) and the same test (prepareConversionPixels:
+// matching colours joined to the edge, or the clear parts of a picture that
+// has them) as Generate (useCreatorState generate, creator/generate.js).
+// Returns { mask (1 = left out), count, w, h, img } or null.
 window.frameBackgroundMask = function frameBackgroundMask(img, sW, sH, opts) {
   if (!img || !sW || !sH || typeof gridPixels !== "function" || typeof prepareConversionPixels !== "function") return null;
-  var grid = gridPixels(img, sW, sH, { bri: opts.bri, con: opts.con, sat: opts.sat });
+  var grid = gridPixels(img, sW, sH, { bri: opts.bri, con: opts.con, sat: opts.sat,
+    preSharpenOpts: opts.preSharpen ? { amount: opts.preSharpenAmount } : null });
   var data = new Uint8ClampedArray(grid.data);
   var cover = prepareConversionPixels(data, sW, sH, { skipBg: !!opts.skipBg, bgCol: opts.bgCol, bgTh: opts.bgTh });
   var n = sW * sH, mask = new Uint8Array(n), count = 0;
   for (var i = 0; i < n; i++) if (!cover[i]) { mask[i] = 1; count++; }
-  return { mask: mask, count: count };
+  return { mask: mask, count: count, w: sW, h: sH, img: img };
 };
 
 // Stripes over the stitches left unstitched, drawn at the size the picture
 // is shown. Decorative: the count beside the picture says it in words.
 function FrameBackgroundOverlay(props) {
   var canvasRef = React.useRef(null);
-  var info = props.info, w = props.sW, hh = props.sH;
+  var info = props.info, w = info.w, hh = info.h;
+  // Drawn again when the picture's size on screen or the theme changes.
+  var _redraw = React.useState(0); var redraw = _redraw[0], setRedraw = _redraw[1];
+  React.useEffect(function () {
+    var c = canvasRef.current, box = c && c.parentNode;
+    function bump() { setRedraw(function (k) { return k + 1; }); }
+    var ro = null, mo = null;
+    if (box && typeof ResizeObserver === "function") { ro = new ResizeObserver(bump); ro.observe(box); }
+    else window.addEventListener("resize", bump);
+    if (typeof MutationObserver === "function") {
+      mo = new MutationObserver(bump);
+      mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
+    }
+    return function () {
+      if (ro) ro.disconnect(); else window.removeEventListener("resize", bump);
+      if (mo) mo.disconnect();
+    };
+  }, []);
   React.useEffect(function () {
     var c = canvasRef.current;
     if (!c) return;
@@ -114,7 +133,7 @@ function FrameBackgroundOverlay(props) {
     cx.imageSmoothingEnabled = false;
     cx.drawImage(m, 0, 0, cw, ch);
     cx.globalCompositeOperation = "source-over";
-  }, [info, w, hh, props.layoutKey]);
+  }, [info, w, hh, redraw]);
   return React.createElement("canvas", { ref: canvasRef, className: "fr-picture__bg", "aria-hidden": "true", "data-bg-overlay": "" });
 }
 
@@ -174,24 +193,23 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   var bgActive = !!(gen.skipBg && !gen.exactPixelArt && gen.img && gen.img.src && sW && sH);
   var _bgInfo = React.useState(null); var bgInfo = _bgInfo[0], setBgInfo = _bgInfo[1];
   var _showBg = React.useState(true); var showBg = _showBg[0], setShowBg = _showBg[1];
-  var _layout = React.useState(0); var layoutKey = _layout[0], setLayoutKey = _layout[1];
   React.useEffect(function () {
     if (!bgActive) { setBgInfo(null); return undefined; }
     var t = setTimeout(function () {
       var info = null;
       try {
-        info = window.frameBackgroundMask(gen.img, sW, sH, { bri: gen.bri, con: gen.con, sat: gen.sat, skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
+        info = window.frameBackgroundMask(gen.img, sW, sH, { bri: gen.bri, con: gen.con, sat: gen.sat,
+          preSharpen: gen.preSharpen, preSharpenAmount: gen.preSharpenAmount, skipBg: true, bgCol: gen.bgCol, bgTh: gen.bgTh });
       } catch (e) { info = null; }
       setBgInfo(info);
     }, 120);
     return function () { clearTimeout(t); };
-  }, [bgActive, gen.img, sW, sH, gen.bri, gen.con, gen.sat, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The stripes are drawn at the size the picture is shown.
-  React.useEffect(function () {
-    function onResize() { setLayoutKey(function (k) { return k + 1; }); }
-    window.addEventListener("resize", onResize);
-    return function () { window.removeEventListener("resize", onResize); };
-  }, []);
+  }, [bgActive, gen.img, sW, sH, gen.bri, gen.con, gen.sat, gen.preSharpen, gen.preSharpenAmount, gen.bgCol, gen.bgTh]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Stripes for another picture or size (just cropped, turned or resized)
+  // are not shown: the row says the background is being found until the new
+  // ones are ready. A change of colour or match keeps the last stripes until
+  // then, so the slider does not flicker.
+  var bgFresh = !!(bgInfo && bgInfo.img === gen.img && bgInfo.w === sW && bgInfo.h === sH);
 
   // Arrow keys on the crop box move it (Shift: further); with Alt they
   // resize it from its top left corner, keeping a chosen shape.
@@ -333,11 +351,11 @@ window.CreatorFrameView = function CreatorFrameView(props) {
         src: gen.img.src, alt: "Your picture", draggable: false,
         onDragStart: function (e) { e.preventDefault(); },
         onClick: gen.pickBg ? gen.srcClick : undefined,
-        onLoad: function () { setLayoutKey(function (k) { return k + 1; }); },
         className: "fr-picture__img" + (small ? " fr-picture__img--small" : ""),
         style: Object.assign({ filter: window.framePictureFilter(gen.bri, gen.con, gen.sat) }, window.framePictureMinSize(w, hh))
       }),
-      bgActive && showBg && bgInfo && h(FrameBackgroundOverlay, { info: bgInfo, sW: sW, sH: sH, layoutKey: layoutKey }),
+      // Hidden while picking the colour, so the picture shows its own colours.
+      bgActive && bgFresh && showBg && !gen.pickBg && h(FrameBackgroundOverlay, { info: bgInfo }),
       rect && h("div", {
         className: "fr-picture__rect" + (cropReady && !gen.pickBg ? " fr-picture__rect--live" : ""), "data-crop-rect": "",
         tabIndex: cropReady && !gen.pickBg ? 0 : undefined,
@@ -352,7 +370,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
   // What the stripes mean, in words, and a way to hide them.
   // The row is there from the moment the option is on, so the picture does
   // not move while the count is worked out.
-  var bgKey = !bgActive ? null : !bgInfo ? h("div", { className: "fr-bgkey", "data-bg-key": "", "aria-busy": "true" },
+  var bgKey = !bgActive ? null : !bgFresh ? h("div", { className: "fr-bgkey", "data-bg-key": "", "aria-busy": "true" },
     h("span", { className: "fr-bgkey__swatch", "aria-hidden": "true" }),
     h("span", { className: "fr-bgkey__text" }, "Finding the background\u2026")) : h("div", { className: "fr-bgkey", "data-bg-key": "" },
     h("span", { className: "fr-bgkey__swatch", "aria-hidden": "true" }),

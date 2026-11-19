@@ -851,8 +851,9 @@ window.useCreatorState = function useCreatorState() {
   // (the preview and the Size, Threads and Detail steps). A new picture opens
   // on Frame unless Preferences > Pattern Creator turns it off.
   var _convertStage = useState("make"); var convertStage = _convertStage[0], setConvertStage = _convertStage[1];
-  // The Convert steps opened since this picture came in ({ size, threads,
+  // The steps opened since this picture came in ({ frame, size, threads,
   // detail }), ticked in the step bar (ConvertPanel.js CreatorConvertProgress).
+  // Frame is not ticked when it was skipped (Preferences, a draft).
   var _convertSeen = useState({}); var convertSeen = _convertSeen[0], setConvertSeen = _convertSeen[1];
   function setConvertTab(v) {
     var ok = (window.CONVERT_TABS || []).some(function (t) { return t.id === v; });
@@ -1691,12 +1692,14 @@ window.useCreatorState = function useCreatorState() {
     }).catch(function() {});
   }
 
-  // A step counts as seen once it is open in Convert.
+  // A step counts as seen once it is on screen: Frame the picture, or a
+  // Convert step.
   useEffect(function () {
-    if (convertStage !== "make" || !img) return;
+    if (!img) return;
+    var id = convertStage === "frame" ? "frame" : convertTab;
     setConvertSeen(function (s) {
-      if (s[convertTab]) return s;
-      var n = Object.assign({}, s); n[convertTab] = true; return n;
+      if (s[id]) return s;
+      var n = Object.assign({}, s); n[id] = true; return n;
     });
   }, [convertStage, convertTab, img]);
 
