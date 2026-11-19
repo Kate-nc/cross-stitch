@@ -49,7 +49,7 @@ test('exact PNG import previews native pixels, alpha and remapping before genera
  // An asynchronously unavailable stash must not fall back to catalogue colours.
  await page.evaluate(()=>{window.__tabletState.setStashConstrained(true);window.__tabletState.setGlobalStash(null);});
  await clickGenerate(page);
- await expect(page.getByText('Your stash is empty', {exact:false})).toBeVisible();
+ await expect(page.getByText('so there are none to use', {exact:false})).toBeVisible();
  expect(await page.evaluate(()=>window.__tabletState.pat)).toBeNull();
  await page.evaluate(()=>window.__tabletState.setStashConstrained(false));
  await clickGenerate(page);await waitForEdit(page);
