@@ -18323,7 +18323,7 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
     ["backstitch", "Backstitch"],
     ["knot", "French knot"]
   ];
-  var BRUSH_SIZES = [1, 2, 3, 5, 7, 10];
+  var BRUSH_SIZES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   var SHAPES = [["line", "Line"], ["rect", "Rectangle"], ["ellipse", "Ellipse"]];
 
   function icon(name) {
@@ -18338,6 +18338,14 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
   }
 
   function keepFocus(e) { if (e.button === 0) e.preventDefault(); }
+
+  // Esc goes through the shared stack (keyboard-utils.js), so only the
+  // topmost overlay closes: a menu or sheet here, or a dialog opened over it.
+  function useEscapeWhile(open, close) {
+    var ref = React.useRef(close); ref.current = close;
+    var handler = React.useCallback(function () { ref.current(); }, []);
+    if (typeof window.useEscape === "function") window.useEscape(open ? handler : null);
+  }
 
   // Menus open with position: fixed (the options bar scrolls sideways when
   // a tool has many options, which would clip an absolutely placed menu).
@@ -18376,13 +18384,10 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
         if (shapesBtnRef.current && shapesBtnRef.current.contains(e.target)) return;
         setShapesOpen(false);
       }
-      function onKey(e) {
-        if (e.key === "Escape") { e.stopPropagation(); setShapesOpen(false); if (shapesBtnRef.current) shapesBtnRef.current.focus(); }
-      }
       document.addEventListener("pointerdown", onDown);
-      document.addEventListener("keydown", onKey, true);
-      return function () { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onKey, true); };
+      return function () { document.removeEventListener("pointerdown", onDown); };
     }, [shapesOpen]);
+    useEscapeWhile(!!shapesOpen, function () { setShapesOpen(false); if (shapesBtnRef.current) shapesBtnRef.current.focus(); });
 
     var palData = sortedPalette(ctx);
     var api = { cv: cv, ctx: ctx, coarse: false, palData: palData, surface: "desktopRail", lastShape: lastShapeStore.id };
@@ -18484,11 +18489,10 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
         if (cleanMenuRef.current && cleanMenuRef.current.contains(e.target)) return;
         setSelMenuOpen(false); setCleanMenuOpen(false);
       }
-      function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); setSelMenuOpen(false); setCleanMenuOpen(false); } }
       document.addEventListener("pointerdown", onDown);
-      document.addEventListener("keydown", onKey, true);
-      return function () { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onKey, true); };
+      return function () { document.removeEventListener("pointerdown", onDown); };
     }, [selMenuOpen, cleanMenuOpen]);
+    useEscapeWhile(!!(selMenuOpen || cleanMenuOpen), function () { setSelMenuOpen(false); setCleanMenuOpen(false); });
 
     var palData = sortedPalette(ctx);
     var api = { cv: cv, ctx: ctx, coarse: false, palData: palData, surface: "desktopRail" };
@@ -18516,10 +18520,8 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
       var d = specialtyRef.current.querySelector("details");
       if (d) d.open = true;
       specialtyRef.current.focus();
-      function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); setSpecialtyOpen(false); } }
-      document.addEventListener("keydown", onKey, true);
-      return function () { document.removeEventListener("keydown", onKey, true); };
     }, [specialtyOpen]);
+    useEscapeWhile(specialtyOpen, function () { setSpecialtyOpen(false); });
     var raw = cv.activeTool;
 
     // Small building blocks ---------------------------------------------------
@@ -18680,10 +18682,10 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
 
     // What the chosen tool shows -------------------------------------------
     var parts = [];
-    if (props.modeRow) {
-      // Fix outline colours and Reduce confetti bring their own controls.
-      parts.push(h("div", { key: "mode", className: "creator-optbar__mode" }, props.modeRow));
-    } else {
+    // Fix outline colours and Reduce confetti bring their own controls
+    // (props.modeRow), drawn outside the sideways-scrolling tool area so the
+    // target-colour picker can open below the bar.
+    if (!props.modeRow) {
       if (tool === "paint") {
         parts.push(stitchTypeGroup());
         if (curStitch === "backstitch") {
@@ -18721,7 +18723,8 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
             function (v) { cv.setLassoMode(v); }),
           opGroup());
       } else if (tool === "shapes") {
-        parts.push(segmented("Shape", SHAPES, raw, function (v) { Reg.get(v).activate(api); lastShapeStore.id = v; }));
+        // Picking the shape that is already on keeps it (activate() toggles).
+        parts.push(segmented("Shape", SHAPES, raw, function (v) { if (v !== raw) Reg.get(v).activate(api); lastShapeStore.id = v; }));
         if (raw === "line") {
           parts.push(h("label", { key: "snap", className: "creator-optbar__check" },
             h("input", { type: "checkbox", checked: !!cv.lineSnap, onChange: function (e) { if (cv.setLineSnap) cv.setLineSnap(e.target.checked); } }),
@@ -18816,7 +18819,9 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
     ) : null;
 
     return h("div", { className: "creator-optbar", role: "toolbar", "aria-label": "Tool options", "data-tool-options": tool || raw || "none" },
-      h("div", { className: "creator-optbar__tool" }, parts),
+      props.modeRow
+        ? h("div", { className: "creator-optbar__mode" }, props.modeRow)
+        : h("div", { className: "creator-optbar__tool" }, parts),
       h("div", { className: "creator-optbar__end" }, paste, hiChip, cleanUp, props.more || null, zoom),
       specialty
     );

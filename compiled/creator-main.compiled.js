@@ -2332,17 +2332,19 @@ function CreatorApp({
     label: 'Re-generate from image\u2026',
     title: 'Return to the picture settings and generate the pattern again',
     onClick: handleRequestBackToConvert
-  } : null, {
+  } : null,
+  // These two open in the options bar, which is only there with the chart.
+  state.tab === 'pattern' ? {
     id: 'replace',
     label: 'Replace colour',
     title: 'Click a stitch to replace every stitch of its colour (R)',
     onClick: () => _railCommand('replace')
-  }, {
+  } : null, state.tab === 'pattern' ? {
     id: 'specialty',
     label: 'Petite and long stitches\u2026',
     title: 'Add or edit petite crosses and long stitches',
     onClick: () => _railCommand('specialty')
-  }].filter(Boolean) : undefined;
+  } : null].filter(Boolean) : undefined;
   // Shared by the action bar and, in the tool-rail layout, the header row.
   const _actionBarProps = {
     ready: !!(state.pat && state.pal),

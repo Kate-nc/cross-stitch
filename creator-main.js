@@ -1380,8 +1380,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     { id:'resize', label:'Resize canvas\u2026', title:'Crop or expand the pattern bounds', onClick:()=>state.setResizeCanvasOpen(true) },
     { id:'crop', label:'Crop to the stitches', title:'Remove empty rows and columns around the stitches', onClick:()=>stableCropToStitches() },
     (state.img && state.img.src && !state.isScratchMode) ? { id:'regenerate', label:'Re-generate from image\u2026', title:'Return to the picture settings and generate the pattern again', onClick:handleRequestBackToConvert } : null,
-    { id:'replace', label:'Replace colour', title:'Click a stitch to replace every stitch of its colour (R)', onClick:()=>_railCommand('replace') },
-    { id:'specialty', label:'Petite and long stitches\u2026', title:'Add or edit petite crosses and long stitches', onClick:()=>_railCommand('specialty') },
+    // These two open in the options bar, which is only there with the chart.
+    state.tab==='pattern' ? { id:'replace', label:'Replace colour', title:'Click a stitch to replace every stitch of its colour (R)', onClick:()=>_railCommand('replace') } : null,
+    state.tab==='pattern' ? { id:'specialty', label:'Petite and long stitches\u2026', title:'Add or edit petite crosses and long stitches', onClick:()=>_railCommand('specialty') } : null,
   ].filter(Boolean) : undefined;
   // Shared by the action bar and, in the tool-rail layout, the header row.
   const _actionBarProps = {

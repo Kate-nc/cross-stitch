@@ -111,3 +111,28 @@ describe('the side panel in the rail layout', () => {
     expect(sidebar).toMatch(/railLayout && sTab === "preview"\) sTab = "view"/);
   });
 });
+
+describe('review fixes (PR #428)', () => {
+  test('the options bar offers every brush size from 1 to 10, as the Tools tab slider did', () => {
+    expect(rail).toMatch(/var BRUSH_SIZES = \[1, 2, 3, 4, 5, 6, 7, 8, 9, 10\];/);
+  });
+
+  test('picking the shape that is already on keeps it on', () => {
+    expect(rail).toMatch(/segmented\("Shape", SHAPES, raw, function \(v\) \{ if \(v !== raw\) Reg\.get\(v\)\.activate\(api\);/);
+  });
+
+  test('Esc goes through the shared stack, so only the topmost overlay closes', () => {
+    expect(rail).not.toMatch(/addEventListener\("keydown"/);
+    expect(rail).toMatch(/window\.useEscape\(open \? handler : null\)/);
+    expect(rail).toMatch(/useEscapeWhile\(specialtyOpen,/);
+  });
+
+  test('Fix outline colours and Reduce confetti rows sit outside the scrolling tool area', () => {
+    expect(rail).toMatch(/props\.modeRow\s*\?\s*h\("div", \{ className: "creator-optbar__mode" \}, props\.modeRow\)\s*:\s*h\("div", \{ className: "creator-optbar__tool" \}, parts\)/);
+  });
+
+  test('Replace colour and Petite and long stitches are offered only with the chart showing', () => {
+    expect(main).toMatch(/state\.tab==='pattern' \? \{ id:'replace'/);
+    expect(main).toMatch(/state\.tab==='pattern' \? \{ id:'specialty'/);
+  });
+});

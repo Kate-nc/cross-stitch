@@ -9496,7 +9496,7 @@ body.creator-drail-layout .tb-topbar-inner{max-width:none;}
 .creator-optbar__icon-btn svg{width:16px;height:16px;}
 .creator-optbar__icon-btn:hover{background:var(--surface-secondary);}
 .creator-optbar__zoom-pct{min-width:40px;text-align:right;font-variant-numeric:tabular-nums;font-size:var(--text-sm);color:var(--text-secondary);}
-.creator-optbar__mode{display:flex;align-items:center;min-width:0;}
+.creator-optbar__mode{flex:1 1 auto;min-width:0;display:flex;align-items:center;}
 .creator-optbar__mode .swatch-strip-row{flex-wrap:nowrap!important;padding:0!important;border:none;background:transparent;}
 .creator-optbar .tb-overflow-wrap > .tb-btn{min-height:32px;}
 .creator-optbar .tb-more-panel{position:fixed;top:calc(var(--app-header-height,48px) + var(--creator-optbar-h) + 4px);right:12px;max-height:calc(100vh - var(--app-header-height,48px) - var(--creator-optbar-h) - 16px);overflow-y:auto;}

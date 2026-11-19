@@ -347,6 +347,57 @@ test.describe('Tool rail on a 1440 x 900 desktop', () => {
     await expect.poll(() => page.evaluate(() => window.__cs.precisionCursor)).toBe(true);
   });
 
+  test('review fixes: sizes, shape reselect, Esc order, target picker, Pattern menu outside Edit', async ({ page }) => {
+    await railPref(page, true);
+    await generateLogo(page);
+    await closeReadyBar(page);
+    const bar = page.locator('.creator-optbar');
+
+    // Every brush size from 1 to 10.
+    await railBtn(page, 'paint').click();
+    await expect(bar.getByRole('combobox', { name: 'Brush size' }).locator('option')).toHaveCount(10);
+
+    // Picking the shape that is already on keeps Shapes on.
+    await railBtn(page, 'shapes').click();
+    await page.keyboard.press('Escape');
+    await bar.getByRole('radio', { name: 'Line', exact: true }).click();
+    await expect(railBtn(page, 'shapes')).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => page.evaluate(() => window.__cs.activeTool)).toBe('line');
+
+    // Esc with Preferences open over the petite sheet closes only Preferences.
+    await page.locator('[data-onboard="creator-pages"]').click();
+    await page.locator('.tb-page-dropdown [data-command="specialty"]').click();
+    const sheet = page.getByRole('dialog', { name: 'Petite and long stitches' });
+    await expect(sheet).toBeVisible();
+    await page.getByRole('button', { name: 'File' }).click();
+    await page.getByRole('button', { name: 'Preferences…' }).click();
+    const prefs = page.getByRole('dialog').filter({ hasText: 'Touch and pen' });
+    await expect(prefs).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(prefs).toHaveCount(0);
+    await expect(sheet).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+
+    // Fix outline colours: the target-colour picker opens below the bar, clickable.
+    await bar.getByRole('button', { name: 'Clean up menu' }).click();
+    await page.getByRole('menu', { name: 'Clean up' }).getByRole('menuitemcheckbox', { name: 'Fix outline colours' }).click();
+    await bar.getByRole('button', { name: 'Change cleanup target colour' }).click();
+    const opt = page.getByRole('listbox', { name: 'Select cleanup target colour' }).getByRole('option').first();
+    await expect(opt).toBeVisible();
+    const hit = await opt.evaluate(el => { const r = el.getBoundingClientRect(); return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === el; });
+    expect(hit).toBe(true);
+    await opt.click();
+    await bar.getByRole('button', { name: 'Stop fixing outline colours' }).click();
+
+    // On Materials the Pattern menu leaves out the commands that need the chart.
+    await page.getByRole('tab', { name: 'Materials' }).click();
+    await page.locator('[data-onboard="creator-pages"]').click();
+    const cmds = page.locator('.tb-page-dropdown [data-command]');
+    await expect(cmds.first()).toBeVisible();
+    await expect(page.locator('.tb-page-dropdown [data-command="replace"], .tb-page-dropdown [data-command="specialty"]')).toHaveCount(0);
+  });
+
   test('with the preference off, the toolbar pill and action bar are as before', async ({ page }) => {
     await railPref(page, false);
     await generateLogo(page);
