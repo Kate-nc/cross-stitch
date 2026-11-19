@@ -3,7 +3,7 @@
 // the editing tips (reports/create-from-image-workflow, decision 3).
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
-const { device, generateLogo, openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
+const { device, generateLogo, openConvertWithLogo, clickGenerate, waitForEdit, reframe, zoomUntilScrollable } = require('./creator-helpers');
 
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });
 
@@ -17,7 +17,7 @@ test.describe('After Generate on desktop', function() {
     await expect(bar).toBeVisible();
     await expect(bar.locator('[data-ready-summary]')).toContainText('stitches');
     await expect(bar.locator('[data-ready-summary]')).toContainText('Saved on this device');
-    await expect(bar.locator('[data-ready-next]')).toContainText('Choose a thread, then click a square to change it');
+    await expect(bar.locator('[data-ready-next]')).toContainText('Choose a thread, then select Paint');
     await expect(bar.getByRole('button', { name: 'Choose a thread' })).toBeVisible();
     await expect(bar.getByRole('button', { name: 'Threads to buy' })).toBeVisible();
     // Desktop leaves Print PDF and Open in Tracker in the action bar only: exactly one of each visible.
@@ -37,13 +37,21 @@ test.describe('After Generate on desktop', function() {
     await expect(page.locator('.pal-rows .pal-row').first()).toBeFocused();
   });
 
-  test('Threads to buy opens Materials on its Threads list and closes the bar', async function({ page }) {
+  test('Threads to buy opens Materials and returning to Edit restores the chart scroll', async function({ page }) {
     await generateLogo(page);
     const bar = page.getByRole('region', { name: 'Your pattern is ready' });
+    const chart = await zoomUntilScrollable(page);
+    const savedScroll = await chart.evaluate(el => {
+      el.scrollLeft = 35;
+      el.scrollTop = 35;
+      return [el.scrollLeft, el.scrollTop];
+    });
+    expect(savedScroll).toEqual([35, 35]);
     await bar.getByRole('button', { name: 'Threads to buy' }).click();
     await expect(page.getByRole('tab', { name: /Threads/, selected: true })).toBeVisible();
     await page.getByRole('tab', { name: 'Edit' }).first().click();
     await expect(bar).toHaveCount(0);
+    await expect.poll(() => chart.evaluate(el => [el.scrollLeft, el.scrollTop])).toEqual(savedScroll);
   });
 
   test('closing the bar does not show a duplicate review note', async function({ page }) {
@@ -107,12 +115,29 @@ test.describe('After Generate on Pixel 5', function() {
     await expect(bar).toBeVisible();
     // Convert's toast was dismissed so nothing covers the Ready bar.
     await expect(page.locator('.creator-toast-container > *')).toHaveCount(0);
-    await expect(bar.locator('[data-ready-next]')).toContainText('Choose a thread, then tap a square to change it');
+    await expect(bar.locator('[data-ready-next]')).toContainText('Choose a thread, then select Paint');
     for (const name of ['Choose a thread', 'Print PDF', 'Open in Tracker', 'Threads to buy']) {
       await expect(bar.getByRole('button', { name })).toBeVisible();
     }
     await bar.getByRole('button', { name: 'Choose a thread' }).click();
     await expect(page.locator('.rpanel')).toHaveClass(/rpanel--open/);
     await expect(page.locator('.pal-rows .pal-row').first()).toBeFocused();
+    await page.locator('.pal-rows .pal-row').first().click();
+    await expect(bar.locator('[data-ready-next]')).toContainText('Choose a thread, then select Paint');
+    await page.locator('.creator-sidebar-tab[data-tab-id="palette"]').click();
+    await page.getByRole('button', { name: 'Paint tool' }).click();
+    await expect(bar.locator('[data-ready-next]')).toContainText('Tap a square to change it');
+  });
+
+  test('Reframe keeps Edit and Materials available after Generate', async function({ page }) {
+    await generateLogo(page);
+    const bar = page.locator('.cc-modes');
+    await bar.getByRole('tab', { name: 'Convert' }).click();
+    await reframe(page);
+    await expect(bar.getByRole('tab', { name: 'Materials' })).toBeEnabled();
+    await expect(page.locator('[data-frame-view] [data-onboard="frame-continue"]')).toBeVisible();
+    await bar.getByRole('tab', { name: 'Edit' }).click();
+    await expect(page.locator('.cs-chart-scroll')).toBeVisible();
+    await expect(page.locator('[data-frame-view]')).toHaveCount(0);
   });
 });

@@ -122,9 +122,9 @@
       hasPat ? h("span", {
         className: "cc-save cc-save--" + status.tone, role: "status", "aria-label": status.label, title: status.label
       }, status.icon) : null,
-      // Frame the picture: Continue to the settings, the same as the button
-      // under Frame's settings (creator/FrameView.js listens for it).
-      appMode === "create" && props.hasImage && props.framing ? h("button", {
+      // Keep the section switcher while reframing an existing chart's picture.
+      // Frame has its own Continue button below the picture controls.
+      appMode === "create" && props.hasImage && props.framing && !hasPat ? h("button", {
         type: "button", className: "cc-continue", onClick: props.onContinue, "data-onboard": "frame-continue",
         "aria-label": "Continue", title: "Continue to size, threads and detail"
       }, h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null) :

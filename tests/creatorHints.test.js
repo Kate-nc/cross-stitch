@@ -122,13 +122,26 @@ describe('Hints match the screen (A2, A3, X3)', () => {
 
   test('blank grid after adding a thread names the real thread on desktop and touch', () => {
     const pal = [{ id: '310', name: 'Black', rgb: [0, 0, 0], count: 0, brand: 'dmc' }];
-    const d = renderPatternTab({ coarse: false, isScratchMode: true, displayPal: pal, selectedColorId: '310', totalStitchable: 0 });
+    const d = renderPatternTab({ coarse: false, drawMode: true, isScratchMode: true, displayPal: pal, selectedColorId: '310', totalStitchable: 0 });
     expect(d.doc.querySelector('.scratch-empty-hint').textContent).toBe('Click a square to stitch with DMC 310 Black');
     d.close();
 
-    const t = renderPatternTab({ coarse: true, isScratchMode: true, displayPal: pal, selectedColorId: '310', totalStitchable: 0 });
+    const t = renderPatternTab({ coarse: true, drawMode: true, isScratchMode: true, displayPal: pal, selectedColorId: '310', totalStitchable: 0 });
     expect(t.doc.querySelector('.scratch-empty-hint').textContent).toBe('Tap a square to stitch with DMC 310 Black');
     t.close();
+  });
+
+  test('blank grid in Navigate prompts Paint and never names an unselected thread', () => {
+    const pal = [{ id: '310', name: 'Black', rgb: [0, 0, 0], count: 0, brand: 'dmc' }];
+    const options = { coarse: true, isScratchMode: true, displayPal: pal, totalStitchable: 0 };
+    const selected = renderPatternTab({ ...options, selectedColorId: '310' });
+    expect(selected.doc.querySelector('.scratch-empty-hint').textContent).toBe('Select Paint to stitch with DMC 310 Black');
+    selected.close();
+
+    const cleared = renderPatternTab(options);
+    expect(cleared.doc.querySelector('.scratch-empty-hint').textContent).toContain('Choose a working thread');
+    expect(cleared.doc.querySelector('.scratch-empty-hint').textContent).not.toContain('DMC 310');
+    cleared.close();
   });
 
   test('Palette summary count is hidden while zero and labelled "Threads used in stitches" when non-zero', () => {

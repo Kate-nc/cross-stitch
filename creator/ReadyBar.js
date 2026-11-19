@@ -9,7 +9,8 @@
    editing tips then appear one at a time as before.
 
    Reads AppContext (readyBarOpen, setReadyBarOpen, printPdf,
-   handleOpenInTracker, setTab, setMaterialsTab) and PatternDataContext.
+   handleOpenInTracker, navigateToTab, setMaterialsTab), PatternDataContext and
+   CanvasContext.
    Concatenated into creator/bundle.js before PatternTab.js, which renders it. */
 
 (function () {
@@ -47,10 +48,15 @@
   window.CreatorReadyBar = function CreatorReadyBar() {
     var app = window.useApp();
     var ctx = window.usePatternData();
+    var cv = window.useCanvas();
     if (!app.readyBarOpen || !ctx.pat || !ctx.pal) return null;
     var Icons = window.Icons || {};
-    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
+    var compact = app.compact;
     var coarse = !!(window.Platform && typeof window.Platform.isCoarsePointer === "function" && window.Platform.isCoarsePointer());
+    var canPaint = cv.drawMode && cv.activeTool === "paint" && cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
+    var nextStep = canPaint
+      ? (coarse ? "Tap a square to change it." : "Click a square to change it.")
+      : "Choose a thread, then select Paint.";
     var s = readySummary(ctx.sW, ctx.sH, ctx.pal, ctx.totalSkeins);
     var save = readySaveState(app.saveStatus, app.savedAt);
     var isError = save.state === "error";
@@ -91,15 +97,14 @@
         h("span", { className: "ready-bar__summary", "data-ready-summary": "" },
           s.text + ". ",
           h("span", { className: "ready-bar__save-status", "data-ready-save-status": save.state, role: isError ? "alert" : "status" }, saveLine)),
-        h("span", { className: "ready-bar__next", "data-ready-next": "" },
-          coarse ? "Choose a thread, then tap a square to change it." : "Choose a thread, then click a square to change it."),
+        h("span", { className: "ready-bar__next", "data-ready-next": "" }, nextStep),
         isError && h("span", { className: "ready-bar__save-actions" },
           app.retryAutoSave ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.retryAutoSave(); } },
             Icons.refresh ? Icons.refresh() : null, h("span", null, "Retry")) : null,
           app.saveProject ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.saveProject(); } },
             Icons.save ? Icons.save() : null, h("span", null, "Download project (.json)")) : null),
         h("span", { className: "ready-bar__links" },
-          (Number(ctx.totalStitchable) || 0) > 0 && h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
+          (Number(ctx.totalStitchable) || 0) > 0 && h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.navigateToTab("materials"); }) }, "Ready to stitch review"),
           s.blends > 0 && window.openBlendHelp && window.BLEND_HELP
             ? h("button", { type: "button", className: "ready-bar__link", onClick: function () { window.openBlendHelp(); } }, window.BLEND_HELP.title)
             : null)),
@@ -112,7 +117,7 @@
         compact && app.printPdf && h("button", { key: "print", type: "button", className: "btn btn-sm" + (fromTracker ? "" : " btn-primary"), onClick: then(app.printPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")),
         compact && !fromTracker && trackBtn(false),
-        h("button", { key: "threads", type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.setTab("materials"); }) },
+        h("button", { key: "threads", type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.navigateToTab("materials"); }) },
           Icons.thread ? Icons.thread() : null, h("span", null, "Threads to buy"))),
       h("button", { type: "button", className: "ready-bar__close", onClick: close, "aria-label": "Close: keep editing", title: "Close" },
         Icons.x ? Icons.x() : null));

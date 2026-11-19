@@ -36,9 +36,9 @@
    *   - schedule(saveFn): mark pending and arm the debounce; saveFn must
    *                       return a Promise that resolves with the saved
    *                       project id (or any truthy value) on success.
-   *   - flush():           run any pending save immediately, returns Promise
+   *   - flush():           bypass debounce, waiting for any in-flight write first
    *   - cancel():          cancel any pending debounce/fade timers
-   *   - isPending():       true when a debounce timer is armed
+   *   - isPending():       true when a save is queued
    *   - isInFlight():      true when a save is currently running
    */
   function createSaveController(callbacks, opts) {
@@ -59,7 +59,8 @@
     var debounceTimer = null;
     var fadeTimer     = null;
     var pendingSaveFn = null;
-    var inFlight      = false;
+    var inFlight      = null;
+    var revision      = 0;
     var firstSaveDone = false;
 
     function clearDebounce() {
@@ -71,13 +72,17 @@
       fadeTimer = null;
     }
 
+    function startQueuedSave() {
+      if (pendingSaveFn && debounceTimer === null) runNow();
+    }
+
     function runNow() {
       clearDebounce();
+      if (inFlight || !pendingSaveFn) return inFlight || Promise.resolve();
       clearFade();
       var saveFn = pendingSaveFn;
+      var saveRevision = revision;
       pendingSaveFn = null;
-      if (typeof saveFn !== 'function') { return Promise.resolve(); }
-      inFlight = true;
       onStatus('saving');
       var p;
       try {
@@ -86,41 +91,46 @@
       } catch (err) {
         p = Promise.reject(err);
       }
-      return p.then(function (result) {
-        inFlight = false;
-        onError(null);
-        onSavedAt(now());
-        onStatus('saved');
+      inFlight = p.then(function (result) {
+        inFlight = null;
+        if (saveRevision === revision) {
+          onError(null);
+          onSavedAt(now());
+          onStatus('saved');
+          if (setT && savedHoldMs > 0) {
+            fadeTimer = setT(function () {
+              fadeTimer = null;
+              if (saveRevision === revision) onStatus('idle');
+            }, savedHoldMs);
+          }
+        }
         var wasFirst = !firstSaveDone;
         firstSaveDone = true;
         if (wasFirst) {
           try { onFirstSaveSuccess(result); } catch (_) {}
         }
-        // Fade 'saved' → 'idle' after the hold window so the badge doesn't
-        // permanently shout success after a single edit.
-        if (setT && savedHoldMs > 0) {
-          fadeTimer = setT(function () {
-            fadeTimer = null;
-            // Only fade if no fresh edit has come in meanwhile.
-            if (!debounceTimer && !inFlight) { onStatus('idle'); }
-          }, savedHoldMs);
-        }
+        startQueuedSave();
         return result;
       }, function (err) {
-        inFlight = false;
-        onError(err || new Error('Unknown save error'));
-        onStatus('error');
+        inFlight = null;
+        if (saveRevision === revision) {
+          onError(err || new Error('Unknown save error'));
+          onStatus('error');
+        }
         // Surface to the console so devtools users can see the stack.
         if (typeof console !== 'undefined' && console.error) {
           console.error('Auto-save failed:', err);
         }
+        startQueuedSave();
         // Don't re-throw — the controller has already reported the error
         // through the callbacks; throwing would create an unhandled
         // rejection in production.
       });
+      return inFlight;
     }
 
     function schedule(saveFn) {
+      revision++;
       pendingSaveFn = saveFn;
       onStatus('pending');
       // A new edit cancels any lingering 'saved' fade so we don't briefly
@@ -136,8 +146,9 @@
     }
 
     function flush() {
-      if (!debounceTimer && !pendingSaveFn) { return Promise.resolve(); }
-      return runNow();
+      if (!inFlight) return runNow();
+      clearDebounce();
+      return inFlight.then(function (result) { return inFlight || result; });
     }
 
     function cancel() {
@@ -150,8 +161,8 @@
       schedule: schedule,
       flush:    flush,
       cancel:   cancel,
-      isPending:  function () { return debounceTimer !== null; },
-      isInFlight: function () { return inFlight; },
+      isPending:  function () { return !!pendingSaveFn; },
+      isInFlight: function () { return !!inFlight; },
       hasFirstSaveCompleted: function () { return firstSaveDone; }
     };
   }

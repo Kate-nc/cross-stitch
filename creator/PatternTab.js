@@ -121,9 +121,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     ctx.isScratchMode && (Number(ctx.totalStitchable) || 0) === 0 && (function() {
       var hasThreads = !!(ctx.displayPal && ctx.displayPal.length > 0);
-      var activeThread = hasThreads
-        ? ((cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId]) || ctx.displayPal[0])
-        : null;
+      var activeThread = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
       var threadName = activeThread
         ? (typeof formatThread === "function" ? formatThread(activeThread) : (activeThread.name ? activeThread.id + " " + activeThread.name : activeThread.id))
         : "";
@@ -131,10 +129,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         className: "scratch-empty-hint",
         style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-2)',flexWrap:"wrap"}
       },
-        hasThreads
-          ? h("span", null, (coarse ? "Tap a square to stitch with " : "Click a square to stitch with ") + threadName)
+        activeThread
+          ? h("span", null, cv.drawMode && cv.activeTool === "paint"
+              ? (coarse ? "Tap a square to stitch with " : "Click a square to stitch with ") + threadName
+              : "Select Paint to stitch with " + threadName)
           : h(React.Fragment, null,
-              h("span", null, "Choose your first thread"),
+              h("span", null, hasThreads ? "Choose a working thread" : "Choose your first thread"),
               h("button", {
                 type: "button",
                 className: "btn btn-sm",

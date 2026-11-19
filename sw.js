@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "bc94df5a624a3d1bbc32d9b07e0e9ee0e810e3c3c0ba38d77f6b8f994392b4f7";
+var BUILD_ID = "d42f8be5f3c41f31d181a96735add79fd03d00b0bc0b2bf32b2610210d0c1da2";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -331,7 +331,7 @@ var BUILD_ASSETS = {
     "sha256": "84fbfeb4bd068b72a2f4501f753e6361030788f90fce96c03f6a8ca7c677549e"
   },
   "./changelog.js": {
-    "sha256": "38e02ca039d77730744a7647c4effce3319443ee14a704e724a86af1f54ed405"
+    "sha256": "e9074a4b9a23fe8f264fbf4a46fda1b7d57254af9b64dd96fa26cc3316e4dc09"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -466,7 +466,7 @@ var BUILD_ASSETS = {
     "sha256": "e1cbf30ba8ff1b6a89366bb214aed67945d4bd908b4845ca8fc0331d4f1d0e46"
   },
   "./creator/bundle.js": {
-    "sha256": "4847bafdb0987263d0023fa0771974a4564456ad931c22fdbefc195b30c418f6"
+    "sha256": "d09a0c344158de1858b143666a63e4780abc3e0c90c031c5ede4749ff2de999d"
   },
   "./creator/extras-bundle.js": {
     "sha256": "d8eae7b9f95bf33642965996bc2b84f1836f1fc22968ce3e0093199e397a0465"
@@ -487,7 +487,7 @@ var BUILD_ASSETS = {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
   },
   "./compiled/creator-main.compiled.js": {
-    "sha256": "1abc05aff726a1f420c49d5c66630ca818065de08133b7e86529cb2d743a9458"
+    "sha256": "94f21a431a49fdbe6fe6665609c119b9138814fdd36173354e588a61a8f5b035"
   },
   "./compiled/tracker-app.compiled.js": {
     "sha256": "70c9fb039f8269f393c630cd10fe0ecd11daecf061d50fcef9c038b7a241f9e7"
@@ -583,7 +583,7 @@ var BUILD_ASSETS = {
     "sha256": "f5b82c0a7e6c32ac6cd717f5b3e8b3270b26fd84d91253a0d73821a2a6d7a200"
   },
   "./help-drawer.js": {
-    "sha256": "108a93662cd95bd2b0f7add4abcf879631d36e822fb39989a7d2b40f9e143b45"
+    "sha256": "c8c40e9ffde70b3882f43d927711d909128c4b06700b1928ebdd97367de42dea"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"

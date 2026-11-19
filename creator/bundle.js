@@ -68,9 +68,9 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
    *   - schedule(saveFn): mark pending and arm the debounce; saveFn must
    *                       return a Promise that resolves with the saved
    *                       project id (or any truthy value) on success.
-   *   - flush():           run any pending save immediately, returns Promise
+   *   - flush():           bypass debounce, waiting for any in-flight write first
    *   - cancel():          cancel any pending debounce/fade timers
-   *   - isPending():       true when a debounce timer is armed
+   *   - isPending():       true when a save is queued
    *   - isInFlight():      true when a save is currently running
    */
   function createSaveController(callbacks, opts) {
@@ -91,7 +91,8 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
     var debounceTimer = null;
     var fadeTimer     = null;
     var pendingSaveFn = null;
-    var inFlight      = false;
+    var inFlight      = null;
+    var revision      = 0;
     var firstSaveDone = false;
 
     function clearDebounce() {
@@ -103,13 +104,17 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
       fadeTimer = null;
     }
 
+    function startQueuedSave() {
+      if (pendingSaveFn && debounceTimer === null) runNow();
+    }
+
     function runNow() {
       clearDebounce();
+      if (inFlight || !pendingSaveFn) return inFlight || Promise.resolve();
       clearFade();
       var saveFn = pendingSaveFn;
+      var saveRevision = revision;
       pendingSaveFn = null;
-      if (typeof saveFn !== 'function') { return Promise.resolve(); }
-      inFlight = true;
       onStatus('saving');
       var p;
       try {
@@ -118,41 +123,46 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
       } catch (err) {
         p = Promise.reject(err);
       }
-      return p.then(function (result) {
-        inFlight = false;
-        onError(null);
-        onSavedAt(now());
-        onStatus('saved');
+      inFlight = p.then(function (result) {
+        inFlight = null;
+        if (saveRevision === revision) {
+          onError(null);
+          onSavedAt(now());
+          onStatus('saved');
+          if (setT && savedHoldMs > 0) {
+            fadeTimer = setT(function () {
+              fadeTimer = null;
+              if (saveRevision === revision) onStatus('idle');
+            }, savedHoldMs);
+          }
+        }
         var wasFirst = !firstSaveDone;
         firstSaveDone = true;
         if (wasFirst) {
           try { onFirstSaveSuccess(result); } catch (_) {}
         }
-        // Fade 'saved' → 'idle' after the hold window so the badge doesn't
-        // permanently shout success after a single edit.
-        if (setT && savedHoldMs > 0) {
-          fadeTimer = setT(function () {
-            fadeTimer = null;
-            // Only fade if no fresh edit has come in meanwhile.
-            if (!debounceTimer && !inFlight) { onStatus('idle'); }
-          }, savedHoldMs);
-        }
+        startQueuedSave();
         return result;
       }, function (err) {
-        inFlight = false;
-        onError(err || new Error('Unknown save error'));
-        onStatus('error');
+        inFlight = null;
+        if (saveRevision === revision) {
+          onError(err || new Error('Unknown save error'));
+          onStatus('error');
+        }
         // Surface to the console so devtools users can see the stack.
         if (typeof console !== 'undefined' && console.error) {
           console.error('Auto-save failed:', err);
         }
+        startQueuedSave();
         // Don't re-throw — the controller has already reported the error
         // through the callbacks; throwing would create an unhandled
         // rejection in production.
       });
+      return inFlight;
     }
 
     function schedule(saveFn) {
+      revision++;
       pendingSaveFn = saveFn;
       onStatus('pending');
       // A new edit cancels any lingering 'saved' fade so we don't briefly
@@ -168,8 +178,9 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
     }
 
     function flush() {
-      if (!debounceTimer && !pendingSaveFn) { return Promise.resolve(); }
-      return runNow();
+      if (!inFlight) return runNow();
+      clearDebounce();
+      return inFlight.then(function (result) { return inFlight || result; });
     }
 
     function cancel() {
@@ -182,8 +193,8 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
       schedule: schedule,
       flush:    flush,
       cancel:   cancel,
-      isPending:  function () { return debounceTimer !== null; },
-      isInFlight: function () { return inFlight; },
+      isPending:  function () { return !!pendingSaveFn; },
+      isInFlight: function () { return !!inFlight; },
       hasFirstSaveCompleted: function () { return firstSaveDone; }
     };
   }
@@ -17656,9 +17667,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       hasPat ? h("span", {
         className: "cc-save cc-save--" + status.tone, role: "status", "aria-label": status.label, title: status.label
       }, status.icon) : null,
-      // Frame the picture: Continue to the settings, the same as the button
-      // under Frame's settings (creator/FrameView.js listens for it).
-      appMode === "create" && props.hasImage && props.framing ? h("button", {
+      // Keep the section switcher while reframing an existing chart's picture.
+      // Frame has its own Continue button below the picture controls.
+      appMode === "create" && props.hasImage && props.framing && !hasPat ? h("button", {
         type: "button", className: "cc-continue", onClick: props.onContinue, "data-onboard": "frame-continue",
         "aria-label": "Continue", title: "Continue to size, threads and detail"
       }, h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null) :
@@ -19827,8 +19838,7 @@ window.CreatorReframeButton = function CreatorReframeButton() {
 window.CreatorFrameView = function CreatorFrameView(props) {
   var gen = window.useGeneration();
   var pd = window.usePatternData ? window.usePatternData() : null;
-  // On phones the tour points at the top bar's Continue (CompactBar), the one
-  // on screen; this one is at the foot of the page.
+  // Before Generate on phones, the tour points at Continue in the top bar.
   var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
   var h = React.createElement;
   var Icons = window.Icons || {};
@@ -20076,7 +20086,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
       h("div", { className: "fr-panel__body" },
         window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
       h("footer", { className: "fr-footer" },
-        h("button", Object.assign(compact ? {} : { "data-onboard": "frame-continue" }, { type: "button", className: "fr-continue", onClick: next }),
+        h("button", { "data-onboard": compact && !hasChart ? undefined : "frame-continue", type: "button", className: "fr-continue", onClick: next },
           h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null),
         h("p", { className: "cs-toolsec__hint fr-footer__note" }, "Reframe, beside your picture, brings you back here."))));
 };
@@ -23196,7 +23206,8 @@ window.CreatorContextMenu = function CreatorContextMenu() {
    editing tips then appear one at a time as before.
 
    Reads AppContext (readyBarOpen, setReadyBarOpen, printPdf,
-   handleOpenInTracker, setTab, setMaterialsTab) and PatternDataContext.
+   handleOpenInTracker, navigateToTab, setMaterialsTab), PatternDataContext and
+   CanvasContext.
    Concatenated into creator/bundle.js before PatternTab.js, which renders it. */
 
 (function () {
@@ -23234,10 +23245,15 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   window.CreatorReadyBar = function CreatorReadyBar() {
     var app = window.useApp();
     var ctx = window.usePatternData();
+    var cv = window.useCanvas();
     if (!app.readyBarOpen || !ctx.pat || !ctx.pal) return null;
     var Icons = window.Icons || {};
-    var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
+    var compact = app.compact;
     var coarse = !!(window.Platform && typeof window.Platform.isCoarsePointer === "function" && window.Platform.isCoarsePointer());
+    var canPaint = cv.drawMode && cv.activeTool === "paint" && cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
+    var nextStep = canPaint
+      ? (coarse ? "Tap a square to change it." : "Click a square to change it.")
+      : "Choose a thread, then select Paint.";
     var s = readySummary(ctx.sW, ctx.sH, ctx.pal, ctx.totalSkeins);
     var save = readySaveState(app.saveStatus, app.savedAt);
     var isError = save.state === "error";
@@ -23278,15 +23294,14 @@ window.CreatorContextMenu = function CreatorContextMenu() {
         h("span", { className: "ready-bar__summary", "data-ready-summary": "" },
           s.text + ". ",
           h("span", { className: "ready-bar__save-status", "data-ready-save-status": save.state, role: isError ? "alert" : "status" }, saveLine)),
-        h("span", { className: "ready-bar__next", "data-ready-next": "" },
-          coarse ? "Choose a thread, then tap a square to change it." : "Choose a thread, then click a square to change it."),
+        h("span", { className: "ready-bar__next", "data-ready-next": "" }, nextStep),
         isError && h("span", { className: "ready-bar__save-actions" },
           app.retryAutoSave ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.retryAutoSave(); } },
             Icons.refresh ? Icons.refresh() : null, h("span", null, "Retry")) : null,
           app.saveProject ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.saveProject(); } },
             Icons.save ? Icons.save() : null, h("span", null, "Download project (.json)")) : null),
         h("span", { className: "ready-bar__links" },
-          (Number(ctx.totalStitchable) || 0) > 0 && h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
+          (Number(ctx.totalStitchable) || 0) > 0 && h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.navigateToTab("materials"); }) }, "Ready to stitch review"),
           s.blends > 0 && window.openBlendHelp && window.BLEND_HELP
             ? h("button", { type: "button", className: "ready-bar__link", onClick: function () { window.openBlendHelp(); } }, window.BLEND_HELP.title)
             : null)),
@@ -23299,7 +23314,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
         compact && app.printPdf && h("button", { key: "print", type: "button", className: "btn btn-sm" + (fromTracker ? "" : " btn-primary"), onClick: then(app.printPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")),
         compact && !fromTracker && trackBtn(false),
-        h("button", { key: "threads", type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.setTab("materials"); }) },
+        h("button", { key: "threads", type: "button", className: "btn btn-sm", onClick: then(function () { app.setMaterialsTab("threads"); app.navigateToTab("materials"); }) },
           Icons.thread ? Icons.thread() : null, h("span", null, "Threads to buy"))),
       h("button", { type: "button", className: "ready-bar__close", onClick: close, "aria-label": "Close: keep editing", title: "Close" },
         Icons.x ? Icons.x() : null));
@@ -23431,9 +23446,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     ctx.isScratchMode && (Number(ctx.totalStitchable) || 0) === 0 && (function() {
       var hasThreads = !!(ctx.displayPal && ctx.displayPal.length > 0);
-      var activeThread = hasThreads
-        ? ((cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId]) || ctx.displayPal[0])
-        : null;
+      var activeThread = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
       var threadName = activeThread
         ? (typeof formatThread === "function" ? formatThread(activeThread) : (activeThread.name ? activeThread.id + " " + activeThread.name : activeThread.id))
         : "";
@@ -23441,10 +23454,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         className: "scratch-empty-hint",
         style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",justifyContent:"center",gap:'var(--s-2)',flexWrap:"wrap"}
       },
-        hasThreads
-          ? h("span", null, (coarse ? "Tap a square to stitch with " : "Click a square to stitch with ") + threadName)
+        activeThread
+          ? h("span", null, cv.drawMode && cv.activeTool === "paint"
+              ? (coarse ? "Tap a square to stitch with " : "Click a square to stitch with ") + threadName
+              : "Select Paint to stitch with " + threadName)
           : h(React.Fragment, null,
-              h("span", null, "Choose your first thread"),
+              h("span", null, hasThreads ? "Choose a working thread" : "Choose your first thread"),
               h("button", {
                 type: "button",
                 className: "btn btn-sm",

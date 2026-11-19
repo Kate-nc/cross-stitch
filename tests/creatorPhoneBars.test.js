@@ -111,6 +111,18 @@ describe('Convert / Edit / Materials switcher', () => {
     expect(on).toEqual(['Materials']);
     w.close();
   });
+
+  test('Edit and Materials remain available while reframing an existing chart', () => {
+    const onTabChange = jest.fn();
+    const w = render({ appMode: 'create', framing: true, onTabChange });
+    const tabs = Array.from(w.document.querySelectorAll('.cc-modes [role="tab"]'));
+    expect(tabs.map(tab => tab.getAttribute('aria-label'))).toEqual(['Convert', 'Edit', 'Materials']);
+    tabs[1].click();
+    tabs[2].click();
+    expect(onTabChange.mock.calls).toEqual([['pattern'], ['materials']]);
+    expect(w.document.querySelector('.cc-continue')).toBeNull();
+    w.close();
+  });
 });
 
 describe('status hint under the chart', () => {

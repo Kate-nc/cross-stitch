@@ -151,8 +151,7 @@ window.CreatorReframeButton = function CreatorReframeButton() {
 window.CreatorFrameView = function CreatorFrameView(props) {
   var gen = window.useGeneration();
   var pd = window.usePatternData ? window.usePatternData() : null;
-  // On phones the tour points at the top bar's Continue (CompactBar), the one
-  // on screen; this one is at the foot of the page.
+  // Before Generate on phones, the tour points at Continue in the top bar.
   var compact = typeof window.useCreatorCompact === "function" ? window.useCreatorCompact() : false;
   var h = React.createElement;
   var Icons = window.Icons || {};
@@ -400,7 +399,7 @@ window.CreatorFrameView = function CreatorFrameView(props) {
       h("div", { className: "fr-panel__body" },
         window.CreatorPictureSections ? h(window.CreatorPictureSections, null) : null),
       h("footer", { className: "fr-footer" },
-        h("button", Object.assign(compact ? {} : { "data-onboard": "frame-continue" }, { type: "button", className: "fr-continue", onClick: next }),
+        h("button", { "data-onboard": compact && !hasChart ? undefined : "frame-continue", type: "button", className: "fr-continue", onClick: next },
           h("span", null, "Continue"), Icons.chevronRight ? Icons.chevronRight() : null),
         h("p", { className: "cs-toolsec__hint fr-footer__note" }, "Reframe, beside your picture, brings you back here."))));
 };

@@ -1770,6 +1770,7 @@ function CreatorApp({
       convertChartState: convertChartState,
       tab: state.tab,
       setTab: state.setTab,
+      navigateToTab: handleTabChange,
       materialsTab: state.materialsTab,
       setMaterialsTab: state.setMaterialsTab,
       modal: state.modal,
@@ -1894,6 +1895,7 @@ function CreatorApp({
       readyBarOpen: state.readyBarOpen,
       setReadyBarOpen: state.setReadyBarOpen,
       coachTipActive: coachTipActive,
+      compact: _compact,
       openResizeCanvas: () => state.setResizeCanvasOpen(true),
       cropToStitches: stableCropToStitches,
       isScratchMode: state.isScratchMode,
@@ -1903,7 +1905,7 @@ function CreatorApp({
       removeTracePicture: io.removeTracePicture,
       isActive: isActive
     };
-  }, [_sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, state.saveStatus, state.savedAt, state.saveError, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied, state.showBackground, state.previewBackground, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [_sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, _compact, handleTabChange, state.saveStatus, state.savedAt, state.saveError, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, convertChartState, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied, state.showBackground, state.previewBackground, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {

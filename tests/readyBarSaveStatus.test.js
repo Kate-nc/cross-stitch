@@ -29,7 +29,7 @@ function renderReadyBar(appOverrides) {
   const calls = { retry: 0, download: 0, close: 0 };
   const app = Object.assign({
     readyBarOpen: true,
-    setReadyBarOpen: () => { calls.close++; },
+    setReadyBarOpen: open => { app.readyBarOpen = open; calls.close++; },
     saveStatus: 'idle',
     savedAt: null,
     retryAutoSave: () => { calls.retry++; },
@@ -37,11 +37,12 @@ function renderReadyBar(appOverrides) {
     printPdf: () => {},
     handleOpenInTracker: () => {},
     setMaterialsTab: () => {},
-    setTab: () => {},
+    navigateToTab: () => {},
     pictureFromTracker: false,
   }, appOverrides || {});
 
   w.useApp = () => app;
+  w.useCanvas = () => ({});
   w.usePatternData = () => ({
     pat: [{ id: '310' }],
     pal: [{ id: '310', type: 'solid', count: 100 }],
@@ -55,20 +56,37 @@ function renderReadyBar(appOverrides) {
   w.eval(read('creator/ReadyBar.js'));
   w.eval(`
     var root = ReactDOM.createRoot(document.getElementById('root'));
-    ReactDOM.flushSync(function () {
-      root.render(React.createElement(window.CreatorReadyBar));
-    });
+    window.renderReadyBar = function () {
+      ReactDOM.flushSync(function () { root.render(React.createElement(window.CreatorReadyBar)); });
+    };
+    window.renderReadyBar();
   `);
 
   return {
     window: w,
     doc: w.document,
     calls,
+    app,
     close: () => w.close(),
   };
 }
 
 describe('CreatorReadyBar truthful save status (X4)', () => {
+  test('a compact Ready bar can close and reopen using the Creator layout state', () => {
+    const r = renderReadyBar({ compact: true });
+    r.window.useCreatorCompact = jest.fn(() => true);
+    const print = () => Array.from(r.doc.querySelectorAll('.ready-bar button')).find(button => button.textContent === 'Print PDF');
+    expect(print()).toBeDefined();
+    r.doc.querySelector('.ready-bar__close').click();
+    r.window.renderReadyBar();
+    expect(r.doc.querySelector('.ready-bar')).toBeNull();
+    r.app.readyBarOpen = true;
+    r.window.renderReadyBar();
+    expect(print()).toBeDefined();
+    expect(r.window.useCreatorCompact).not.toHaveBeenCalled();
+    r.close();
+  });
+
   test('pending status shows "Saving on this device…" without error buttons', () => {
     const r = renderReadyBar({ saveStatus: 'pending', savedAt: null });
     const bar = r.doc.querySelector('.ready-bar');
