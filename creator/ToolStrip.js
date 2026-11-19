@@ -1027,7 +1027,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     // ── Desktop tool rail and options bar (creator/DesktopRail.js) ──
     return h(React.Fragment, null,
       h(window.CreatorDesktopRail, null),
-      h(window.CreatorOptionsBar, { modeRow: cleanupRow || denoiseRow, more: morePanelWrap })
+      // More has gone: everything in it has a home on the rail, in the
+      // options bar, the Pattern menu, the View tab or Preferences
+      // (creator/toolRegistry.js RAIL_HOMES).
+      h(window.CreatorOptionsBar, { modeRow: cleanupRow || denoiseRow })
     );
   }
 

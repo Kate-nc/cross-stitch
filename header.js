@@ -488,7 +488,7 @@ function handleInlineRestore(e) {
 }
 window.restoreBackupFromInput = handleInlineRestore;
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onExportOxs, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved, saveStatus, savedAt, saveError, onRetrySave, actions, compactProject }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onExportOxs, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved, saveStatus, savedAt, saveError, onRetrySave, actions, compactProject, pageMenuItems }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
   const [helpOpen, setHelpOpen] = React.useState(function() {
@@ -891,6 +891,19 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 className: 'tb-page-dropdown-item' + (tab === id ? ' tb-page-dropdown-item--on' : ''),
                 onClick: () => { onPageChange(id); setPageDrop(false); }
               }, label)
+            ),
+            // The Creator's pattern commands in the tool-rail layout (Resize
+            // canvas, Re-generate from image and others that left More).
+            pageMenuItems && pageMenuItems.length ? React.createElement('div', { key: 'sep', className: 'tb-page-dropdown-sep', role: 'separator' }) : null,
+            (pageMenuItems || []).map((it) =>
+              React.createElement('button', {
+                key: 'cmd-' + it.id,
+                role: 'menuitem',
+                'data-command': it.id,
+                className: 'tb-page-dropdown-item',
+                title: it.title || undefined,
+                onClick: () => { setPageDrop(false); it.onClick(); }
+              }, it.label)
             )
           )
         ),

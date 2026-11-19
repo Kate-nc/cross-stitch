@@ -235,6 +235,33 @@
     var palData = sortedPalette(ctx);
     var api = { cv: cv, ctx: ctx, coarse: false, palData: palData, surface: "desktopRail" };
     var tool = Reg.currentRailTool(api);
+
+    // Commands from the header's Pattern menu (creator-main.js).
+    var _sp = React.useState(false); var specialtyOpen = _sp[0], setSpecialtyOpen = _sp[1];
+    var apiRef = React.useRef(api); apiRef.current = api;
+    React.useEffect(function () {
+      function onCommand(e) {
+        var id = e && e.detail && e.detail.id;
+        if (id === "specialty") setSpecialtyOpen(true);
+        else if (id === "replace") {
+          var t = Reg.get("replace");
+          if (!t.isOn(apiRef.current)) t.activate(apiRef.current);
+        }
+      }
+      window.addEventListener("cs:creator-command", onCommand);
+      return function () { window.removeEventListener("cs:creator-command", onCommand); };
+    }, []);
+    var specialtyRef = React.useRef(null);
+    React.useEffect(function () {
+      if (!specialtyOpen || !specialtyRef.current) return undefined;
+      // Open its list straight away, and give it focus.
+      var d = specialtyRef.current.querySelector("details");
+      if (d) d.open = true;
+      specialtyRef.current.focus();
+      function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); setSpecialtyOpen(false); } }
+      document.addEventListener("keydown", onKey, true);
+      return function () { document.removeEventListener("keydown", onKey, true); };
+    }, [specialtyOpen]);
     var raw = cv.activeTool;
 
     // Small building blocks ---------------------------------------------------
@@ -292,7 +319,8 @@
       return h(React.Fragment, { key: "mir" },
         btn("Mirror", function () { setMir({ on: !mir.on }); }, { pressed: !!mir.on, on: !!mir.on, icon: icon("mirror"), title: "Mirror drawing across the dashed axis" }),
         mir.on && select("Mirror axis", [["v", "Left–right"], ["h", "Top–bottom"], ["both", "Both"]], mir.axis || "v",
-          function (v) { setMir({ axis: v, on: true }); })
+          function (v) { setMir({ axis: v, on: true }); }),
+        mir.on && btn("Centre", function () { setMir({ ax: ctx.sW / 2, ay: ctx.sH / 2 }); }, { key: "mircentre", title: "Put the mirror axis back in the centre of the pattern", ariaLabel: "Centre the mirror axis" })
       );
     }
     function opGroup() {
@@ -359,6 +387,12 @@
                 }
               }, it[1]);
             }),
+            h("button", {
+              type: "button", role: "menuitem", "data-tool": "move",
+              className: "creator-optbar__menu-item" + (raw === "move" ? " creator-optbar__menu-item--on" : ""),
+              title: Reg.get("move").title,
+              onClick: function () { setSelMenuOpen(false); if (raw !== "move") Reg.get("move").activate(api); }
+            }, icon("move"), "Move selection"),
             h("div", { className: "creator-optbar__menu-sep", role: "separator" }),
             h("button", {
               type: "button", role: "menuitem", className: "creator-optbar__menu-item creator-optbar__menu-item--danger",
@@ -480,9 +514,34 @@
       h("button", { type: "button", className: "creator-optbar__btn creator-optbar__fit", title: "Fit the chart to the window (0)", onClick: cv.fitZ }, "Fit")
     );
 
+    // Paste, once something is copied (Ctrl+V does the same).
+    var pasteTool = Reg.get("paste");
+    var paste = Reg.isVisible(pasteTool, api) ? btn("Paste", function () { pasteTool.activate(api); }, {
+      key: "paste", icon: icon(pasteTool.icon), title: pasteTool.title
+    }) : null;
+
+    var specialty = specialtyOpen && window.SpecialtyStitchPanel ? h("div", {
+      ref: specialtyRef, tabIndex: -1, className: "creator-optbar__sheet", role: "dialog", "aria-label": "Petite and long stitches"
+    },
+      h("div", { className: "creator-optbar__sheet-head" },
+        h("strong", null, "Petite and long stitches"),
+        h("button", { type: "button", className: "creator-optbar__icon-btn", "aria-label": "Close petite and long stitches", title: "Close (Esc)",
+          onClick: function () { setSpecialtyOpen(false); } }, icon("x"))),
+      h(window.SpecialtyStitchPanel, {
+        objects: ctx.specialtyStitches || [], w: ctx.sW, h: ctx.sH, threads: ctx.displayPal || ctx.pal || [], brand: ctx.threadBrand,
+        onSelect: cv.setSpecialtySelected,
+        onChange: function (next) {
+          cv.setEditHistory(function (prev) { return prev.concat([{ type: "specialty", changes: [], specialtyStitches: ctx.specialtyStitches || [] }]).slice(-cv.EDIT_HISTORY_MAX); });
+          cv.setRedoHistory([]);
+          ctx.setSpecialtyStitches(next);
+        }
+      })
+    ) : null;
+
     return h("div", { className: "creator-optbar", role: "toolbar", "aria-label": "Tool options", "data-tool-options": tool || raw || "none" },
       h("div", { className: "creator-optbar__tool" }, parts),
-      h("div", { className: "creator-optbar__end" }, hiChip, cleanUp, props.more || null, zoom)
+      h("div", { className: "creator-optbar__end" }, paste, hiChip, cleanUp, props.more || null, zoom),
+      specialty
     );
   };
 })();

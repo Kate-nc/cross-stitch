@@ -642,10 +642,24 @@ window.CreatorSidebar = function CreatorSidebar() {
     {id:"preview",    label:"Preview",    icon:"image"},
     {id:"project",    label:"Project",    icon:"folder"}
   ];
+  // Tool-rail layout (creator.desktopRail, Stage 2): the rail and the
+  // options bar hold what was in Tools, so the tabs are Palette, View (with
+  // Preview in it) and Project.
+  var railLayout = !!app.desktopRail && !app.compact;
+  if (railLayout) {
+    editTabs = [
+      {id:"palette", label:"Palette", icon:"palette"},
+      {id:"view",    label:"View",    icon:"eye",
+        disabled: !hasPattern,
+        disabledHint:"Generate a pattern to unlock display options."},
+      {id:"project", label:"Project", icon:"folder"}
+    ];
+  }
   var tabs = editTabs;
   // A stored tab Edit doesn't have (the old Convert ids "image",
   // "dimensions" or "settings") opens the first Edit tab that is available.
   var sTab = app.sidebarTab;
+  if (railLayout && sTab === "preview") sTab = "view";
   var sTabMeta = tabs.find(function(t) { return t.id === sTab; });
   if (!sTabMeta || sTabMeta.disabled) {
     sTab = (tabs.find(function(t) { return !t.disabled; }) || tabs[0]).id;
@@ -1337,6 +1351,25 @@ window.CreatorSidebar = function CreatorSidebar() {
     previewPanel
   );
 
+  // The tool-rail layout's View tab: the chart view and highlight, the
+  // picture overlay (from More) and Preview.
+  var railViewContent = h(React.Fragment, null,
+    viewToggle,
+    highlightControls,
+    (gen.img && gen.img.src) && h("div", {className:"cs-toolsec"},
+      h("div", {className:"cs-toolsec__title"}, "Your picture over the chart"),
+      h("label", {className:"cs-toolsec__check"},
+        h("input", {type:"checkbox", checked:!!cv.showOverlay, onChange:function(e){ cv.setShowOverlay(e.target.checked); }}),
+        h("span", null, "Show the picture")),
+      cv.showOverlay && h("input", {type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
+        onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
+        style:{width:"100%"}, "aria-label":"Overlay opacity"})
+    ),
+    h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),
+    h("div", {style:subHeaderStyle}, "Preview"),
+    previewPanel
+  );
+
   var moreContent = h(React.Fragment, null,
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
@@ -1380,7 +1413,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   return h(React.Fragment, null,
     // "Back to Convert" link — shown in edit mode when a source image exists.
     // Fires the back-to-convert request (may show warning modal if edits exist).
-    gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert", style:{
+    // (The tool-rail layout has none: the Convert tab in the top bar does it.)
+    !railLayout && gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert", style:{
       flexShrink:0, padding:"6px 12px",
       borderBottom:"1px solid var(--line)",
       background:"var(--surface-secondary)"
@@ -1418,7 +1452,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       sTab === "tools" && toolsContent,
-      sTab === "view" && viewContent,
+      sTab === "view" && (railLayout ? railViewContent : viewContent),
       sTab === "preview" && previewPanel,
       sTab === "project" && h(React.Fragment, null,
         projectInfoSection,

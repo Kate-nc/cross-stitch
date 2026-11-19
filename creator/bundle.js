@@ -7611,6 +7611,29 @@ window.useCreatorState = function useCreatorState() {
     v = !!v; precisionCursorRef.current = v; _precision[1](v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.precisionCursor", v); } catch (_) {}
   }, []);
+  // Pen, Magnifier and Precision cursor can also change in Preferences >
+  // Pattern Creator > Touch and pen (Stage 2): follow those changes here
+  // without writing the preference back.
+  useEffect(function () {
+    function onPref(e) {
+      var k = e && e.detail ? e.detail.key : null;
+      if (k == null || k === "creator.penNavigation") {
+        var pn = loadUserPref("creator.penNavigation", false) === true;
+        penNavigationRef.current = pn; _penNav[1](pn);
+      }
+      if (k == null || k === "creator.magnifier") {
+        var mg = loadUserPref("creator.magnifier", null);
+        mg = mg === true || mg === false ? mg : !isFinePointerNow();
+        magnifierRef.current = mg; _magnifier[1](mg);
+      }
+      if (k == null || k === "creator.precisionCursor") {
+        var pc = loadUserPref("creator.precisionCursor", false) === true;
+        precisionCursorRef.current = pc; _precision[1](pc);
+      }
+    }
+    window.addEventListener("cs:prefchange", onPref);
+    return function () { window.removeEventListener("cs:prefchange", onPref); };
+  }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   // French knots [{x, y, id, rgb}] in half-stitch units (knots.js).
   var _specialtySelected=useState(null),specialtySelected=_specialtySelected[0],setSpecialtySelected=_specialtySelected[1];
@@ -13959,6 +13982,35 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     }
   ];
 
+  // Where each control of the desktop More panel lives with the tool rail on
+  // (Stage 2), and how many clicks it takes from Edit. More itself is gone
+  // from that layout. tests/creatorRailHomes.test.js checks every row.
+  var RAIL_HOMES = [
+    { control: "Navigate", home: "Rail > Hand", clicks: 1 },
+    { control: "Pick", home: "Rail > Pick", clicks: 1 },
+    { control: "Wand", home: "Rail > Wand", clicks: 1 },
+    { control: "Lasso", home: "Rail > Lasso", clicks: 1 },
+    { control: "Line", home: "Rail > Shapes > Line", clicks: 2 },
+    { control: "Rectangle", home: "Rail > Shapes > Rectangle", clicks: 2 },
+    { control: "Ellipse", home: "Rail > Shapes > Ellipse", clicks: 2 },
+    { control: "Text", home: "Rail > Text", clicks: 1 },
+    { control: "Move", home: "Options bar > Selection > Move selection (with a selection)", clicks: 2 },
+    { control: "Paste", home: "Options bar > Paste (once something is copied)", clicks: 1 },
+    { control: "Mirror", home: "Rail > Paint, then Options bar > Mirror", clicks: 2 },
+    { control: "Replace", home: "Pattern menu > Replace colour", clicks: 2 },
+    { control: "Fix outline colours", home: "Options bar > Clean up > Fix outline colours", clicks: 2 },
+    { control: "Reduce confetti", home: "Options bar > Clean up > Reduce confetti", clicks: 2 },
+    { control: "Stitch type", home: "Rail > Paint, then Options bar > Stitch", clicks: 2 },
+    { control: "Brush size", home: "Rail > Paint, then Options bar > Size", clicks: 2 },
+    { control: "Resize canvas", home: "Pattern menu > Resize canvas", clicks: 2 },
+    { control: "Re-generate from image", home: "Pattern menu > Re-generate from image", clicks: 2 },
+    { control: "Petite and long stitches", home: "Pattern menu > Petite and long stitches", clicks: 2 },
+    { control: "Overlay", home: "Side panel > View > Show the picture", clicks: 2 },
+    { control: "Pen draws; fingers navigate", home: "File > Preferences (opens on Pattern Creator) > Touch and pen", clicks: 2 },
+    { control: "Magnifier", home: "File > Preferences (opens on Pattern Creator) > Touch and pen", clicks: 2 },
+    { control: "Precision cursor", home: "File > Preferences (opens on Pattern Creator) > Touch and pen", clicks: 2 }
+  ];
+
   var TOOLS_BY_ID = {};
   TOOLS.forEach(function (t) { TOOLS_BY_ID[t.id] = t; });
 
@@ -14039,6 +14091,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     TOUCH_RAIL_FOOT: TOUCH_RAIL_FOOT,
     MORE_TOOLS: MORE_TOOLS,
     MORE_CLEANUP: MORE_CLEANUP,
+    RAIL_HOMES: RAIL_HOMES,
     get: get,
     list: function (ids) { return ids.map(get).filter(Boolean); },
     forSurface: function (surface) { return TOOLS.filter(on(surface)); },
@@ -18439,6 +18492,33 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
     var palData = sortedPalette(ctx);
     var api = { cv: cv, ctx: ctx, coarse: false, palData: palData, surface: "desktopRail" };
     var tool = Reg.currentRailTool(api);
+
+    // Commands from the header's Pattern menu (creator-main.js).
+    var _sp = React.useState(false); var specialtyOpen = _sp[0], setSpecialtyOpen = _sp[1];
+    var apiRef = React.useRef(api); apiRef.current = api;
+    React.useEffect(function () {
+      function onCommand(e) {
+        var id = e && e.detail && e.detail.id;
+        if (id === "specialty") setSpecialtyOpen(true);
+        else if (id === "replace") {
+          var t = Reg.get("replace");
+          if (!t.isOn(apiRef.current)) t.activate(apiRef.current);
+        }
+      }
+      window.addEventListener("cs:creator-command", onCommand);
+      return function () { window.removeEventListener("cs:creator-command", onCommand); };
+    }, []);
+    var specialtyRef = React.useRef(null);
+    React.useEffect(function () {
+      if (!specialtyOpen || !specialtyRef.current) return undefined;
+      // Open its list straight away, and give it focus.
+      var d = specialtyRef.current.querySelector("details");
+      if (d) d.open = true;
+      specialtyRef.current.focus();
+      function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); setSpecialtyOpen(false); } }
+      document.addEventListener("keydown", onKey, true);
+      return function () { document.removeEventListener("keydown", onKey, true); };
+    }, [specialtyOpen]);
     var raw = cv.activeTool;
 
     // Small building blocks ---------------------------------------------------
@@ -18496,7 +18576,8 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
       return h(React.Fragment, { key: "mir" },
         btn("Mirror", function () { setMir({ on: !mir.on }); }, { pressed: !!mir.on, on: !!mir.on, icon: icon("mirror"), title: "Mirror drawing across the dashed axis" }),
         mir.on && select("Mirror axis", [["v", "Left–right"], ["h", "Top–bottom"], ["both", "Both"]], mir.axis || "v",
-          function (v) { setMir({ axis: v, on: true }); })
+          function (v) { setMir({ axis: v, on: true }); }),
+        mir.on && btn("Centre", function () { setMir({ ax: ctx.sW / 2, ay: ctx.sH / 2 }); }, { key: "mircentre", title: "Put the mirror axis back in the centre of the pattern", ariaLabel: "Centre the mirror axis" })
       );
     }
     function opGroup() {
@@ -18563,6 +18644,12 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
                 }
               }, it[1]);
             }),
+            h("button", {
+              type: "button", role: "menuitem", "data-tool": "move",
+              className: "creator-optbar__menu-item" + (raw === "move" ? " creator-optbar__menu-item--on" : ""),
+              title: Reg.get("move").title,
+              onClick: function () { setSelMenuOpen(false); if (raw !== "move") Reg.get("move").activate(api); }
+            }, icon("move"), "Move selection"),
             h("div", { className: "creator-optbar__menu-sep", role: "separator" }),
             h("button", {
               type: "button", role: "menuitem", className: "creator-optbar__menu-item creator-optbar__menu-item--danger",
@@ -18684,9 +18771,34 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
       h("button", { type: "button", className: "creator-optbar__btn creator-optbar__fit", title: "Fit the chart to the window (0)", onClick: cv.fitZ }, "Fit")
     );
 
+    // Paste, once something is copied (Ctrl+V does the same).
+    var pasteTool = Reg.get("paste");
+    var paste = Reg.isVisible(pasteTool, api) ? btn("Paste", function () { pasteTool.activate(api); }, {
+      key: "paste", icon: icon(pasteTool.icon), title: pasteTool.title
+    }) : null;
+
+    var specialty = specialtyOpen && window.SpecialtyStitchPanel ? h("div", {
+      ref: specialtyRef, tabIndex: -1, className: "creator-optbar__sheet", role: "dialog", "aria-label": "Petite and long stitches"
+    },
+      h("div", { className: "creator-optbar__sheet-head" },
+        h("strong", null, "Petite and long stitches"),
+        h("button", { type: "button", className: "creator-optbar__icon-btn", "aria-label": "Close petite and long stitches", title: "Close (Esc)",
+          onClick: function () { setSpecialtyOpen(false); } }, icon("x"))),
+      h(window.SpecialtyStitchPanel, {
+        objects: ctx.specialtyStitches || [], w: ctx.sW, h: ctx.sH, threads: ctx.displayPal || ctx.pal || [], brand: ctx.threadBrand,
+        onSelect: cv.setSpecialtySelected,
+        onChange: function (next) {
+          cv.setEditHistory(function (prev) { return prev.concat([{ type: "specialty", changes: [], specialtyStitches: ctx.specialtyStitches || [] }]).slice(-cv.EDIT_HISTORY_MAX); });
+          cv.setRedoHistory([]);
+          ctx.setSpecialtyStitches(next);
+        }
+      })
+    ) : null;
+
     return h("div", { className: "creator-optbar", role: "toolbar", "aria-label": "Tool options", "data-tool-options": tool || raw || "none" },
       h("div", { className: "creator-optbar__tool" }, parts),
-      h("div", { className: "creator-optbar__end" }, hiChip, cleanUp, props.more || null, zoom)
+      h("div", { className: "creator-optbar__end" }, paste, hiChip, cleanUp, props.more || null, zoom),
+      specialty
     );
   };
 })();
@@ -19722,7 +19834,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     // ── Desktop tool rail and options bar (creator/DesktopRail.js) ──
     return h(React.Fragment, null,
       h(window.CreatorDesktopRail, null),
-      h(window.CreatorOptionsBar, { modeRow: cleanupRow || denoiseRow, more: morePanelWrap })
+      // More has gone: everything in it has a home on the rail, in the
+      // options bar, the Pattern menu, the View tab or Preferences
+      // (creator/toolRegistry.js RAIL_HOMES).
+      h(window.CreatorOptionsBar, { modeRow: cleanupRow || denoiseRow })
     );
   }
 
@@ -22049,10 +22164,24 @@ window.CreatorSidebar = function CreatorSidebar() {
     {id:"preview",    label:"Preview",    icon:"image"},
     {id:"project",    label:"Project",    icon:"folder"}
   ];
+  // Tool-rail layout (creator.desktopRail, Stage 2): the rail and the
+  // options bar hold what was in Tools, so the tabs are Palette, View (with
+  // Preview in it) and Project.
+  var railLayout = !!app.desktopRail && !app.compact;
+  if (railLayout) {
+    editTabs = [
+      {id:"palette", label:"Palette", icon:"palette"},
+      {id:"view",    label:"View",    icon:"eye",
+        disabled: !hasPattern,
+        disabledHint:"Generate a pattern to unlock display options."},
+      {id:"project", label:"Project", icon:"folder"}
+    ];
+  }
   var tabs = editTabs;
   // A stored tab Edit doesn't have (the old Convert ids "image",
   // "dimensions" or "settings") opens the first Edit tab that is available.
   var sTab = app.sidebarTab;
+  if (railLayout && sTab === "preview") sTab = "view";
   var sTabMeta = tabs.find(function(t) { return t.id === sTab; });
   if (!sTabMeta || sTabMeta.disabled) {
     sTab = (tabs.find(function(t) { return !t.disabled; }) || tabs[0]).id;
@@ -22744,6 +22873,25 @@ window.CreatorSidebar = function CreatorSidebar() {
     previewPanel
   );
 
+  // The tool-rail layout's View tab: the chart view and highlight, the
+  // picture overlay (from More) and Preview.
+  var railViewContent = h(React.Fragment, null,
+    viewToggle,
+    highlightControls,
+    (gen.img && gen.img.src) && h("div", {className:"cs-toolsec"},
+      h("div", {className:"cs-toolsec__title"}, "Your picture over the chart"),
+      h("label", {className:"cs-toolsec__check"},
+        h("input", {type:"checkbox", checked:!!cv.showOverlay, onChange:function(e){ cv.setShowOverlay(e.target.checked); }}),
+        h("span", null, "Show the picture")),
+      cv.showOverlay && h("input", {type:"range", min:0.1, max:0.8, step:0.05, value:cv.overlayOpacity,
+        onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value)); },
+        style:{width:"100%"}, "aria-label":"Overlay opacity"})
+    ),
+    h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),
+    h("div", {style:subHeaderStyle}, "Preview"),
+    previewPanel
+  );
+
   var moreContent = h(React.Fragment, null,
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
@@ -22787,7 +22935,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   return h(React.Fragment, null,
     // "Back to Convert" link — shown in edit mode when a source image exists.
     // Fires the back-to-convert request (may show warning modal if edits exist).
-    gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert", style:{
+    // (The tool-rail layout has none: the Convert tab in the top bar does it.)
+    !railLayout && gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert", style:{
       flexShrink:0, padding:"6px 12px",
       borderBottom:"1px solid var(--line)",
       background:"var(--surface-secondary)"
@@ -22825,7 +22974,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       sTab === "tools" && toolsContent,
-      sTab === "view" && viewContent,
+      sTab === "view" && (railLayout ? railViewContent : viewContent),
       sTab === "preview" && previewPanel,
       sTab === "project" && h(React.Fragment, null,
         projectInfoSection,

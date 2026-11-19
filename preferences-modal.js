@@ -289,6 +289,11 @@
     var embroidery = usePref("experimental.embroideryTool", false);
     var threadSheen = usePref("creatorCanvasTexture", false);
     var desktopRail = usePref("creator.desktopRail", false);
+    var penNav = usePref("creator.penNavigation", false);
+    var magnifier = usePref("creator.magnifier", null);
+    var precision = usePref("creator.precisionCursor", false);
+    // The magnifier's default (null) is on for touch screens.
+    var touchDefault = (function () { try { return !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches); } catch (_) { return false; } })();
 
     return h("div", null,
       h(PageHeader, { title: "Pattern Creator",
@@ -353,9 +358,21 @@
         )
       ),
 
+      h(Section, { title: "Touch and pen" },
+        h(Row, { label: "Pen draws; fingers navigate", desc: "For devices that report pen input. In Draw, the pen uses the selected tool and fingers pan or pinch. Mixed pen and finger contact interrupts drawing. If input types are unreliable, leave this off and switch between Navigate and Draw instead." },
+          h(Switch, { "aria-label": "Pen draws; fingers navigate", checked: penNav[0] === true, onChange: penNav[1] })
+        ),
+        h(Row, { label: "Magnifier", desc: "While drawing with a finger, show an enlarged view of the stitches under it. On by default on touch screens." },
+          h(Switch, { "aria-label": "Magnifier", checked: magnifier[0] === true || (magnifier[0] !== false && touchDefault), onChange: magnifier[1] })
+        ),
+        h(Row, { last: true, label: "Precision cursor", desc: "Draw a crosshair a little above your finger; your finger moves it, and lifting places the stitch there." },
+          h(Switch, { "aria-label": "Precision cursor", checked: precision[0] === true, onChange: precision[1] })
+        )
+      ),
+
       h(Section, { title: "Editing layout" },
         h(Row, { last: true, label: "Tool rail on the left", desc: "With a mouse, Edit shows every drawing tool down the left of the chart and one row of the chosen tool's options above it, so the chart gets more of the window. Turn off for the toolbar above the chart. Touch screens keep their own layout." },
-          h(Switch, { checked: !!desktopRail[0], onChange: desktopRail[1] })
+          h(Switch, { "aria-label": "Tool rail on the left", checked: !!desktopRail[0], onChange: desktopRail[1] })
         )
       ),
 

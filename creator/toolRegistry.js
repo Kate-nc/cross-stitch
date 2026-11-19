@@ -250,6 +250,35 @@
     }
   ];
 
+  // Where each control of the desktop More panel lives with the tool rail on
+  // (Stage 2), and how many clicks it takes from Edit. More itself is gone
+  // from that layout. tests/creatorRailHomes.test.js checks every row.
+  var RAIL_HOMES = [
+    { control: "Navigate", home: "Rail > Hand", clicks: 1 },
+    { control: "Pick", home: "Rail > Pick", clicks: 1 },
+    { control: "Wand", home: "Rail > Wand", clicks: 1 },
+    { control: "Lasso", home: "Rail > Lasso", clicks: 1 },
+    { control: "Line", home: "Rail > Shapes > Line", clicks: 2 },
+    { control: "Rectangle", home: "Rail > Shapes > Rectangle", clicks: 2 },
+    { control: "Ellipse", home: "Rail > Shapes > Ellipse", clicks: 2 },
+    { control: "Text", home: "Rail > Text", clicks: 1 },
+    { control: "Move", home: "Options bar > Selection > Move selection (with a selection)", clicks: 2 },
+    { control: "Paste", home: "Options bar > Paste (once something is copied)", clicks: 1 },
+    { control: "Mirror", home: "Rail > Paint, then Options bar > Mirror", clicks: 2 },
+    { control: "Replace", home: "Pattern menu > Replace colour", clicks: 2 },
+    { control: "Fix outline colours", home: "Options bar > Clean up > Fix outline colours", clicks: 2 },
+    { control: "Reduce confetti", home: "Options bar > Clean up > Reduce confetti", clicks: 2 },
+    { control: "Stitch type", home: "Rail > Paint, then Options bar > Stitch", clicks: 2 },
+    { control: "Brush size", home: "Rail > Paint, then Options bar > Size", clicks: 2 },
+    { control: "Resize canvas", home: "Pattern menu > Resize canvas", clicks: 2 },
+    { control: "Re-generate from image", home: "Pattern menu > Re-generate from image", clicks: 2 },
+    { control: "Petite and long stitches", home: "Pattern menu > Petite and long stitches", clicks: 2 },
+    { control: "Overlay", home: "Side panel > View > Show the picture", clicks: 2 },
+    { control: "Pen draws; fingers navigate", home: "File > Preferences (opens on Pattern Creator) > Touch and pen", clicks: 2 },
+    { control: "Magnifier", home: "File > Preferences (opens on Pattern Creator) > Touch and pen", clicks: 2 },
+    { control: "Precision cursor", home: "File > Preferences (opens on Pattern Creator) > Touch and pen", clicks: 2 }
+  ];
+
   var TOOLS_BY_ID = {};
   TOOLS.forEach(function (t) { TOOLS_BY_ID[t.id] = t; });
 
@@ -330,6 +359,7 @@
     TOUCH_RAIL_FOOT: TOUCH_RAIL_FOOT,
     MORE_TOOLS: MORE_TOOLS,
     MORE_CLEANUP: MORE_CLEANUP,
+    RAIL_HOMES: RAIL_HOMES,
     get: get,
     list: function (ids) { return ids.map(get).filter(Boolean); },
     forSurface: function (surface) { return TOOLS.filter(on(surface)); },

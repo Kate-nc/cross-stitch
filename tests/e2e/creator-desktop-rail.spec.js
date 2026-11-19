@@ -259,16 +259,91 @@ test.describe('Tool rail on a 1440 x 900 desktop', () => {
     await expect(bar.locator('.creator-optbar__hi')).toHaveCount(0);
   });
 
-  test('More lists no tool that is on the rail', async ({ page }) => {
+  test('More has gone: its controls are in the Pattern menu, the options bar and the View tab', async ({ page }) => {
     await railPref(page, true);
     await generateLogo(page);
-    await page.locator('.creator-optbar button[aria-label="More tools"]').click();
-    const more = page.locator('.tb-more-panel');
-    await expect(more).toBeVisible();
-    const listed = await more.locator('[data-tool]').evaluateAll(els => els.map(e => e.dataset.tool));
-    for (const id of ['paint', 'fill', 'erase', 'pick', 'wand', 'lasso', 'shapes', 'line', 'rect', 'ellipse', 'text', 'hand']) {
-      expect(listed).not.toContain(id);
+    await closeReadyBar(page);
+    await expect(page.locator('button[aria-label="More tools"]')).toHaveCount(0);
+
+    // The side panel: Palette, View and Project, and no Back to Convert.
+    await expect(page.locator('.creator-sidebar-tab')).toHaveText(['Palette', 'View', 'Project']);
+    await expect(page.getByRole('button', { name: 'Back to Convert' })).toHaveCount(0);
+    await page.locator('.creator-sidebar-tab[data-tab-id="view"]').click();
+    await expect(page.getByRole('checkbox', { name: 'Show the picture' })).toBeVisible();
+    await expect(page.locator('.rpanel').getByText('Preview', { exact: true })).toBeVisible();
+
+    // Pattern menu: Resize canvas, Crop to the stitches, Re-generate from
+    // image, Replace colour, Petite and long stitches.
+    const openPatternMenu = () => page.locator('[data-onboard="creator-pages"]').click();
+    await openPatternMenu();
+    const items = page.locator('.tb-page-dropdown [data-command]');
+    await expect(items).toHaveText(['Resize canvas…', 'Crop to the stitches', 'Re-generate from image…', 'Replace colour', 'Petite and long stitches…']);
+    await items.filter({ hasText: 'Replace colour' }).click();
+    await expect(page.locator('.creator-optbar')).toContainText('Click a stitch to replace every stitch of its colour.');
+    await page.locator('.creator-optbar').getByRole('button', { name: 'Done' }).click();
+
+    await openPatternMenu();
+    await items.filter({ hasText: 'Petite and long stitches' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Petite and long stitches' });
+    await expect(sheet).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+
+    await openPatternMenu();
+    await items.filter({ hasText: 'Resize canvas' }).click();
+    const resize = page.getByRole('dialog', { name: 'Resize canvas' });
+    await expect(resize).toBeVisible();
+    await resize.getByRole('button', { name: 'Cancel' }).first().click();
+    await expect(resize).toHaveCount(0);
+
+    // Clean up: Fix outline colours and Reduce confetti.
+    await page.locator('.creator-optbar').getByRole('button', { name: 'Clean up menu' }).click();
+    await expect(page.getByRole('menu', { name: 'Clean up' }).getByRole('menuitemcheckbox')).toHaveText(['Fix outline colours', 'Reduce confetti']);
+    await page.keyboard.press('Escape');
+
+    // Move is in the Selection menu; Paste appears once something is copied.
+    await page.keyboard.press('Control+a');
+    await page.locator('.creator-optbar').getByRole('button', { name: 'Selection menu' }).click();
+    await expect(page.getByRole('menu', { name: 'Selection' }).getByRole('menuitem', { name: 'Move selection' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Control+c');
+    await page.locator('.creator-optbar').getByRole('button', { name: 'Deselect' }).click();
+    await expect(page.locator('.creator-optbar').getByRole('button', { name: 'Paste', exact: true })).toBeVisible();
+  });
+
+  test('Print PDF, Open in Tracker, Export, Undo, Redo, Zoom, Fit and each tool appear exactly once', async ({ page }) => {
+    await railPref(page, true);
+    await generateLogo(page);
+    const once = async (name, exact) => {
+      const n = await page.getByRole('button', { name, exact: exact !== false }).filter({ visible: true }).count();
+      expect({ name, n }).toEqual({ name, n: 1 });
+    };
+    await once('Print PDF');
+    await once('Open in Tracker');
+    await once('Export…');
+    await once('Undo');
+    await once('Redo');
+    await once('Zoom in');
+    await once('Zoom out');
+    await once('Fit');
+    for (const name of ['Paint tool', 'Fill tool', 'Erase tool', 'Pick colour (eyedropper)', 'Magic wand', 'Lasso', 'Shapes', 'Text tool', 'Hand tool']) {
+      await once(name);
     }
+    expect(await page.getByRole('slider', { name: /zoom/i }).filter({ visible: true }).count()).toBeLessThanOrEqual(1);
+  });
+
+  test('Pen, Magnifier and Precision cursor are in Preferences > Pattern Creator', async ({ page }) => {
+    await railPref(page, true);
+    await generateLogo(page);
+    await page.getByRole('button', { name: 'File' }).click();
+    await page.getByRole('button', { name: 'Preferences…' }).click();
+    const dialog = page.getByRole('dialog').filter({ hasText: 'Touch and pen' });
+    await expect(dialog).toBeVisible();
+    for (const name of ['Pen draws; fingers navigate', 'Magnifier']) await expect(dialog.getByRole('switch', { name })).toBeVisible();
+    const precision = dialog.getByRole('switch', { name: 'Precision cursor' });
+    await expect(precision).toHaveAttribute('aria-checked', 'false');
+    await precision.click();
+    await expect.poll(() => page.evaluate(() => window.__cs.precisionCursor)).toBe(true);
   });
 
   test('with the preference off, the toolbar pill and action bar are as before', async ({ page }) => {

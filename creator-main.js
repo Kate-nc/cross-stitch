@@ -1370,6 +1370,17 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     runNamedAction(key);
   }, [pendingNamedAction, state.namePromptOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const printPdfWithNameNudge = () => _nameNudgeRef.current('pdf');
+  // Tool-rail layout: the pattern commands that left More (Stage 2 C) are in
+  // the header's Pattern menu. Replace colour and Petite and long stitches
+  // open in the options bar (creator/DesktopRail.js, cs:creator-command).
+  const _railCommand = (id)=>{ try { window.dispatchEvent(new CustomEvent('cs:creator-command',{detail:{id:id}})); } catch(_){} };
+  const _railPatternMenu = (_desktopRail && state.appMode==='edit' && state.pat && state.pal) ? [
+    { id:'resize', label:'Resize canvas\u2026', title:'Crop or expand the pattern bounds', onClick:()=>state.setResizeCanvasOpen(true) },
+    { id:'crop', label:'Crop to the stitches', title:'Remove empty rows and columns around the stitches', onClick:()=>stableCropToStitches() },
+    (state.img && state.img.src && !state.isScratchMode) ? { id:'regenerate', label:'Re-generate from image\u2026', title:'Return to the picture settings and generate the pattern again', onClick:handleRequestBackToConvert } : null,
+    { id:'replace', label:'Replace colour', title:'Click a stitch to replace every stitch of its colour (R)', onClick:()=>_railCommand('replace') },
+    { id:'specialty', label:'Petite and long stitches\u2026', title:'Add or edit petite crosses and long stitches', onClick:()=>_railCommand('specialty') },
+  ].filter(Boolean) : undefined;
   // Shared by the action bar and, in the tool-rail layout, the header row.
   const _actionBarProps = {
     ready: !!(state.pat&&state.pal),
@@ -1517,6 +1528,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         saveError={state.saveError}
         onRetrySave={io.retryAutoSave}
         compactProject={_desktopRail}
+        pageMenuItems={_railPatternMenu}
         actions={_desktopRail&&window.CreatorActionBar?<window.CreatorActionBar {..._actionBarProps} inline={true}/>:undefined} />
       {state.preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>state.setPreferencesOpen(false)})}
       {state.adaptModalOpen&&extrasReady&&typeof window.AdaptModal!=='undefined'&&React.createElement(window.AdaptModal,{
@@ -1795,19 +1807,26 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onSkip: ()=>_coach.skip('firstStitch_creator'),
         onSkipAll: ()=>_coach.skipAll()
       })}
-      {_showToolsUnlockedCoach && window.Coachmark && React.createElement(window.Coachmark, {
+      {_showToolsUnlockedCoach && window.Coachmark && React.createElement(window.Coachmark, Object.assign({
         id: 'toolsTab_unlocked',
         target: '.creator-sidebar-tab[data-tab-id="tools"]',
         title: 'Tools and View are now unlocked',
         body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Palette and View are beside it.',
         placement: 'left',
+      }, _railTools ? {
+        // Tool-rail layout: the tools are on the rail, not in a Tools tab.
+        target: '[data-onboard="creator-drail"]',
+        title: 'Every tool is on the left',
+        body: 'Paint, Fill, Erase, Pick, Wand, Lasso, Shapes, Text and Hand are one click each, with Undo and Redo at the foot. The row above the chart shows the chosen tool\u2019s options.',
+        placement: 'right',
+      } : {}, {
         showHighlight: true,
         completeOnTargetClick: true,
         helpTopic: 'painting',
         onComplete: ()=>_coach.complete('toolsTab_unlocked'),
         onSkip: ()=>_coach.skip('toolsTab_unlocked'),
         onSkipAll: ()=>_coach.skipAll()
-      })}
+      }))}
     </window.HoverContext.Provider>
     </window.PatternDataContext.Provider>
     </window.CanvasContext.Provider>

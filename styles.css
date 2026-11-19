@@ -9528,3 +9528,8 @@ body.creator-space-pan .cs-chart-scroll,body.creator-space-pan .cs-chart-scroll 
   body.creator-drail-layout{--creator-actionbar-h:49px;}
   body.creator-drail-layout .tb-actions > *{display:none;}
 }
+.tb-page-dropdown-sep{height:1px;margin:4px 8px;background:var(--line);}
+.tb-page-dropdown .tb-page-dropdown-item{white-space:nowrap;}
+.creator-optbar__sheet{position:fixed;top:calc(var(--app-header-height,48px) + var(--creator-actionbar-h,0px) + var(--creator-optbar-h) + 6px);right:296px;z-index:300;width:min(420px,calc(100vw - 380px));max-height:calc(100vh - 160px);overflow-y:auto;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-md);font-size:var(--text-sm);}
+.creator-optbar__sheet:focus{outline:none;}
+.creator-optbar__sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
