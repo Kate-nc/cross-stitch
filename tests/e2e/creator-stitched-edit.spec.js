@@ -140,7 +140,7 @@ test.describe('Editing a stitched pattern (desktop)', function() {
       });
     };
     await page.locator('.creator-sidebar-tab[data-tab-id="palette"]').click();   // Edit > Palette > Recolour the chart
-    await page.getByText('Shift Colours', { exact: true }).first().click();
+    await page.getByText('Shift colours', { exact: true }).first().click();
     await page.getByRole('button', { name: '180\u00B0', exact: true }).click();
     await page.getByRole('button', { name: 'Preview & Apply' }).click();
     await page.getByRole('button', { name: 'Apply Swap' }).click();

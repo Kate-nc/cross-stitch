@@ -17675,11 +17675,11 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       }, props.generatingPattern ? (Icons.spinner ? Icons.spinner() : null) : (Icons.refresh ? Icons.refresh() : null),
         h("span", null, props.generatingPattern ? "Generating\u2026" : hasPat ? "Regenerate" : "Generate")) : modeSwitch,
       h("button", {
-        ref: moreBtnRef, type: "button", className: "cc-btn cc-more",
+        ref: moreBtnRef, type: "button", className: "cc-btn cc-mode cc-more",
         "aria-haspopup": "dialog", "aria-expanded": sheetOpen ? "true" : "false",
-        "aria-label": "More actions", title: "More actions",
+        "aria-label": "Project", title: "Project",
         onClick: function () { setSheetOpen(!sheetOpen); }
-      }, Icons.more ? Icons.more() : Icons.menu())
+      }, Icons.more ? Icons.more() : Icons.menu(), h("span", { className: "cc-mode__label" }, "Project"))
     );
 
     var sheet = sheetOpen ? h(React.Fragment, null,
@@ -18386,12 +18386,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:"tb-btn"+(paintOn?" tb-btn--on":""),
         onClick:function(){ pickBrush("paint", paintOn); },
         title:"Paint (P)", "aria-label":"Paint tool", "aria-pressed":paintOn
-      }, "Paint"),
+      }, window.Icons && window.Icons.brush ? window.Icons.brush() : null, "Paint"),
       h("button", {
         className:"tb-btn"+(fillOn?" tb-btn--on":""),
         onClick:function(){ pickBrush("fill", fillOn); },
         title:"Fill (F)", "aria-label":"Fill tool", "aria-pressed":fillOn
-      }, "Fill"),
+      }, window.Icons && window.Icons.bucketPour ? window.Icons.bucketPour() : null, "Fill"),
       h("button", {
         className:"tb-btn"+(eraseOn?" tb-btn--red":""),
         onClick:function(){ if (coarsePointer && eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); },
@@ -18883,7 +18883,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           title: selCol ? formatThread(selCol, {variant: "title"}) : "Choose a colour",
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
         }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}}),
-          h("span", {className:"creator-rail__label"}, "Colour")),
+          h("span", {className:"creator-rail__label"}, selCol ? selCol.id : "Colour")),
         railBtn("undo", "Undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
         morePanelWrap
       )
@@ -20720,6 +20720,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         if (cv.chooseThread) cv.chooseThread(p.id);
         else cv.setSelectedColorId(p.id);
       }
+      var withTip = function(tipText, el) {
+        return typeof Tooltip !== "undefined" ? h(Tooltip, { text: tipText, width: 170 }, el) : el;
+      };
       return h("div", {
         key: p.id,
         role: "button",
@@ -20750,7 +20753,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           "aria-label": "Stash status: " + stashStatus,
           style: { background: STASH_DOT[stashStatus] }
         }),
-        app.appMode === "edit" && h("button", {
+        app.appMode === "edit" && withTip(ihs ? "Stop showing on chart" : "Show on chart", h("button", {
           type: "button",
           className: "pal-row__btn pal-row__btn--hi" + (ihs ? " pal-row__btn--on" : ""),
           title: ihs ? "Stop showing on chart" : "Show on chart",
@@ -20760,17 +20763,17 @@ window.CreatorSidebar = function CreatorSidebar() {
             e.stopPropagation();
             cv.setHiId(cv.hiId === p.id ? null : p.id);
           }
-        }, Icons.eye ? Icons.eye() : null),
-        app.appMode === "edit" && h("button", {
+        }, Icons.eye ? Icons.eye() : null)),
+        app.appMode === "edit" && withTip("Change symbol", h("button", {
           type: "button",
           className: "pal-row__btn",
           title: "Change symbol",
           "aria-label": "Change symbol for " + formatThread(p),
           "aria-expanded": symbolPickerFor === p.id ? "true" : "false",
           onClick: function(e) { e.stopPropagation(); setSymbolPickerFor(symbolPickerFor === p.id ? null : p.id); }
-        }, Icons.symbols ? Icons.symbols() : null),
+        }, Icons.symbols ? Icons.symbols() : null)),
         // Colour swap button
-        app.appMode === "edit" && h("button", {
+        app.appMode === "edit" && withTip("Replace colour", h("button", {
           key: "swap-" + p.id,
           type: "button",
           className: "pal-row__btn pal-chip-swap",
@@ -20780,7 +20783,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             e.stopPropagation();
             cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
           }
-        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null),
+        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)),
         isUnused && h("button", {
           type: "button",
           className: "pal-row__btn",
@@ -20798,7 +20801,12 @@ window.CreatorSidebar = function CreatorSidebar() {
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("span", {"aria-hidden":"true",style:{color:"var(--text-tertiary)",display:"inline-flex",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, Icons.chevronRight()),
-          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "In this pattern")
+          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "In this pattern"),
+          app.appMode === "edit" && typeof InfoIcon !== "undefined" && h(InfoIcon, {
+            label: "Palette",
+            width: 260,
+            text: "Use Change symbol beside a thread to choose a different chart symbol. Strands and skeins are for each symbol on its own; Materials adds up the threads that several symbols share."
+          })
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           app.appMode === "edit" && unusedCount > 0 && h("button", {
@@ -20828,9 +20836,6 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
-      app.appMode === "edit" && h("p", {className:"convert-first-use"}, "Use Change symbol beside a thread to choose a different chart symbol."),
-      // What the strands and skeins on each row mean, and what a blend is (UX-013, UX-014).
-      displayPal.length > 0 && h("p", {className:"convert-first-use pal-key-note"}, "Strands and skeins are for each symbol on its own. Materials adds up the threads that several symbols share."),
       window.BlendHelpNote && window.creatorThreadCounts(displayPal).blends > 0 && h(window.BlendHelpNote, null),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
@@ -21890,13 +21895,11 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   var subHeaderStyle = {padding:"10px 12px 2px",fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5};
   var viewContent = h(React.Fragment, null,
-    h("div", {style:subHeaderStyle}, "View"),
     viewToggle,
     highlightControls
   );
 
   var displayContent = h(React.Fragment, null,
-    h("div", {style:subHeaderStyle}, "View"),
     viewToggle,
     highlightControls,
     h("div", {style:{borderTop:"0.5px solid var(--border)",margin:"8px 0 0"}}),

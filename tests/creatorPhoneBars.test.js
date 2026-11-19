@@ -55,7 +55,7 @@ describe('rail labels', () => {
     for (const [aria, word] of [['Paint tool', 'Paint'], ['Fill tool', 'Fill'], ['Erase tool', 'Erase'], ['Undo', 'Undo']]) {
       expect(rail).toContain('railBtn("' + aria.toLowerCase().split(' ')[0] + '", "' + aria + '", "' + word + '"');
     }
-    expect(rail).toMatch(/creator-rail__label"\}, "Colour"/);
+    expect(rail).toMatch(/creator-rail__label"\}, selCol \? selCol\.id : "Colour"/);
     expect(strip).toMatch(/creator-rail__label"\}, "More"/);
   });
 

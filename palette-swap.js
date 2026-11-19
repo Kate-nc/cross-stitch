@@ -1389,9 +1389,9 @@ function usePaletteSwap(props) {
     return { shiftSection: null, presetSection: null, confirmView: null, showConfirm: false };
   }
 
-  // ───────────── Sidebar: Shift Colours Section ─────────────
+  // ───────────── Sidebar: Shift colours Section ─────────────
   var shiftSection = React.createElement(Section, {
-    title: "Shift Colours", defaultOpen: false
+    title: "Shift colours", defaultOpen: false
   },
     React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginTop: 8 } },
       React.createElement(HueSpectrumBar, null),
@@ -1456,9 +1456,9 @@ function usePaletteSwap(props) {
     )
   );
 
-  // ───────────── Sidebar: Palette Presets Section ─────────────
+  // ───────────── Sidebar: Palette presets Section ─────────────
   var presetSection = React.createElement(Section, {
-    title: "Palette Presets", defaultOpen: false
+    title: "Palette presets", defaultOpen: false
   },
     React.createElement("div", { style: { marginTop: 8, display: "flex", flexDirection: "column", gap: 8 } },
       // Tab switcher

@@ -141,11 +141,11 @@
       }, props.generatingPattern ? (Icons.spinner ? Icons.spinner() : null) : (Icons.refresh ? Icons.refresh() : null),
         h("span", null, props.generatingPattern ? "Generating\u2026" : hasPat ? "Regenerate" : "Generate")) : modeSwitch,
       h("button", {
-        ref: moreBtnRef, type: "button", className: "cc-btn cc-more",
+        ref: moreBtnRef, type: "button", className: "cc-btn cc-mode cc-more",
         "aria-haspopup": "dialog", "aria-expanded": sheetOpen ? "true" : "false",
-        "aria-label": "More actions", title: "More actions",
+        "aria-label": "Project", title: "Project",
         onClick: function () { setSheetOpen(!sheetOpen); }
-      }, Icons.more ? Icons.more() : Icons.menu())
+      }, Icons.more ? Icons.more() : Icons.menu(), h("span", { className: "cc-mode__label" }, "Project"))
     );
 
     var sheet = sheetOpen ? h(React.Fragment, null,

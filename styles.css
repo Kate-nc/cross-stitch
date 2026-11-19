@@ -556,6 +556,7 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 .pill .tb-grp{background:transparent;border:none;padding:0;gap:1px;}
 .pill .tb-sdiv{width:1px;height:22px;background:var(--border);flex-shrink:0;margin:0 3px;}
 .pill .tb-btn{height:36px;border-radius:9px;font-size:12px;font-weight:500;}
+.pill .tb-btn svg{width:14px;height:14px;flex-shrink:0;}
 @media (hover: hover){.pill .tb-btn:hover{filter:none;background:var(--surface-tertiary);color:var(--text-primary);}}
 .pill .tb-btn.tb-btn--green{background:var(--accent);color:var(--surface);font-weight:600;box-shadow:0 2px 6px rgba(184, 92, 56,0.3);}
 .pill .tb-btn.tb-btn--on{background:var(--surface-tertiary);color:var(--text-primary);font-weight:600;box-shadow:none;}
@@ -5584,7 +5585,10 @@ html.pref-dark a { color: var(--accent); }
   border: 1px solid var(--line, #E5DCCB);
   border-radius: 999px;
   background: var(--surface-raised, #FFFDF8);
-  font: 500 12px/1 inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
   color: var(--text-secondary, #5C5448);
   cursor: pointer;
   font-variant-numeric: tabular-nums;
@@ -5603,14 +5607,17 @@ html.pref-dark a { color: var(--accent); }
   outline-offset: 2px;
 }
 
-/* Difficulty tier chip — always visible in the action bar */
+/* Difficulty tier chip — always visible in the action bar, sized to match other chips (D6) */
 .creator-actionbar__difficulty-chip {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
-  border: 1.5px solid currentColor;
+  padding: 6px 12px;
+  border: 1px solid currentColor;
   border-radius: 999px;
-  font: 600 11px/1 inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
   letter-spacing: 0.02em;
   white-space: nowrap;
   cursor: default;
@@ -6702,32 +6709,34 @@ button[aria-disabled="true"] {
    small lock badge in the corner. */
 .creator-sidebar-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px;
+  flex-wrap: nowrap;
+  gap: 3px;
+  padding: 6px;
   background: var(--surface);
   border-bottom: 1px solid var(--border, var(--line, #E5DCCB));
   scrollbar-width: none;
 }
 .creator-sidebar-tabs::-webkit-scrollbar { display: none; }
 .creator-sidebar-tab {
-  flex: 1 1 56px;
-  min-width: 56px;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 8px 4px;
+  gap: 3px;
+  padding: 6px 2px;
   border: 1px solid transparent;
   background: var(--surface-secondary, var(--surface-2, #F9F5F0));
   border-radius: var(--radius-md, 8px);
-  font: 600 11px/1 inherit;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
   color: var(--text-secondary, #5C5448);
   cursor: pointer;
   position: relative;
-  min-height: 50px;
-  font-family: inherit;
+  min-height: 46px;
   transition: background .12s ease, color .12s ease, border-color .12s ease, transform .08s ease;
 }
 .creator-sidebar-tab svg {
@@ -8413,7 +8422,7 @@ body.creator-compact .cc-hide-compact{display:none!important;}
 .creator-rail__row{display:flex;align-items:center;justify-content:space-between;gap:0;height:var(--creator-rail-h);padding:0 1px;overflow-x:auto;scrollbar-width:none;}
 .creator-rail__row::-webkit-scrollbar{display:none;}
 .creator-rail__btn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1 1 44px;min-width:44px;max-width:72px;min-height:44px;padding:0;border:none;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);font:inherit;cursor:pointer;}
-.creator-rail__label{font-size:10px;font-weight:600;line-height:1;white-space:nowrap;}
+.creator-rail__label{font-size:10px;font-weight:600;line-height:1;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;padding:0 2px;box-sizing:border-box;}
 .creator-rail__btn svg{width:22px;height:22px;}
 .creator-rail__btn--on{background:var(--accent-soft);color:var(--accent);}
 .creator-rail__btn:disabled{opacity:0.35;cursor:default;}
