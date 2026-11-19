@@ -717,6 +717,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
 
   const stableSaveProject         = React.useCallback(function()  {_ioRef.current.saveProject();},         []);
   const stableDoSaveProject       = React.useCallback(function(n) {_ioRef.current.doSaveProject(n);},      []);
+  const stableRetryAutoSave       = React.useCallback(function()  {if(_ioRef.current&&_ioRef.current.retryAutoSave)_ioRef.current.retryAutoSave();}, []);
   const stableHandleFile          = React.useCallback(function(e) {_ioRef.current.handleFile(e);},         []);
   const stableLoadProject         = React.useCallback(function(e) {_ioRef.current.loadProject(e);},        []);
   const stableHandleOpenInTracker = React.useCallback(function()  {_nameNudgeRef.current('track');}, []);
@@ -1024,6 +1025,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     previewHighlight: state.previewHighlight, setPreviewHighlight: state.setPreviewHighlight,
     previewTimerRef: state.previewTimerRef,
     saveProject: stableSaveProject, doSaveProject: stableDoSaveProject,
+    saveStatus: state.saveStatus, savedAt: state.savedAt, saveError: state.saveError,
+    retryAutoSave: stableRetryAutoSave,
     handleFile: stableHandleFile, loadProject: stableLoadProject,
     handleOpenInTracker: stableHandleOpenInTracker, printPdf: stablePrintPdf,
     pictureFromTracker: !!window.__creatorPictureFromTracker,
@@ -1036,6 +1039,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     isActive: isActive,
   }; }, [
     _sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive,
+    state.saveStatus, state.savedAt, state.saveError,
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot, convertChartState,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,

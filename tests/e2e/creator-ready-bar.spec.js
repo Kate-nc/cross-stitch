@@ -16,7 +16,7 @@ test.describe('After Generate on desktop', function() {
     const bar = page.getByRole('region', { name: 'Your pattern is ready' });
     await expect(bar).toBeVisible();
     await expect(bar.locator('[data-ready-summary]')).toContainText('stitches');
-    await expect(bar.locator('[data-ready-summary]')).toContainText('saved in your library');
+    await expect(bar.locator('[data-ready-summary]')).toContainText('Saved on this device');
     for (const name of ['Print PDF', 'Open in Tracker', 'Threads to buy']) {
       await expect(bar.getByRole('button', { name })).toBeVisible();
     }
@@ -41,5 +41,43 @@ test.describe('After Generate on desktop', function() {
     await bar.getByRole('button', { name: 'Close: keep editing' }).click();
     await expect(bar).toHaveCount(0);
     await expect(page.locator('.ready-review-note')).toBeVisible();
+  });
+
+  test('when storage save fails, Ready bar shows the error with Retry and Download project (.json) and chart stays usable', async function({ page }) {
+    await page.addInitScript(() => {
+      window.__failProjectSave = true;
+      let realPS;
+      Object.defineProperty(window, 'ProjectStorage', {
+        configurable: true,
+        get: () => realPS,
+        set: (val) => {
+          if (val && typeof val.save === 'function' && !val.__wrappedForTest) {
+            const origSave = val.save.bind(val);
+            val.save = function (...args) {
+              if (window.__failProjectSave) return Promise.reject(new Error('Simulated storage failure'));
+              return origSave(...args);
+            };
+            val.__wrappedForTest = true;
+          }
+          realPS = val;
+        },
+      });
+    });
+
+    await generateLogo(page);
+    const bar = page.getByRole('region', { name: 'Your pattern is ready' });
+    await expect(bar).toBeVisible();
+    await expect(bar).toContainText("Couldn't save on this device");
+    await expect(bar).not.toContainText('Saved on this device');
+    await expect(bar.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(bar.getByRole('button', { name: 'Download project (.json)' })).toBeVisible();
+    // Chart remains mounted and usable even while save is in error state.
+    await expect(page.locator('.cs-chart-scroll canvas').first()).toBeVisible();
+
+    // Restoring storage and clicking Retry succeeds and updates the Ready bar.
+    await page.evaluate(() => { window.__failProjectSave = false; });
+    await bar.getByRole('button', { name: 'Retry' }).click();
+    await expect(bar).toContainText('Saved on this device');
+    await expect(bar.getByRole('button', { name: 'Retry' })).toHaveCount(0);
   });
 });

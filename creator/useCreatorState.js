@@ -970,7 +970,9 @@ window.useCreatorState = function useCreatorState() {
   // picture type, so its keys are not compared here.
   var presetUntouched = (function () {
     if (!presetApplied) return false;
-    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: convertW, sH: convertH };
+    var cw = typeof convertW !== "undefined" ? convertW : sW;
+    var ch = typeof convertH !== "undefined" ? convertH : sH;
+    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: cw, sH: ch };
     for (var k in v) {
       if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
       if (cur[k] !== v[k]) return false;

@@ -7501,7 +7501,9 @@ window.useCreatorState = function useCreatorState() {
   // picture type, so its keys are not compared here.
   var presetUntouched = (function () {
     if (!presetApplied) return false;
-    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: convertW, sH: convertH };
+    var cw = typeof convertW !== "undefined" ? convertW : sW;
+    var ch = typeof convertH !== "undefined" ? convertH : sH;
+    var v = presetApplied.values, cur = { maxC: maxC, allowBlends: allowBlends, sW: cw, sH: ch };
     for (var k in v) {
       if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
       if (cur[k] !== v[k]) return false;
@@ -23156,12 +23158,31 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   }
   window.creatorReadySummary = readySummary;
 
+  function readySaveState(saveStatus, savedAt) {
+    if (saveStatus === "error" || saveStatus === "conflict") {
+      return { state: "error", text: "Couldn't save on this device" };
+    }
+    if (saveStatus === "pending" || saveStatus === "saving") {
+      return { state: "saving", text: "Saving on this device\u2026" };
+    }
+    if (saveStatus === "saved" || (saveStatus === "idle" && savedAt)) {
+      return { state: "saved", text: "Saved on this device" };
+    }
+    if (!saveStatus && savedAt) {
+      return { state: "saved", text: "Saved on this device" };
+    }
+    return { state: "saving", text: "Saving on this device\u2026" };
+  }
+  window.creatorReadySaveState = readySaveState;
+
   window.CreatorReadyBar = function CreatorReadyBar() {
     var app = window.useApp();
     var ctx = window.usePatternData();
     if (!app.readyBarOpen || !ctx.pat || !ctx.pal) return null;
     var Icons = window.Icons || {};
     var s = readySummary(ctx.sW, ctx.sH, ctx.pal, ctx.totalSkeins);
+    var save = readySaveState(app.saveStatus, app.savedAt);
+    var isError = save.state === "error";
     function close() { app.setReadyBarOpen(false); }
     function then(fn) { return function () { close(); fn(); }; }
     var fromTracker = !!app.pictureFromTracker;
@@ -23169,11 +23190,22 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       return app.handleOpenInTracker ? h("button", { key: "track", type: "button", className: "btn btn-sm" + (primary ? " btn-primary" : ""), onClick: then(app.handleOpenInTracker) },
         Icons.pointing ? Icons.pointing() : null, h("span", null, "Open in Tracker")) : null;
     }
-    return h("section", { className: "ready-bar", role: "region", "aria-label": "Your pattern is ready" },
-      h("span", { className: "ready-bar__icon", "aria-hidden": "true" }, Icons.check ? Icons.check() : null),
+    var saveLine = save.state === "saved"
+      ? (save.text + (fromTracker ? "; Open in Tracker to start stitching it." : "."))
+      : (save.state === "saving" ? save.text : save.text + ".");
+    return h("section", { className: "ready-bar" + (isError ? " ready-bar--error" : ""), role: "region", "aria-label": "Your pattern is ready" },
+      h("span", { className: "ready-bar__icon", "aria-hidden": "true" },
+        isError ? (Icons.warning ? Icons.warning() : null) : (Icons.check ? Icons.check() : null)),
       h("div", { className: "ready-bar__text" },
         h("strong", { className: "ready-bar__title" }, "Your pattern is ready"),
-        h("span", { className: "ready-bar__summary", "data-ready-summary": "" }, s.text + ". It is saved in your library" + (fromTracker ? "; Open in Tracker to start stitching it." : ".")),
+        h("span", { className: "ready-bar__summary", "data-ready-summary": "" },
+          s.text + ". ",
+          h("span", { className: "ready-bar__save-status", "data-ready-save-status": save.state, role: isError ? "alert" : "status" }, saveLine)),
+        isError && h("span", { className: "ready-bar__save-actions" },
+          app.retryAutoSave ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.retryAutoSave(); } },
+            Icons.refresh ? Icons.refresh() : null, h("span", null, "Retry")) : null,
+          app.saveProject ? h("button", { type: "button", className: "btn btn-sm", onClick: function () { app.saveProject(); } },
+            Icons.save ? Icons.save() : null, h("span", null, "Download project (.json)")) : null),
         h("span", { className: "ready-bar__links" },
           h("button", { type: "button", className: "ready-bar__link", onClick: then(function () { app.setMaterialsTab("review"); app.setTab("materials"); }) }, "Ready to stitch review"),
           s.blends > 0 && window.openBlendHelp && window.BLEND_HELP

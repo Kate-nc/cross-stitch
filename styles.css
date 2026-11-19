@@ -8989,6 +8989,12 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 /* "Your pattern is ready" after Generate (creator/ReadyBar.js): what was
    made, and Print PDF / Open in Tracker / Threads to buy. */
 .ready-bar { position: relative; display: flex; align-items: flex-start; gap: var(--s-3); flex-wrap: wrap; padding: var(--s-3); margin-bottom: var(--s-2); background: var(--success-soft); border: 1px solid var(--line); border-left: 3px solid var(--success); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-sm); }
+.ready-bar--error { background: var(--danger-soft); border-left-color: var(--danger); }
+.ready-bar--error .ready-bar__icon { color: var(--danger); }
+.ready-bar--error .ready-bar__save-status { color: var(--danger); font-weight: 600; }
+.ready-bar__save-actions { display: flex; gap: var(--s-2); flex-wrap: wrap; margin-top: 4px; }
+.ready-bar__save-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ready-bar__save-actions svg { width: 15px; height: 15px; }
 .ready-bar__icon { display: inline-flex; color: var(--success-text); margin-top: 2px; }
 .ready-bar__icon svg { width: 18px; height: 18px; }
 .ready-bar__text { flex: 1 1 260px; padding-right: 28px; min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.4; }
