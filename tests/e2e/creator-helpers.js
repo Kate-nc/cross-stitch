@@ -94,7 +94,7 @@ async function clickGenerate(page) {
 // opened, so wait for the edit tools instead.
 async function waitForEdit(page) {
   await page.waitForSelector('.rpanel--edit', { state: 'attached', timeout: 20000 });
-  await page.waitForSelector('.creator-rail, .toolbar-row', { timeout: 20000 });
+  await page.waitForSelector('.creator-rail, .toolbar-row, .creator-drail', { timeout: 20000 });
   await page.waitForTimeout(300);
 }
 
@@ -128,7 +128,7 @@ async function zoomUntilScrollable(page) {
     }
     await closeMorePanel(page);
   } else {
-    await page.locator('.tb-zoom-grp input[type=range]').fill('1.5');
+    await page.locator('.tb-zoom-grp input[type=range], .creator-optbar__zoom input[type=range]').first().fill('1.5');
   }
   await box.evaluate(function(el) {
     el.scrollLeft = Math.floor((el.scrollWidth - el.clientWidth) / 2);

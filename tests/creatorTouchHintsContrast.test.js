@@ -80,7 +80,8 @@ describe('touch wording', () => {
   test('the Creator status line and hints switch on coarse pointers', () => {
     const tab = loadSource('creator/PatternTab.js');
     expect(tab).toMatch(/statusText = "Long-press a stitch for more options\.";/);
-    expect(tab).toMatch(/!app\.shortcutsHintDismissed && !coarse && h\("div"/);
+    // The tool-rail layout has no hint row (its tooltips name the shortcuts).
+    expect(tab).toMatch(/!app\.shortcutsHintDismissed && !coarse && (!app\.desktopRail && )?h\("div"/);
     const kb = loadSource('keyboard-utils.js');
     expect(kb).toMatch(/if \(coarse \|\| !visible \|\| typing\) return null;/);
     const main = loadSource('creator-main.js');

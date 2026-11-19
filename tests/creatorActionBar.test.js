@@ -133,8 +133,9 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
   // P2-1 (audit COMMON-04, COMMON-10)
   test('an empty grid shows only tools: no Print PDF, Export, Open in Tracker or difficulty', () => {
     expect(ACTION_BAR_SRC).toMatch(/var hasStitches = hasPat && \(Number\(props\.totalStitchable\) \|\| 0\) > 0;/);
-    expect(ACTION_BAR_SRC).toMatch(/var trackBtn = hasStitches && /);
-    expect(ACTION_BAR_SRC).toMatch(/var difficultyBadge = \(hasStitches && props\.difficulty\)/);
+    expect(ACTION_BAR_SRC).toMatch(/var trackBtn = (!inline && )?hasStitches && /);
+    expect(ACTION_BAR_SRC).toMatch(/var trackSecondaryBtn = inline && hasStitches && /);
+    expect(ACTION_BAR_SRC).toMatch(/var difficultyBadge = \((!inline && )?hasStitches && props\.difficulty\)/);
     expect(ACTION_BAR_SRC).toMatch(/hasStitches \? trackBtn : null/);
     const compact = fs.readFileSync(path.join(REPO_ROOT, 'creator', 'CompactBar.js'), 'utf8');
     expect(compact).toMatch(/var hasStitches = hasPat && \(Number\(props\.totalStitchable\) \|\| 0\) > 0;/);

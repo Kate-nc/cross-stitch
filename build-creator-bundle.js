@@ -82,6 +82,8 @@ const ORDER = [
   'SplitPane.js',
   'CompactBar.js',
   'SpecialtyStitchPanel.js',
+  // Tool rail and options bar for the creator.desktopRail layout (Stage 2).
+  'DesktopRail.js',
   'ToolStrip.js',
   'MagicWandPanel.js',
   'BulkAddModal.js',

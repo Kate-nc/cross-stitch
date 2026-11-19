@@ -804,6 +804,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Tool buttons come from the one list in creator/toolRegistry.js.
   var ToolReg = window.CreatorToolRegistry;
   var toolApi = { cv: cv, ctx: ctx, coarse: coarsePointer, palData: palData };
+  // Tool-rail layout (creator.desktopRail): the rail and the options bar hold
+  // the tools, stitch type, brush size, Mirror and Clean up, so More leaves
+  // them out (no control shows in two places).
+  var railLayout = !compact && !!app.desktopRail;
   // The More panel keeps its own small glyphs for these (Pick is text only).
   var moreIconOverride = {
     pick: null, wand: svgWand,
@@ -897,17 +901,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
         // Navigate replaces the separate Hand tool. On touch the Navigate |
         // Draw toggle is always in the strip, so the registry leaves it out.
-        ToolReg.moreTools({ coarse: coarsePointer }).map(function(t) { return moreToolBtn(t); })
+        ToolReg.moreTools({ coarse: coarsePointer, desktopRail: railLayout }).map(function(t) { return moreToolBtn(t); })
       )
     ),
     // ── Cleanup and denoise ──
-    ToolReg.moreTools({ coarse: coarsePointer }, ToolReg.MORE_CLEANUP).map(function(t) {
+    !railLayout && ToolReg.moreTools({ coarse: coarsePointer }, ToolReg.MORE_CLEANUP).map(function(t) {
       return h("div", {key:"sec-" + t.id, className:"tb-more-panel__section" + (t.id === "cleanup" ? " tb-more-panel__section--cleanup" : "")},
         moreToolBtn(t, {style:{width:"100%",justifyContent:"flex-start"},
           title: t.id === "denoise" ? "Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads" : t.title}));
     }),
     // ── Stitch type ──
-    h("div", {className:"tb-more-panel__section"},
+    !railLayout && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Stitch type"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
         stitchTypeOptions.map(function(st) {
@@ -922,7 +926,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       )
     ),
     // ── Brush size ──
-    h("div", {className:"tb-more-panel__section"},
+    !railLayout && h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Brush size"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
         [1,2,3,5,7,10].map(function(sz) {
@@ -1016,6 +1020,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         ToolReg.list(ToolReg.TOUCH_RAIL_FOOT).map(railTool),
         morePanelWrap
       )
+    );
+  }
+
+  if (railLayout) {
+    // ── Desktop tool rail and options bar (creator/DesktopRail.js) ──
+    return h(React.Fragment, null,
+      h(window.CreatorDesktopRail, null),
+      h(window.CreatorOptionsBar, { modeRow: cleanupRow || denoiseRow, more: morePanelWrap })
     );
   }
 

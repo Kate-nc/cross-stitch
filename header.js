@@ -488,7 +488,7 @@ function handleInlineRestore(e) {
 }
 window.restoreBackupFromInput = handleInlineRestore;
 
-function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onExportOxs, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved, saveStatus, savedAt, saveError, onRetrySave }) {
+function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onExportOxs, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved, saveStatus, savedAt, saveError, onRetrySave, actions, compactProject }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
   const [helpOpen, setHelpOpen] = React.useState(function() {
@@ -789,7 +789,11 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   // Tablet widths: one chip carries the project name, progress and save state, so
   // nothing clips and the File menu stays on screen. Phones keep their own
   // icon-only treatment (styles.css), wide screens keep the separate badge.
-  const compactChip = useMatchMedia('(min-width: 600px) and (max-width: 1199px)');
+  const compactChipByWidth = useMatchMedia('(min-width: 600px) and (max-width: 1199px)');
+  // The Creator's tool-rail layout puts its pattern actions in this row
+  // (`actions`), so the project's progress and save state ride in the
+  // switcher chip at every width (`compactProject`).
+  const compactChip = compactChipByWidth || !!compactProject;
   const shownName = propProjectName || projName;
   const shownPct = propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct;
 
@@ -891,7 +895,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           )
         ),
 
-        React.createElement('div', { className: 'tb-hgap' }),
+        // The Creator's pattern actions (tool-rail layout): its steps and
+        // Print PDF, Export and Open in Tracker, in the gap.
+        actions ? React.createElement('div', { className: 'tb-actions' }, actions) : React.createElement('div', { className: 'tb-hgap' }),
 
         // Project switcher (UX-12 Phase 6 PR #10) — recents dropdown +
         // "All projects…" entry that delegates to the existing project

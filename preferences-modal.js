@@ -288,6 +288,7 @@
     var refOpac = usePref("creatorReferenceOpacity", 35);
     var embroidery = usePref("experimental.embroideryTool", false);
     var threadSheen = usePref("creatorCanvasTexture", false);
+    var desktopRail = usePref("creator.desktopRail", false);
 
     return h("div", null,
       h(PageHeader, { title: "Pattern Creator",
@@ -349,6 +350,12 @@
         ),
         h(Row, { last: true, label: "Protect detailed areas", desc: "Keeps small groups of stitches that touch an outline, such as eyes and lettering. Off gives the tidiest chart. Bright accents are kept either way. Used when the picture type isn't guessed." },
           h(Switch, { checked: protect[0], onChange: protect[1] })
+        )
+      ),
+
+      h(Section, { title: "Editing layout" },
+        h(Row, { last: true, label: "Tool rail on the left", desc: "With a mouse, Edit shows every drawing tool down the left of the chart and one row of the chosen tool's options above it, so the chart gets more of the window. Turn off for the toolbar above the chart. Touch screens keep their own layout." },
+          h(Switch, { checked: !!desktopRail[0], onChange: desktopRail[1] })
         )
       ),
 

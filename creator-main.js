@@ -650,6 +650,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // bottom tool rail replace the header, action bar and tool strip.
   // body.creator-compact keys the CSS (styles.css, "Compact phone chrome").
   const _compact = window.useCreatorCompact ? window.useCreatorCompact() : false;
+  // Tool-rail layout (Stage 2, creator.desktopRail, mouse only): a tool rail
+  // on the left, one options bar above the chart, and the pattern actions in
+  // the header row. body.creator-drail-layout keys the CSS (styles.css, "Desktop
+  // tool rail"); body.creator-drail-tools is set while the rail is showing.
+  const _desktopRail = !_compact && (window.useCreatorDesktopRail ? window.useCreatorDesktopRail() : false);
   // The Creator's first tab (audit COMMON-10): Convert when there is a
   // picture to convert, Canvas for a design drawn from scratch (its size and
   // fabric), and neither for a chart imported without a picture.
@@ -698,6 +703,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     document.body.classList.toggle('creator-compact', on);
     return ()=>{ document.body.classList.remove('creator-compact'); };
   },[_compact,isActive]);
+  const _railTools = !!(_desktopRail && isActive && state.appMode==='edit' && state.tab==='pattern' && state.pat && state.pal);
+  React.useEffect(()=>{
+    document.body.classList.toggle('creator-drail-layout', !!(_desktopRail && isActive));
+    document.body.classList.toggle('creator-drail-tools', _railTools);
+    return ()=>{ document.body.classList.remove('creator-drail-layout'); document.body.classList.remove('creator-drail-tools'); };
+  },[_desktopRail,isActive,_railTools]);
   const [pendingNamedAction, setPendingNamedAction] = React.useState(null);
   const _histRef = React.useRef(null);  _histRef.current = history;
 
@@ -1031,6 +1042,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleOpenInTracker: stableHandleOpenInTracker, printPdf: stablePrintPdf,
     pictureFromTracker: !!window.__creatorPictureFromTracker,
     readyBarOpen: state.readyBarOpen, setReadyBarOpen: state.setReadyBarOpen, coachTipActive: coachTipActive, compact: _compact,
+    desktopRail: _desktopRail,
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
     cropToStitches: stableCropToStitches,
     isScratchMode: state.isScratchMode,
@@ -1038,7 +1050,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     setTracePicture: io.setTracePicture, removeTracePicture: io.removeTracePicture,
     isActive: isActive,
   }; }, [
-    _sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, _compact, handleTabChange,
+    _sourceTab, handleOpenCanvas, state.readyBarOpen, coachTipActive, _compact, _desktopRail, handleTabChange,
     state.saveStatus, state.savedAt, state.saveError,
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot, convertChartState,
@@ -1356,6 +1368,34 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     runNamedAction(key);
   }, [pendingNamedAction, state.namePromptOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const printPdfWithNameNudge = () => _nameNudgeRef.current('pdf');
+  // Shared by the action bar and, in the tool-rail layout, the header row.
+  const _actionBarProps = {
+    ready: !!(state.pat&&state.pal),
+    sW: state.sW,
+    sH: state.sH,
+    fabricCt: state.fabricCt,
+    colourCount: state.pal?state.pal.length:0,
+    threadCounts: state.threadCounts,
+    skeinEstimate: state.totalSkeins,
+    totalStitchable: state.totalStitchable,
+    difficulty: state.difficulty,
+    confetti: state.confettiStats,
+    stitchSpeed: state.stitchSpeed,
+    doneCount: state.doneCount,
+    appMode: state.appMode,
+    tab: state.tab,
+    pat: !!(state.pat&&state.pal),
+    onTabChange: handleTabChange,
+    onRequestBackToConvert: handleRequestBackToConvert,
+    onPrintPdf: printPdfWithNameNudge,
+    onTrackPattern: stableHandleOpenInTracker,
+    pictureFromTracker: !!window.__creatorPictureFromTracker,
+    onSaveJson: io.saveProject,
+    onMoreExports: ()=>_nameNudgeRef.current('exports'),
+    hasImage: !!(state.img&&state.img.src)&&!state.isScratchMode,
+    sourceTab: _sourceTab,
+    onOpenCanvas: handleOpenCanvas,
+  };
   // Audit IMPORT-05: files from other design programs (.pat, .xsp …)
   // and other non-images are turned away with a plain-English toast instead
   // of being handed to the image converter (import-engine/ui/importErrors.js).
@@ -1473,7 +1513,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         saveStatus={state.saveStatus}
         savedAt={state.savedAt}
         saveError={state.saveError}
-        onRetrySave={io.retryAutoSave} />
+        onRetrySave={io.retryAutoSave}
+        compactProject={_desktopRail}
+        actions={_desktopRail&&window.CreatorActionBar?<window.CreatorActionBar {..._actionBarProps} inline={true}/>:undefined} />
       {state.preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>state.setPreferencesOpen(false)})}
       {state.adaptModalOpen&&extrasReady&&typeof window.AdaptModal!=='undefined'&&React.createElement(window.AdaptModal,{
         mode:state.adaptModalMode,
@@ -1609,31 +1651,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         stitchSpeed={state.stitchSpeed}
         doneCount={state.doneCount}
       />}
-      {!_compact&&window.CreatorActionBar&&<window.CreatorActionBar
-        ready={!!(state.pat&&state.pal)}
-        sW={state.sW} sH={state.sH}
-        fabricCt={state.fabricCt}
-        colourCount={state.pal?state.pal.length:0} threadCounts={state.threadCounts}
-        skeinEstimate={state.totalSkeins}
-        totalStitchable={state.totalStitchable}
-        difficulty={state.difficulty}
-        confetti={state.confettiStats}
-        stitchSpeed={state.stitchSpeed}
-        doneCount={state.doneCount}
-        appMode={state.appMode}
-        tab={state.tab}
-        pat={!!(state.pat&&state.pal)}
-        onTabChange={handleTabChange}
-        onRequestBackToConvert={handleRequestBackToConvert}
-        onPrintPdf={printPdfWithNameNudge}
-        onTrackPattern={stableHandleOpenInTracker}
-        pictureFromTracker={!!window.__creatorPictureFromTracker}
-        onSaveJson={io.saveProject}
-        onMoreExports={()=>_nameNudgeRef.current('exports')}
-        hasImage={!!(state.img&&state.img.src)&&!state.isScratchMode}
-        sourceTab={_sourceTab}
-        onOpenCanvas={handleOpenCanvas}
-      />}
+      {/* In the tool-rail layout the header row carries these from 1280px up;
+          narrower windows keep this row (styles.css, "Desktop tool rail"). */}
+      {!_compact&&window.CreatorActionBar&&<window.CreatorActionBar {..._actionBarProps}/>}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
         {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}

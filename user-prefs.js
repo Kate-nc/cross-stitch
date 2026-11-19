@@ -57,6 +57,7 @@
     "creator.drawMode": null,               // Retired (UX-009): the Creator now always opens in Navigate, so this is no longer read or written. Kept so older backups still restore.
     "creator.magnifier": null,              // P1-3: touch loupe while drawing; null = on for touch screens
     "creator.precisionCursor": false,       // P1-3: crosshair 40px above the finger, placed on lift
+    "creator.desktopRail": false,            // Stage 2: tool rail on the left and one options bar above the chart (mouse only). Off = the toolbar pill.
     "creator.pdfWorkshopTheme": false,       // UX-12 PR #14: opt-in Workshop print theme (terracotta + linen). OFF = bit-identical PK output.
 
     // ─── Pattern Creator generation defaults (read by Sidebar on init) ──
@@ -292,7 +293,7 @@
       return typeof v === "number" && isFinite(v) && v >= min && v <= max && (!integer || Math.floor(v) === v);
     };
   }
-  portableKeys("gridOverlayEnabled coverageAutoSync exportChartModeBw exportChartModeColour exportOverlap exportIncludeCover exportIncludeInfo exportIncludeIndex exportMiniLegend exportCentreMarks creator.pdfWorkshopTheme creatorGuessPictureType creatorShowFrameStep creatorAllowBlends creatorStashOnlyDefault creatorSmoothDithering creatorProtectDetails creatorStitchCleanup creatorCanvasTexture trackerCanvasTexture trackerHighlightSkipDone trackerOnlyStarted trackerShowParking trackerCelebrate trackerMinimap trackerAutomaticSnapshots managerDetailGrid a11yHighContrast a11yReducedMotion a11ySymbolOnly toastsEnabled notifSound notifHaptic notifMilestones notifLowStock autoLibraryLink homeShowCompleted", function(v) { return typeof v === "boolean"; });
+  portableKeys("gridOverlayEnabled coverageAutoSync creator.desktopRail exportChartModeBw exportChartModeColour exportOverlap exportIncludeCover exportIncludeInfo exportIncludeIndex exportMiniLegend exportCentreMarks creator.pdfWorkshopTheme creatorGuessPictureType creatorShowFrameStep creatorAllowBlends creatorStashOnlyDefault creatorSmoothDithering creatorProtectDetails creatorStitchCleanup creatorCanvasTexture trackerCanvasTexture trackerHighlightSkipDone trackerOnlyStarted trackerShowParking trackerCelebrate trackerMinimap trackerAutomaticSnapshots managerDetailGrid a11yHighContrast a11yReducedMotion a11ySymbolOnly toastsEnabled notifSound notifHaptic notifMilestones notifLowStock autoLibraryLink homeShowCompleted", function(v) { return typeof v === "boolean"; });
   portableKeys("showStreaksAndGoals showDailyStreak", function(v) { return v === null || typeof v === "boolean"; });
   portableKeys("designerName designerCopyright designerContact", function(v) { return typeof v === "string" && v.length <= 10000; });
   portableKeys("fabricColour preferredMountColour creatorFabricColour trackerFabricColour trackerTintColour appAccentColour", function(v) { return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v); });

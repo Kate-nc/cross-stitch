@@ -153,6 +153,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var suppressPointersRef = React.useRef(false); // navigation owns this contact sequence
   var navTapRef            = React.useRef(null);  // last Navigate tap, for double-tap zoom
   var navTapTimerRef       = React.useRef(null);
+  var spaceHeldRef         = React.useRef(false); // Space held: drag pans (tool-rail layout)
 
   var TC = (typeof window !== 'undefined' && window.TouchConstants) || null;
   var TOUCH_TAP_SLOP = TC ? TC.TAP_SLOP_PX : 10;
@@ -216,6 +217,46 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // mouse drag pans, a tap shows the stitch's thread, a long-press opens the
   // menu. Two fingers pan and zoom in either mode.
   function isNavigate() { return !!(state.drawModeRef && state.drawModeRef.current === false); }
+  // Tool-rail layout (Stage 2, body.creator-drail-tools): Space and drag, or
+  // a middle-button drag, moves around the chart whatever tool is chosen.
+  function tempPanAllowed() {
+    return typeof document !== "undefined" && !!document.body && document.body.classList.contains("creator-drail-tools");
+  }
+  if (React.useEffect) React.useEffect(function() {
+    function isSpace(e) { return e.code === "Space" || e.key === " "; }
+    // Typing, or a focused control that Space would press, keeps Space. A
+    // slider (the zoom) has no use for it, so Space still pans there.
+    function keepsSpace(t) {
+      if (!t) return false;
+      if (t.tagName === "INPUT") return !/^(range|color)$/i.test(t.type || "");
+      return !!(t.isContentEditable || /^(TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName) || (t.getAttribute && /^(button|menuitem|menuitemradio|menuitemcheckbox|radio|tab|checkbox|switch)$/.test(t.getAttribute("role") || "")));
+    }
+    function release() {
+      spaceHeldRef.current = false;
+      document.body.classList.remove("creator-space-pan");
+    }
+    function onDown(e) {
+      if (!isSpace(e) || !tempPanAllowed() || keepsSpace(e.target)) return;
+      e.preventDefault();
+      if (!spaceHeldRef.current) { spaceHeldRef.current = true; document.body.classList.add("creator-space-pan"); }
+    }
+    function onUp(e) { if (isSpace(e) && spaceHeldRef.current) { e.preventDefault(); release(); } }
+    // The browser's own middle-click scrolling would fight the pan.
+    function onMouseDown(e) {
+      if (e.button === 1 && tempPanAllowed() && e.target && e.target.closest && e.target.closest(".cs-chart-scroll")) e.preventDefault();
+    }
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", release);
+    window.addEventListener("mousedown", onMouseDown, true);
+    return function() {
+      window.removeEventListener("keydown", onDown);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", release);
+      window.removeEventListener("mousedown", onMouseDown, true);
+      release();
+    };
+  }, []);
 
   // Open the stitch context menu for the cell under a viewport point.
   function openCellMenuAt(clientX, clientY) {
@@ -1286,6 +1327,21 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatPointerDown(e) {
     var activeTool = state.activeTool, partialStitchTool = state.partialStitchTool;
     var scrollRef = state.scrollRef;
+    // Space-drag or middle-button drag: pan with any tool (tool-rail layout).
+    if (e.pointerType !== "touch" && tempPanAllowed() && scrollRef.current && activePointersRef.current.size === 0 &&
+        (e.button === 1 || (isPrimaryButton(e) && spaceHeldRef.current))) {
+      var panTarget = e.currentTarget || e.target;
+      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType, target: panTarget });
+      if (panTarget && panTarget.setPointerCapture) { try { panTarget.setPointerCapture(e.pointerId); } catch (_) {} }
+      panStateRef.current = {
+        pointerId: e.pointerId, moved: false,
+        startX: e.clientX, startY: e.clientY,
+        scrollLeft: scrollRef.current.scrollLeft, scrollTop: scrollRef.current.scrollTop,
+      };
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
     if (!isPrimaryButton(e)) return;
 
     // Drawing cannot use coordinates while a pinch transform is settling.

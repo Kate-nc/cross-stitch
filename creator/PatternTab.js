@@ -151,7 +151,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     // The shortcuts hint and review note wait while "Your pattern is ready"
     // or a one-off tip is showing, so notices come one at a time.
-    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && h("div", {
+    // The tool rail's tooltips name each shortcut, so it has no hint row.
+    !app.readyBarOpen && !app.coachTipActive && !app.shortcutsHintDismissed && !coarse && !app.desktopRail && h("div", {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
@@ -310,7 +311,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       );
     })(),
 
-    h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
+    // Clear for a highlighted thread; in the tool-rail layout it is in the options bar.
+    !app.desktopRail && h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
         style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer"}

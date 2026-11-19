@@ -123,7 +123,8 @@ describe('surfaces', () => {
     const more = reg.moreTools({ coarse: false, desktopRail: true }).map(t => t.id);
     reg.DESKTOP_RAIL.forEach(id => expect(more).not.toContain(id));
     ['line', 'rect', 'ellipse'].forEach(id => expect(more).not.toContain(id));
-    expect(more).toEqual(['move', 'paste', 'mirror', 'replace']);
+    // Mirror is a switch in the options bar instead.
+    expect(more).toEqual(['move', 'paste', 'replace']);
   });
 });
 
@@ -207,6 +208,43 @@ describe('what a click does', () => {
   });
 });
 
+describe('the desktop rail', () => {
+  const api = (cv, ctx) => ({ cv: Object.assign({ drawMode: true, activeTool: null, stitchType: 'cross' }, cv), ctx: ctx || {} });
+
+  test('names the rail button the chart state belongs to', () => {
+    expect(reg.currentRailTool(api({ drawMode: false, activeTool: 'paint' }))).toBe('hand');
+    expect(reg.currentRailTool(api({ activeTool: 'paint' }))).toBe('paint');
+    expect(reg.currentRailTool(api({ activeTool: 'backstitch', stitchType: 'backstitch' }))).toBe('paint');
+    expect(reg.currentRailTool(api({ activeTool: null, stitchType: 'half-fwd' }, { partialStitchTool: 'half-fwd' }))).toBe('paint');
+    expect(reg.currentRailTool(api({ activeTool: 'fill' }))).toBe('fill');
+    expect(reg.currentRailTool(api({ activeTool: 'eraseAll', stitchType: 'erase' }))).toBe('erase');
+    expect(reg.currentRailTool(api({ activeTool: 'eraseBs' }))).toBe('erase');
+    expect(reg.currentRailTool(api({ activeTool: 'eyedropper' }))).toBe('pick');
+    expect(reg.currentRailTool(api({ activeTool: 'magicWand' }))).toBe('wand');
+    expect(reg.currentRailTool(api({ activeTool: 'lasso' }))).toBe('lasso');
+    ['line', 'rect', 'ellipse'].forEach(t => expect(reg.currentRailTool(api({ activeTool: t }))).toBe('shapes'));
+    expect(reg.currentRailTool(api({ activeTool: 'text' }))).toBe('text');
+    ['move', 'colourReplace', 'cleanup', 'denoise', null].forEach(t => expect(reg.currentRailTool(api({ activeTool: t }))).toBeNull());
+  });
+
+  test('clicking the tool that is already on keeps it on', () => {
+    const calls = [];
+    const cv = { drawMode: true, activeTool: 'magicWand', stitchType: 'cross', setActiveTool: v => calls.push(v) };
+    expect(reg.railActivate(reg.get('wand'), { cv, ctx: { setPartialStitchTool() {} } })).toBe(false);
+    expect(calls).toEqual([]);
+    // In More the same button toggles the wand off.
+    reg.get('wand').activate({ cv, ctx: { setPartialStitchTool() {} } });
+    expect(calls).toEqual([null]);
+  });
+
+  test('Undo and Redo on the rail are actions, so they always run', () => {
+    let undone = 0;
+    const cv = { drawMode: true, activeTool: 'paint', undoEdit: () => undone++ };
+    expect(reg.railActivate(reg.get('undo'), { cv, ctx: {} })).toBe(true);
+    expect(undone).toBe(1);
+  });
+});
+
 describe('wiring', () => {
   test('the bundle loads the registry before the tool strip', () => {
     const build = read('build-creator-bundle.js');
@@ -218,7 +256,7 @@ describe('wiring', () => {
     const strip = read('creator/ToolStrip.js');
     expect(strip).toMatch(/ToolReg\.list\(ToolReg\.TOUCH_RAIL\)\.map\(railTool\)/);
     expect(strip).toMatch(/ToolReg\.list\(ToolReg\.TOUCH_RAIL_FOOT\)\.map\(railTool\)/);
-    expect(strip).toMatch(/ToolReg\.moreTools\(\{ coarse: coarsePointer \}\)/);
+    expect(strip).toMatch(/ToolReg\.moreTools\(\{ coarse: coarsePointer, desktopRail: railLayout \}\)/);
     expect(strip).toMatch(/ToolReg\.moreTools\(\{ coarse: coarsePointer \}, ToolReg\.MORE_CLEANUP\)/);
   });
 

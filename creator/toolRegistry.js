@@ -179,6 +179,8 @@
       id: "mirror", label: "Mirror drawing", text: "Mirror", title: "Mirror drawing — axis in the Tools tab",
       icon: "mirror", shortcut: null, shortcutId: null,
       group: "draw", kind: "toggle", surfaces: ["more"],
+      // With the desktop rail on, Mirror is a switch in the options bar.
+      inOptionsBar: true,
       isOn: function (api) { return !!(api.cv.mirror && api.cv.mirror.on); },
       activate: function (api) {
         if (api.cv.setMirror) api.cv.setMirror(function (m) { return Object.assign({}, m, { on: !m.on }); });
@@ -275,11 +277,36 @@
       if (!t) return false;
       if (t.pointer === "fine" && opts.coarse) return false;
       if (opts.desktopRail) {
-        if (t.surfaces.indexOf("desktopRail") !== -1) return false;
+        if (t.surfaces.indexOf("desktopRail") !== -1 || t.inOptionsBar) return false;
         if (t.parent && get(t.parent) && get(t.parent).surfaces.indexOf("desktopRail") !== -1) return false;
       }
       return true;
     });
+  }
+
+  // Which desktop rail button the chart's current state belongs to. Paint
+  // covers every stitch type it draws (half, quarter, backstitch, knot);
+  // Move, Replace and the clean-up tools have no rail button (null).
+  function currentRailTool(api) {
+    var cv = api.cv, t = cv.activeTool;
+    if (!cv.drawMode) return "hand";
+    if (t === "eyedropper") return "pick";
+    if (t === "magicWand") return "wand";
+    if (t === "lasso") return "lasso";
+    if (t === "line" || t === "rect" || t === "ellipse") return "shapes";
+    if (t === "text") return "text";
+    if (cv.stitchType === "erase" || t === "eraseAll" || t === "eraseBs") return "erase";
+    if (t === "fill") return "fill";
+    if (t === "paint" || t === "backstitch" || t === "knot" || (api.ctx && api.ctx.partialStitchTool)) return "paint";
+    return null;
+  }
+
+  // A rail click picks the tool. Unlike the More panel, clicking the tool
+  // that is already on keeps it on (a rail always has one tool chosen).
+  function railActivate(t, api) {
+    if (t.kind === "tool" && currentRailTool(api) === t.id) return false;
+    t.activate(api);
+    return true;
   }
 
   function isVisible(t, api) { return !t.visible || !!t.visible(api); }
@@ -307,6 +334,8 @@
     list: function (ids) { return ids.map(get).filter(Boolean); },
     forSurface: function (surface) { return TOOLS.filter(on(surface)); },
     moreTools: moreTools,
+    currentRailTool: currentRailTool,
+    railActivate: railActivate,
     isVisible: isVisible,
     isDisabled: isDisabled,
     shortcutLabel: shortcutLabel
