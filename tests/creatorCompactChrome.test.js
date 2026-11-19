@@ -31,9 +31,13 @@ describe('compact chrome wiring', () => {
   test('the rail has Navigate | Draw, Paint, Fill, Erase, colour, Undo and More', () => {
     const i = strip.indexOf('if (compact) {');
     const rail = strip.slice(i, strip.indexOf('return h(React.Fragment, null,', i));
-    for (const s of ['railToggle', '"Paint tool"', '"Fill tool"', '"Erase tool"', 'creator-rail__colour', '"Undo"', 'morePanelWrap']) {
+    for (const s of ['railToggle', 'ToolReg.TOUCH_RAIL)', 'creator-rail__colour', 'ToolReg.TOUCH_RAIL_FOOT)', 'morePanelWrap']) {
       expect(rail).toContain(s);
     }
+    // Paint, Fill and Erase, then Undo after the colour, from the one tool list.
+    const reg = require('../creator/toolRegistry.js');
+    expect(reg.list(reg.TOUCH_RAIL).map(t => t.label)).toEqual(['Paint tool', 'Fill tool', 'Erase tool']);
+    expect(reg.list(reg.TOUCH_RAIL_FOOT).map(t => t.label)).toEqual(['Undo']);
     expect(rail).toMatch(/showColourStrip && swatchRow/);
   });
 

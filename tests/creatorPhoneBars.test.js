@@ -42,7 +42,8 @@ describe('bucketPour icon', () => {
   });
 
   test('the Fill tool uses it, on the rail and in the context menu', () => {
-    expect(read('creator/ToolStrip.js')).toMatch(/railBtn\("fill", "Fill tool", "Fill", window\.Icons\.bucketPour\(\)/);
+    expect(require('../creator/toolRegistry.js').get('fill').icon).toBe('bucketPour');
+    expect(read('creator/ToolStrip.js')).toMatch(/railBtn\(t\.id, t\.label, t\.text, toolIcon\(t\)/);
     expect(read('creator/ContextMenu.js')).toMatch(/Icons\.bucketPour/);
   });
 });
@@ -52,17 +53,18 @@ describe('rail labels', () => {
   const rail = strip.slice(strip.indexOf('if (compact) {'), strip.indexOf('return h(React.Fragment, null,', strip.indexOf('if (compact) {')));
 
   test('every rail control has a visible word under its icon', () => {
-    for (const [aria, word] of [['Paint tool', 'Paint'], ['Fill tool', 'Fill'], ['Erase tool', 'Erase'], ['Undo', 'Undo']]) {
-      expect(rail).toContain('railBtn("' + aria.toLowerCase().split(' ')[0] + '", "' + aria + '", "' + word + '"');
-    }
+    const reg = require('../creator/toolRegistry.js');
+    const railTools = reg.list(reg.TOUCH_RAIL.concat(reg.TOUCH_RAIL_FOOT));
+    expect(railTools.map(t => [t.label, t.text])).toEqual([['Paint tool', 'Paint'], ['Fill tool', 'Fill'], ['Erase tool', 'Erase'], ['Undo', 'Undo']]);
     expect(rail).toMatch(/creator-rail__label"\}, selCol \? selCol\.id : "Colour"/);
     expect(strip).toMatch(/creator-rail__label"\}, "More"/);
   });
 
   test('visible words are inside the accessible names (label in name)', () => {
-    const calls = Array.from(rail.matchAll(/railBtn\("\w+", "([^"]+)", "([^"]+)"/g));
-    expect(calls.length).toBe(4);
-    calls.forEach(m => expect(m[1]).toContain(m[2]));
+    const reg = require('../creator/toolRegistry.js');
+    const railTools = reg.list(reg.TOUCH_RAIL.concat(reg.TOUCH_RAIL_FOOT));
+    expect(railTools.length).toBe(4);
+    railTools.forEach(t => expect(t.label).toContain(t.text));
     expect(strip).toMatch(/"aria-label":"More tools"/);
   });
 

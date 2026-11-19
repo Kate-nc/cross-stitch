@@ -136,7 +136,7 @@ describe('Ready to stitch and Pattern info show the same count', () => {
 });
 
 describe('Reduce confetti is the one name', () => {
-  const files = ['creator/Sidebar.js', 'creator/ToolStrip.js', 'creator/MagicWandPanel.js', 'creator/PatternTab.js',
+  const files = ['creator/Sidebar.js', 'creator/ToolStrip.js', 'creator/toolRegistry.js', 'creator/MagicWandPanel.js', 'creator/PatternTab.js',
     'preferences-modal.js', 'help-drawer.js', 'creator/FrameView.js', 'creator/useDenoiseMode.js', 'creator/useCreatorState.js'];
 
   test('the old names are gone from the app', () => {
@@ -150,7 +150,7 @@ describe('Reduce confetti is the one name', () => {
   });
 
   test('the tool, the Convert slider and the preferences all say Reduce confetti', () => {
-    expect(has(read('creator/ToolStrip.js'), '" Reduce confetti"')).toBe(true);
+    expect(require('../creator/toolRegistry.js').get('denoise').text).toBe('Reduce confetti');
     expect(has(read('creator/ConvertPanel.js'), 'label: "Reduce confetti"')).toBe(true);
     expect(has(read('creator/Sidebar.js'), '}, "Reduce confetti")')).toBe(true);
     expect(has(read('preferences-modal.js'), 'label: "Reduce confetti"')).toBe(true);
