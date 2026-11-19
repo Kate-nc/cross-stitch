@@ -51,7 +51,7 @@ The preview in the middle updates as you change settings, and is the pattern Gen
 |------|-------|
 | **Stitched** (the default) | Every stitch as a cross of thread on your fabric, in your fabric colour, with as much fabric between stitches as two strands leave on that count; blends as one strand of each thread. The closest view to the finished piece. **Close up** shows the stitches larger. |
 | **Flat** | Every stitch as a square of its thread colour. |
-| **Before / after** | Your picture and the pattern either side of a divider you can drag, with **Auto-sweep** and a magnifier. Choose **At stitch size** to compare the pattern with your picture at one colour per stitch: a detail missing there is lost to the pattern's size (crop tighter or go bigger); one that is there but missing from the pattern is lost in matching threads and tidying. |
+| **Picture and chart** | Your picture and the pattern either side of a divider you can drag, with **Auto-sweep** and a magnifier. Choose **At stitch size** to compare the pattern with your picture at one colour per stitch: a detail missing there is lost to the pattern's size (crop tighter or go bigger); one that is there but missing from the pattern is lost in matching threads and tidying. |
 
 **Show confetti** and **Show tidied stitches** mark those stitches without changing the preview itself. A line under the preview's size says what your last change did, for example *Threads (max): 4,349 stitches changed (65%), threads 24 to 12, confetti 4.6% to 2.6%*, or that nothing visible changed.
 
@@ -148,7 +148,7 @@ The technical names (Atkinson error diffusion, ordered Bayer dithering) are unde
 
 ### Try settings before generating
 
-**Show what changed** marks changed cells in Stitched, Flat and Before / after, using the last completed preview as its baseline. It is off until you choose it. When you change the chart dimensions there is no direct cell comparison; the next change at that size establishes one.
+**Show what changed** marks changed cells in Stitched, Flat and Picture and chart, using the last completed preview as its baseline. It is off until you choose it. When you change the chart dimensions there is no direct cell comparison; the next change at that size establishes one.
 
 Choose **Pin this preview** to keep a completed preview and all its settings. Its label includes the style, thread count, size and brand. Change your settings freely: **Pinned / Current** switches between the two pictures on phones; wide screens show both as stitched previews. The difference line compares changed stitches, confetti, threads and skeins. **Apply pinned settings** restores the complete choice, including picture adjustments, fabric, brand, thread limits, shading and tidying. Changing or cropping the picture clears the pin. **Unpin** removes it.
 

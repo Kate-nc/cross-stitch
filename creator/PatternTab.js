@@ -265,13 +265,18 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         cv.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
       }
     },
-      app.previewActive
-        ? (app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
-        // The stitched picture lies over the chart, which stays mounted, so
-        // the scroll position and zoom carry across (ChartStitchedView.js).
-        : h("div", {className:"cs-chart-layer"},
-            h(window.PatternCanvas, null),
-            stitchedOn && window.CreatorStitchedOverlay && h(window.CreatorStitchedOverlay, null))
+      // Every view of the chart lies in one layer the chart's size (grid plus
+      // rulers), so switching Chart, Stitched, Flat and Realistic keeps the
+      // zoom and the place on the chart. The stitched picture lies over the
+      // chart, which stays mounted (ChartStitchedView.js); Flat and Realistic
+      // have no rulers, so they sit where the grid starts.
+      h("div", {className:"cs-chart-layer", style:{minWidth: ctx.sW * cv.cs + app.G + 2, minHeight: ctx.sH * cv.cs + app.G + 2}},
+        app.previewActive
+          ? h("div", {className:"cs-chart-layer__view", style:{left: app.G, top: app.G}},
+              app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
+          : h(React.Fragment, null,
+              h(window.PatternCanvas, null),
+              stitchedOn && window.CreatorStitchedOverlay && h(window.CreatorStitchedOverlay, null)))
     )),
 
     // Copy / paste / flip / rotate bar over the selection (audit DRAW-04)

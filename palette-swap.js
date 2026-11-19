@@ -1398,7 +1398,7 @@ function usePaletteSwap(props) {
           type: "button", className: "g-btn primary ps-actions__main",
           onClick: function() { if (hasChange) setShowConfirm(true); },
           disabled: !hasChange
-        }, "Preview & Apply"),
+        }, "See before and after"),
         React.createElement("button", {
           type: "button", className: "g-btn",
           onClick: function() { setShiftDeg(0); setActivePreset(null); setMappingOverrides(null); }
@@ -1505,7 +1505,7 @@ function usePaletteSwap(props) {
           type: "button", className: "g-btn primary ps-wide-btn",
           onClick: function() { if (activeMode === "harmony") setShowConfirm(true); },
           disabled: activeMode !== "harmony"
-        }, "Preview Harmony")
+        }, "See before and after")
       ),
 
       // Saved tab
@@ -1559,7 +1559,7 @@ function usePaletteSwap(props) {
         return React.createElement("button", {
           type: "button", className: "g-btn primary ps-wide-btn",
           onClick: function() { setShowConfirm(true); }
-        }, "Preview “" + pName + "”");
+        }, "See “" + pName + "” before and after");
       })()
     )
   );

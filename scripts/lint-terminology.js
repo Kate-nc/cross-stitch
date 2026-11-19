@@ -55,7 +55,12 @@ const TARGET_FILES = [
   "creator/ProjectTab.js",
   "creator/PatternTab.js",
   "creator/FrameView.js",
-  "creator/ReadyBar.js"
+  "creator/ReadyBar.js",
+  // Views and comparisons are named by what they show (Stage 3, X6).
+  "creator/SplitPane.js",
+  "creator/ChartStitchedView.js",
+  "creator/ResizeCanvasModal.js",
+  "palette-swap.js"
 ];
 
 // Forbidden → preferred. Each rule is matched as a whole word with the given
@@ -103,6 +108,16 @@ const PLAIN_TERMS = [
   { bad: "Allow blended threads", re: /\bAllow blended threads\b/i, good: "Allow two-thread blends", note: "The Convert setting is 'Allow two-thread blends'." }
 ];
 
+// A view or comparison is named by what it shows, a comparison by its two
+// sides: "Picture and chart", "Chart and stitched", "Before and after"
+// (Stage 3, X6; TERMINOLOGY.md "Views and comparisons"). A whole string that
+// is only one of these words is a control that doesn't say what it shows.
+// Matched in the Creator's files and palette-swap.js.
+const VAGUE_VIEW = /^["'`](Compare|Preview|Before \/ after|Before\/after|Compare side-by-side|Exit compare|Split pane)["'`]$/;
+function viewNamesApply(rel) {
+  return rel.indexOf("creator/") === 0 || rel === "creator-main.js" || rel === "palette-swap.js";
+}
+
 // The jargon rules cover the Creator and the text that explains it; the
 // Stash Manager's thread-substitution cards still show the colour difference
 // in its usual units.
@@ -143,6 +158,12 @@ function scanFile(rel) {
         hits.push({ file: rel, line: i + 1, term: rule.bad, suggested: rule.good, note: rule.note, snippet: line.trim().slice(0, 200) });
       }
     });
+    if (viewNamesApply(rel)) {
+      const vague = allStrs.filter(str => VAGUE_VIEW.test(str));
+      if (vague.length) {
+        hits.push({ file: rel, line: i + 1, term: vague[0], suggested: "what it shows, or its two sides", note: "Name a view by what it shows and a comparison by its two sides ('Picture and chart', 'Chart and stitched', 'Before and after'); see TERMINOLOGY.md 'Views and comparisons'.", snippet: line.trim().slice(0, 200) });
+      }
+    }
     const strs = jargonApplies(rel) ? allStrs : [];
     JARGON.forEach(rule => {
       if (strs.some(str => rule.re.test(str))) {
@@ -176,4 +197,4 @@ if (require.main === module) {
   process.exit(hits.length === 0 ? 0 : 1);
 }
 
-module.exports = { lintAll, scanFile, FORBIDDEN, JARGON, PLAIN_TERMS, TARGET_FILES };
+module.exports = { lintAll, scanFile, FORBIDDEN, JARGON, PLAIN_TERMS, TARGET_FILES, VAGUE_VIEW };

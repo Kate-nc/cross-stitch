@@ -262,7 +262,7 @@ function ComparisonSlider({
       objectFit: "fill",
       imageRendering: originalPixelated ? "pixelated" : "auto"
     },
-    alt: leftLabel || "Original",
+    alt: leftLabel || "Your picture",
     "data-testid": "cmp-original"
   }), /*#__PURE__*/React.createElement("div", {
     "data-testid": "cmp-preview-layer",
@@ -290,7 +290,8 @@ function ComparisonSlider({
       objectFit: "fill",
       imageRendering: "pixelated"
     },
-    alt: "Preview"
+    alt: "The chart these settings make",
+    "data-testid": "cmp-chart"
   })), !previewLoading && changedSrc && /*#__PURE__*/React.createElement("img", {
     "data-testid": "cvp-changed",
     src: changedSrc,
@@ -450,7 +451,7 @@ function ComparisonSlider({
       zIndex: 3,
       pointerEvents: "none"
     }
-  }, leftLabel || "Original"), /*#__PURE__*/React.createElement("span", {
+  }, leftLabel || "Your picture"), /*#__PURE__*/React.createElement("span", {
     style: {
       position: "absolute",
       top: 8,
@@ -464,7 +465,7 @@ function ComparisonSlider({
       zIndex: 3,
       pointerEvents: "none"
     }
-  }, rightLabel || "Preview"), previewPw && previewPh && /*#__PURE__*/React.createElement("span", {
+  }, rightLabel || "Chart"), previewPw && previewPh && /*#__PURE__*/React.createElement("span", {
     style: {
       position: "absolute",
       bottom: 8,
@@ -583,7 +584,10 @@ window.ComparisonSlider = ComparisonSlider;
 //   Stitched       crosses of thread on the chosen fabric (StitchedPreview.js),
 //                  the closest to the finished piece; the default.
 //   Flat           every stitch as a square of its thread colour, whole.
-//   Before / after the picture and the chart on either side of a slider.
+//   Picture and chart  the picture and the chart either side of a slider.
+// A comparison is named by its two sides (Stage 3, X6; TERMINOLOGY.md
+// "Views and comparisons"). Close up and its scroll position carry across
+// Stitched and Flat.
 // Above it, a line says what the last change did (usePreview.js
 // describePreviewChange). Once a chart exists, Convert still shows this live
 // preview, and says when it differs from the chart until Regenerate.
@@ -597,7 +601,7 @@ const PREVIEW_VIEWS = [{
   title: 'Every stitch as a square of its thread colour'
 }, {
   id: 'compare',
-  label: 'Before / after',
+  label: 'Picture and chart',
   title: 'Your picture and the chart either side of a slider'
 }];
 // What Before / after puts before the chart: the picture itself, or the
@@ -655,6 +659,23 @@ function ConvertPreview({
     } catch (_) {}
   }
   const [closeUp, setCloseUp] = useState(false);
+  // Close up's scroll position, kept when switching between Stitched and Flat.
+  const closeScroll = useRef({
+    left: 0,
+    top: 0
+  });
+  const closeBoxRef = useCallback(function (el) {
+    if (el) {
+      el.scrollLeft = closeScroll.current.left;
+      el.scrollTop = closeScroll.current.top;
+    }
+  }, []);
+  function saveCloseScroll(e) {
+    closeScroll.current = {
+      left: e.currentTarget.scrollLeft,
+      top: e.currentTarget.scrollTop
+    };
+  }
   const [showConfetti, setShowConfetti] = useState(false);
   const [showChanged, setShowChanged] = useState(false);
   // The stitched view is drawn at the size it is shown, in device pixels, so
@@ -754,7 +775,8 @@ function ConvertPreview({
     body = /*#__PURE__*/React.createElement(ComparisonSlider, {
       originalSrc: sampledBefore ? state.previewSampled : state.img.src,
       originalPixelated: sampledBefore,
-      leftLabel: sampledBefore ? 'At stitch size' : 'Original',
+      leftLabel: sampledBefore ? 'At stitch size' : 'Your picture',
+      rightLabel: "Chart",
       previewSrc: state.previewUrl,
       heatmapSrc: state.previewHeatmap,
       highlightSrc: state.previewHighlight,
@@ -768,6 +790,25 @@ function ConvertPreview({
       fabricColour: state.fabricColour,
       previewLoading: state.previewLoading
     });
+  } else if (view === 'flat' && closeUp) {
+    // Close up, as in Stitched: 16 pixels a stitch in the same scrolling box.
+    body = /*#__PURE__*/React.createElement("div", {
+      className: "cvp-stitched cvp-stitched--close",
+      "data-testid": "cvp-flat",
+      ref: closeBoxRef,
+      onScroll: saveCloseScroll
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "cvp-stitched__inner cvp-flat-close",
+      style: {
+        width: pw * 16,
+        height: ph * 16,
+        background: fabricBg
+      }
+    }, /*#__PURE__*/React.createElement("img", {
+      src: state.previewUrl,
+      alt: "The chart these settings make, flat",
+      className: "cvp-flat"
+    }), overlays));
   } else if (view === 'flat') {
     body = /*#__PURE__*/React.createElement("div", {
       className: "cvp-box",
@@ -778,13 +819,15 @@ function ConvertPreview({
       }
     }, /*#__PURE__*/React.createElement("img", {
       src: state.previewUrl,
-      alt: "Preview",
+      alt: "The chart these settings make, flat",
       className: "cvp-flat"
     }), overlays);
   } else {
     body = /*#__PURE__*/React.createElement("div", {
       className: 'cvp-stitched' + (closeUp ? ' cvp-stitched--close' : ''),
-      "data-testid": "cvp-stitched"
+      "data-testid": "cvp-stitched",
+      ref: closeUp ? closeBoxRef : undefined,
+      onScroll: closeUp ? saveCloseScroll : undefined
     }, shownStitchData && window.CreatorStitchedPreview ? /*#__PURE__*/React.createElement("div", {
       className: "cvp-stitched__inner"
     }, /*#__PURE__*/React.createElement(window.CreatorStitchedPreview, {
@@ -872,7 +915,7 @@ function ConvertPreview({
     ref: bodyRef
   }, body), /*#__PURE__*/React.createElement("div", {
     className: "cvp-tools"
-  }, view === 'stitched' && /*#__PURE__*/React.createElement("button", {
+  }, view !== 'compare' && /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "cs-seltools__btn",
     "aria-pressed": closeUp ? 'true' : 'false',
@@ -922,7 +965,7 @@ function ConvertPreview({
   }, /*#__PURE__*/React.createElement("div", {
     className: "lp-segmented cvp-before__seg",
     role: "radiogroup",
-    "aria-label": "Compare the chart with"
+    "aria-label": "Picture beside the chart"
   }, COMPARE_BEFORE.map(function (b) {
     const on = before === b.id;
     return /*#__PURE__*/React.createElement("button", {

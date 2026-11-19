@@ -234,7 +234,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         state.setChartView(function (v) { return v === "stitched" ? "chart" : "stitched"; });
       } },
     { id: "creator.split", keys: "\\", scope: "creator.design",
-      description: "Toggle split-pane preview",
+      description: "Show the chart and stitched side by side",
       when: function () { return !!state.pat; },
       run: function () {
         var nextSplit = !state.splitPaneEnabled;

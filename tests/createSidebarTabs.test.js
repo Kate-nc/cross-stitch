@@ -12,11 +12,12 @@ describe('Convert and Edit each have their own tabs', () => {
   const convertSrc = read('creator/ConvertPanel.js');
   const stateSrc   = read('creator/useCreatorState.js');
 
-  it('Edit has Palette / Tools / View / Preview / Project, with Tools and View locked until a pattern exists', () => {
+  it('Edit has Palette / Tools / View / Project, with Tools and View locked until a pattern exists', () => {
     const m = sidebarSrc.match(/var editTabs\s*=\s*\[([\s\S]*?)\];/);
     expect(m).toBeTruthy();
     const ids = Array.from(m[1].matchAll(/id:\s*"([^"]+)"/g)).map(x => x[1]);
-    expect(ids).toEqual(['palette', 'tools', 'view', 'preview', 'project']);
+    // Stage 3 (X6): Preview folded into View, so no tab is called only Preview.
+    expect(ids).toEqual(['palette', 'tools', 'view', 'project']);
     expect(m[1]).toMatch(/id:\s*"tools"[\s\S]{0,160}disabled:\s*!hasPattern/);
     expect(m[1]).toMatch(/id:\s*"view"[\s\S]{0,160}disabled:\s*!hasPattern/);
   });

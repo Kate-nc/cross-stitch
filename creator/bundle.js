@@ -13700,7 +13700,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         state.setChartView(function (v) { return v === "stitched" ? "chart" : "stitched"; });
       } },
     { id: "creator.split", keys: "\\", scope: "creator.design",
-      description: "Toggle split-pane preview",
+      description: "Show the chart and stitched side by side",
       when: function () { return !!state.pat; },
       run: function () {
         var nextSplit = !state.splitPaneEnabled;
@@ -17786,7 +17786,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
   }
 
   var MODE_LABELS = {
-    "wysiwyg": "WYSIWYG preview",
+    "wysiwyg": "Flat",
     "level1":  "Realistic \u2013 Flat",
     "level2":  "Realistic \u2013 Shaded",
     "level3":  "Realistic \u2013 Detailed",
@@ -17965,7 +17965,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
               display: "flex", alignItems: "center", gap: 2, padding: 0,
             },
           },
-            MODE_LABELS[app.rightPaneMode || "level2"] || "Preview",
+            MODE_LABELS[app.rightPaneMode || "level2"] || "Stitched",
             window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style: { marginLeft: 2, display:"inline-flex" } }, window.Icons.chevronDown()) : null
           ),
           rightDropOpen && h("div", {
@@ -20034,7 +20034,7 @@ window.MagicWandPanel = function MagicWandPanel() {
     cv.confettiPreview
       ? h("span", { style: { color: "var(--warning)" } }, cv.confettiPreview.size + " stitches flagged")
       : null,
-    btn("Preview", cv.previewConfettiCleanup, { style: { fontSize: 10 } }),
+    btn("Show them", cv.previewConfettiCleanup, { style: { fontSize: 10 } }),
     btn("Apply", cv.applyConfettiCleanup, {
       green: true, disabled: !cv.confettiPreview || !cv.confettiPreview.size,
       style: { fontSize: 10 }
@@ -22105,12 +22105,12 @@ window.CreatorSidebar = function CreatorSidebar() {
     {id:"view",       label:"View",       icon:"eye",
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock display options."},
-    {id:"preview",    label:"Preview",    icon:"image"},
     {id:"project",    label:"Project",    icon:"folder"}
   ];
-  // Tool-rail layout (creator.desktopRail, Stage 2): the rail and the
-  // options bar hold what was in Tools, so the tabs are Palette, View (with
-  // Preview in it) and Project.
+  // The ways of seeing the chart are all in View (the Preview tab folded into
+  // it in Stage 3, so no tab is called only "Preview"). Tool-rail layout
+  // (creator.desktopRail, Stage 2): the rail and the options bar hold what
+  // was in Tools, so the tabs are Palette, View and Project.
   var railLayout = !!app.desktopRail && !app.compact;
   if (railLayout) {
     editTabs = [
@@ -22125,7 +22125,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // A stored tab Edit doesn't have (the old Convert ids "image",
   // "dimensions" or "settings") opens the first Edit tab that is available.
   var sTab = app.sidebarTab;
-  if (railLayout && sTab === "preview") sTab = "view";
+  if (sTab === "preview") sTab = "view";
   var sTabMeta = tabs.find(function(t) { return t.id === sTab; });
   if (!sTabMeta || sTabMeta.disabled) {
     sTab = (tabs.find(function(t) { return !t.disabled; }) || tabs[0]).id;
@@ -22207,13 +22207,16 @@ window.CreatorSidebar = function CreatorSidebar() {
   var isRealistic = app.previewMode === "realistic";
   var chartModeNow = !app.previewActive ? "chart" : app.previewMode;
   var coverageNow = app.coverageOverride;
-  var previewSec = P.sec("preview", "Preview", null,
-    h("div", {key:"mode-label", className:"cv-field__label"}, "Chart mode"),
-    P.seg({label:"Chart mode", value:chartModeNow, onChange:function(id){
+  // Views are named by what they show and comparisons by their two sides
+  // (Stage 3, X6; TERMINOLOGY.md "Views and comparisons").
+  var previewSec = P.sec("preview", "Chart, flat or realistic",
+    "Flat draws every stitch as a square of its thread colour. Realistic draws the stitches with their thread texture, at the quality you choose. You can't paint on either. The Chart / Stitched switch in the chart's corner shows the stitched view Convert uses.",
+    h("div", {key:"mode-label", className:"cv-field__label"}, "Show the chart as"),
+    P.seg({label:"Show the chart as", value:chartModeNow, onChange:function(id){
         if (id === "chart") { app.setPreviewActive(false); }
         else { app.setPreviewActive(true); app.setPreviewMode(id); }
       },
-      options:[{id:"chart",label:"Chart"},{id:"pixel",label:"Pixel"},{id:"realistic",label:"Realistic"}]}),
+      options:[{id:"chart",label:"Chart"},{id:"pixel",label:"Flat",title:"Every stitch as a square of its thread colour"},{id:"realistic",label:"Realistic",title:"Stitches drawn with their thread texture"}]}),
     isRealistic && app.previewActive && h(React.Fragment, null,
       h("div", {className:"cv-field__label sb-subtitle"}, "Quality level"),
       P.seg({label:"Quality level", className:"cv-seg--sub", value:app.realisticLevel, onChange:function(id){ app.setRealisticLevel(id); },
@@ -22244,7 +22247,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
   // ── Split / compare view (moved here from the top toolbar) ──────────
-  var compareSec = (ctx.pat && ctx.pal) ? P.sec("compare", "Compare", null,
+  var compareSec = (ctx.pat && ctx.pal) ? P.sec("compare", "Side by side", null,
       h("button", {
         type:"button",
         onClick:function(){
@@ -22253,13 +22256,13 @@ window.CreatorSidebar = function CreatorSidebar() {
           if (typeof window.UserPrefs !== "undefined") window.UserPrefs.set("splitPaneEnabled", next);
         },
         "aria-pressed": app.splitPaneEnabled ? "true" : "false",
-        title: app.splitPaneEnabled ? "Exit compare view (\\)" : "Compare chart vs realistic preview (\\)",
+        title: app.splitPaneEnabled ? "Stop showing the chart and the stitched view side by side (\\)" : "Show the chart and the stitched view side by side (\\)",
         className:"cs-seltools__btn sb-block-btn" + (app.splitPaneEnabled ? " cs-seltools__btn--on" : "")
       },
         Icons.splitView(),
-        app.splitPaneEnabled ? "Exit compare" : "Compare side-by-side"
+        "Chart and stitched"
       ),
-      P.hint("Shows the editable chart on the left and the realistic preview on the right.")
+      P.hint("The chart you edit on the left, and the pattern as stitches on the right.")
   ) : null;
   var previewPanel = h(React.Fragment, null, previewSec, compareSec);
 
@@ -22606,14 +22609,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     correctSection
   );
 
-  var viewContent = h(React.Fragment, null,
-    viewToggle,
-    highlightControls
-  );
-
-  // The tool-rail layout's View tab: the chart view and highlight, the
-  // picture overlay (from More) and Preview.
-  var railViewContent = h(React.Fragment, null,
+  // The View tab: the chart view and highlight, your picture over the chart,
+  // the flat and realistic views, and the chart and stitched side by side.
+  var viewTabContent = h(React.Fragment, null,
     viewToggle,
     highlightControls,
     (gen.img && gen.img.src) && P.sec("overlay", "Your picture over the chart", null,
@@ -22692,8 +22690,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       sTab === "tools" && toolsContent,
-      sTab === "view" && (railLayout ? railViewContent : viewContent),
-      sTab === "preview" && previewPanel,
+      sTab === "view" && viewTabContent,
       sTab === "project" && h(React.Fragment, null,
         projectInfoSection,
         // Fabric can change after the pattern is made (audit COMMON-08).
@@ -24383,13 +24380,18 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         cv.setContextMenu({ x: e.clientX, y: e.clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: cell });
       }
     },
-      app.previewActive
-        ? (app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
-        // The stitched picture lies over the chart, which stays mounted, so
-        // the scroll position and zoom carry across (ChartStitchedView.js).
-        : h("div", {className:"cs-chart-layer"},
-            h(window.PatternCanvas, null),
-            stitchedOn && window.CreatorStitchedOverlay && h(window.CreatorStitchedOverlay, null))
+      // Every view of the chart lies in one layer the chart's size (grid plus
+      // rulers), so switching Chart, Stitched, Flat and Realistic keeps the
+      // zoom and the place on the chart. The stitched picture lies over the
+      // chart, which stays mounted (ChartStitchedView.js); Flat and Realistic
+      // have no rulers, so they sit where the grid starts.
+      h("div", {className:"cs-chart-layer", style:{minWidth: ctx.sW * cv.cs + app.G + 2, minHeight: ctx.sH * cv.cs + app.G + 2}},
+        app.previewActive
+          ? h("div", {className:"cs-chart-layer__view", style:{left: app.G, top: app.G}},
+              app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
+          : h(React.Fragment, null,
+              h(window.PatternCanvas, null),
+              stitchedOn && window.CreatorStitchedOverlay && h(window.CreatorStitchedOverlay, null)))
     )),
 
     // Copy / paste / flip / rotate bar over the selection (audit DRAW-04)
@@ -26388,7 +26390,7 @@ window.ResizeCanvasModal = function ResizeCanvasModal(props) {
 
           // Right: preview diagram
           h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: "0 0 auto" } },
-            h("div", { style: sectionLabelStyle }, "Preview"),
+            h("div", { style: sectionLabelStyle }, "Old and new canvas"),
             preview,
             h("div", { style: { fontSize: "var(--text-xs)", color: "var(--text-secondary)" } },
               h("span", { style: { display: "inline-block", width: 10, height: 10, background: "var(--accent)", opacity: 0.35, marginRight: 4, verticalAlign: "middle" } }),

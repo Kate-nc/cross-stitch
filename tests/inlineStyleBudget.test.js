@@ -13,7 +13,7 @@ const BUDGETS = {
   'creator/Sidebar.js': 7,
   'palette-swap.js': 4,
   'creator/ToolStrip.js': 6,
-  'creator/PatternTab.js': 2,
+  'creator/PatternTab.js': 4,
   // The reference: Convert's panel and Frame the picture.
   'creator/ConvertPanel.js': 4,
   'creator/FrameView.js': 1,

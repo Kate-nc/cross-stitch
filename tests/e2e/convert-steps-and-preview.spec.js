@@ -65,7 +65,7 @@ test.describe('Convert steps and preview on desktop', function() {
     expect(px.other).toBeGreaterThan((px.navy + px.other) * 0.1);
     expect(Math.abs(px.cssW - px.boxW)).toBeLessThan(4);
     await previewView(page, 'flat');
-    await expect(page.getByTestId('cvp-flat').locator('img[alt="Preview"]')).toBeVisible();
+    await expect(page.getByTestId('cvp-flat').locator('img.cvp-flat')).toBeVisible();
     await previewView(page, 'compare');
     await expect(page.getByTestId('cmp-preview-layer')).toBeVisible();
     // The choice is remembered for next time.

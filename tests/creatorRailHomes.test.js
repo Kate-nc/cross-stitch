@@ -108,7 +108,8 @@ describe('the side panel in the rail layout', () => {
     expect(m).toBeTruthy();
     expect(Array.from(m[1].matchAll(/id:"([^"]+)"/g)).map(x => x[1])).toEqual(['palette', 'view', 'project']);
     expect(sidebar).toMatch(/!railLayout && gen\.img && app\.sourceTab !== "canvas"/);
-    expect(sidebar).toMatch(/railLayout && sTab === "preview"\) sTab = "view"/);
+    // A stored Preview tab opens View (Preview folded into View in Stage 3).
+    expect(sidebar).toMatch(/if \(sTab === "preview"\) sTab = "view"/);
   });
 });
 

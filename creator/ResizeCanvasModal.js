@@ -389,7 +389,7 @@ window.ResizeCanvasModal = function ResizeCanvasModal(props) {
 
           // Right: preview diagram
           h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: "0 0 auto" } },
-            h("div", { style: sectionLabelStyle }, "Preview"),
+            h("div", { style: sectionLabelStyle }, "Old and new canvas"),
             preview,
             h("div", { style: { fontSize: "var(--text-xs)", color: "var(--text-secondary)" } },
               h("span", { style: { display: "inline-block", width: 10, height: 10, background: "var(--accent)", opacity: 0.35, marginRight: 4, verticalAlign: "middle" } }),

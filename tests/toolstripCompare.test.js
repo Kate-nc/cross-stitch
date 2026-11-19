@@ -24,7 +24,8 @@ const SHORTCUTS_SRC = fs.readFileSync(
 
 describe('A7 — Compare button (Sidebar Preview tab)', () => {
   test('Sidebar Preview tab exposes a Compare control', () => {
-    expect(SIDEBAR_SRC).toMatch(/Compare side-by-side|Exit compare/);
+    // Stage 3 (X6): named by its two sides.
+    expect(SIDEBAR_SRC).toMatch(/"Chart and stitched"/);
   });
 
   test('Compare button no longer lives in the top toolstrip', () => {
@@ -34,9 +35,9 @@ describe('A7 — Compare button (Sidebar Preview tab)', () => {
 
   test('button tooltip names the keyboard shortcut', () => {
     expect(SIDEBAR_SRC).toMatch(
-      /Compare chart vs realistic preview \(\\\\\)/
+      /Show the chart and the stitched view side by side \(\\\\\)/
     );
-    expect(SIDEBAR_SRC).toMatch(/Exit compare view \(\\\\\)/);
+    expect(SIDEBAR_SRC).toMatch(/Stop showing the chart and the stitched view side by side \(\\\\\)/);
   });
 
   test('button has aria-pressed reflecting splitPaneEnabled', () => {

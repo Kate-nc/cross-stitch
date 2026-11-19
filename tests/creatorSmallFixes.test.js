@@ -16,7 +16,7 @@ describe('Stage 1 Task 7 small fixes', () => {
 
   test('D4: View tab renders only one View label', () => {
     const sb = read('creator/Sidebar.js');
-    const viewContent = sb.match(/var viewContent = h\(React\.Fragment, null,[\s\S]*?\);/)[0];
+    const viewContent = sb.match(/var viewTabContent = h\(React\.Fragment, null,[\s\S]*?\);/)[0];
     expect(viewContent).not.toMatch(/"View"/);
   });
 

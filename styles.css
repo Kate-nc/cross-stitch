@@ -9832,6 +9832,8 @@ body.creator-space-pan .cs-chart-scroll,body.creator-space-pan .cs-chart-scroll 
 .cs-chart-frame { position: relative; }
 .cs-chart-layer { position: relative; margin: auto; flex-shrink: 0; }
 .cs-chart-layer > canvas { display: block; }
+.cs-chart-layer__view { position: absolute; }
+.cs-chart-layer__view canvas { display: block; }
 /* Bottom right on a desktop, clear of "Your pattern is ready" over the
    chart's top; top right on a phone, clear of the notices at the bottom. */
 .chart-view-bar { position: absolute; bottom: 12px; right: 16px; z-index: 5; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--s-2); max-width: calc(100% - 32px); pointer-events: none; }

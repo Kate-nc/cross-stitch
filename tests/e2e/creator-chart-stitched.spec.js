@@ -86,6 +86,21 @@ test.describe('Chart / Stitched on a desktop', function() {
     await expect(undoButton(page)).toBeEnabled();
   });
 
+  test('Flat and Realistic keep the zoom and the place on the chart too (X6)', async function({ page }) {
+    await generateLogo(page);
+    const box = await zoomUntilScrollable(page);
+    await box.evaluate(function(el) { el.scrollLeft = Math.floor(el.scrollLeft * 0.6); el.scrollTop = Math.floor(el.scrollTop * 1.3); });
+    // Flat adds a status line under its canvas, so only the position is compared.
+    const at = await box.evaluate(function(el) { return [el.scrollLeft, el.scrollTop]; });
+    await page.locator('.creator-sidebar-tab[data-tab-id="view"]').click();
+    const showAs = page.getByRole('radiogroup', { name: 'Show the chart as' });
+    for (const name of ['Flat', 'Realistic', 'Chart']) {
+      await showAs.getByRole('radio', { name: name, exact: true }).click();
+      await page.waitForTimeout(400);
+      expect(await box.evaluate(function(el) { return [el.scrollLeft, el.scrollTop]; })).toEqual(at);
+    }
+  });
+
   test('S switches between the chart and the stitched view', async function({ page }) {
     await generateLogo(page);
     await page.locator('.cs-chart-scroll').hover();
