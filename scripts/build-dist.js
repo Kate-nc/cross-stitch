@@ -93,6 +93,28 @@ const COPY_ONLY_DIRS = ['assets/'];
 
 const SECTION_MARKER = /^\/\* ─── (.+?) ─── \*\/$/m;
 
+// Bundled folders: only the built bundles and standalone files loaded directly
+// by pages/workers ship in dist/. Every other source file under creator/ and
+// import-engine/ is already concatenated into bundle.js / extras-bundle.js.
+const SHIPPED_SUBDIR_FILES = {
+  creator: new Set([
+    'creator/bundle.js',
+    'creator/extras-bundle.js',
+    'creator/pdfChartLayout.js',
+    'creator/pdfExport.js',
+    'creator/symbolFontSpec.js',
+    'creator/Loupe.js',
+    'creator/SpecialtyStitchPanel.js',
+    'creator/BulkAddModal.js',
+  ]),
+  'import-engine': new Set([
+    'import-engine/bundle.js',
+    'import-engine/lazy-shim.js',
+    'import-engine/worker.js',
+    'import-engine/ui/importErrors.js',
+  ]),
+};
+
 function isExcluded(rel) {
   const parts = rel.split('/');
   if (parts.some(p => p.startsWith('.'))) return true;
@@ -100,6 +122,8 @@ function isExcluded(rel) {
   if (parts.length === 1 && (EXCLUDE_ROOT_FILES.has(rel) || EXCLUDE_DIRS.has(rel))) return true;
   const base = parts[parts.length - 1];
   if (EXCLUDE_PATTERNS.some(re => re.test(base))) return true;
+  const allow = SHIPPED_SUBDIR_FILES[parts[0]];
+  if (allow && parts.length > 1 && base.endsWith('.js') && !allow.has(rel)) return true;
   return false;
 }
 

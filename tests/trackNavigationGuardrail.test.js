@@ -362,18 +362,20 @@ describe('sync-engine — .p field support in fingerprint', () => {
   });
 });
 
-// ── home-screen.js sample project navigation ─────────────────────────────────
-describe('home-screen.js sample project navigation', () => {
+// ── help-drawer.js sample project navigation ─────────────────────────────────
+describe('help-drawer.js sample project navigation', () => {
+  const helpDrawer = fs.readFileSync(path.join(__dirname, '..', 'help-drawer.js'), 'utf8');
+
   test('sample project navigation sets window.__navigatingAway before location.href', () => {
-    const block = homeScreen.match(
-      /ProjectStorage\.save\(sample\)\.then[\s\S]*?window\.location\.href/
+    const block = helpDrawer.match(
+      /ProjectStorage\.save\(p\)\.then[\s\S]*?window\.location\.href/
     );
     expect(block).not.toBeNull();
     expect(block[0]).toMatch(/window\.__navigatingAway\s*=\s*true/);
   });
 
   test('sample project navigation appends ?id= to the stitch.html URL', () => {
-    expect(homeScreen).toMatch(/stitch\.html\?id=.*encodeURIComponent\(/);
+    expect(helpDrawer).toMatch(/stitch\.html\?id=.*encodeURIComponent\(/);
   });
 });
 

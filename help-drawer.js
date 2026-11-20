@@ -1143,13 +1143,72 @@
     }));
   }
 
+  // Sample starter pattern (used by Getting Started "Try a sample pattern").
+  // A tiny 16×16 heart in DMC 321 — enough cells to feel like a real project
+  // on the tracker without overwhelming a brand-new user.
+  function buildSampleProject() {
+    var HEART = [
+      '0000000000000000',
+      '0000000000000000',
+      '0001110001110000',
+      '0011111011111000',
+      '0111111111111100',
+      '0111111111111100',
+      '0111111111111100',
+      '0011111111111000',
+      '0001111111110000',
+      '0000111111100000',
+      '0000011111000000',
+      '0000000111000000',
+      '0000000010000000',
+      '0000000000000000',
+      '0000000000000000',
+      '0000000000000000'
+    ];
+    var W = 16, H = 16;
+    var RED = { id: '321', type: 'solid', rgb: [228, 4, 52] };
+    var SKIP = { id: '__skip__' };
+    var pattern = [];
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        pattern.push(HEART[y].charAt(x) === '1'
+          ? { id: RED.id, type: RED.type, rgb: RED.rgb.slice() }
+          : { id: SKIP.id });
+      }
+    }
+    var now = new Date().toISOString();
+    return {
+      v: 9,
+      name: 'Sample heart',
+      w: W,
+      h: H,
+      settings: { sW: W, sH: H, fabricCt: 14, skeinPrice: 0.95, stitchSpeed: 40 },
+      pattern: pattern,
+      bsLines: [],
+      done: null,
+      halfStitches: [],
+      halfDone: [],
+      singleStitchEdits: [],
+      parkMarkers: [],
+      totalTime: 0,
+      sessions: [],
+      threadOwned: {},
+      createdAt: now,
+      updatedAt: now,
+      isSample: true
+    };
+  }
+  if (typeof window !== 'undefined' && typeof window.buildSampleProject !== 'function') {
+    window.buildSampleProject = buildSampleProject;
+  }
+
   function GettingStartedSection() {
     function handleAction(act) {
       if (!act) return;
       if (act.kind === "sample") {
         try {
-          if (typeof window.buildSampleProject === "function" && window.ProjectStorage) {
-            var p = window.buildSampleProject();
+          if (window.ProjectStorage) {
+            var p = (typeof window.buildSampleProject === "function" ? window.buildSampleProject : buildSampleProject)();
             window.ProjectStorage.save(p).then(function () {
               try { window.ProjectStorage.setActiveProject && window.ProjectStorage.setActiveProject(p.id); } catch (_) {}
               window.__navigatingAway = true;

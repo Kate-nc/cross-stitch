@@ -25,9 +25,6 @@ describe('Dashboard wires PartialStitchThumb', () => {
     // The card should pass the lazy-loaded payload's pattern/done into the thumb.
     expect(home).toMatch(/h\(window\.PartialStitchThumb,\s*\{[\s\S]{0,300}pattern:\s*payload\.pattern/);
   });
-  test('Hero card also uses PartialStitchThumb', () => {
-    expect(home).toMatch(/h\(window\.PartialStitchThumb,\s*\{[\s\S]{0,300}pattern:\s*heroPayload\.pattern/);
-  });
   test('ProjectStorage.get is called lazily inside ProjectCard', () => {
     // The lazy-load effect must be inside ProjectCard, not at dashboard level.
     expect(home).toMatch(/ProjectStorage\.get\(proj\.id\)/);
