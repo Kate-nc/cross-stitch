@@ -17944,6 +17944,7 @@ window.CreatorSmoothEdgesPanel = function CreatorSmoothEdgesPanel() {
   var cv = window.useCanvas();
   var app = window.useApp();
   var _top = React.useState(null); var top = _top[0], setTop = _top[1];
+  var rootRef = React.useRef(null);
 
   var open = cv.wandPanel === "smooth" && !!cv.hasSelection && app.tab === "pattern" && !app.previewActive;
 
@@ -17959,6 +17960,23 @@ window.CreatorSmoothEdgesPanel = function CreatorSmoothEdgesPanel() {
     window.addEventListener("resize", place);
     return function () { window.removeEventListener("resize", place); };
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // As a phone sheet it covers the foot of the screen, where toasts show:
+  // publish its height so they sit just above it (styles.css).
+  React.useLayoutEffect(function () {
+    if (!open) return undefined;
+    var body = document.body, el = rootRef.current;
+    function measure() { if (el) body.style.setProperty("--cs-smooth-h", el.offsetHeight + "px"); }
+    measure();
+    body.classList.add("cs-smooth-open");
+    var ro = typeof ResizeObserver !== "undefined" && el ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(el);
+    return function () {
+      if (ro) ro.disconnect();
+      body.classList.remove("cs-smooth-open");
+      body.style.removeProperty("--cs-smooth-h");
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -17998,7 +18016,7 @@ window.CreatorSmoothEdgesPanel = function CreatorSmoothEdgesPanel() {
   }
 
   return h("div", {
-    className: "cs-smooth", role: "dialog", "aria-modal": "false", "aria-label": "Smooth edges",
+    ref: rootRef, className: "cs-smooth", role: "dialog", "aria-modal": "false", "aria-label": "Smooth edges",
     style: top != null ? { top: top } : null,
     onPointerDown: function (e) { e.stopPropagation(); }
   },

@@ -8657,6 +8657,9 @@ body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start
   .cs-smooth__check { min-height: 32px; margin-bottom: 8px; }
   .cs-smooth__sum { margin-bottom: 10px; }
   .cs-smooth__btn { flex: 1; min-height: 44px; }
+  /* Toasts sit just above the sheet while it is open. */
+  body.cs-smooth-open .creator-toast-container,
+  body.cs-smooth-open [data-toast-container] { bottom: calc(var(--cs-smooth-h, 0px) + 8px) !important; }
 }
 .cs-sttype-row__label { display: block; margin: 0 4px 4px; font-size: var(--text-xs); color: var(--text-tertiary); }
 /* The same actions in the Tools tab's Selection section. */
