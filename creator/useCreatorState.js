@@ -1575,10 +1575,10 @@ window.useCreatorState = function useCreatorState() {
   var doneRef = useRef(done); doneRef.current = done;
   // Set by CreatorApp: undoes the newest edit if it still carries these cells.
   var undoGuardRef = useRef(null);
-  var guardStitchedEdit = useCallback(function(changes, newPat) {
+  var guardStitchedEdit = useCallback(function(changes, newPat, psChanges) {
     var SE = window.StitchedEdits, cur = doneRef.current;
     if (!SE || !cur) return undefined;
-    var idxs = SE.stitchedResets(cur, changes, newPat);
+    var idxs = SE.stitchedResets(cur, changes, newPat, psChanges);
     if (!idxs.length) return undefined;
     var next = SE.clearDone(cur, idxs);
     doneRef.current = next;
@@ -2011,7 +2011,8 @@ window.useCreatorState = function useCreatorState() {
   function removeScratchColour(id) {
     // E-5: don't let the user orphan stitches by removing an in-use scratch colour.
     var entry = pal ? pal.find(function(p) { return p.id === id; }) : null;
-    if (entry && entry.count > 0) {
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots, specialtyStitches) : new Set();
+    if ((entry && entry.count > 0) || inParts.has(String(id))) {
       addToast("Can't remove a scratch colour that's in use — paint over it first", { type: "warning", duration: 3500 });
       return;
     }
@@ -2040,7 +2041,10 @@ window.useCreatorState = function useCreatorState() {
 
   function removeUnusedColours() {
     if (!pal) return;
-    var unused = pal.filter(function(p) { return p.count === 0; });
+    // A count of 0 is full stitches only: keep colours that part stitches,
+    // backstitch, knots or specialty stitches still use.
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots, specialtyStitches) : new Set();
+    var unused = pal.filter(function(p) { return p.count === 0 && !inParts.has(String(p.id)); });
     if (!unused.length) return;
     var unusedIds = new Set(unused.map(function(p) { return p.id; }));
     var removedFromScratch = scratchPalette.filter(function(p) { return unusedIds.has(p.id); });
@@ -2657,6 +2661,7 @@ window.useCreatorState = function useCreatorState() {
     pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt, threadBrand: threadBrand,
     bsLines: bsLines, setBsLines: setBsLines,
     knots: knots, setKnots: setKnots,
+    specialtyStitches: specialtyStitches,
     // Colour replacement also recolours half/quarter stitches.
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     setScratchPalette: setScratchPalette,
@@ -3168,6 +3173,25 @@ window.useCreatorState = function useCreatorState() {
         return null;
       }
       return wand.deleteSelection();
+    },
+    // Blocked mid-move for the same reason as Delete.
+    convertSelectionStitchType: function(target) {
+      if (clip.floatActive || move.floatActive) {
+        addToast("Place the selection first, then change its stitch type.", {type: "info", duration: 3000});
+        return null;
+      }
+      return wand.convertSelectionStitchType(target);
+    },
+    selectionStitchKind: wand.selectionStitchKind,
+    smoothOptions: wand.smoothOptions, setSmoothOptions: wand.setSmoothOptions,
+    smoothPreview: wand.smoothPreview,
+    // Blocked mid-move for the same reason as Delete.
+    applySmoothEdges: function() {
+      if (clip.floatActive || move.floatActive) {
+        addToast("Place the selection first, then smooth its edges.", {type: "info", duration: 3000});
+        return null;
+      }
+      return wand.applySmoothEdges();
     },
     colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,

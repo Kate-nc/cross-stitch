@@ -43,8 +43,17 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   }, [menu.x, menu.y]);
 
   var cell = menu.cell;
-  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
-  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
+  var effCell = (cell && cell.id !== "__skip__" && cell.id !== "__empty__") ? cell : null;
+  if (!effCell && ctx.partialStitches && menu.idx != null) {
+    var psCell = ctx.partialStitches.get(menu.idx);
+    if (psCell) {
+      effCell = window.StitchTypeConvert && window.StitchTypeConvert.dominantColour
+        ? window.StitchTypeConvert.dominantColour(cell, psCell, "full")
+        : (psCell.TL || psCell.TR || psCell.BL || psCell.BR || null);
+    }
+  }
+  var hasCellColour = !!(effCell && effCell.id !== "__skip__" && effCell.id !== "__empty__" && ctx.cmap && ctx.cmap[effCell.id]);
+  var cellInfo = hasCellColour ? ctx.cmap[effCell.id] : null;
 
   function item(label, onClick, opts) {
     opts = opts || {};
@@ -77,7 +86,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       position:"fixed", left:pos.x, top:pos.y, zIndex:9999,
       background:"var(--surface)", border:"1px solid var(--border)", borderRadius:'var(--radius-md)',
       boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
-      minWidth:180, maxWidth:240
+      minWidth:180, maxWidth:264
     }
   },
     // Header: cell info
@@ -139,6 +148,12 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     cv.clip && cv.hasSelection && item([Icons.flipVertical(), " Flip vertically"], function() { cv.clip.transform("flipV"); }, {k: 'flipV'}),
     cv.clip && cv.hasSelection && item([Icons.rotateCcw(), " Rotate left"], function() { cv.clip.transform("rotCCW"); }, {k: 'rotCCW'}),
     cv.clip && cv.hasSelection && item([Icons.rotateCw(), " Rotate right"], function() { cv.clip.transform("rotCW"); }, {k: 'rotCW'}),
+
+    // Cross / half / half for every stitch in the selection
+    cv.hasSelection && h("div", { key: 'stitchType', className: "cs-sttype-row" },
+      h("span", { className: "cs-sttype-row__label", "aria-hidden": "true" }, "Stitch type"),
+      h(window.CreatorStitchTypeChoice, { onPicked: function() { cv.setContextMenu(null); } })),
+    cv.hasSelection && item([Icons.smoothEdges(), " Smooth edges\u2026"], function() { cv.setWandPanel("smooth"); }, {k: 'smooth'}),
 
     // Delete everything in the current selection
     cv.hasSelection && item([Icons.trash(), " Delete selected stitches"], function() {

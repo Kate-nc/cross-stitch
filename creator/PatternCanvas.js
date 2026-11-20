@@ -332,7 +332,7 @@ window.PatternCanvas = function PatternCanvas() {
       ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, app.tab, cv.selectedColorId, cv.bsStart,
       cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
       cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
-      cv.selectionMask, cv.confettiPreview, cv.cleanupPendingMask, cv.denoisePendingMask, cv.mirror
+      cv.selectionMask, cv.confettiPreview, cv.smoothPreview, cv.cleanupPendingMask, cv.denoisePendingMask, cv.mirror
     ];
     var prevKey = overlayKeyRef.current;
     overlayKeyRef.current = key;
@@ -379,7 +379,7 @@ window.PatternCanvas = function PatternCanvas() {
     ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, app.tab,
     cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
     cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
-    cv.selectionMask, cv.confettiPreview,
+    cv.selectionMask, cv.confettiPreview, cv.smoothPreview,
     cv.cleanupPendingMask, cv.denoisePendingMask, cv.mirror
   ]);
 

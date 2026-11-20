@@ -43,6 +43,10 @@ window.useMagicWand = function useMagicWand(state) {
     if (reducePreview !== null) setReducePreviewStale(true);
   }, [reduceMode, reduceTarget, reduceThreshold]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // sub-state for Smooth edges (SmoothEdges.plan options)
+  var _smOpts = React.useState({ mode: "trim", keepSquare: true });
+  var smoothOptions = _smOpts[0], setSmoothOptions = _smOpts[1];
+
   // sub-state for outline generation
   var _outlineColor = React.useState("310");
   var outlineColor  = _outlineColor[0], setOutlineColor = _outlineColor[1];
@@ -66,9 +70,30 @@ window.useMagicWand = function useMagicWand(state) {
     return Math.sqrt(dL * dL + da * da + db * db);
   }
 
-  function getCellLab(idx, pat, cmap) {
+  // Effective colour of a cell: its full stitch, or the dominant quadrant of
+  // its part stitches when pat[idx] is blank (e.g. half stitches / smoothed
+  // edges). Keeps half-stitched and smoothed regions selectable by Wand/All.
+  function effectiveCell(idx, pat, partials) {
     var cell = pat[idx];
-    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return null;
+    if (cell && cell.id !== "__skip__" && cell.id !== "__empty__") return cell;
+    var ps = partials && partials.get(idx);
+    if (!ps) return null;
+    if (window.StitchTypeConvert && window.StitchTypeConvert.dominantColour) {
+      return window.StitchTypeConvert.dominantColour(cell, ps, "full");
+    }
+    return ps.TL || ps.TR || ps.BL || ps.BR || null;
+  }
+
+  function getCellLab(idx, pat, cmap, partials) {
+    var cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+      var ps = partials && partials.get(idx);
+      if (!ps) return null;
+      cell = (typeof window !== "undefined" && window.StitchTypeConvert && window.StitchTypeConvert.dominantColour)
+        ? window.StitchTypeConvert.dominantColour(cell, ps, "full")
+        : (ps.TL || ps.TR || ps.BL || ps.BR || null);
+      if (!cell) return null;
+    }
     var entry = cmap ? cmap[cell.id] : null;
     return labFromEntry(entry || cell);
   }
@@ -76,12 +101,10 @@ window.useMagicWand = function useMagicWand(state) {
   // ─── Core selection operations ───────────────────────────────────────────────
 
   // Flood-fill BFS from (startX,startY), selects all 4-connected cells within tolerance
-  function floodSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+  function floodSelect(pat, cmap, sW, sH, startX, startY, tolerance, partials) {
     var mask = new Uint8Array(sW * sH);
     var startIdx = startY * sW + startX;
-    var startCell = pat[startIdx];
-    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
-    var startLab = getCellLab(startIdx, pat, cmap);
+    var startLab = getCellLab(startIdx, pat, cmap, partials);
     if (!startLab) return mask;
 
     var visited = new Uint8Array(sW * sH);
@@ -90,7 +113,7 @@ window.useMagicWand = function useMagicWand(state) {
 
     while (queue.length) {
       var idx = queue.pop();
-      var lab = getCellLab(idx, pat, cmap);
+      var lab = getCellLab(idx, pat, cmap, partials);
       if (!lab) continue;
       if (deltaE(startLab, lab) > tolerance) continue;
       mask[idx] = 1;
@@ -104,17 +127,13 @@ window.useMagicWand = function useMagicWand(state) {
   }
 
   // Global scan: selects ALL cells matching startCell within tolerance
-  function globalSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+  function globalSelect(pat, cmap, sW, sH, startX, startY, tolerance, partials) {
     var mask = new Uint8Array(sW * sH);
     var startIdx = startY * sW + startX;
-    var startCell = pat[startIdx];
-    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
-    var startLab = getCellLab(startIdx, pat, cmap);
+    var startLab = getCellLab(startIdx, pat, cmap, partials);
     if (!startLab) return mask;
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
+      var lab = getCellLab(i, pat, cmap, partials);
       if (!lab) continue;
       if (deltaE(startLab, lab) <= tolerance) mask[i] = 1;
     }
@@ -142,18 +161,18 @@ window.useMagicWand = function useMagicWand(state) {
   // ─── Actions: plain functions (no useCallback — matches codebase pattern) ────
 
   function applyWandSelect(gx, gy, opMode) {
-    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat || !cmap) return;
     if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
     var idx = gy * sW + gx;
-    var cell = pat[idx];
-    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+    var cell = effectiveCell(idx, pat, partials);
+    if (!cell) {
       if (state.addToast) state.addToast("That cell is empty \u2014 nothing to select.", {type:"warning", duration:1500});
       return;
     }
     var newMask = wandContiguous
-      ? floodSelect(pat, cmap, sW, sH, gx, gy, wandTolerance)
-      : globalSelect(pat, cmap, sW, sH, gx, gy, wandTolerance);
+      ? floodSelect(pat, cmap, sW, sH, gx, gy, wandTolerance, partials)
+      : globalSelect(pat, cmap, sW, sH, gx, gy, wandTolerance, partials);
     var merged = mergeMasks(selectionMask, newMask, opMode, sW * sH);
     setSelectionMask(merged);
 
@@ -176,40 +195,37 @@ window.useMagicWand = function useMagicWand(state) {
   }
 
   function invertSelection() {
-    var pat = state.pat, sW = state.sW, sH = state.sH;
+    var pat = state.pat, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat) return;
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (!effectiveCell(i, pat, partials)) continue;
       out[i] = selectionMask && selectionMask[i] ? 0 : 1;
     }
     setSelectionMask(out);
   }
 
   function selectAll() {
-    var pat = state.pat, sW = state.sW, sH = state.sH;
+    var pat = state.pat, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat) return;
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (!effectiveCell(i, pat, partials)) continue;
       out[i] = 1;
     }
     setSelectionMask(out);
   }
 
   function selectAllOfColorId(colorId, opMode) {
-    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat || !cmap) return;
     var entry = cmap[colorId];
     if (!entry) return;
     var startLab = labFromEntry(entry);
     var newMask = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
+      if (!effectiveCell(i, pat, partials)) continue;
+      var lab = getCellLab(i, pat, cmap, partials);
       if (!lab) continue;
       if (deltaE(startLab, lab) <= wandTolerance) newMask[i] = 1;
     }
@@ -535,6 +551,49 @@ window.useMagicWand = function useMagicWand(state) {
     };
   }
 
+  // Rebuild pal / cmap after an edit to the full stitches. The palette is
+  // rebuilt from full stitches only, so colours now used only by part
+  // stitches, backstitch lines, knots or specialty stitches are kept in the
+  // scratch palette, which keeps their palette entry and symbol through undo
+  // and redo.
+  function setPaletteKeepingParts(np, partials, lines, knots, specialty) {
+    var r = state.buildPaletteWithScratch(np);
+    var stc = window.StitchTypeConvert;
+    var usedIds;
+    if (stc && stc.partColourIds) {
+      usedIds = stc.partColourIds(partials, lines, knots, specialty);
+    } else {
+      usedIds = new Set();
+      (partials || new Map()).forEach(function(entry) {
+        ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q] && entry[q].id != null) usedIds.add(String(entry[q].id)); });
+      });
+      (lines || []).forEach(function(ln) { if (ln && ln.colorId != null) usedIds.add(String(ln.colorId)); });
+      (knots || []).forEach(function(k) { if (k && k.id != null) usedIds.add(String(k.id)); });
+      (specialty || []).forEach(function(st) {
+        var sid = st && st.thread && st.thread.id != null ? st.thread.id : (st && st.id != null ? st.id : null);
+        if (sid != null) usedIds.add(String(sid));
+      });
+    }
+    var keeps = [];
+    usedIds.forEach(function(id) {
+      if (r.cmap[id]) return;
+      var old = state.cmap && state.cmap[id];
+      if (!old) return;
+      keeps.push(Object.assign({}, old, { count: 0 }));
+    });
+    keeps = dedupeChartSymbols(r.pal, keeps);
+    if (keeps.length) {
+      if (state.setScratchPalette) {
+        state.setScratchPalette(function(prev) {
+          return prev.filter(function(p) { return !keeps.some(function(k) { return k.id === p.id; }); }).concat(keeps);
+        });
+      }
+      var keepMap = {}; keeps.forEach(function(k) { keepMap[k.id] = k; });
+      r = { pal: r.pal.concat(keeps), cmap: Object.assign({}, r.cmap, keepMap) };
+    }
+    state.setPal(r.pal); state.setCmap(r.cmap);
+  }
+
   // ─── Delete: clear every stitch inside the selection ─────────────────────────
   // Full stitches become __empty__ (as the eraser leaves them), part stitches in
   // selected cells are removed, and backstitch lines lying wholly inside the
@@ -608,32 +667,7 @@ window.useMagicWand = function useMagicWand(state) {
     state.setRedoHistory([]);
     if (np) {
       state.setPat(np);
-      var r = state.buildPaletteWithScratch(np);
-      // The palette is rebuilt from full stitches only. Keep entries for
-      // colours still used by remaining part stitches / backstitch lines.
-      var stillUsed = {};
-      (nm || ps || new Map()).forEach(function(entry) {
-        ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
-      });
-      keptBs.forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
-      var keeps = [];
-      Object.keys(stillUsed).forEach(function(id) {
-        if (r.cmap[id]) return;
-        var old = state.cmap && state.cmap[id];
-        if (!old) return;
-        keeps.push(Object.assign({}, old, { count: 0 }));
-      });
-      keeps = dedupeChartSymbols(r.pal, keeps);
-      if (keeps.length) {
-        if (state.setScratchPalette) {
-          state.setScratchPalette(function(prev) {
-            return prev.filter(function(p) { return !keeps.some(function(k) { return k.id === p.id; }); }).concat(keeps);
-          });
-        }
-        var keepMap = {}; keeps.forEach(function(k) { keepMap[k.id] = k; });
-        r = { pal: r.pal.concat(keeps), cmap: Object.assign({}, r.cmap, keepMap) };
-      }
-      state.setPal(r.pal); state.setCmap(r.cmap);
+      setPaletteKeepingParts(np, nm || ps, keptBs, keptKnots, state.specialtyStitches);
     }
     if (nm) state.setPartialStitches(nm);
     if (bsRemoved) state.setBsLines(keptBs);
@@ -646,20 +680,124 @@ window.useMagicWand = function useMagicWand(state) {
     return { entry: entry, counts: counts };
   }
 
+  // ─── Stitch type: make every stitch in the selection full or half ────────────
+  // Each cell keeps its colour (StitchTypeConvert has the rules). One undo
+  // step; stitched cells whose stitch changes are reset to not done.
+  var STC = window.StitchTypeConvert;
+  var STITCH_TYPE_NAMES = { "full": "cross stitches", "half-fwd": "half stitches (/)", "half-bck": "half stitches (\\)" };
+
+  function convertSelectionStitchType(target) {
+    var pat = state.pat, mask = selectionMask;
+    if (!pat || !mask || !STC) return null;
+    var res = STC.convertSelection(pat, state.partialStitches, mask, target, state.cmap);
+    var cells = {};
+    res.changes.forEach(function(c) { cells[c.idx] = true; });
+    res.psChanges.forEach(function(c) { cells[c.idx] = true; });
+    var n = Object.keys(cells).length;
+    if (!n) {
+      if (state.addToast) {
+        var any = STC.selectionKind(pat, state.partialStitches, mask);
+        state.addToast(any ? "The selection is already " + STITCH_TYPE_NAMES[target] + "." : "No stitches in the selection.", {type: "info", duration: 2000});
+      }
+      return null;
+    }
+
+    var entry = { type: "stitchType", changes: res.changes };
+    var reset = (res.changes.length || res.psChanges.length) && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat, res.psChanges);
+    if (reset) entry.doneReset = reset;
+    if (res.psChanges.length) entry.psChanges = res.psChanges;
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var h = prev.concat([entry]);
+      if (h.length > EDIT_HISTORY_MAX) h = h.slice(h.length - EDIT_HISTORY_MAX);
+      return h;
+    });
+    state.setRedoHistory([]);
+    if (res.changes.length) {
+      state.setPat(res.pat);
+      setPaletteKeepingParts(res.pat, res.partials, state.bsLines, state.knots, state.specialtyStitches);
+    }
+    if (res.psChanges.length) state.setPartialStitches(res.partials);
+    if (state.addToast) {
+      state.addToast("Changed " + n.toLocaleString() + " stitch" + (n === 1 ? "" : "es") + " to " + STITCH_TYPE_NAMES[target] + ".", {type: "success", duration: 2000});
+    }
+    return { entry: entry, count: n };
+  }
+
+  // What the selection's stitches are now, so the control can show it:
+  // "full" | "half-fwd" | "half-bck" | "other" | "mixed" | null.
+  var selectionStitchKind = useMemo(function() {
+    if (!STC || !selectionMask) return null;
+    return STC.selectionKind(state.pat, state.partialStitches, selectionMask);
+  }, [selectionMask, state.pat, state.partialStitches]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Smooth edges: 3/4 stitches along the selection's outline ───────────────
+  // SmoothEdges has the rules. The preview is worked out only while the panel
+  // is open; Apply works it out again from the pattern as it is then.
+  var SME = window.SmoothEdges;
+  var smoothPreview = useMemo(function() {
+    if (wandPanel !== "smooth" || !SME || !selectionMask) return null;
+    return SME.plan(state.pat, state.partialStitches, selectionMask, state.sW, state.sH, smoothOptions);
+  }, [wandPanel, selectionMask, state.pat, state.partialStitches, state.sW, state.sH, smoothOptions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function applySmoothEdges() {
+    var pat = state.pat, mask = selectionMask;
+    if (!pat || !mask || !SME) return null;
+    var p = SME.plan(pat, state.partialStitches, mask, state.sW, state.sH, smoothOptions);
+    if (!p.cells.length) {
+      if (state.addToast) state.addToast("There are no steps to smooth along this selection's edge.", {type: "info", duration: 2500});
+      return null;
+    }
+    var res = SME.apply(pat, state.partialStitches, p.cells);
+    var entry = { type: "smoothEdges", changes: res.changes, psChanges: res.psChanges };
+    var reset = (res.changes.length || res.psChanges.length) && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat, res.psChanges);
+    if (reset) entry.doneReset = reset;
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var h = prev.concat([entry]);
+      if (h.length > EDIT_HISTORY_MAX) h = h.slice(h.length - EDIT_HISTORY_MAX);
+      return h;
+    });
+    state.setRedoHistory([]);
+    if (res.changes.length) {
+      state.setPat(res.pat);
+      setPaletteKeepingParts(res.pat, res.partials, state.bsLines, state.knots, state.specialtyStitches);
+    }
+    state.setPartialStitches(res.partials);
+    setWandPanel(null);
+    if (state.addToast) {
+      var n = p.cells.length;
+      state.addToast("Smoothed " + n.toLocaleString() + " stitch" + (n === 1 ? "" : "es") + " along the edge.", {type: "success", duration: 2500});
+    }
+    return { entry: entry, counts: p.counts };
+  }
+
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
 
   var selectionStats = useMemo(function() {
-    var pat = state.pat, cmap = state.cmap, fabricCt = state.fabricCt;
+    var pat = state.pat, cmap = state.cmap, fabricCt = state.fabricCt, partials = state.partialStitches;
     if (!pat || !cmap) return null;
     var counts = {};
     var total = 0;
+    var hasPs = !!(partials && typeof partials.get === "function" && partials.size > 0);
+    var QUADS = ["TL", "TR", "BL", "BR"];
     for (var i = 0; i < pat.length; i++) {
       var inSel = selectionMask ? selectionMask[i] : 1;
       if (!inSel) continue;
       var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      counts[cell.id] = (counts[cell.id] || 0) + 1;
-      total++;
+      var base = (cell && cell.id !== "__skip__" && cell.id !== "__empty__") ? cell : null;
+      var ps = hasPs ? partials.get(i) : null;
+      if (ps && (ps.TL || ps.TR || ps.BL || ps.BR)) {
+        for (var qi = 0; qi < 4; qi++) {
+          var qSrc = ps[QUADS[qi]] || base;
+          if (!qSrc || qSrc.id === "__skip__" || qSrc.id === "__empty__") continue;
+          counts[qSrc.id] = (counts[qSrc.id] || 0) + 0.25;
+          total += 0.25;
+        }
+      } else if (base) {
+        counts[base.id] = (counts[base.id] || 0) + 1;
+        total++;
+      }
     }
     var rows = Object.entries(counts).sort(function(a, b) { return b[1] - a[1]; })
       .map(function(e) {
@@ -670,7 +808,7 @@ window.useMagicWand = function useMagicWand(state) {
       });
     var totalSkeins = rows.reduce(function(s, r) { return s + r.skeins; }, 0);
     return { rows: rows, total: total, totalSkeins: totalSkeins, colors: rows.length };
-  }, [selectionMask, state.pat, state.cmap, state.fabricCt]);
+  }, [selectionMask, state.pat, state.partialStitches, state.cmap, state.fabricCt]);
 
   // ─── Phase 3.2: Auto backstitch outline ─────────────────────────────────────
 
@@ -746,6 +884,8 @@ window.useMagicWand = function useMagicWand(state) {
     // Back-compat alias for any external caller still using the misspelled name.
     applyGlobalColorReplacement: applyGlobalColourReplacement,
     deleteSelection,
+    convertSelectionStitchType, selectionStitchKind,
+    smoothOptions, setSmoothOptions, smoothPreview, applySmoothEdges,
     // Phase 3
     selectionStats, applyOutlineGeneration,
     // Derived

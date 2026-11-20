@@ -161,7 +161,8 @@ window.MagicWandPanel = function MagicWandPanel() {
         btn("Reduce Colours\u2026", function() { cv.setWandPanel(panel === "reduce"   ? null : "reduce");    }, { active: panel === "reduce" }),
         btn("Replace Colour\u2026", openReplaceModal, { title: "Replace the most common colour in the selection" }),
         btn("Stitch Info\u2026",    function() { cv.setWandPanel(panel === "info"     ? null : "info");      }, { active: panel === "info" }),
-        btn("Outline\u2026",        function() { cv.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" })
+        btn("Outline\u2026",        function() { cv.setWandPanel(panel === "outline"  ? null : "outline");   }, { active: panel === "outline" }),
+        btn("Smooth Edges\u2026",   function() { cv.setWandPanel(panel === "smooth"   ? null : "smooth");    }, { active: panel === "smooth", title: "Turn the steps along the selection's edge into \u00BE stitches" })
       )
     )
   ) : null;
@@ -415,7 +416,8 @@ window.MagicWandPanel = function MagicWandPanel() {
             { key: "reduce",   label: "Reduce Colours\u2026" },
             { key: "replace",  label: "Replace Colour\u2026" },
             { key: "info",     label: "Stitch Info\u2026" },
-            { key: "outline",  label: "Outline\u2026" }
+            { key: "outline",  label: "Outline\u2026" },
+            { key: "smooth",   label: "Smooth Edges\u2026" }
           ].map(function(item) {
             return h("button", {
               key: item.key,

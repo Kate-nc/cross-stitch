@@ -8555,6 +8555,7 @@ body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start
 }
 .cs-selbar__hint { font-size: var(--text-xs); color: var(--text-tertiary); padding: 0 6px; }
 @media (max-width: 480px) { .cs-selbar__hint { display: none; } }
+.cs-selbar__sep { width: 1px; align-self: stretch; margin: 6px 2px; background: var(--line); }
 .cs-selbar__btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   min-width: 36px; min-height: 36px; padding: 0 8px;
@@ -8571,6 +8572,106 @@ body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start
 @media (pointer: coarse) {
   .cs-selbar__btn { min-width: 44px; min-height: 44px; }
 }
+/* Stitch type in the bar: the choice that matches the selection is pressed;
+   phones show the symbols without their words. */
+.cs-selbar__btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+@media (max-width: 599px) { .cs-selbar__label { display: none; } }
+
+/* Stitch type for a selection (StitchTypeChoice.js): Cross / Half / / Half \
+   as one segmented control, in the Selection menu, right-click menu and
+   Tools tab. --auto drops the words on narrow screens. */
+.cs-sttype { display: flex; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--surface-secondary); }
+.cs-sttype__btn {
+  flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 32px; padding: 0 8px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--text-sm);
+  white-space: nowrap; cursor: pointer;
+}
+.cs-sttype__btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+.cs-sttype__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cs-sttype__btn[aria-pressed="true"], .cs-sttype__btn[aria-checked="true"] {
+  background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: var(--shadow-sm);
+}
+@media (hover: hover) { .cs-sttype__btn:hover { color: var(--text-primary); } }
+@media (max-width: 599px) { .cs-sttype--auto .cs-sttype__label { display: none; } }
+@media (pointer: coarse) { .cs-sttype__btn { min-height: 44px; } }
+.cs-sttype-row { padding: 6px 6px 4px; }
+
+/* Smooth edges (SmoothEdgesPanel.js): a card docked at the top right of the
+   chart; a sheet along the foot of the screen on phones. */
+.cs-smooth {
+  position: fixed; z-index: 506; right: 16px; top: 120px; width: 320px; box-sizing: border-box;
+  padding: 14px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-md);
+  font-size: var(--text-sm); color: var(--text-primary);
+}
+.cs-smooth__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.cs-smooth__title { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.cs-smooth__title svg { width: 18px; height: 18px; color: var(--accent); }
+.cs-smooth__close {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.cs-smooth__close svg { width: 16px; height: 16px; }
+.cs-smooth__hint { margin: 0 0 10px; font-size: var(--text-xs); line-height: 1.45; color: var(--text-secondary); }
+.cs-smooth__hint--check { margin: 2px 0 12px 24px; color: var(--text-tertiary); }
+.cs-smooth__methods { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+.cs-smooth__method {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+  color: var(--text-secondary); font: inherit; font-size: var(--text-xs); cursor: pointer;
+}
+.cs-smooth__method svg { width: 36px; height: 36px; }
+.cs-smooth__method[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.cs-smooth__check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.cs-smooth__check input { width: 16px; height: 16px; margin: 0; flex-shrink: 0; accent-color: var(--accent); }
+.cs-smooth__sum {
+  display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; padding: 8px 10px;
+  border-radius: var(--radius-sm); background: var(--surface-secondary);
+  font-size: var(--text-xs); line-height: 1.45; color: var(--text-secondary);
+}
+.cs-smooth__sum b { color: var(--text-primary); }
+.cs-smooth__swatch {
+  width: 14px; height: 14px; margin-top: 1px; flex-shrink: 0; border-radius: 2px; border: 1.5px dashed var(--accent);
+  background: repeating-linear-gradient(135deg, var(--accent) 0 1.5px, var(--surface) 1.5px 4px);
+}
+.cs-smooth__btns { display: flex; justify-content: flex-end; gap: 8px; }
+.cs-smooth__btn {
+  min-height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-primary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+.cs-smooth__btn--primary { background: var(--accent); border-color: var(--accent); color: var(--text-on-accent); font-weight: 600; }
+.cs-smooth__btn:disabled { opacity: 0.45; cursor: default; }
+.cs-smooth__close:focus-visible, .cs-smooth__method:focus-visible, .cs-smooth__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: hover) {
+  .cs-smooth__close:hover { background: var(--surface-secondary); }
+  .cs-smooth__method:not([aria-pressed="true"]):hover { color: var(--text-primary); }
+  .cs-smooth__btn:not(:disabled):hover { background: var(--surface-secondary); }
+  .cs-smooth__btn--primary:not(:disabled):hover { background: var(--accent-hover); }
+}
+@media (max-width: 599px) {
+  .cs-smooth {
+    z-index: 510; left: 0; right: 0; bottom: 0; top: auto !important; width: auto;
+    border-radius: var(--radius-md) var(--radius-md) 0 0; padding: 10px 16px 16px;
+  }
+  .cs-smooth__hint { display: none; }
+  .cs-smooth__methods { margin: 8px 0 10px; }
+  .cs-smooth__method { flex-direction: row; justify-content: center; gap: 8px; min-height: 44px; padding: 6px 8px; }
+  .cs-smooth__method svg { width: 26px; height: 26px; }
+  .cs-smooth__check { min-height: 32px; margin-bottom: 8px; }
+  .cs-smooth__sum { margin-bottom: 10px; }
+  .cs-smooth__btn { flex: 1; min-height: 44px; }
+  /* Toasts sit just above the sheet while it is open. */
+  body.cs-smooth-open .creator-toast-container,
+  body.cs-smooth-open [data-toast-container] { bottom: calc(var(--cs-smooth-h, 0px) + 8px) !important; }
+}
+@media (pointer: coarse) {
+  .cs-smooth__close { width: 44px; height: 44px; }
+  .cs-smooth__check { min-height: 44px; }
+}
+.cs-sttype-row__label { display: block; margin: 0 4px 4px; font-size: var(--text-xs); color: var(--text-tertiary); }
+.cs-sttype-row--panel { padding: var(--s-2) 0 0; }
+.cs-sttype-row--panel .cs-sttype-row__label { margin: 0 0 4px; }
 /* The same actions in the Tools tab's Selection section. */
 .cs-seltools { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: var(--s-2); }
 .cs-seltools__btn {

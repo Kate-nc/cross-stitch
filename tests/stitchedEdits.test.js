@@ -492,4 +492,14 @@ describe('StitchedEdits.actionReach and marked counts (Stage 3)', () => {
     expect(SE.markedWith(done, pat, ['321'], new Uint8Array([0, 1, 0, 0, 0]))).toBe(1);
     expect(SE.markedWith(null, pat, ['321'])).toBe(0);
   });
+  test('stitchedResets includes marked cells changed via psChanges even if pat[idx] stays the same', () => {
+    const done = new Uint8Array([1, 1, 0]);
+    const pat = [BLACK, RED, EMPTY];
+    expect(SE.stitchedResets(done, [{ idx: 0, old: BLACK }], pat, [{ idx: 0, old: { TL: RED } }, { idx: 2, old: null }])).toEqual([0]);
+    expect(SE.stitchedResets(done, [], pat, [{ idx: 1, old: { BL: RED, TR: RED } }])).toEqual([1]);
+  });
+  test('actionReach notes Smooth edges (Fill the steps) reaches outside the selection', () => {
+    expect(SE.actionReach(draw({ activeTool: 'magicWand', hasSelection: true, selectionCount: 12, wandPanel: 'smooth', smoothMode: 'fill' })))
+      .toBe('Smooth edges (Fill the steps) also changes steps just outside the 12 selected stitches.');
+  });
 });

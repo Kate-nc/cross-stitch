@@ -68,7 +68,7 @@
       style: { left: G, top: G, width: ctx.sW * cs, height: ctx.sH * cs }
     },
       h(window.CreatorStitchedPreview, {
-        cells: ctx.pat, width: ctx.sW, height: ctx.sH,
+        cells: ctx.pat, partialStitches: ctx.partialStitches, width: ctx.sW, height: ctx.sH,
         fabricColour: app.fabricColour, fabricCt: ctx.fabricCt || 14,
         displayWidth: ctx.sW * cs
       }));

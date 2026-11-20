@@ -133,10 +133,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       });
     }
 
+    // A palette count is full stitches only. Colours still used by part
+    // stitches, backstitch or knots read 0 but aren't unused (as
+    // removeUnusedColours / removeScratchColour).
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(ctx.partialStitches, cv.bsLines, ctx.knots, ctx.specialtyStitches) : new Set();
     var chips = displayPal.map(function(p) {
       var isSelected = cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
-      var isUnused = app.appMode === "edit" && p.count === 0;
+      var isUnused = app.appMode === "edit" && p.count === 0 && !inParts.has(String(p.id));
       var stashStatus = stashStatusForChip(p);
       if (stashStatus === 'needed') _trackUnowned(p);
       // Brief D — when "limit to stash" filter is on, hide unowned chips.
@@ -224,7 +228,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, Icons.x())
       );
     }).filter(Boolean);
-    var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
+    var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0 && !inParts.has(String(p.id)); }).length : 0;
     return P.sec("pal-threads", "In this pattern",
       app.appMode === "edit" ? "Use Change symbol beside a thread to choose a different chart symbol. Strands and skeins are for each symbol on its own; Materials adds up the threads that several symbols share." : null,
         h("div", {key:"actions", className:"pal-sec__actions"},
@@ -1046,6 +1050,16 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("button", {type:"button", className:"cs-seltools__btn cs-seltools__btn--primary", onClick:function(){ clip.commit(); }}, I.check(), h("span", null, "Done")))
       );
     })(),
+    // Cross / half / half for every stitch in the selection.
+    cv.hasSelection && h("div", {className:"cs-sttype-row cs-sttype-row--panel"},
+      h("span", {className:"cs-sttype-row__label", "aria-hidden":"true"}, "Stitch type"),
+      h(window.CreatorStitchTypeChoice, {labels:"auto"})),
+    cv.hasSelection && h("button", {
+      type:"button", className:"cs-seltools__btn sb-block-btn" + (cv.wandPanel === "smooth" ? " cs-seltools__btn--on" : ""),
+      "aria-pressed": cv.wandPanel === "smooth" ? "true" : "false",
+      title:"Turn the steps along the selection's edge into \u00BE stitches",
+      onClick:function(){ cv.setWandPanel(cv.wandPanel === "smooth" ? null : "smooth"); }
+    }, window.Icons.smoothEdges(), h("span", null, "Smooth edges\u2026")),
     cv.hasSelection && h("button", {
       type:"button", className:"cs-seltools__btn sb-block-btn sb-danger-btn",
       onClick:function(){ if (cv.deleteSelection) cv.deleteSelection(); },

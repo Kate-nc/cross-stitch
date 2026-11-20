@@ -2,9 +2,11 @@
  *
  * Two forms, both fixed just above the selection on screen (or below it
  * when there's no room above), kept on screen while the chart scrolls:
- *   - a selection on a touch screen: Copy, Cut, Duplicate, Flip, Rotate and
- *     Delete (desktops have the same in the Tools tab, the right-click menu
- *     and the keyboard);
+ *   - a selection on a touch screen: Copy, Cut, Duplicate, Flip, Rotate,
+ *     Stitch type and Delete (desktops have the same in the Tools tab, the
+ *     right-click menu and the keyboard). Stitch type swaps the buttons for
+ *     Cross / Half / / Half \ (symbols only on phones), Smooth edges (which
+ *     opens its sheet, hiding this bar) and a Back button;
  *   - a floating paste or turned selection, on any screen: Flip both ways,
  *     Rotate both ways, Cancel and Done. Dragging moves it; tapping outside
  *     it also places it.
@@ -21,6 +23,8 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
   var barRef = React.useRef(null);
   var pressRef = React.useRef(null);
   var _pos = React.useState(null); var pos = _pos[0], setPos = _pos[1];
+  // Showing the stitch-type choices in place of the actions.
+  var _st = React.useState(false); var stMode = _st[0], setStMode = _st[1];
 
   var coarse = (function () {
     try {
@@ -31,9 +35,11 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
   })();
 
   var floating = !!(clip && clip.floatActive);
+  var stitchedOn = app.chartView === "stitched" && !app.previewActive && !app.splitPaneEnabled;
   var selecting = !floating && !!cv.hasSelection && coarse && !cv.lassoInProgress &&
-    cv.activeTool !== "move" && !cv.contextMenu;
-  var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive;
+    cv.activeTool !== "move" && !cv.contextMenu && cv.wandPanel !== "smooth";
+  // Smooth edges' sheet takes the bar's place while selecting (never hiding a float's Done/Cancel).
+  var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive && !stitchedOn;
 
   var maskBox = React.useMemo(function () {
     if (!show || floating || !cv.selectionMask || !window.SelectionTransforms) return null;
@@ -70,6 +76,11 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     setPos(function (p) { return p && p.top === top && p.left === left ? p : { top: top, left: left }; });
   }, [maskBox, fl, cv.cs, app.G, app.pcRef, app.scrollRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A new selection, a float or the bar going away starts from the actions.
+  React.useEffect(function () { if (!show || floating) setStMode(false); }, [show, floating]);
+  React.useEffect(function () { setStMode(false); }, [cv.selectionMask]);
+  React.useLayoutEffect(function () { if (show) place(); }, [stMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   React.useLayoutEffect(function () {
     if (!show) { setPos(null); return undefined; }
     place();
@@ -100,8 +111,9 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     opts = opts || {};
     return h("button", {
       key: label, type: "button",
-      className: "cs-selbar__btn" + (opts.primary ? " cs-selbar__btn--primary" : "") + (opts.text ? " cs-selbar__btn--text" : ""),
+      className: "cs-selbar__btn" + (opts.primary ? " cs-selbar__btn--primary" : "") + (opts.text ? " cs-selbar__btn--text" : "") + (opts.className ? " " + opts.className : ""),
       "aria-label": label, title: opts.title || label,
+      "aria-pressed": opts.pressed == null ? undefined : (opts.pressed ? "true" : "false"),
       onPointerDown: function (e) {
         // Keep focus (and the selection) where it is on a press.
         e.stopPropagation();
@@ -122,9 +134,11 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
         if (e.detail > 0 && Date.now() - t < 1000) return;
         onClick();
       }
-    }, icon ? icon : null, opts.text ? h("span", null, opts.text) : null);
+    }, icon ? icon : null, opts.text ? h("span", { className: opts.textClass }, opts.text) : null);
   }
   var I = window.Icons;
+  var kind = cv.selectionStitchKind;
+  function pickStitch(t) { if (cv.convertSelectionStitchType) cv.convertSelectionStitchType(t); }
   var items = floating ? [
     btn("Flip left to right", I.flipHorizontal(), function () { clip.transform("flipH"); }, { title: "Flip left to right (Shift+H)" }),
     btn("Flip upside down", I.flipVertical(), function () { clip.transform("flipV"); }, { title: "Flip upside down (Shift+V)" }),
@@ -132,6 +146,19 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     btn("Rotate clockwise", I.rotateCw(), function () { clip.transform("rotCW"); }, { title: "Rotate clockwise (.)" }),
     btn("Cancel", null, function () { clip.cancel(); }, { text: "Cancel", title: "Put it back (Esc)" }),
     btn("Done", I.check(), function () { clip.commit(); }, { text: "Done", primary: true, title: "Place it here" })
+  ] : stMode ? [
+    btn("Back", I.chevronLeft(), function () { setStMode(false); }, { title: "Back to the selection actions" }),
+    h("span", { key: "sthint", className: "cs-selbar__hint cs-selbar__hint--st" }, "Stitch as"),
+    btn("Cross", I.stitchFull(), function () { pickStitch("full"); },
+      { text: "Cross", textClass: "cs-selbar__label", className: "cs-selbar__btn--st", pressed: kind === "full", title: "Make every stitch in the selection a cross stitch" }),
+    btn("Half /", I.stitchHalfFwd(), function () { pickStitch("half-fwd"); },
+      { text: "Half /", textClass: "cs-selbar__label", className: "cs-selbar__btn--st", pressed: kind === "half-fwd", title: "Make every stitch in the selection a half stitch (/)" }),
+    btn("Half \\", I.stitchHalfBck(), function () { pickStitch("half-bck"); },
+      { text: "Half \\", textClass: "cs-selbar__label", className: "cs-selbar__btn--st", pressed: kind === "half-bck", title: "Make every stitch in the selection a half stitch (\\)" }),
+    h("span", { key: "stsep", className: "cs-selbar__sep", "aria-hidden": "true" }),
+    btn("Smooth edges", I.smoothEdges(), function () { cv.setWandPanel("smooth"); },
+      { text: "Smooth edges", textClass: "cs-selbar__label", className: "cs-selbar__btn--st",
+        title: "Turn the steps along the selection's edge into \u00BE stitches" })
   ] : [
     btn("Copy", I.copy(), function () { clip.copy(); }, { title: "Copy (Ctrl+C)" }),
     btn("Cut", I.scissors(), function () { clip.cut(); }, { title: "Cut (Ctrl+X)" }),
@@ -139,6 +166,7 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     btn("Flip left to right", I.flipHorizontal(), function () { clip.transform("flipH"); }),
     btn("Flip upside down", I.flipVertical(), function () { clip.transform("flipV"); }),
     btn("Rotate clockwise", I.rotateCw(), function () { clip.transform("rotCW"); }),
+    btn("Stitch type", I.stitchHalfFwd(), function () { setStMode(true); }, { title: "Change the stitch type: cross or half" }),
     btn("Delete", I.trash(), function () { if (cv.deleteSelection) cv.deleteSelection(); })
   ];
 

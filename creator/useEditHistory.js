@@ -190,7 +190,16 @@ window.useEditHistory = function useEditHistory(state) {
     if (last.type === 'move' && last.prevMask !== undefined) {
       state.setSelectionMask(last.prevMask ? last.prevMask.slice() : null);
     }
-    if (state.addToast) state.addToast("Undo: reverted " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
+    if (state.addToast) {
+      var undoCount = last.changes.length;
+      if (last.psChanges && last.psChanges.length) {
+        var undoCells = {};
+        last.changes.forEach(function(c) { undoCells[c.idx] = true; });
+        last.psChanges.forEach(function(c) { undoCells[c.idx] = true; });
+        undoCount = Object.keys(undoCells).length;
+      }
+      state.addToast("Undo: reverted " + undoCount + " cell" + (undoCount !== 1 ? "s" : ""), {type:"info", duration:1500});
+    }
   }
 
   function redoEdit() {
@@ -331,7 +340,16 @@ window.useEditHistory = function useEditHistory(state) {
     if (last.type === 'move' && last.nextMask !== undefined) {
       state.setSelectionMask(last.nextMask ? last.nextMask.slice() : null);
     }
-    if (state.addToast) state.addToast("Redo: restored " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
+    if (state.addToast) {
+      var redoCount = last.changes.length;
+      if (last.psChanges && last.psChanges.length) {
+        var redoCells = {};
+        last.changes.forEach(function(c) { redoCells[c.idx] = true; });
+        last.psChanges.forEach(function(c) { redoCells[c.idx] = true; });
+        redoCount = Object.keys(redoCells).length;
+      }
+      state.addToast("Redo: restored " + redoCount + " cell" + (redoCount !== 1 ? "s" : ""), {type:"info", duration:1500});
+    }
   }
 
   return { undoEdit: undoEdit, redoEdit: redoEdit };
