@@ -9850,3 +9850,36 @@ body.creator-compact .chart-view-bar { top: 8px; bottom: auto; right: 8px; max-w
 /* Replace colour says how far it reaches before it runs (Stage 3). */
 .colour-replace-reach { margin: 0 0 12px; font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
 .colour-replace-reach--marked { padding: 6px 10px; border-radius: var(--radius-md); background: var(--warning-soft); color: var(--accent-ink); }
+
+/* ── Comfortable targets in Edit (Stage 3, D7) ─────────────────────────────
+   Every button on the Edit screen is at least 32px tall with a mouse and
+   44px on a touch screen for the tool rail, options bar and tab row
+   (tests/e2e/creator-target-sizes.spec.js). Small icons keep their look: the
+   info button grows its hit area with padding and an equal negative margin,
+   so the row around it doesn't move (on touch it keeps its own padding). */
+.tb-page-btn, .tb-nav-link, .creator-actionbar [role="tab"] { min-height: 32px; }
+.tb-nav-link { display: inline-flex; align-items: center; }
+.cs-seltools__btn, .sb-mini-btn, .pal-row__btn, .ps-lock { min-height: 32px; }
+.pal-row__btn { height: 32px; }   /* 30px wide, as before, so thread names keep their room */
+.ps-lock { width: 32px; height: 32px; }
+.sb-mini-btn { display: inline-flex; align-items: center; }
+.cv-seg--sub .lp-seg { min-height: 32px; }
+@media (pointer: fine) { .info-icon__btn { padding: 9px; margin: -9px; } }
+.ready-bar .btn-sm, .ready-bar__close { min-height: 32px; }
+.ready-bar__close { min-width: 32px; justify-content: center; align-items: center; }
+.ready-bar__link { display: inline-flex; align-items: center; min-height: 32px; }
+.creator-optbar__seg-btn { min-height: 32px; }
+.pal-paint-hint__clear { width: 32px; height: 32px; margin: -6px -6px -6px auto; border-radius: var(--radius-sm); }
+@media (pointer: coarse) {
+  /* "Your pattern is ready" keeps 32px buttons on a phone: at 44px the card
+     grows over the chart it introduces. */
+  .tb-page-btn, .tb-nav-link, .creator-actionbar [role="tab"],
+  .sb-mini-btn, .cv-seg--sub .lp-seg { min-height: 44px; }
+  .ps-lock, .pal-paint-hint__clear { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+  .pal-row__btn { height: 44px; min-height: 44px; }
+}
+/* The info button's hit area is larger than its icon (above); the legacy
+   dark button rule would paint that area over the heading beside it. */
+html.pref-dark button.info-icon__btn.info-icon__btn { background: transparent !important; border: none !important; color: var(--text-tertiary) !important; }
+html.pref-dark button.info-icon__btn.info-icon__btn:hover,
+html.pref-dark button.info-icon__btn.info-icon__btn:focus-visible { color: var(--accent) !important; }

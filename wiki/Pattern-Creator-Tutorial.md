@@ -268,9 +268,11 @@ Cross (`1`), Half / (`2`), Half \ (`3`), Backstitch (`4`) and Erase (`5`), plus 
 2. Search for or click a replacement thread. The preview and stitch count update.
 3. Press **Apply** (or double-click a thread to apply it straight away). Part stitches and backstitch are recoloured too, and the change is one undo step.
 
+Above the list, a line says how far it reaches: every stitch of that colour in the whole pattern (or the selection), and how many of those you have marked as stitched.
+
 ### Recolouring the whole palette
 
-Once a pattern exists, **Edit > Palette > Recolour the chart** has **Shift Colours**, which rotates every colour around the colour wheel, and **Palette Presets** applies a themed, harmonious or saved palette. **Revert to generated palette** undoes both.
+Once a pattern exists, **Edit > Palette > Recolour the chart** has **Shift colours**, which rotates every colour around the colour wheel, and **Palette presets**, which applies a themed, harmonious or saved palette. **See before and after** shows the chart both ways, with how many threads change, before you apply it. **Revert to generated palette** undoes both.
 
 ### Removing unused colours
 
@@ -281,9 +283,19 @@ Colours with no stitches show a remove button in the palette; **Remove unused (N
 - **Fix outline colours** (More tools) — removes dark border lines left over from line-art images. **How strict** (Gentle, Balanced, Strong) widens or narrows the selection.
 - **Reduce confetti** (More tools) — merges confetti stitches (single stitches of a colour on their own; slow to stitch) and threads that are almost the same, and smooths colour fringes. Nothing changes until you press **Apply**.
 
-### Split pane
+### Chart or Stitched
 
-Press `\` (or the split-pane button) to see the editable chart and a realistic preview side by side. Drag the divider to resize.
+The switch in the corner of the chart (bottom right on a computer, top right on a phone), or the `S` key, shows your pattern as **Stitched**: crosses of thread on your fabric, as Convert's Stitched preview draws them, at the same zoom and the same place on the chart. Painting is off while it shows; choose **Chart**, or press `S`, to edit again.
+
+**Edit > View > Chart, flat or realistic** shows the chart as **Flat** squares of colour or **Realistic** stitches, also keeping your place.
+
+### Chart and stitched, side by side
+
+Press `\` (or **Edit > View > Side by side > Chart and stitched**) to see the chart you edit and the pattern as stitches side by side. Drag the divider to resize.
+
+### Editing a pattern you have stitched
+
+When a project has stitching progress, a note above the chart says how much (for example "23% stitched. Changing a marked stitch clears its mark.") and how far the chosen tool reaches: one stitch at a time for Paint, every joined stitch of a colour for Fill, and so on. A stitch you change loses its mark, and Undo brings back both the colour and the mark. Regenerate says before it runs that it can change every stitch in the chart.
 
 ### Adapting the pattern to your stash
 
