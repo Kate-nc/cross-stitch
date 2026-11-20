@@ -47,11 +47,11 @@ Convert images into stitchable charts, or design patterns from scratch.
 
 ### Stitch Tracker ([`stitch.html`](stitch.html))
 
-Keyboard tracking includes a compact chart status (guide position, full-cross state, progress and zoom), separate thread actions and keyboard focus in More. See [the focused audit and benchmark instructions](reports/focused-tracking-accessibility.md) for measured results and review limitations.
+Keyboard tracking includes a compact chart status (guide position, full-cross state, progress and zoom), separate thread actions and keyboard focus in More.
 
 A digital replacement for a printed chart while you stitch.
 
-Live stash deductions record durable events for full and fractional stitches, knots and backstitch. Estimates keep their original assumptions; retries and stash sync deduplicate events. Existing balances receive an explicit historical baseline. Ordinary mark corrections credit recorded debits; physical Unpick area keeps usage consumed and restitching charges again. More > Tools > Thread consumption history explains adjustments. Complete history travels with stash backups and sync. Version-2 sync files include verified attachment manifests and explicit conflicts for incompatible edits; version-1 files remain readable. See [sync protocol and compatibility](docs/sync-protocol.md). See [accounting rules and migration evidence](reports/thread-deduction-accounting.md).
+Live stash deductions record durable events for full and fractional stitches, knots and backstitch. Estimates keep their original assumptions; retries and stash sync deduplicate events. Existing balances receive an explicit historical baseline. Ordinary mark corrections credit recorded debits; physical Unpick area keeps usage consumed and restitching charges again. More > Tools > Thread consumption history explains adjustments. Complete history travels with stash backups and sync. Version-2 sync files include verified attachment manifests and explicit conflicts for incompatible edits; version-1 files remain readable. See [sync protocol and compatibility](docs/sync-protocol.md).
 
 - **Marking:** Mark mode — click, tap or drag to mark stitches done; Shift+drag (or press-and-hold then tap on touch) marks a rectangle. On touch, one finger marks and two fingers pan and zoom.
 - **Navigate mode:** a hand tool — drag to move around, click to place a guide crosshair across a row and column.
@@ -141,7 +141,7 @@ A Stats page (Stats in the top bar) aggregates data across all projects and the 
 
 ## Thread Data
 
-- **DMC:** retained stranded-cotton catalogue — 525 entries with derived CIE L\*a\*b\* and OKLab values for colour matching. Screen colours are approximations, calibrated darker than the community online tables against a scanned thread card and an older independent palette ([calibration](reports/dmc-colour-calibration.md)). See also the [source audit](reports/dmc-colour-audit.md).
+- **DMC:** retained stranded-cotton catalogue — 525 entries with derived CIE L\*a\*b\* and OKLab values for colour matching. Screen colours are approximations, calibrated darker than the community online tables against a scanned thread card and an older independent palette ([calibration](docs/dmc-colour-calibration.md)). See also the [source audit](docs/dmc-colour-audit.md).
 - **Anchor:** full Anchor Stranded Cotton catalogue with reconciled RGB values from the official colour card, Stitchtastic, Cross-Stitched.com and sibalman/thread-converter. Contested colours are flagged.
 - **DMC ↔ Anchor conversions:** bidirectional table with confidence labels (`official`, `reconciled`, `single-source`). Both directions are stored independently so asymmetric mappings are preserved.
 - **Fabrics:** 11–22 count Aida, 25 count evenweave, and 28 / 32 count linen (worked over two).
@@ -193,7 +193,7 @@ File > Preferences opens a 12-category panel (Profile & branding, Regional & uni
 
 The service worker ([`sw.js`](sw.js)) validates and caches the offline application on first load. Reopen the app once installation completes before relying on offline access. Updates download only the files that changed (unchanged files are reused from the installed copy once their fingerprints match) and wait until all stitchx tabs and installed app windows close; reopen to use the update. Failed or incomplete downloads leave the working version available. Project data lives separately in IndexedDB.
 
-Developers: run `node build-sw.js` after changing deployment assets (or `npm run build` after source changes). Commit `sw.js`; CI and the pre-commit hook check its fingerprints. Vercel builds a minified copy of the site with `node scripts/build-dist.js` and serves the resulting `dist/` folder; `npm run serve:dist` builds and serves the same thing locally. See [the update lifecycle](reports/service-worker-lifecycle.md) for cache retention, recovery and validation.
+Developers: run `node build-sw.js` after changing deployment assets (or `npm run build` after source changes). Commit `sw.js`; CI and the pre-commit hook check its fingerprints. Vercel builds a minified copy of the site with `node scripts/build-dist.js` and serves the resulting `dist/` folder; `npm run serve:dist` builds and serves the same thing locally.
 
 - **Desktop (Chrome / Edge):** click the install icon in the address bar.
 - **iOS / iPadOS Safari:** Share > Add to Home Screen. Installing also stops Safari clearing stored patterns after seven days without a visit.
@@ -388,7 +388,6 @@ changelog.js                   In-app changelog (loaded when Version history ope
 
 tests/                         Jest suites
 tests/e2e, tests/ipad, tests/perf, tests/mobile-audit   Playwright suites
-reports/                       Audits, plans and investigations
 wiki/                          User guides
 ```
 
@@ -449,7 +448,7 @@ Pull requests are welcome. Before submitting:
 
 ISC
 
-Tracker active sessions use local recovery checkpoints (normally every five seconds); recovery excludes crash downtime. Explicit timers can save time without stitch marks. See [session durability](reports/session-durability.md) for timing, recovery and loss-window limits.
+Tracker active sessions use local recovery checkpoints (normally every five seconds); recovery excludes crash downtime. Explicit timers can save time without stitch marks.
 
 Initial PCStitch `.pat` import supports the unencrypted version 7 layout, retaining dimensions, DMC identifiers, full crosses, diagonal halves, quarters, three-quarter stitches and backstitch. Every import has explicit verification limits: blends and custom palette/header attributes remain unverified; other thread schemes use placeholders, and knots and unsupported stitch types are omitted with notes. Other versions and unrelated `.pat` formats are rejected. See [the support matrix and validation evidence](docs/pcstitch-pat-import.md).
 

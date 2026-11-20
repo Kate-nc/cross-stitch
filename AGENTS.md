@@ -33,8 +33,7 @@ this file is a shorter pointer plus the most-broken house rule.
 
 - The Workshop visual direction (UX-12) is the only theme. Light tokens
   live on `:root` in [styles.css](styles.css); dark tokens on
-  `[data-theme="dark"]`. The mirror reference lives at
-  `reports/showcase/_workshop.css`.
+  `[data-theme="dark"]`.
 - The Phase 0 `--ws-*` aliases have been removed (Phase 8). Use the
   canonical token names directly (`--accent`, `--surface`,
   `--text-primary`, `--text-secondary`, `--radius-sm`, `--shadow-sm`,

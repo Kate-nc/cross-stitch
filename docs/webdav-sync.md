@@ -74,4 +74,4 @@ The transport bounds listing XML to 1 MiB, a compressed file to 64 MiB, inflated
 
 Automatic sync is replication, not historical backup. Keep separate full backups and server backups/version history as appropriate. Do not remove peers' device files until those peers and their old offline deliveries are retired deliberately. The transport itself never deletes remote files, performs tombstone compaction, provisions servers or deploys infrastructure.
 
-See [separate review and test evidence](webdav-sync-review.md) and [existing protocol semantics](sync-protocol.md).
+See [existing protocol semantics](sync-protocol.md).

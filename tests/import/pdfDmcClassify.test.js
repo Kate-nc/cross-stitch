@@ -7,7 +7,7 @@ require(path.resolve(__dirname, '..', '..', 'import-engine', 'pdf', 'dmcPageRole
 const { classifyPage, classifyAllPages, inferLayoutVariant, refineChartPair } = ENGINE;
 
 function loadFixture(name) {
-  const file = path.resolve(__dirname, '..', '..', 'reports', 'import-2-raw', name);
+  const file = path.resolve(__dirname, '..', 'fixtures', 'import-2-raw', name);
   if (!fs.existsSync(file)) {
     throw new Error(`Missing test fixture: ${file}`);
   }

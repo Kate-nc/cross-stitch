@@ -3,7 +3,7 @@
 // (dominantAreaDownscale, colour-utils.js; reports/photo-conversion-audit-2026-11.md,
 // finding 4).
 const fs = require('fs');
-const { runtime } = require('../scripts/conversion-accuracy/harness');
+const { runtime } = require('./_helpers/conversionHarness');
 const { loadSource } = require('./_helpers/loadSource');
 
 const W = runtime();
