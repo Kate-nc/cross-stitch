@@ -101,6 +101,58 @@ test.describe('Chart / Stitched on a desktop', function() {
     }
   });
 
+  test('in Stitched, a drag and a middle-button drag move the chart, and a right-click opens no menu', async function({ page }) {
+    await generateLogo(page);
+    await pickDarkSwatch(page);
+    await chooseTool(page, 'Paint tool');
+    const box = await zoomUntilScrollable(page);
+    await switchBtn(page, 'Stitched').click();
+    const o = await page.locator('[data-chart-stitched]').boundingBox();
+    const scroll = await box.boundingBox();
+    const cx = scroll.x + scroll.width / 2, cy = scroll.y + scroll.height / 2;
+    const pos = () => box.evaluate(function(el) { return [el.scrollLeft, el.scrollTop]; });
+
+    let before = await pos();
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx - 120, cy - 80, { steps: 8 });
+    await page.mouse.up();
+    let after = await pos();
+    expect(after[0]).toBeGreaterThan(before[0] + 60);
+
+    before = after;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down({ button: 'middle' });
+    await page.mouse.move(cx + 100, cy + 60, { steps: 8 });
+    await page.mouse.up({ button: 'middle' });
+    after = await pos();
+    expect(after[0]).toBeLessThan(before[0] - 40);
+
+    await page.mouse.click(cx, cy, { button: 'right' });
+    await expect(page.locator('.cs-context-menu, [role="menu"]').filter({ hasText: 'Replace' })).toHaveCount(0);
+    await expect(undoButton(page)).toBeDisabled();
+    expect(o.width).toBeGreaterThan(0);
+  });
+
+  test('after Stitched, Flat then Chart is the editable chart again; S from Flat shows Stitched', async function({ page }) {
+    await generateLogo(page);
+    await page.locator('.cs-chart-scroll').hover();
+    await page.keyboard.press('s');
+    await expect(page.locator('[data-chart-stitched]')).toBeVisible();
+    await page.locator('.creator-sidebar-tab[data-tab-id="view"]').click();
+    const showAs = page.getByRole('radiogroup', { name: 'Show the chart as' });
+    await showAs.getByRole('radio', { name: 'Flat', exact: true }).click();
+    await showAs.getByRole('radio', { name: 'Chart', exact: true }).click();
+    await expect(page.locator('[data-chart-stitched]')).toHaveCount(0);
+    await expect(switchBtn(page, 'Chart')).toHaveAttribute('aria-checked', 'true');
+
+    await showAs.getByRole('radio', { name: 'Flat', exact: true }).click();
+    await page.locator('.cs-chart-scroll').hover();
+    await page.keyboard.press('s');
+    await expect(switchBtn(page, 'Stitched')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('[data-chart-stitched]')).toBeVisible();
+  });
+
   test('S switches between the chart and the stitched view', async function({ page }) {
     await generateLogo(page);
     await page.locator('.cs-chart-scroll').hover();
@@ -128,5 +180,26 @@ test.describe('Chart / Stitched on a Pixel 5', function() {
     for (const r of await page.locator('.chart-view-switch .lp-seg').all()) {
       expect((await r.boundingBox()).height).toBeGreaterThanOrEqual(44);
     }
+  });
+
+  test('two fingers zoom the stitched view, and a tap paints nothing', async function({ page }) {
+    await generateLogo(page);
+    await page.locator('.creator-rail button[aria-label="Paint tool"], .creator-rail [data-tool="paint"]').first().click();
+    await switchBtn(page, 'Stitched').click();
+    const o = await page.locator('[data-chart-stitched]').boundingBox();
+    const widthBefore = o.width;
+    const cdp = await page.context().newCDPSession(page);
+    const cx = o.x + o.width / 2, cy = o.y + o.height / 2;
+    const pts = (d) => [{ x: cx - d, y: cy, radiusX: 4, radiusY: 4, force: 1, id: 1 }, { x: cx + d, y: cy, radiusX: 4, radiusY: 4, force: 1, id: 2 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pts(30) });
+    for (const d of [45, 60, 80, 100]) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pts(d) });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect.poll(async function() { return (await page.locator('[data-chart-stitched]').boundingBox()).width; }, { timeout: 5000 }).toBeGreaterThan(widthBefore + 20);
+
+    const n = await page.locator('[data-chart-stitched]').boundingBox();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: n.x + n.width / 2, y: n.y + n.height / 2, radiusX: 4, radiusY: 4, force: 1, id: 1 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(600);
+    await expect(page.locator('.creator-rail').getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
   });
 });

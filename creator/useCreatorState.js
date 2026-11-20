@@ -886,6 +886,10 @@ window.useCreatorState = function useCreatorState() {
   // Edit's Chart / Stitched switch (creator/ChartStitchedView.js). Each
   // visit starts on the chart, where painting works.
   var _chartView = useState("chart"); var chartView = _chartView[0], setChartView = _chartView[1];
+  // The pointer handlers (useCanvasInteraction.js) read this to treat
+  // Stitched as Navigate: drag and pinch move and zoom, nothing paints.
+  var chartViewRef = useRef(chartView);
+  chartViewRef.current = chartView;
 
   // Split-pane state — loaded from UserPrefs on init
   var _spEn = useState(function() { return loadUserPref("splitPaneEnabled", false); });
@@ -2953,7 +2957,7 @@ window.useCreatorState = function useCreatorState() {
     previewMode, setPreviewMode, realisticLevel, setRealisticLevel, coverageOverride, setCoverageOverride,
     fabricColour, setFabricColour, canvasTexture,
     threadBrand, setThreadBrand,
-    chartView, setChartView,
+    chartView, setChartView, chartViewRef,
     splitPaneEnabled, setSplitPaneEnabled, splitPaneRatio, setSplitPaneRatio,
     splitPaneSyncEnabled, setSplitPaneSyncEnabled, rightPaneMode, setRightPaneMode,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,

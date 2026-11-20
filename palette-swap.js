@@ -1628,7 +1628,7 @@ function usePaletteSwap(props) {
     (function() {
       var changing = Object.keys(finalMapping).filter(function(id) { var m = finalMapping[id]; return m && m.dest && m.dest.id !== id; });
       var markedChanging = doneCount > 0 && window.StitchedEdits ? window.StitchedEdits.markedWith(done, pat, changing) : 0;
-      var text = "This changes every stitch of the " + changing.length + " thread" + (changing.length === 1 ? "" : "s") + " that change" + (changing.length === 1 ? "s" : "") + ", across the whole chart.";
+      var text = changing.length === 0 ? "No thread changes, so no stitch changes." : "This changes every stitch of the " + changing.length + " thread" + (changing.length === 1 ? "" : "s") + " that change" + (changing.length === 1 ? "s" : "") + ", across the whole chart.";
       if (markedChanging > 0) return warnNote(text + " " + markedChanging.toLocaleString('en-GB') + " of them " + (markedChanging === 1 ? "is" : "are") + " marked as stitched; " + (markedChanging === 1 ? "its mark clears" : "their marks clear") + ".", { "data-reach": "" });
       return React.createElement("p", { className: "cs-toolsec__hint ps-reach", "data-reach": "" }, text);
     })(),

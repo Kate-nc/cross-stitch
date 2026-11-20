@@ -9844,8 +9844,9 @@ body.creator-compact .chart-view-bar { top: 8px; bottom: auto; right: 8px; max-w
 .chart-stitched-hint svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--accent); }
 .chart-view-switch .lp-seg { min-width: 72px; min-height: 32px; padding: 4px 12px; }
 @media (pointer: coarse) { .chart-view-switch .lp-seg { min-height: 44px; } }
-.chart-stitched { position: absolute; z-index: 1; overflow: hidden; cursor: grab; touch-action: pan-x pan-y; }
-.chart-stitched:active { cursor: grabbing; }
+/* Only a picture: clicks and touches reach the chart beneath, which treats
+   the Stitched view as Navigate. */
+.chart-stitched { position: absolute; z-index: 1; overflow: hidden; pointer-events: none; }
 .chart-stitched > canvas { display: block; }
 /* Replace colour says how far it reaches before it runs (Stage 3). */
 .colour-replace-reach { margin: 0 0 12px; font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }

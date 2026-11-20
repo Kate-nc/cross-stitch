@@ -167,7 +167,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   var MODE_LABELS = {
     "wysiwyg": "Flat",
-    "level1":  "Realistic \u2013 Flat",
+    "level1":  "Realistic \u2013 Simple",   // not "Flat": that is the squares of colour above (Stage 3, X6)
     "level2":  "Realistic \u2013 Shaded",
     "level3":  "Realistic \u2013 Detailed",
   };

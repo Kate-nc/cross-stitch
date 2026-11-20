@@ -241,7 +241,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       // The fitted height and the cursor for the tool change as you work.
       style:{minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
-        if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";
+        if (stitchedOn || cv.activeTool === "hand" || cv.drawMode === false) return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
         if (cv.activeTool === "float") return "move";
         if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") return "crosshair";
@@ -257,6 +257,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         // Right-click context menu (except when backstitch has a special right-click action)
         if (cv.activeTool === "backstitch" && cv.bsStart) return;
         e.preventDefault();
+        // Nothing on the chart changes from the Stitched view, so no menu.
+        if (stitchedOn) return;
         var pcRef = app.pcRef;
         if (!pcRef.current || !ctx.pat) return;
         var gc = gridCoord(pcRef, e, cv.cs, app.G, false);

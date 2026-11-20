@@ -708,6 +708,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     "Flat draws every stitch as a square of its thread colour. Realistic draws the stitches with their thread texture, at the quality you choose. You can't paint on either. The Chart / Stitched switch in the chart's corner shows the stitched view Convert uses.",
     h("div", {key:"mode-label", className:"cv-field__label"}, "Show the chart as"),
     P.seg({label:"Show the chart as", value:chartModeNow, onChange:function(id){
+        // Any choice here leaves the Stitched view, so "Chart" means the
+        // editable chart and S from Flat or Realistic always goes to Stitched.
+        if (app.setChartView) app.setChartView("chart");
         if (id === "chart") { app.setPreviewActive(false); }
         else { app.setPreviewActive(true); app.setPreviewMode(id); }
       },

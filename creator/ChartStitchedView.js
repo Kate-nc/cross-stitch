@@ -7,9 +7,12 @@
    The stitched picture is laid over the chart's grid, at the chart's own cell
    size, inside the same scroll box, and the chart stays underneath. So
    switching keeps the same stitch in the middle of the screen and the same
-   zoom, and the rulers keep showing row and column numbers. The overlay takes
-   every click and touch, so nothing paints while it is showing: a mouse drag
-   moves the chart, a finger scrolls it, and zoom works as on the chart.
+   zoom, and the rulers keep showing row and column numbers. The overlay is
+   only a picture (pointer-events: none): every click and touch reaches the
+   chart beneath, which treats the Stitched view as Navigate
+   (useCanvasInteraction.js isNavigate). So a drag moves the chart, two
+   fingers or a double-tap zoom it, a middle-button drag moves it, and
+   nothing paints, whatever tool is chosen.
 
    window.CreatorChartViewSwitch()    the Chart / Stitched control
    window.CreatorStitchedOverlay()    the stitched picture over the grid
@@ -57,33 +60,12 @@
     var ctx = window.usePatternData();
     var cv = window.useCanvas();
     var app = window.useApp();
-    var drag = React.useRef(null);
     var G = app.G || 0, cs = cv.cs || 1;
     if (!ctx.pat || !ctx.sW || !ctx.sH || !window.CreatorStitchedPreview) return null;
 
-    // A mouse or pen drag moves the chart; a finger scrolls it natively.
-    function down(e) {
-      e.stopPropagation();
-      if (e.pointerType === "touch" || e.button !== 0) return;
-      var box = app.scrollRef && app.scrollRef.current;
-      if (!box) return;
-      drag.current = { x: e.clientX, y: e.clientY, left: box.scrollLeft, top: box.scrollTop };
-      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
-    }
-    function move(e) {
-      var d = drag.current, box = app.scrollRef && app.scrollRef.current;
-      if (!d || !box) return;
-      box.scrollLeft = d.left - (e.clientX - d.x);
-      box.scrollTop = d.top - (e.clientY - d.y);
-    }
-    function up() { drag.current = null; }
-
     return h("div", {
       className: "chart-stitched", "data-chart-stitched": "",
-      style: { left: G, top: G, width: ctx.sW * cs, height: ctx.sH * cs },
-      onPointerDown: down, onPointerMove: move, onPointerUp: up, onPointerCancel: up,
-      onClick: function (e) { e.stopPropagation(); },
-      onContextMenu: function (e) { e.preventDefault(); e.stopPropagation(); }
+      style: { left: G, top: G, width: ctx.sW * cs, height: ctx.sH * cs }
     },
       h(window.CreatorStitchedPreview, {
         cells: ctx.pat, width: ctx.sW, height: ctx.sH,

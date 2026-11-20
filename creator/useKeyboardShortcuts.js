@@ -228,9 +228,11 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       } },
     { id: "creator.stitchedView", keys: "s", scope: "creator.design",
       description: "Switch between the chart and the stitched view",
-      when: function () { return !!state.pat && state.appMode !== "create"; },
+      // Side by side hides the switch, so S would only flip a hidden state.
+      when: function () { return !!state.pat && state.appMode !== "create" && !state.splitPaneEnabled; },
       run: function () {
-        if (state.previewActive) state.setPreviewActive(false);
+        // From Flat or Realistic, S shows Stitched (what the switch's title says).
+        if (state.previewActive) { state.setPreviewActive(false); state.setChartView("stitched"); return; }
         state.setChartView(function (v) { return v === "stitched" ? "chart" : "stitched"; });
       } },
     { id: "creator.split", keys: "\\", scope: "creator.design",

@@ -7493,6 +7493,10 @@ window.useCreatorState = function useCreatorState() {
   // Edit's Chart / Stitched switch (creator/ChartStitchedView.js). Each
   // visit starts on the chart, where painting works.
   var _chartView = useState("chart"); var chartView = _chartView[0], setChartView = _chartView[1];
+  // The pointer handlers (useCanvasInteraction.js) read this to treat
+  // Stitched as Navigate: drag and pinch move and zoom, nothing paints.
+  var chartViewRef = useRef(chartView);
+  chartViewRef.current = chartView;
 
   // Split-pane state — loaded from UserPrefs on init
   var _spEn = useState(function() { return loadUserPref("splitPaneEnabled", false); });
@@ -9560,7 +9564,7 @@ window.useCreatorState = function useCreatorState() {
     previewMode, setPreviewMode, realisticLevel, setRealisticLevel, coverageOverride, setCoverageOverride,
     fabricColour, setFabricColour, canvasTexture,
     threadBrand, setThreadBrand,
-    chartView, setChartView,
+    chartView, setChartView, chartViewRef,
     splitPaneEnabled, setSplitPaneEnabled, splitPaneRatio, setSplitPaneRatio,
     splitPaneSyncEnabled, setSplitPaneSyncEnabled, rightPaneMode, setRightPaneMode,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,
@@ -11941,7 +11945,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // Navigate mode (audit DRAW-01): no tool acts on the chart. One finger or a
   // mouse drag pans, a tap shows the stitch's thread, a long-press opens the
   // menu. Two fingers pan and zoom in either mode.
-  function isNavigate() { return !!(state.drawModeRef && state.drawModeRef.current === false); }
+  // The Stitched view (ChartStitchedView.js) is Navigate too, whatever tool is
+  // chosen: it moves and zooms like the chart, and nothing paints.
+  function isStitchedView() {
+    return !!(state.chartViewRef && state.chartViewRef.current === "stitched" && !state.previewActive && !state.splitPaneEnabled);
+  }
+  function isNavigate() { return isStitchedView() || !!(state.drawModeRef && state.drawModeRef.current === false); }
   // Tool-rail layout (Stage 2, body.creator-drail-tools): Space and drag, or
   // a middle-button drag, moves around the chart whatever tool is chosen.
   function tempPanAllowed() {
@@ -13107,7 +13116,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       // active — the user picked Hand to pan, not to summon a menu.
       longPressTriggeredRef.current = false;
       clearLongPressTimer();
-      if (isTouchPointer(e) && !isPanTool()
+      if (isTouchPointer(e) && !isPanTool() && !isStitchedView()
           && typeof state.setContextMenu === "function" && state.pat && state.pcRef && state.pcRef.current) {
         var pressClientX = e.clientX, pressClientY = e.clientY;
         var pressEvtLike = { clientX: pressClientX, clientY: pressClientY };
@@ -13765,9 +13774,11 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       } },
     { id: "creator.stitchedView", keys: "s", scope: "creator.design",
       description: "Switch between the chart and the stitched view",
-      when: function () { return !!state.pat && state.appMode !== "create"; },
+      // Side by side hides the switch, so S would only flip a hidden state.
+      when: function () { return !!state.pat && state.appMode !== "create" && !state.splitPaneEnabled; },
       run: function () {
-        if (state.previewActive) state.setPreviewActive(false);
+        // From Flat or Realistic, S shows Stitched (what the switch's title says).
+        if (state.previewActive) { state.setPreviewActive(false); state.setChartView("stitched"); return; }
         state.setChartView(function (v) { return v === "stitched" ? "chart" : "stitched"; });
       } },
     { id: "creator.split", keys: "\\", scope: "creator.design",
@@ -17858,7 +17869,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
   var MODE_LABELS = {
     "wysiwyg": "Flat",
-    "level1":  "Realistic \u2013 Flat",
+    "level1":  "Realistic \u2013 Simple",   // not "Flat": that is the squares of colour above (Stage 3, X6)
     "level2":  "Realistic \u2013 Shaded",
     "level3":  "Realistic \u2013 Detailed",
   };
@@ -22284,6 +22295,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     "Flat draws every stitch as a square of its thread colour. Realistic draws the stitches with their thread texture, at the quality you choose. You can't paint on either. The Chart / Stitched switch in the chart's corner shows the stitched view Convert uses.",
     h("div", {key:"mode-label", className:"cv-field__label"}, "Show the chart as"),
     P.seg({label:"Show the chart as", value:chartModeNow, onChange:function(id){
+        // Any choice here leaves the Stitched view, so "Chart" means the
+        // editable chart and S from Flat or Realistic always goes to Stitched.
+        if (app.setChartView) app.setChartView("chart");
         if (id === "chart") { app.setPreviewActive(false); }
         else { app.setPreviewActive(true); app.setPreviewMode(id); }
       },
@@ -23707,9 +23721,12 @@ window.CreatorSidebar = function CreatorSidebar() {
    The stitched picture is laid over the chart's grid, at the chart's own cell
    size, inside the same scroll box, and the chart stays underneath. So
    switching keeps the same stitch in the middle of the screen and the same
-   zoom, and the rulers keep showing row and column numbers. The overlay takes
-   every click and touch, so nothing paints while it is showing: a mouse drag
-   moves the chart, a finger scrolls it, and zoom works as on the chart.
+   zoom, and the rulers keep showing row and column numbers. The overlay is
+   only a picture (pointer-events: none): every click and touch reaches the
+   chart beneath, which treats the Stitched view as Navigate
+   (useCanvasInteraction.js isNavigate). So a drag moves the chart, two
+   fingers or a double-tap zoom it, a middle-button drag moves it, and
+   nothing paints, whatever tool is chosen.
 
    window.CreatorChartViewSwitch()    the Chart / Stitched control
    window.CreatorStitchedOverlay()    the stitched picture over the grid
@@ -23757,33 +23774,12 @@ window.CreatorSidebar = function CreatorSidebar() {
     var ctx = window.usePatternData();
     var cv = window.useCanvas();
     var app = window.useApp();
-    var drag = React.useRef(null);
     var G = app.G || 0, cs = cv.cs || 1;
     if (!ctx.pat || !ctx.sW || !ctx.sH || !window.CreatorStitchedPreview) return null;
 
-    // A mouse or pen drag moves the chart; a finger scrolls it natively.
-    function down(e) {
-      e.stopPropagation();
-      if (e.pointerType === "touch" || e.button !== 0) return;
-      var box = app.scrollRef && app.scrollRef.current;
-      if (!box) return;
-      drag.current = { x: e.clientX, y: e.clientY, left: box.scrollLeft, top: box.scrollTop };
-      if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
-    }
-    function move(e) {
-      var d = drag.current, box = app.scrollRef && app.scrollRef.current;
-      if (!d || !box) return;
-      box.scrollLeft = d.left - (e.clientX - d.x);
-      box.scrollTop = d.top - (e.clientY - d.y);
-    }
-    function up() { drag.current = null; }
-
     return h("div", {
       className: "chart-stitched", "data-chart-stitched": "",
-      style: { left: G, top: G, width: ctx.sW * cs, height: ctx.sH * cs },
-      onPointerDown: down, onPointerMove: move, onPointerUp: up, onPointerCancel: up,
-      onClick: function (e) { e.stopPropagation(); },
-      onContextMenu: function (e) { e.preventDefault(); e.stopPropagation(); }
+      style: { left: G, top: G, width: ctx.sW * cs, height: ctx.sH * cs }
     },
       h(window.CreatorStitchedPreview, {
         cells: ctx.pat, width: ctx.sW, height: ctx.sH,
@@ -24427,7 +24423,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       // The fitted height and the cursor for the tool change as you work.
       style:{minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
-        if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";
+        if (stitchedOn || cv.activeTool === "hand" || cv.drawMode === false) return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
         if (cv.activeTool === "float") return "move";
         if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") return "crosshair";
@@ -24443,6 +24439,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         // Right-click context menu (except when backstitch has a special right-click action)
         if (cv.activeTool === "backstitch" && cv.bsStart) return;
         e.preventDefault();
+        // Nothing on the chart changes from the Stitched view, so no menu.
+        if (stitchedOn) return;
         var pcRef = app.pcRef;
         if (!pcRef.current || !ctx.pat) return;
         var gc = gridCoord(pcRef, e, cv.cs, app.G, false);
