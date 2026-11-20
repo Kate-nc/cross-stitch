@@ -5,7 +5,7 @@
 // The hand-written Version history (APP_CHANGELOG) lives in changelog.js,
 // which is loaded only when someone opens it.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.260';
+window.APP_VERSION = '1.0.261';
 
 (function () {
   try {
