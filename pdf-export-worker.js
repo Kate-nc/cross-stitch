@@ -8,7 +8,9 @@
  *       name, w, h,
  *       pattern,         // flat array of cells {id, type, rgb}
  *       palette,         // [{id, name, rgb, type, threads?}, ...]
- *       partialStitches, // [[index, {TL?,TR?,BL?,BR?}], ...] (optional)
+ *       partialStitches, // [[index, {TL?,TR?,BL?,BR?}], ...] (optional; drawn as
+ *                        // half, quarter and three-quarter stitches. A pattern
+ *                        // without them prints exactly as it always has)
  *       bsLines,         // backstitch lines (optional, used for legend stitch-types only)
  *       knots,           // French knots [{x, y, id, rgb}] in half-stitch units
  *                        // (optional; drawn by the Workshop theme only)
@@ -173,6 +175,12 @@ async function buildPdf(project, options, reqId) {
   var helvetica = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
   var helveticaBold = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
 
+  // Part stitches: cells drawn as half, quarter or three-quarter stitches
+  // instead of a full symbol. Null when there are none, which leaves every
+  // step below exactly as it was.
+  var parts = preparePartStitches(project);
+  if (parts) project = Object.assign({}, project, { pattern: parts.pattern, palette: parts.palette, _parts: parts });
+
   // Resolve geometry once — every chart page uses identical cell size.
   var geom = exportPlan.geom;
 
@@ -181,6 +189,8 @@ async function buildPdf(project, options, reqId) {
 
   // Build palette → codepoint mapping (deterministic).
   var counts = countPalette(project);
+  // Threads used only in part stitches still get a symbol and a key row.
+  if (parts) Object.keys(parts.byThread).forEach(function (id) { if (!(id in counts)) counts[id] = 0; });
   var paletteMap = Layout.buildCodepointMap(project.palette || [], FONT_SPEC, counts);
   var codepoints = paletteMap.map;
   var embeddedCodepoints = new Set(symbolFont.getCharacterSet());
@@ -271,6 +281,45 @@ function countPalette(project) {
     counts[c.id] = (counts[c.id] || 0) + 1;
   }
   return counts;
+}
+
+/**
+ * Part stitches, ready to draw (null when the pattern has none):
+ *   cells    { cellIndex: [instruction, ...] } (Layout.partStitchInstructions)
+ *   pattern  a copy with those cells' full stitches cleared, so every full-
+ *            stitch count and the full-symbol pass leave them to the part-
+ *            stitch drawing; a cell whose four quarters are one thread stays
+ *            a full stitch
+ *   palette  the palette plus any thread used only in part stitches that is
+ *            missing from it
+ *   byThread { id: { threeQuarter, half, quarter } }
+ *   total    the number of part stitches
+ */
+function preparePartStitches(project) {
+  var entries = Layout.partStitchEntries(project);
+  if (!entries.length) return null;
+  var pattern = (project.pattern || []).slice();
+  var palette = (project.palette || []).slice();
+  var known = Object.create(null);
+  palette.forEach(function (p) { if (p && p.id) known[p.id] = p; });
+  var cells = Object.create(null), byThread = Object.create(null), total = 0;
+  entries.forEach(function (e) {
+    var idx = e[0], ins = Layout.partStitchInstructions(e[1], pattern[idx]);
+    if (ins.length === 1 && ins[0].type === "full") {
+      var pe = known[ins[0].id];
+      pattern[idx] = { id: ins[0].id, type: pe && pe.type || "solid", rgb: ins[0].rgb };
+      return;
+    }
+    pattern[idx] = { id: "__empty__", type: "solid", rgb: [255, 255, 255] };
+    cells[idx] = ins;
+    ins.forEach(function (i) {
+      if (!known[i.id]) { known[i.id] = { id: i.id, name: "", rgb: i.rgb, type: "solid" }; palette.push(known[i.id]); }
+      var t = byThread[i.id] || (byThread[i.id] = { threeQuarter: 0, half: 0, quarter: 0 });
+      t[i.type]++;
+      total++;
+    });
+  });
+  return { cells: cells, pattern: pattern, palette: palette, byThread: byThread, total: total };
 }
 
 function filterValidPaletteEntries(palette) {
@@ -402,7 +451,7 @@ async function drawCoverPage(pdfDoc, project, options, font, bold, rgbColor, pag
     ["Dimensions",       project.w + " × " + project.h + " stitches"],
     ["Finished size",    finishedSize(project.w, project.h, project.fabricCt || 14)],
     ["Colours",          countDistinctColours(project.palette) + " threads"],
-    ["Total stitches",   totalStitches(project.pattern).toLocaleString("en-GB")],
+    ["Total stitches",   totalStitches(project.pattern).toLocaleString("en-GB") + partTotalSuffix(project)],
   ];
   for (var i = 0; i < rows.length; i++) {
     page.drawText(rows[i][0] + ":", { x: marginPt, y: metaY - i * 18, size: 11, font: bold, color: rgbColor(0, 0, 0) });
@@ -455,6 +504,26 @@ function totalStitches(pattern) {
   return t;
 }
 
+// " + 42 part stitches" after a total, when the pattern has any.
+function partTotalSuffix(project) {
+  var t = project._parts ? project._parts.total : 0;
+  return t ? " + " + t.toLocaleString("en-GB") + " part stitch" + (t === 1 ? "" : "es") : "";
+}
+
+// The kinds of part stitch a pattern uses, for "Stitch Types Used".
+function partTypeNames(parts) {
+  var has = { threeQuarter: false, half: false, quarter: false };
+  Object.keys(parts.byThread).forEach(function (id) {
+    var t = parts.byThread[id];
+    Object.keys(has).forEach(function (k) { if (t[k]) has[k] = true; });
+  });
+  var out = [];
+  if (has.threeQuarter) out.push("Three-quarter stitches");
+  if (has.half) out.push("Half stitches");
+  if (has.quarter) out.push("Quarter stitches");
+  return out;
+}
+
 // ─── info page ───────────────────────────────────────────────────────────
 function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pageH, geom, counts, themeCols) {
   var page = pdfDoc.addPage([pageW, pageH]);
@@ -486,7 +555,7 @@ function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pag
   y -= 16;
   page.drawText("Total colours: " + totalThreads, { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
   y -= 13;
-  page.drawText("Total stitches: " + totalStitchesN.toLocaleString("en-GB"), { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
+  page.drawText("Total stitches: " + totalStitchesN.toLocaleString("en-GB") + partTotalSuffix(project), { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
   y -= 13;
   page.drawText("Suggested strands: 2 over 1", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
   y -= 24;
@@ -498,7 +567,11 @@ function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pag
   var hasPartial = project.partialStitches && project.partialStitches.length > 0;
   var hasBs = project.bsLines && project.bsLines.length > 0;
   if (hasFull)    { page.drawText("• Full cross-stitch", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
-  if (hasPartial) { page.drawText("• Partial / quarter stitches", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
+  if (hasPartial && project._parts) {
+    partTypeNames(project._parts).forEach(function (name) {
+      page.drawText("• " + name, { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13;
+    });
+  } else if (hasPartial) { page.drawText("• Partial / quarter stitches", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
   if (hasBs)      { page.drawText("• Backstitch", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
   if (workshopKnots(project, themeCols)) { page.drawText("• French knots", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
   y -= 16;
@@ -534,6 +607,7 @@ function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbol
   });
 
   var pages = Math.max(1, Math.ceil(entries.length / rowsPerPage));
+  var partsInfo = project._parts || null;
   for (var pi = 0; pi < pages; pi++) {
     var page = pdfDoc.addPage([pageW, pageH]);
     paintWorkshopBackground(page, pageW, pageH, rgbColor, themeCols);
@@ -553,6 +627,9 @@ function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbol
     page.drawText("",     { x: colSwatch, y: y, size: 9, font: bold });
     page.drawText("Brand & no.", { x: colCode, y: y, size: 9, font: bold, color: rgbColor(0.3, 0.3, 0.3) });
     page.drawText("Name", { x: colName, y: y, size: 9, font: bold, color: rgbColor(0.3, 0.3, 0.3) });
+    // Part stitches (half, quarter, three-quarter) get a column of their own.
+    var colPart = partsInfo ? colStr - 100 : 0;
+    if (partsInfo) page.drawText("Part stitches", { x: colPart, y: y, size: 9, font: bold, color: rgbColor(0.3, 0.3, 0.3) });
     page.drawText("Str",  { x: colStr,  y: y, size: 9, font: bold, color: rgbColor(0.3, 0.3, 0.3) });
     page.drawText("Stitches", { x: colCnt, y: y, size: 9, font: bold, color: rgbColor(0.3, 0.3, 0.3) });
     y -= 12;
@@ -577,7 +654,16 @@ function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbol
       page.drawText(brand, { x: colCode, y: rowY, size: 10, font: font, color: rgbColor(0, 0, 0) });
       // Name
       var name = (ent.entry.name || "").substring(0, 28);
+      if (partsInfo) {
+        // Leave room for the part-stitch column.
+        while (name && font.widthOfTextAtSize(name, 10) > colPart - colName - 8) name = name.slice(0, -1);
+      }
       page.drawText(name, { x: colName, y: rowY, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
+      if (partsInfo && partsInfo.byThread[ent.entry.id]) {
+        var partText = Layout.partStitchLabel(partsInfo.byThread[ent.entry.id]);
+        var partSize = Math.min(10, 10 * 94 / Math.max(1, font.widthOfTextAtSize(partText, 10)));
+        page.drawText(partText, { x: colPart, y: rowY, size: partSize, font: font, color: rgbColor(0.15, 0.15, 0.15) });
+      }
       // Strands
       page.drawText("2", { x: colStr + 6, y: rowY, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
       // Count
@@ -696,8 +782,15 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
   var pat = project.pattern;
   var W = project.w;
   var symSize = cellPt * 0.78;
+  var partCells = project._parts ? project._parts.cells : null;
   for (var ry = seg.y0; ry < seg.y1; ry++) {
     for (var rx = seg.x0; rx < seg.x1; rx++) {
+      var partIns = partCells && partCells[ry * W + rx];
+      if (partIns) {
+        drawPartStitchCell(page, partIns, chartX0 + (rx - seg.x0) * cellPt, chartY1 - (ry - seg.y0 + 1) * cellPt,
+                           cellPt, mode, codepoints, symbolFont, rgbColor);
+        continue;
+      }
       var cell = pat[ry * W + rx];
       if (!cell || !cell.id || cell.id === "__skip__" || cell.id === "__empty__") continue;
       var cx = chartX0 + (rx - seg.x0) * cellPt;
@@ -807,6 +900,13 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
     var pageCounts = Object.create(null);
     for (var ry2 = seg.y0; ry2 < seg.y1; ry2++) {
       for (var rx2 = seg.x0; rx2 < seg.x1; rx2++) {
+        var partIns2 = partCells && partCells[ry2 * W + rx2];
+        if (partIns2) {
+          for (var pk = 0; pk < partIns2.length; pk++) {
+            pageCounts[partIns2[pk].id] = (pageCounts[partIns2[pk].id] || 0) + PART_WEIGHT[partIns2[pk].type];
+          }
+          continue;
+        }
         var cc = pat[ry2 * W + rx2];
         if (!cc || !cc.id || cc.id === "__skip__" || cc.id === "__empty__") continue;
         pageCounts[cc.id] = (pageCounts[cc.id] || 0) + 1;
@@ -833,6 +933,83 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
       if (sx > pageW - marginPt - 60) break;
     }
   }
+}
+
+// ─── part stitches on a chart page ───────────────────────────────────────
+// How much of a full stitch each part stitch is (the "On this page" order).
+var PART_WEIGHT = { threeQuarter: 0.75, half: 0.5, quarter: 0.25 };
+var PART_NB = { TL: ["TR", "BL"], TR: ["TL", "BR"], BL: ["TL", "BR"], BR: ["TR", "BL"] };
+var PART_OPP = { TL: "BR", TR: "BL", BL: "TR", BR: "TL" };
+
+/**
+ * Draws one cell's part stitches (Layout.partStitchInstructions) as
+ * charting software draws them, and so as the importer reads them back
+ * (pdf-importer.js fractionalShape): a 3/4 stitch covers the half of the
+ * cell on its side of a diagonal, a 1/4 the small triangle from its corner
+ * to the middles of its two sides. Colour charts fill those with the
+ * thread, and every chart draws the line that bounds them. A half stitch is
+ * its stitch line, drawn heavier (a band of the thread colour in colour
+ * charts). Each has the thread's symbol, smaller, where
+ * Layout.partStitchSymbolSpots puts it. (cx, cy) is the cell's bottom-left.
+ */
+function drawPartStitchCell(page, ins, cx, cy, c, mode, codepoints, symbolFont, rgbColor) {
+  var P = { TL: [cx, cy + c], TR: [cx + c, cy + c], BL: [cx, cy], BR: [cx + c, cy] };
+  var M = [cx + c / 2, cy + c / 2];
+  function inset(p, k) { return [p[0] + (M[0] - p[0]) * k, p[1] + (M[1] - p[1]) * k]; }
+  function col(rgb) { return rgbColor(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255); }
+  function contrast(rgb) { var k = Layout.contrastColor(rgb); return rgbColor(k[0], k[1], k[2]); }
+  function mid(a, b) { return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; }
+  // A stitch's triangle: corner q and the two corners beside it (3/4), or
+  // q and the middles of its two sides (1/4). Its first side after q is the
+  // line that bounds it.
+  function triangle(s) {
+    if (s.type === "threeQuarter") { var r = PART_OPP[s.emptyCorner]; return [P[r], P[PART_NB[r][0]], P[PART_NB[r][1]]]; }
+    if (s.type === "quarter") return [P[s.corner], mid(P[s.corner], P[PART_NB[s.corner][0]]), mid(P[s.corner], P[PART_NB[s.corner][1]])];
+    return null;
+  }
+  // pdf-lib's SVG paths run y down from the origin given, so flip.
+  function path(pts) { return pts.map(function (p, i) { return (i ? "L " : "M ") + p[0] + " " + (-p[1]); }).join(" ") + " Z"; }
+  var i, s, t;
+  if (mode === "colour") {
+    for (i = 0; i < ins.length; i++) {
+      t = triangle(ins[i]);
+      if (t) page.drawSvgPath(path(t), { x: 0, y: 0, color: col(ins[i].rgb) });
+    }
+  }
+  var thin = Math.max(0.3, c * 0.06);
+  for (i = 0; i < ins.length; i++) {
+    s = ins[i];
+    t = triangle(s);
+    if (t) {
+      page.drawLine({ start: { x: t[1][0], y: t[1][1] }, end: { x: t[2][0], y: t[2][1] },
+        thickness: thin, color: rgbColor(0, 0, 0), opacity: mode === "colour" ? 0.45 : 0.8 });
+    } else if (s.type === "half") {
+      var a = inset(s.dir === "fwd" ? P.BL : P.TL, 0.1), b = inset(s.dir === "fwd" ? P.TR : P.BR, 0.1);
+      page.drawLine({ start: { x: a[0], y: a[1] }, end: { x: b[0], y: b[1] },
+        thickness: mode === "colour" ? c * 0.2 : Math.max(0.5, c * 0.1),
+        color: mode === "colour" ? col(s.rgb) : rgbColor(0, 0, 0), lineCap: PDFLibLineCapRound() });
+    }
+  }
+  var spots = Layout.partStitchSymbolSpots(ins);
+  for (i = 0; i < ins.length; i++) {
+    s = ins[i];
+    var cp = codepoints[s.id];
+    if (cp == null) throw new Error("PDF symbol assignment missing for thread " + s.id);
+    var sp = spots[i], size = sp.size * c;
+    // In colour, a symbol takes the contrast of whatever it sits on.
+    var under = s.type === "half" ? Layout.partStitchAt(ins, sp.x, sp.y) : s;
+    var ink = mode !== "colour" ? rgbColor(0, 0, 0) : under ? contrast(under.rgb) : rgbColor(0, 0, 0);
+    // The glyph's visual centre sits 0.4 of its size above and right of its
+    // origin (see the full-stitch symbols in drawChartPage).
+    var px = cx + sp.x * c, py = cy + c - sp.y * c;
+    page.drawText(String.fromCodePoint(cp), { x: px - size * 0.4, y: py - size * 0.4, size: size, font: symbolFont, color: ink });
+  }
+}
+
+// Round line ends for half stitches, when this pdf-lib has them.
+function PDFLibLineCapRound() {
+  var L = self.PDFLib && self.PDFLib.LineCapStyle;
+  return L ? L.Round : undefined;
 }
 
 // ─── chart index ─────────────────────────────────────────────────────────

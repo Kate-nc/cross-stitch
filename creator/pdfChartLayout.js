@@ -198,12 +198,171 @@
         opts.chartModes.some(function (m) { return m !== "bw" && m !== "colour"; }) || new Set(opts.chartModes).size !== opts.chartModes.length)) throw new Error("Pick at least one valid chart mode.");
   }
 
+  // Full stitches per thread. A cell with part stitches over it is drawn as
+  // part stitches (partStitchInstructions), so its full stitch isn't
+  // counted, and threads used only in part stitches are listed with 0 so
+  // they get a symbol and a key row. Without part stitches this is exactly
+  // the full-stitch count it always was.
   function usedThreadCounts(project) {
     var counts = Object.create(null);
-    (project.pattern || []).forEach(function (c) {
+    var parts = partStitchEntries(project), drawnAsParts = null;
+    if (parts.length) {
+      drawnAsParts = Object.create(null);
+      parts.forEach(function (e) { drawnAsParts[e[0]] = true; });
+    }
+    (project.pattern || []).forEach(function (c, i) {
+      if (drawnAsParts && drawnAsParts[i]) return;
       if (c && c.id && c.id !== "__skip__" && c.id !== "__empty__") counts[c.id] = (counts[c.id] || 0) + 1;
     });
+    parts.forEach(function (e) {
+      partStitchInstructions(e[1], (project.pattern || [])[e[0]]).forEach(function (ins) {
+        if (ins.type === "full") counts[ins.id] = (counts[ins.id] || 0) + 1;
+        else if (!(ins.id in counts)) counts[ins.id] = 0;
+      });
+    });
     return counts;
+  }
+
+  // ─── Part stitches (half, quarter, three-quarter) ─────────────────────────
+  var PS_QUADS = ["TL", "TR", "BL", "BR"];
+  var PS_OPP = { TL: "BR", TR: "BL", BL: "TR", BR: "TL" };
+
+  /**
+   * The project's part stitches as [[cellIndex, { TL?, TR?, BL?, BR? }], ...]
+   * (from a Map or the saved array), keeping only cells inside the chart
+   * with at least one stitched quadrant. [] when there are none.
+   */
+  function partStitchEntries(project) {
+    var src = project && project.partialStitches, out = [];
+    if (!src) return out;
+    var n = (project.w | 0) * (project.h | 0);
+    function add(idx, e) {
+      idx = Number(idx);
+      if (!e || !Number.isInteger(idx) || idx < 0 || (n && idx >= n)) return;
+      if (PS_QUADS.some(function (q) { return e[q] && e[q].id != null; })) out.push([idx, e]);
+    }
+    if (Array.isArray(src)) src.forEach(function (p) { if (p) add(p[0], p[1]); });
+    else if (typeof src.forEach === "function") src.forEach(function (v, k) { add(k, v); });
+    return out;
+  }
+
+  /**
+   * What to draw in a cell with part stitches, as the chart on screen does
+   * (helpers.js analysePartialStitches): a quadrant without a part stitch
+   * takes the cell's full stitch, if any. Returns, largest first,
+   *   { type: "full", id, rgb }                         all four the same
+   *   { type: "threeQuarter", id, rgb, emptyCorner }    three the same
+   *   { type: "half", id, rgb, dir: "fwd" | "bck" }     a diagonal pair: / or \
+   *   { type: "quarter", id, rgb, corner }              anything left
+   */
+  function partStitchInstructions(ps, base) {
+    var b = base && base.id && base.id !== "__skip__" && base.id !== "__empty__" ? base : null;
+    var filled = {}, groups = {}, order = [];
+    PS_QUADS.forEach(function (q) {
+      var src = (ps && ps[q] && ps[q].id != null) ? ps[q] : b;
+      if (!src) return;
+      filled[q] = src;
+      var id = String(src.id);
+      if (!groups[id]) { groups[id] = { src: src, corners: [] }; order.push(id); }
+      groups[id].corners.push(q);
+    });
+    var out = [], handled = {};
+    function take(id, extra) {
+      var g = groups[id];
+      g.corners.forEach(function (q) { handled[q] = true; });
+      out.push(Object.assign({ id: id, rgb: g.src.rgb || [128, 128, 128] }, extra));
+    }
+    order.forEach(function (id) {
+      var c = groups[id].corners;
+      if (c.length === 4) take(id, { type: "full" });
+      else if (c.length === 3) take(id, { type: "threeQuarter", emptyCorner: PS_QUADS.filter(function (q) { return c.indexOf(q) === -1; })[0] });
+    });
+    order.forEach(function (id) {
+      var c = groups[id].corners;
+      if (c.length !== 2 || handled[c[0]]) return;
+      var key = c.slice().sort().join(",");
+      if (key === "BL,TR") take(id, { type: "half", dir: "fwd" });
+      else if (key === "BR,TL") take(id, { type: "half", dir: "bck" });
+    });
+    PS_QUADS.forEach(function (q) {
+      if (handled[q] || !filled[q]) return;
+      out.push({ type: "quarter", id: String(filled[q].id), rgb: filled[q].rgb || [128, 128, 128], corner: q });
+    });
+    return out;
+  }
+
+  /**
+   * Where each part stitch's symbol goes, as fractions of the cell from its
+   * top-left (x right, y down), and its size (fraction of the cell). Drawn
+   * as charting software draws them (and the importer reads them,
+   * pdf-importer.js fractionalShape): a 3/4 stitch covers the half of the
+   * cell on its side of a diagonal, a 1/4 the small triangle from its corner
+   * to the middles of its two sides. Each symbol sits at the centre of its
+   * triangle, the biggest spot clear of the lines. A half stitch is its
+   * stitch line: its symbol sits in an open corner beside the line, or,
+   * where two half stitches cross, in the wedges either side.
+   */
+  var PS_TRI = { TL: [0.293, 0.293], TR: [0.707, 0.293], BL: [0.293, 0.707], BR: [0.707, 0.707] };
+  var PS_SMALL = { TL: [0.146, 0.146], TR: [0.854, 0.146], BL: [0.146, 0.854], BR: [0.854, 0.854] };
+  function partStitchSymbolSpots(instructions) {
+    var spots = [], taken = [];
+    function free(p) { return !taken.some(function (t) { return Math.abs(t[0] - p[0]) < 0.2 && Math.abs(t[1] - p[1]) < 0.2; }); }
+    function put(i, p, size) { spots[i] = { x: p[0], y: p[1], size: size }; taken.push(p); }
+    var halves = instructions.filter(function (ins) { return ins.type === "half"; });
+    var crossing = halves.length === 2 && halves[0].dir !== halves[1].dir;
+    instructions.forEach(function (ins, i) {
+      if (ins.type === "threeQuarter") put(i, PS_TRI[PS_OPP[ins.emptyCorner]], 0.44);
+      else if (ins.type === "quarter") put(i, PS_SMALL[ins.corner], 0.28);
+      else if (ins.type === "full") put(i, [0.5, 0.5], 0.78);
+    });
+    instructions.forEach(function (ins, i) {
+      if (ins.type !== "half") return;
+      if (crossing) { put(i, ins.dir === "fwd" ? [0.17, 0.5] : [0.83, 0.5], 0.28); return; }
+      var options = ins.dir === "fwd" ? [PS_TRI.TL, PS_TRI.BR] : [PS_TRI.TR, PS_TRI.BL];
+      put(i, options.filter(free)[0] || [0.5, 0.5], 0.34);
+    });
+    return spots;
+  }
+
+  /**
+   * The part stitch covering a point of the cell (fractions from its top-
+   * left), for the colour a symbol sits on: a 3/4 stitch covers the half of
+   * the cell on its side of a diagonal, a 1/4 the small triangle in its
+   * corner. Null for bare fabric.
+   */
+  function partStitchAt(instructions, fx, fy) {
+    var hit = null;
+    instructions.forEach(function (ins) {
+      var q = ins.type === "threeQuarter" ? PS_OPP[ins.emptyCorner] : ins.type === "quarter" ? ins.corner : null;
+      if (!q) return;
+      var u = q === "TL" || q === "BL" ? fx : 1 - fx;     // distance from the corner's sides
+      var v = q === "TL" || q === "TR" ? fy : 1 - fy;
+      if (u + v < (ins.type === "quarter" ? 0.5 : 1)) hit = ins;
+    });
+    return hit;
+  }
+
+  /** Part stitches per thread: { id: { threeQuarter, half, quarter } }. */
+  function partStitchCounts(project) {
+    var out = Object.create(null);
+    partStitchEntries(project).forEach(function (e) {
+      partStitchInstructions(e[1], (project.pattern || [])[e[0]]).forEach(function (ins) {
+        if (ins.type === "full") return;
+        var t = out[ins.id] || (out[ins.id] = { threeQuarter: 0, half: 0, quarter: 0 });
+        t[ins.type]++;
+      });
+    });
+    return out;
+  }
+
+  /** "42 ¾, 12 ½, 3 ¼" for a thread's part stitches. */
+  function partStitchLabel(c) {
+    if (!c) return "";
+    var bits = [];
+    if (c.threeQuarter) bits.push(c.threeQuarter + " \u00BE");
+    if (c.half) bits.push(c.half + " \u00BD");
+    if (c.quarter) bits.push(c.quarter + " \u00BC");
+    return bits.join(", ");
   }
 
   function legendRowsPerPage(geom) {
@@ -328,6 +487,12 @@
   var api = {
     validateOptions: validateOptions,
     usedThreadCounts: usedThreadCounts,
+    partStitchEntries: partStitchEntries,
+    partStitchInstructions: partStitchInstructions,
+    partStitchSymbolSpots: partStitchSymbolSpots,
+    partStitchAt: partStitchAt,
+    partStitchCounts: partStitchCounts,
+    partStitchLabel: partStitchLabel,
     legendRowsPerPage: legendRowsPerPage,
     planExport: planExport,
     PAGE_SIZES_MM: PAGE_SIZES_MM,

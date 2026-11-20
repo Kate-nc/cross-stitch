@@ -167,6 +167,33 @@
       partialEntries = ctx.partialStitches;
     }
 
+    // A thread used only in part stitches may be missing from the palette
+    // (it is built from full stitches). Add it, named from the catalogue
+    // where we can, so the PDF gives it a symbol and a key row. Nothing
+    // changes for a pattern without part stitches.
+    if (partialEntries && partialEntries.length) {
+      var inPal = Object.create(null);
+      pal.forEach(function (e) { inPal[e.id] = true; });
+      var brand = typeof window !== "undefined" && window.normaliseThreadBrand ? window.normaliseThreadBrand(ctx.threadBrand) : "dmc";
+      partialEntries.forEach(function (pe) {
+        var cellPs = pe && pe[1];
+        if (!cellPs) return;
+        ["TL", "TR", "BL", "BR"].forEach(function (q) {
+          var t = cellPs[q];
+          if (!t || t.id == null || inPal[t.id]) return;
+          inPal[t.id] = true;
+          var cat = null;
+          try {
+            if (typeof window !== "undefined" && typeof window.findThreadInCatalog === "function") cat = window.findThreadInCatalog(brand, String(t.id));
+            if (!cat && brand === "dmc" && typeof window !== "undefined" && typeof window.getDmcById === "function") cat = window.getDmcById(String(t.id));
+          } catch (_) { cat = null; }
+          var add = { id: t.id, name: (cat && cat.name) || "", rgb: t.rgb || (cat && cat.rgb) || [128, 128, 128], type: "solid" };
+          if (brand && brand !== "dmc") add.brand = brand;
+          pal.push(add);
+        });
+      });
+    }
+
     return {
       name: ctx.projectName || ctx.name || "Untitled pattern",
       designer: ctx.projectDesigner || ctx.designer || "",
