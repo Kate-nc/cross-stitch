@@ -302,18 +302,30 @@ function preparePartStitches(project) {
   var palette = (project.palette || []).slice();
   var known = Object.create(null);
   palette.forEach(function (p) { if (p && p.id) known[p.id] = p; });
+  function ensurePaletteEntry(id, rgb) {
+    if (known[id]) return known[id];
+    var isBlend = id.indexOf("+") !== -1;
+    var entry = { id: id, name: "", rgb: rgb || [128, 128, 128], type: isBlend ? "blend" : "solid" };
+    if (isBlend) {
+      var parts2 = id.split("+");
+      if (parts2.length === 2) entry.threads = [{ id: parts2[0], name: "", rgb: entry.rgb }, { id: parts2[1], name: "", rgb: entry.rgb }];
+    }
+    known[id] = entry;
+    palette.push(entry);
+    return entry;
+  }
   var cells = Object.create(null), byThread = Object.create(null), total = 0;
   entries.forEach(function (e) {
     var idx = e[0], ins = Layout.partStitchInstructions(e[1], pattern[idx]);
     if (ins.length === 1 && ins[0].type === "full") {
-      var pe = known[ins[0].id];
+      var pe = ensurePaletteEntry(ins[0].id, ins[0].rgb);
       pattern[idx] = { id: ins[0].id, type: pe && pe.type || "solid", rgb: ins[0].rgb };
       return;
     }
     pattern[idx] = { id: "__empty__", type: "solid", rgb: [255, 255, 255] };
     cells[idx] = ins;
     ins.forEach(function (i) {
-      if (!known[i.id]) { known[i.id] = { id: i.id, name: "", rgb: i.rgb, type: "solid" }; palette.push(known[i.id]); }
+      ensurePaletteEntry(i.id, i.rgb);
       var t = byThread[i.id] || (byThread[i.id] = { threeQuarter: 0, half: 0, quarter: 0 });
       t[i.type]++;
       total++;
@@ -567,7 +579,7 @@ function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pag
   var hasPartial = project.partialStitches && project.partialStitches.length > 0;
   var hasBs = project.bsLines && project.bsLines.length > 0;
   if (hasFull)    { page.drawText("• Full cross-stitch", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
-  if (hasPartial && project._parts) {
+  if (project._parts) {
     partTypeNames(project._parts).forEach(function (name) {
       page.drawText("• " + name, { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13;
     });
@@ -607,7 +619,7 @@ function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbol
   });
 
   var pages = Math.max(1, Math.ceil(entries.length / rowsPerPage));
-  var partsInfo = project._parts || null;
+  var partsInfo = (project._parts && project._parts.total) ? project._parts : null;
   for (var pi = 0; pi < pages; pi++) {
     var page = pdfDoc.addPage([pageW, pageH]);
     paintWorkshopBackground(page, pageW, pageH, rgbColor, themeCols);
@@ -937,7 +949,7 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
 
 // ─── part stitches on a chart page ───────────────────────────────────────
 // How much of a full stitch each part stitch is (the "On this page" order).
-var PART_WEIGHT = { threeQuarter: 0.75, half: 0.5, quarter: 0.25 };
+var PART_WEIGHT = { full: 1, threeQuarter: 0.75, half: 0.5, quarter: 0.25 };
 var PART_NB = { TL: ["TR", "BL"], TR: ["TL", "BR"], BL: ["TL", "BR"], BR: ["TR", "BL"] };
 var PART_OPP = { TL: "BR", TR: "BL", BL: "TR", BR: "TL" };
 
@@ -976,7 +988,10 @@ function drawPartStitchCell(page, ins, cx, cy, c, mode, codepoints, symbolFont, 
       if (t) page.drawSvgPath(path(t), { x: 0, y: 0, color: col(ins[i].rgb) });
     }
   }
-  var thin = Math.max(0.3, c * 0.06);
+  // Slightly heavier than the 0.18pt minor grid, yet <= 0.18 * 1.4 so the
+  // PDF importer reads triangle boundaries as chart ruling rather than
+  // backstitch lines.
+  var thin = 0.22;
   for (i = 0; i < ins.length; i++) {
     s = ins[i];
     t = triangle(s);

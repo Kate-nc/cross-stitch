@@ -144,7 +144,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "a75ae9a7a0e754c979946dd80e52ce3fe6c46b41013b2c5cc8801cd0f2ae338c";
+var BUILD_ID = "4bdff03ffdcd0d57145b292be9a60c20cff71700a6a96f3e973f7857f5e56980";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -469,7 +469,7 @@ var BUILD_ASSETS = {
     "sha256": "5dd63e5310d777b9899d7a3843fe72d86874a7d559edacbf8292af06c5094787"
   },
   "./creator/extras-bundle.js": {
-    "sha256": "cf3692caeacac98ef929c84b17e8535787afb1df5e488426605f4525cae4da4b"
+    "sha256": "af321b6bd70fbf66f3f7d58c275d03b3e0e08e7901fec53cf8628253a8c3159e"
   },
   "./import-engine/lazy-shim.js": {
     "sha256": "8c33328438164fc2ed589b5ee8250abfcde7f59604a19e4f26add601881c62c1"
@@ -586,7 +586,7 @@ var BUILD_ASSETS = {
     "sha256": "c7fe4849c31001757f9f98c616d1e56b2b04458cb03e2cde1879e135a415c618"
   },
   "./creator/pdfExport.js": {
-    "sha256": "2af3e9a25429af8a30bd5de3ba0633480f61c70b8a1d765b673ebbbd4a0fb925"
+    "sha256": "4d9e100945f86babbf7a4471d97dc57505528c583164e02241d91bcdb37fa8cb"
   },
   "./sync-merge-helpers.js": {
     "sha256": "0674948cc29d0da36ede634d46388c40994e5ef6e4f97acae69c52ef0f1fe799"
@@ -676,7 +676,7 @@ var BUILD_ASSETS = {
     "sha256": "6f0ff93b3e6a6cda427b802efc10b578d58f0247110e46013dad8d8c6d9edc48"
   },
   "./creator/pdfChartLayout.js": {
-    "sha256": "b10a072c6a45fc6139c3b45476e6796fe26f4c86a2d32379e7164529f306b5ce"
+    "sha256": "e13d2c6bb53caae2238a726d755d8f780107f41938b01966ec73dadebcaf23e9"
   },
   "./creator/symbolFontSpec.js": {
     "sha256": "a2a4de6283f67446424538e7ee83e10d8ae76f0c379b3ba8bdbbac27d6ca5e69"
@@ -697,7 +697,7 @@ var BUILD_ASSETS = {
     "sha256": "ebb40cef239bbeba10dac7d86fa1bd2d489434c642e5d4eafb89a7cf45849af0"
   },
   "./pdf-export-worker.js": {
-    "sha256": "0f0fc8b49af61821aa52f9abcc3901bfae8c6a0a676bb9f52016453038ec3bad"
+    "sha256": "438403a4eac2f0c284f58a15a764d726c437418efd3d6d293c73b0763cc5e72c"
   },
   "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js": {
     "integrity": "sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI"

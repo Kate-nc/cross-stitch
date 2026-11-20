@@ -143,17 +143,62 @@ describe('with part stitches', () => {
   test('a thread used only in part stitches is named from the catalogue when the project is built', () => {
     const ctx = { console };
     ctx.window = ctx;
-    ctx.findThreadInCatalog = (brand, id) => (id === '797' ? { id: '797', name: 'Royal Blue', rgb: [19, 71, 125] } : null);
+    ctx.findThreadInCatalog = (brand, id) => {
+      if (brand === 'anchor' && id === '403') return { id: '403', name: 'Anchor Black', rgb: [0, 0, 0] };
+      if (id === '797') return { id: '797', name: 'Royal Blue', rgb: [19, 71, 125] };
+      if (id === '310') return { id: '310', name: 'Black', rgb: [0, 0, 0] };
+      if (id === '666') return { id: '666', name: 'Bright Red', rgb: [227, 29, 66] };
+      return null;
+    };
     vm.createContext(ctx);
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'creator/pdfExport.js'), 'utf8'), ctx, { filename: 'pdfExport.js' });
     const p = withParts();
-    const out = ctx.PdfExport.buildExportProject({ pal: p.palette, pat: p.pattern, sW: 6, sH: 4, partialStitches: new Map(p.partialStitches) });
-    expect(out.palette.map(e => e.id)).toEqual(['310', '666', '797']);
-    expect(out.palette[2]).toMatchObject({ name: 'Royal Blue', type: 'solid' });
+    // Works for both Map and saved Array forms of partialStitches.
+    for (const psInput of [new Map(p.partialStitches), p.partialStitches]) {
+      const out = ctx.PdfExport.buildExportProject({ pal: p.palette, pat: p.pattern, sW: 6, sH: 4, partialStitches: psInput });
+      expect(out.palette.map(e => e.id)).toEqual(['310', '666', '797']);
+      expect(out.palette[2]).toMatchObject({ name: 'Royal Blue', type: 'solid' });
+      expect(out.partialStitches).toEqual(p.partialStitches);
+    }
+    // Blends, per-stitch brands, numeric IDs, and ignoring sentinels / out-of-bounds.
+    const extra = ctx.PdfExport.buildExportProject({
+      pal: p.palette, pat: p.pattern, sW: 6, sH: 4,
+      partialStitches: [
+        [11, { TL: { id: '310+666', rgb: [113, 14, 33] }, TR: { id: '403', brand: 'anchor', rgb: [0, 0, 0] }, BL: { id: 797, rgb: [19, 71, 125] }, BR: { id: '__empty__' } }],
+        [12, { TL: { id: '' }, TR: { id: '__skip__' } }],
+        [99, { TL: { id: '999', rgb: [1, 2, 3] } }],
+      ],
+    });
+    expect(extra.palette.map(e => e.id)).toEqual(['310', '666', '310+666', '403', '797']);
+    expect(extra.palette[2]).toMatchObject({ type: 'blend', name: 'Black + Bright Red' });
+    expect(extra.palette[2].threads).toHaveLength(2);
+    expect(extra.palette[3]).toMatchObject({ brand: 'anchor', name: 'Anchor Black', type: 'solid' });
+    expect(extra.palette[4]).toMatchObject({ id: '797', name: 'Royal Blue', type: 'solid' });
     // Without part stitches the palette is exactly the one given.
     const none = ctx.PdfExport.buildExportProject({ pal: p.palette, pat: p.pattern, sW: 6, sH: 4 });
     expect(none.palette.map(e => e.id)).toEqual(['310', '666']);
   });
+
+  test('partial entries that all collapse to full stitches add missing threads and omit the Part stitches column', async () => {
+    const empty = { id: '__empty__', rgb: [255, 255, 255] };
+    const pattern = Array.from({ length: 24 }, (_, i) => (i < 4 ? Object.assign({}, RED) : Object.assign({}, empty)));
+    const p = {
+      name: 'All full', w: 6, h: 4, pattern, palette: [Object.assign({}, RED)],
+      partialStitches: [
+        [0, { TL: q(RED) }],                                             // over full RED -> full RED
+        [5, { TL: q(BLUE), TR: q(BLUE), BL: q(BLUE), BR: q(BLUE) }],     // 4 quarters of BLUE not in palette -> full BLUE
+      ],
+      bsLines: [], fabricCt: 14,
+    };
+    const pages = await readPdf(await build(p, PK));
+    const keyPage = pages.find(pg => pg.items.some(t => t.str.startsWith('Thread Legend')));
+    expect(keyPage.items.some(t => t.str === 'Part stitches')).toBe(false);
+    expect(new Set(keyPage.items.flatMap(t => PUA(t.str))).size).toBe(2);
+    const info = pages.find(pg => pg.items.some(t => t.str === 'Stitch Types Used'));
+    const infoText = info.items.map(t => t.str);
+    expect(infoText.some(s => /Partial|Three-quarter|Half|Quarter/.test(s))).toBe(false);
+    expect(infoText.filter(s => /Total stitches/.test(s))).toEqual(['Total stitches: 5']);
+  }, 60000);
 });
 
 describe('layout helpers', () => {
@@ -161,6 +206,23 @@ describe('layout helpers', () => {
     const p = withParts();
     expect({ ...layout.usedThreadCounts(p) }).toEqual({ '666': 5, '310': 0, '797': 0 });
     expect({ ...layout.usedThreadCounts(plain(null)) }).toEqual({ '666': 134, '310': 266 });
+  });
+
+  test('partStitchEntries deduplicates indices and ignores invalid indices and sentinel IDs', () => {
+    const entries = layout.partStitchEntries({
+      w: 4, h: 4,
+      partialStitches: [
+        [null, { TL: q(RED) }],
+        ['', { TL: q(RED) }],
+        [false, { TL: q(RED) }],
+        [2, { TL: { id: '__empty__' }, TR: { id: '__skip__' }, BL: { id: '' } }],
+        [3, { TL: q(RED) }],
+        [3, { BR: q(BLACK) }],          // duplicate index: last wins
+        [4, { TL: q(RED) }],
+        [4, {}],                         // overwritten with empty: removed
+      ],
+    });
+    expect(entries).toEqual([[3, { BR: q(BLACK) }]]);
   });
 
   test('partStitchInstructions reads a cell as the chart on screen does', () => {
@@ -175,6 +237,9 @@ describe('layout helpers', () => {
     expect(I({ TL: q(RED) }, RED)).toEqual([{ id: '666', rgb: RED.rgb, type: 'full' }]);
     // Two adjacent quarters of one thread are two quarters, not lost.
     expect(I({ TL: q(RED), TR: q(RED) }, null).map(i => i.type + i.corner)).toEqual(['quarterTL', 'quarterTR']);
+    // Sentinel IDs in quadrants fall back to the base stitch rather than emitting fake threads.
+    expect(I({ TL: { id: '__empty__' }, TR: { id: '__skip__' }, BL: { id: '' }, BR: q(BLACK) }, null)).toEqual([
+      { id: '310', rgb: BLACK.rgb, type: 'quarter', corner: 'BR' }]);
   });
 
   test('symbols sit inside the cell and clear of each other', () => {
@@ -182,6 +247,8 @@ describe('layout helpers', () => {
       [{ TL: q(RED), BL: q(RED), BR: q(RED), TR: q(BLACK) }, null],
       [{ BL: q(RED), TR: q(RED), TL: q(BLACK), BR: q(BLACK) }, null],
       [{ BL: q(RED), TR: q(RED), TL: q(BLACK) }, null],
+      [{ BL: q(RED), TR: q(RED), TL: q(BLACK), BR: q(BLUE) }, null],
+      [{ TL: q(RED), BR: q(RED), TR: q(BLACK), BL: q(BLUE) }, null],
       [{ BR: q(RED) }, null],
     ];
     for (const [ps, base] of cases) {
@@ -194,6 +261,12 @@ describe('layout helpers', () => {
         expect(s.y - s.size / 2).toBeGreaterThanOrEqual(0);
         expect(s.y + s.size / 2).toBeLessThanOrEqual(1);
         spots.forEach((o, j) => { if (j > i) expect(Math.hypot(s.x - o.x, s.y - o.y)).toBeGreaterThan(0.2); });
+        // A half stitch symbol must sit clear of its own diagonal band and on bare fabric.
+        if (ins[i].type === 'half') {
+          const distToDiag = ins[i].dir === 'fwd' ? Math.abs(s.x + s.y - 1) / Math.SQRT2 : Math.abs(s.x - s.y) / Math.SQRT2;
+          expect(distToDiag).toBeGreaterThan(0.2);
+          expect(layout.partStitchAt(ins, s.x, s.y)).toBeNull();
+        }
       });
     }
   });
@@ -249,7 +322,7 @@ describe('importing an exported colour chart', () => {
     return { name: 'Round trip', w: W, h: H, pattern, palette: [Object.assign({}, BLACK), Object.assign({}, RED)], partialStitches, bsLines: [], fabricCt: 14 };
   }
 
-  test('every full and part stitch comes back with its thread', async () => {
+  test('every full and part stitch comes back with its thread and no phantom backstitches', async () => {
     const p = roundTripProject();
     const bytes = await build(p, Object.assign({}, PK, { chartModes: ['colour'], includeIndex: false }));
     const raw = fs.readFileSync(path.join(ROOT, 'pdf-importer.js'), 'utf8');
@@ -265,5 +338,6 @@ describe('importing an exported colour chart', () => {
       if (want.has(i)) expect([i, ids(back.get(i))]).toEqual([i, ids(want.get(i))]);
       else expect([i, blank(got.pattern[i]), back.has(i)]).toEqual([i, blank(p.pattern[i]), false]);
     }
+    expect(got.bsLines || []).toEqual([]);
   }, 60000);
 });

@@ -226,24 +226,31 @@
   // ─── Part stitches (half, quarter, three-quarter) ─────────────────────────
   var PS_QUADS = ["TL", "TR", "BL", "BR"];
   var PS_OPP = { TL: "BR", TR: "BL", BL: "TR", BR: "TL" };
+  function isRealStitchId(id) {
+    return id != null && id !== "" && id !== "__skip__" && id !== "__empty__";
+  }
 
   /**
    * The project's part stitches as [[cellIndex, { TL?, TR?, BL?, BR? }], ...]
    * (from a Map or the saved array), keeping only cells inside the chart
-   * with at least one stitched quadrant. [] when there are none.
+   * with at least one stitched quadrant. Deduplicates by cell index (last
+   * wins, matching Map semantics). [] when there are none.
    */
   function partStitchEntries(project) {
-    var src = project && project.partialStitches, out = [];
+    var src = project && project.partialStitches, out = [], byIdx = Object.create(null);
     if (!src) return out;
     var n = (project.w | 0) * (project.h | 0);
     function add(idx, e) {
+      if (idx === null || idx === "" || typeof idx === "boolean") return;
       idx = Number(idx);
-      if (!e || !Number.isInteger(idx) || idx < 0 || (n && idx >= n)) return;
-      if (PS_QUADS.some(function (q) { return e[q] && e[q].id != null; })) out.push([idx, e]);
+      if (!Number.isInteger(idx) || idx < 0 || (n && idx >= n)) return;
+      var hasStitch = !!(e && PS_QUADS.some(function (q) { return e[q] && isRealStitchId(e[q].id); }));
+      if (idx in byIdx) out[byIdx[idx]] = hasStitch ? [idx, e] : null;
+      else if (hasStitch) { byIdx[idx] = out.length; out.push([idx, e]); }
     }
     if (Array.isArray(src)) src.forEach(function (p) { if (p) add(p[0], p[1]); });
     else if (typeof src.forEach === "function") src.forEach(function (v, k) { add(k, v); });
-    return out;
+    return out.filter(Boolean);
   }
 
   /**
@@ -256,17 +263,17 @@
    *   { type: "quarter", id, rgb, corner }              anything left
    */
   function partStitchInstructions(ps, base) {
-    var b = base && base.id && base.id !== "__skip__" && base.id !== "__empty__" ? base : null;
-    var filled = {}, groups = {}, order = [];
+    var b = base && isRealStitchId(base.id) ? base : null;
+    var filled = Object.create(null), groups = Object.create(null), order = [];
     PS_QUADS.forEach(function (q) {
-      var src = (ps && ps[q] && ps[q].id != null) ? ps[q] : b;
+      var src = (ps && ps[q] && isRealStitchId(ps[q].id)) ? ps[q] : b;
       if (!src) return;
       filled[q] = src;
       var id = String(src.id);
       if (!groups[id]) { groups[id] = { src: src, corners: [] }; order.push(id); }
       groups[id].corners.push(q);
     });
-    var out = [], handled = {};
+    var out = [], handled = Object.create(null);
     function take(id, extra) {
       var g = groups[id];
       g.corners.forEach(function (q) { handled[q] = true; });
@@ -319,7 +326,11 @@
       if (ins.type !== "half") return;
       if (crossing) { put(i, ins.dir === "fwd" ? [0.17, 0.5] : [0.83, 0.5], 0.28); return; }
       var options = ins.dir === "fwd" ? [PS_TRI.TL, PS_TRI.BR] : [PS_TRI.TR, PS_TRI.BL];
-      put(i, options.filter(free)[0] || [0.5, 0.5], 0.34);
+      var spot = options.filter(free)[0];
+      if (spot) put(i, spot, 0.34);
+      // Both corners hold quarters: tuck into the bare-fabric gap between
+      // the top quarter triangle and the half-stitch diagonal band.
+      else put(i, ins.dir === "fwd" ? [0.42, 0.22] : [0.58, 0.22], 0.26);
     });
     return spots;
   }

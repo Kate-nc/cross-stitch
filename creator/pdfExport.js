@@ -160,11 +160,11 @@
     });
 
     var partialEntries = null;
-    if (ctx.partialStitches && typeof ctx.partialStitches.forEach === "function") {
+    if (Array.isArray(ctx.partialStitches)) {
+      partialEntries = ctx.partialStitches;
+    } else if (ctx.partialStitches && typeof ctx.partialStitches.forEach === "function") {
       partialEntries = [];
       ctx.partialStitches.forEach(function (v, k) { partialEntries.push([k, v]); });
-    } else if (Array.isArray(ctx.partialStitches)) {
-      partialEntries = ctx.partialStitches;
     }
 
     // A thread used only in part stitches may be missing from the palette
@@ -174,21 +174,48 @@
     if (partialEntries && partialEntries.length) {
       var inPal = Object.create(null);
       pal.forEach(function (e) { inPal[e.id] = true; });
-      var brand = typeof window !== "undefined" && window.normaliseThreadBrand ? window.normaliseThreadBrand(ctx.threadBrand) : "dmc";
+      var normBrand = function (b) {
+        return typeof window !== "undefined" && window.normaliseThreadBrand ? window.normaliseThreadBrand(b) : (b || "dmc");
+      };
+      var palBrand = pal.find(function (e) { return e && e.brand; });
+      var defaultBrand = ctx.threadBrand ? normBrand(ctx.threadBrand) : (palBrand ? normBrand(palBrand.brand) : "dmc");
+      var maxCells = ((ctx.sW || ctx.w || 0) | 0) * ((ctx.sH || ctx.h || 0) | 0);
+      var lookupCat = function (br, id) {
+        try {
+          var cat = null;
+          if (typeof window !== "undefined" && typeof window.findThreadInCatalog === "function") cat = window.findThreadInCatalog(br, id);
+          if (!cat && br === "dmc" && typeof window !== "undefined" && typeof window.getDmcById === "function") cat = window.getDmcById(id);
+          return cat;
+        } catch (_) { return null; }
+      };
       partialEntries.forEach(function (pe) {
-        var cellPs = pe && pe[1];
-        if (!cellPs) return;
+        if (!pe) return;
+        var rawIdx = pe[0], cellPs = pe[1];
+        if (!cellPs || rawIdx === null || rawIdx === "" || typeof rawIdx === "boolean") return;
+        var idx = Number(rawIdx);
+        if (!Number.isInteger(idx) || idx < 0 || (maxCells && idx >= maxCells)) return;
         ["TL", "TR", "BL", "BR"].forEach(function (q) {
           var t = cellPs[q];
-          if (!t || t.id == null || inPal[t.id]) return;
-          inPal[t.id] = true;
-          var cat = null;
-          try {
-            if (typeof window !== "undefined" && typeof window.findThreadInCatalog === "function") cat = window.findThreadInCatalog(brand, String(t.id));
-            if (!cat && brand === "dmc" && typeof window !== "undefined" && typeof window.getDmcById === "function") cat = window.getDmcById(String(t.id));
-          } catch (_) { cat = null; }
-          var add = { id: t.id, name: (cat && cat.name) || "", rgb: t.rgb || (cat && cat.rgb) || [128, 128, 128], type: "solid" };
-          if (brand && brand !== "dmc") add.brand = brand;
+          if (!t || t.id == null || t.id === "" || t.id === "__skip__" || t.id === "__empty__") return;
+          var tid = String(t.id);
+          if (inPal[tid]) return;
+          inPal[tid] = true;
+          var br = t.brand ? normBrand(t.brand) : defaultBrand;
+          var isBlend = t.type === "blend" || tid.indexOf("+") !== -1;
+          var add;
+          if (isBlend) {
+            var parts2 = tid.split("+");
+            var threads = parts2.length === 2 ? parts2.map(function (pid) {
+              var c = lookupCat(br, pid);
+              return { id: pid, name: (c && c.name) || "", rgb: (c && c.rgb) || t.rgb || [128, 128, 128] };
+            }) : undefined;
+            var bName = (threads && threads[0].name && threads[1].name) ? (threads[0].name + " + " + threads[1].name) : (t.name || "");
+            add = { id: tid, name: bName, rgb: t.rgb || [128, 128, 128], type: "blend", threads: threads };
+          } else {
+            var cat = lookupCat(br, tid);
+            add = { id: tid, name: (cat && cat.name) || t.name || "", rgb: t.rgb || (cat && cat.rgb) || [128, 128, 128], type: "solid" };
+          }
+          if (br && br !== "dmc") add.brand = br;
           pal.push(add);
         });
       });
