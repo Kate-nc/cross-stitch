@@ -6,17 +6,17 @@
 const fs = require('fs');
 const path = require('path');
 
-const HOME_SCREEN_SRC = fs.readFileSync(
-  path.join(__dirname, '..', 'home-screen.js'),
+const HELP_DRAWER_SRC = fs.readFileSync(
+  path.join(__dirname, '..', 'help-drawer.js'),
   'utf8'
 );
 
-// Extract buildSampleProject from home-screen.js (top-of-file pure helper).
+// Extract buildSampleProject from help-drawer.js (pure helper).
 function loadBuildSampleProject() {
-  const match = HOME_SCREEN_SRC.match(
-    /function buildSampleProject\(\)\s*\{[\s\S]*?\n\}/
+  const match = HELP_DRAWER_SRC.match(
+    /function buildSampleProject\(\)\s*\{[\s\S]*?\n  \}/
   );
-  if (!match) throw new Error('buildSampleProject not found in home-screen.js');
+  if (!match) throw new Error('buildSampleProject not found in help-drawer.js');
   // eslint-disable-next-line no-new-func
   const fn = new Function(match[0] + '; return buildSampleProject;')();
   return fn;
@@ -72,16 +72,11 @@ describe('A5 — buildSampleProject', () => {
   });
 });
 
-describe('A5 — EmptyState wiring', () => {
-  test('home-screen.js EmptyState branch passes secondaryLabel + secondaryAction', () => {
-    expect(HOME_SCREEN_SRC).toMatch(/secondaryLabel:\s*'Try a sample pattern'/);
-    expect(HOME_SCREEN_SRC).toMatch(/secondaryAction:\s*function/);
-  });
-
-  test('secondary action calls ProjectStorage.save and navigates to stitch.html', () => {
-    expect(HOME_SCREEN_SRC).toMatch(/buildSampleProject\(\)/);
-    expect(HOME_SCREEN_SRC).toMatch(/ProjectStorage\.save\(sample\)/);
-    expect(HOME_SCREEN_SRC).toMatch(/setActiveProject\(id\)/);
-    expect(HOME_SCREEN_SRC).toMatch(/window\.location\.href\s*=\s*'stitch\.html\?id=/);
+describe('A5 — Getting Started sample wiring', () => {
+  test('help-drawer.js sample action saves project and navigates to stitch.html', () => {
+    expect(HELP_DRAWER_SRC).toMatch(/buildSampleProject/);
+    expect(HELP_DRAWER_SRC).toMatch(/ProjectStorage\.save\(p\)/);
+    expect(HELP_DRAWER_SRC).toMatch(/setActiveProject\(p\.id\)/);
+    expect(HELP_DRAWER_SRC).toMatch(/window\.location\.href\s*=\s*"stitch\.html\?id="/);
   });
 });

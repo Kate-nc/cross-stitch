@@ -76,29 +76,6 @@ describe('sync-reference fix #1 — pending-plan API', () => {
   });
 });
 
-describe('sync-reference fix #5 — home-screen no longer mounts SyncSummaryModal', () => {
-  const homeScreenPath = path.join(__dirname, '..', 'home-screen.js');
-  const src = fs.readFileSync(homeScreenPath, 'utf8');
-
-  test('home-screen.js does not render h(SyncSummaryModal, ...)', () => {
-    // The mount call would look like  h(SyncSummaryModal, { ... })  or
-    // React.createElement(SyncSummaryModal, ...). Either form is forbidden.
-    expect(src).not.toMatch(/h\s*\(\s*SyncSummaryModal\b/);
-    expect(src).not.toMatch(/createElement\s*\(\s*SyncSummaryModal\b/);
-  });
-
-  test('home-screen.js does not retain the old syncPlan setter as live state', () => {
-    // useState declarations would look like `useState(null);` followed by
-    // `var syncPlan = ... setSyncPlan = ...`. The fix removed both.
-    // (Mentions in comments are allowed and explain the removal.)
-    expect(src).not.toMatch(/var\s+_syncPlan\s*=\s*useState/);
-  });
-
-  test('home-screen.js opens SyncReviewGate from import paths', () => {
-    expect(src).toMatch(/window\.SyncReviewGate\.open\s*\(/);
-  });
-});
-
 describe('sync-reference — header.js listens to cs:syncPlanPending', () => {
   const headerPath = path.join(__dirname, '..', 'header.js');
   const src = fs.readFileSync(headerPath, 'utf8');

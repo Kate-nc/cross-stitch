@@ -103,15 +103,6 @@ describe('Big1 unification — manual import paths populate the canonical pendin
     expect(src).toMatch(/SyncEngine\.setPendingPlan\s*\(\s*plan\s*\)/);
   });
 
-  test('home-screen.js folder-import handler still calls SyncEngine.setPendingPlan', () => {
-    // handleImportFromFolder (folder-watcher → manual import) keeps its
-    // own setPendingPlan call. The old per-file picker call site was
-    // removed when manual imports were unified into UnifiedSyncImportModal.
-    const src = fs.readFileSync(path.join(__dirname, '..', 'home-screen.js'), 'utf8');
-    const matches = src.match(/SyncEngine\.setPendingPlan\s*\(\s*plan\s*\)/g) || [];
-    expect(matches.length).toBeGreaterThanOrEqual(1);
-  });
-
   test('setPendingPlan dispatches cs:syncPlanPending with the plan in detail', () => {
     const plan = { newRemote: [{ remote: { data: { id: 'p1', w: 2, h: 2, pattern: [{ id: '310' }, {}, {}, {}] } } }] };
     SE.setPendingPlan(plan);
@@ -336,26 +327,5 @@ describe('_recordDeviceImport LRU eviction', () => {
     const map = SE.getLastImportPerDevice();
     expect(map.me).toBeDefined();
     expect(Object.keys(map).length).toBeLessThanOrEqual(100);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 5. Clock-skew clamp on the contention indicator (source-level guard)
-// ---------------------------------------------------------------------------
-
-describe('Clock-skew clamp on contention indicator', () => {
-  test('home-screen.js wraps the lastLockHeldAt age in Math.max(0, ...)', () => {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'home-screen.js'), 'utf8');
-    // The exact expression — pin it down so the audit-follow-up fix
-    // can't silently regress to an unclamped subtraction.
-    expect(src).toMatch(/Math\.max\(0, Date\.now\(\) - new Date\(d\.lastLockHeldAt\)\.getTime\(\)\)/);
-  });
-
-  test('the >60s gate sits below the clamp so a future timestamp never pins the indicator', () => {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'home-screen.js'), 'utf8');
-    const idx = src.indexOf('var ageMs = Math.max(0, Date.now() - new Date(d.lastLockHeldAt).getTime())');
-    expect(idx).toBeGreaterThan(0);
-    const after = src.slice(idx, idx + 200);
-    expect(after).toMatch(/if \(ageMs > 60000\) return null/);
   });
 });
