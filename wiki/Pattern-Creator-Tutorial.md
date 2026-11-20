@@ -51,7 +51,7 @@ The preview in the middle updates as you change settings, and is the pattern Gen
 |------|-------|
 | **Stitched** (the default) | Every stitch as a cross of thread on your fabric, in your fabric colour, with as much fabric between stitches as two strands leave on that count; blends as one strand of each thread. The closest view to the finished piece. **Close up** shows the stitches larger. |
 | **Flat** | Every stitch as a square of its thread colour. |
-| **Before / after** | Your picture and the pattern either side of a divider you can drag, with **Auto-sweep** and a magnifier. Choose **At stitch size** to compare the pattern with your picture at one colour per stitch: a detail missing there is lost to the pattern's size (crop tighter or go bigger); one that is there but missing from the pattern is lost in matching threads and tidying. |
+| **Picture and chart** | Your picture and the pattern either side of a divider you can drag, with **Auto-sweep** and a magnifier. Choose **At stitch size** to compare the pattern with your picture at one colour per stitch: a detail missing there is lost to the pattern's size (crop tighter or go bigger); one that is there but missing from the pattern is lost in matching threads and tidying. |
 
 **Show confetti** and **Show tidied stitches** mark those stitches without changing the preview itself. A line under the preview's size says what your last change did, for example *Threads (max): 4,349 stitches changed (65%), threads 24 to 12, confetti 4.6% to 2.6%*, or that nothing visible changed.
 
@@ -148,7 +148,7 @@ The technical names (Atkinson error diffusion, ordered Bayer dithering) are unde
 
 ### Try settings before generating
 
-**Show what changed** marks changed cells in Stitched, Flat and Before / after, using the last completed preview as its baseline. It is off until you choose it. When you change the chart dimensions there is no direct cell comparison; the next change at that size establishes one.
+**Show what changed** marks changed cells in Stitched, Flat and Picture and chart, using the last completed preview as its baseline. It is off until you choose it. When you change the chart dimensions there is no direct cell comparison; the next change at that size establishes one.
 
 Choose **Pin this preview** to keep a completed preview and all its settings. Its label includes the style, thread count, size and brand. Change your settings freely: **Pinned / Current** switches between the two pictures on phones; wide screens show both as stitched previews. The difference line compares changed stitches, confetti, threads and skeins. **Apply pinned settings** restores the complete choice, including picture adjustments, fabric, brand, thread limits, shading and tidying. Changing or cropping the picture clears the pin. **Unpin** removes it.
 
@@ -268,9 +268,11 @@ Cross (`1`), Half / (`2`), Half \ (`3`), Backstitch (`4`) and Erase (`5`), plus 
 2. Search for or click a replacement thread. The preview and stitch count update.
 3. Press **Apply** (or double-click a thread to apply it straight away). Part stitches and backstitch are recoloured too, and the change is one undo step.
 
+Above the list, a line says how far it reaches: every stitch of that colour in the whole pattern (or the selection), and how many of those you have marked as stitched.
+
 ### Recolouring the whole palette
 
-Once a pattern exists, **Edit > Palette > Recolour the chart** has **Shift Colours**, which rotates every colour around the colour wheel, and **Palette Presets** applies a themed, harmonious or saved palette. **Revert to generated palette** undoes both.
+Once a pattern exists, **Edit > Palette > Recolour the chart** has **Shift colours**, which rotates every colour around the colour wheel, and **Palette presets**, which applies a themed, harmonious or saved palette. **See before and after** shows the chart both ways, with how many threads change, before you apply it. **Revert to generated palette** undoes both.
 
 ### Removing unused colours
 
@@ -281,9 +283,19 @@ Colours with no stitches show a remove button in the palette; **Remove unused (N
 - **Fix outline colours** (More tools) — removes dark border lines left over from line-art images. **How strict** (Gentle, Balanced, Strong) widens or narrows the selection.
 - **Reduce confetti** (More tools) — merges confetti stitches (single stitches of a colour on their own; slow to stitch) and threads that are almost the same, and smooths colour fringes. Nothing changes until you press **Apply**.
 
-### Split pane
+### Chart or Stitched
 
-Press `\` (or the split-pane button) to see the editable chart and a realistic preview side by side. Drag the divider to resize.
+The switch in the corner of the chart (bottom right on a computer, top right on a phone), or the `S` key, shows your pattern as **Stitched**: crosses of thread on your fabric, as Convert's Stitched preview draws them, at the same zoom and the same place on the chart. Painting is off while it shows; choose **Chart**, or press `S`, to edit again.
+
+**Edit > View > Chart, flat or realistic** shows the chart as **Flat** squares of colour or **Realistic** stitches, also keeping your place.
+
+### Chart and stitched, side by side
+
+Press `\` (or **Edit > View > Side by side > Chart and stitched**) to see the chart you edit and the pattern as stitches side by side. Drag the divider to resize.
+
+### Editing a pattern you have stitched
+
+When a project has stitching progress, a note above the chart says how much (for example "23% stitched. Changing a marked stitch clears its mark.") and how far the chosen tool reaches: one stitch at a time for Paint, every joined stitch of a colour for Fill, and so on. A stitch you change loses its mark, and Undo brings back both the colour and the mark. Regenerate says before it runs that it can change every stitch in the chart.
 
 ### Adapting the pattern to your stash
 

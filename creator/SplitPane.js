@@ -166,8 +166,8 @@ window.CreatorSplitPane = function CreatorSplitPane() {
   }
 
   var MODE_LABELS = {
-    "wysiwyg": "WYSIWYG preview",
-    "level1":  "Realistic \u2013 Flat",
+    "wysiwyg": "Flat",
+    "level1":  "Realistic \u2013 Simple",   // not "Flat": that is the squares of colour above (Stage 3, X6)
     "level2":  "Realistic \u2013 Shaded",
     "level3":  "Realistic \u2013 Detailed",
   };
@@ -345,7 +345,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
               display: "flex", alignItems: "center", gap: 2, padding: 0,
             },
           },
-            MODE_LABELS[app.rightPaneMode || "level2"] || "Preview",
+            MODE_LABELS[app.rightPaneMode || "level2"] || "Stitched",
             window.Icons && window.Icons.chevronDown ? h("span", {"aria-hidden":"true", style: { marginLeft: 2, display:"inline-flex" } }, window.Icons.chevronDown()) : null
           ),
           rightDropOpen && h("div", {

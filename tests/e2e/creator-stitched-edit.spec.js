@@ -39,7 +39,7 @@ test.describe('Editing a stitched pattern (desktop)', function() {
 
     await stitchFirst(page, 200);
     const banner = page.locator('.stitched-banner');
-    await expect(banner).toContainText('stitched. Changing stitched cells resets them to not done.');
+    await expect(banner).toContainText('% stitched. Changing a marked stitch clears its mark.');
     await expect(banner).toContainText('% stitched');
 
     const toggle = banner.getByRole('button', { name: 'Show stitched' });
@@ -143,7 +143,7 @@ test.describe('Editing a stitched pattern (desktop)', function() {
     await page.locator('.creator-sidebar-tab[data-tab-id="palette"]').click();   // Edit > Palette > Recolour the chart
     await page.getByText('Shift colours', { exact: true }).first().click();
     await page.getByRole('button', { name: '180\u00B0', exact: true }).click();
-    await page.getByRole('button', { name: 'Preview & Apply' }).click();
+    await page.getByRole('button', { name: 'See before and after' }).click();
     await page.getByRole('button', { name: 'Apply Swap' }).click();
     await expect(page.getByText('200 stitched cells reset to not done.')).toBeVisible({ timeout: 15000 });
     await expect.poll(doneCount, { timeout: 10000 }).toBeLessThan(200);

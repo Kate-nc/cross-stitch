@@ -27,7 +27,7 @@ const MORE_CONTROLS = reg.moreTools({ coarse: false }).map(t => t.id === 'hand' 
 describe('the old More panel', () => {
   test('still has those controls when the rail is off (and on touch screens)', () => {
     for (const s of ['SpecialtyStitchPanel', '"Pen draws; fingers navigate"', '"Magnifier"', '"Precision cursor"',
-      '" Resize canvas\\u2026"', '" Re-generate from image\\u2026"', '"Stitch type"', '"Brush size"', '" Overlay"']) {
+      '" Resize canvas\\u2026"', '" Re-generate from image\\u2026"', '"Stitch type"', '"Brush size"', '"Overlay"']) {
       expect(strip).toContain(s);
     }
   });
@@ -108,7 +108,8 @@ describe('the side panel in the rail layout', () => {
     expect(m).toBeTruthy();
     expect(Array.from(m[1].matchAll(/id:"([^"]+)"/g)).map(x => x[1])).toEqual(['palette', 'view', 'project']);
     expect(sidebar).toMatch(/!railLayout && gen\.img && app\.sourceTab !== "canvas"/);
-    expect(sidebar).toMatch(/railLayout && sTab === "preview"\) sTab = "view"/);
+    // A stored Preview tab opens View (Preview folded into View in Stage 3).
+    expect(sidebar).toMatch(/if \(sTab === "preview"\) sTab = "view"/);
   });
 });
 

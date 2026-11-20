@@ -226,8 +226,17 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () {
         state.setView(function (v) { return v === "color" ? "symbol" : v === "symbol" ? "both" : "color"; });
       } },
+    { id: "creator.stitchedView", keys: "s", scope: "creator.design",
+      description: "Switch between the chart and the stitched view",
+      // Side by side hides the switch, so S would only flip a hidden state.
+      when: function () { return !!state.pat && state.appMode !== "create" && !state.splitPaneEnabled; },
+      run: function () {
+        // From Flat or Realistic, S shows Stitched (what the switch's title says).
+        if (state.previewActive) { state.setPreviewActive(false); state.setChartView("stitched"); return; }
+        state.setChartView(function (v) { return v === "stitched" ? "chart" : "stitched"; });
+      } },
     { id: "creator.split", keys: "\\", scope: "creator.design",
-      description: "Toggle split-pane preview",
+      description: "Show the chart and stitched side by side",
       when: function () { return !!state.pat; },
       run: function () {
         var nextSplit = !state.splitPaneEnabled;
@@ -259,6 +268,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.selectedColorId, state.partialStitchTool, state.hiId,
       state.hasSelection, state.lassoInProgress, state.highlightMode,
       state.splitPaneEnabled, state.stitchType,
+      state.previewActive, state.appMode,
       state.moveActive, state.nudgeMove, state.cancelMove,
       state.floatActive, state.revertFloat, state.deleteSelection,
       state.clip, state.clipFloatActive,

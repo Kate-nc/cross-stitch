@@ -2982,8 +2982,13 @@ kbd {
   }
 }
 .ps-preset-card {
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 10px;
+  font: inherit; text-align: left; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface);
   transition: border-color 0.15s, background 0.15s;
 }
+.ps-preset-card__name { font-size: var(--text-xs); font-weight: 500; color: var(--text-primary); }
+.ps-preset-card__tiers { font-size: var(--text-xs); color: var(--text-tertiary); }
 @media (hover: hover){
 .ps-preset-card:hover {
   border-color: var(--accent-border);
@@ -2991,6 +2996,7 @@ kbd {
 }
 }
 .ps-preset-card--selected {
+  box-shadow: inset 0 0 0 1px var(--accent);
   border-color: var(--accent) !important;
   background: var(--accent-light) !important;
 }
@@ -8189,10 +8195,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
    backgrounds are the fabric's own colour, set inline. */
 .fabric-block { display: flex; flex-direction: column; gap: var(--s-3); }
 .fabric-block__field { display: flex; flex-direction: column; gap: 4px; }
-.fabric-block__label {
-  font-size: var(--text-xs); font-weight: 600; color: var(--text-tertiary);
-  text-transform: uppercase; letter-spacing: 0.5px;
-}
+.fabric-block__label { font-size: var(--text-sm); color: var(--text-secondary); }
 .fabric-block__select {
   width: 100%; padding: 6px 10px; border-radius: var(--radius-md);
   border: 0.5px solid var(--border); font-size: var(--text-md);
@@ -8452,6 +8455,7 @@ body.creator-compact .rpanel.rpanel--edit.rpanel--open{max-height:calc(100dvh - 
    without negative-scroll clipping when zoomed in larger than the box (B4). */
 .cs-chart-scroll { display: flex; }
 .cs-chart-scroll > canvas,
+.cs-chart-scroll > .cs-chart-layer,
 .cs-chart-scroll > .preview-wrap { margin: auto; flex-shrink: 0; }
 
 body.creator-compact .cs-chart-scroll{height:calc(100dvh - 48px - env(safe-area-inset-top,0px) - var(--creator-rail-h) - env(safe-area-inset-bottom,0px) - var(--creator-status-h))!important;max-height:none!important;min-height:0!important;}
@@ -8582,7 +8586,8 @@ body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start
 @media (hover: hover) { .cs-seltools__btn:not(:disabled):hover { color: var(--text-primary); background: var(--surface-secondary); } }
 /* Tools tab sections for shapes and mirror drawing (audit DRAW-04). */
 .cs-toolsec { padding: 12px; border-top: 1px solid var(--border); }
-.cs-toolsec__title { font-size: var(--text-xs); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: var(--s-2); }
+/* Section headers in Convert and Edit (Stage 3, D3): sentence case, one size. */
+.cs-toolsec__title { font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); margin: 0 0 var(--s-2); }
 .cs-toolsec .cs-seltools { margin-top: 6px; }
 .cs-toolsec__check { display: flex; align-items: center; gap: var(--s-2); margin-top: 8px; font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer; }
 .cs-toolsec__hint { font-size: var(--text-xs); color: var(--text-tertiary); margin: 6px 0 0; line-height: 1.45; }
@@ -9103,7 +9108,7 @@ body.creator-compact .ready-bar__actions .btn { white-space: nowrap; }
 /* A field label with a hover hint beside it (InfoIcon). */
 .convert-label{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
 .convert-label > label{display:inline-flex;align-items:center;gap:6px;}
-.size-field__heading{font-size:var(--text-xs);font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;}
+.size-field__heading{font-size:var(--text-sm);font-weight:600;color:var(--text-primary);}
 
 /* ── Convert panel (creator/ConvertPanel.js) ─────────────────────────────
    Laid out like the Edit panel: its tab strip (.creator-sidebar-tabs), its
@@ -9533,3 +9538,349 @@ body.creator-space-pan .cs-chart-scroll,body.creator-space-pan .cs-chart-scroll 
 .creator-optbar__sheet{position:fixed;top:calc(var(--app-header-height,48px) + var(--creator-actionbar-h,0px) + var(--creator-optbar-h) + 6px);right:296px;z-index:300;width:min(420px,calc(100vw - 380px));max-height:calc(100vh - 160px);overflow-y:auto;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:var(--shadow-md);font-size:var(--text-sm);}
 .creator-optbar__sheet:focus{outline:none;}
 .creator-optbar__sheet-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+
+/* ── Edit side panel (creator/Sidebar.js) ─────────────────────────────────
+   Edit's Palette, Tools, View, Preview and Project tabs. Built from the
+   Convert panel's parts (.cs-toolsec, .cs-seltools__btn, .cv-seg, .cv-input)
+   so the two panels read the same; these rules hold what is Edit's own. */
+.creator-sidebar-tablist { display: flex; flex-direction: column; background: var(--surface); }
+.rpanel-handle-wrap { display: flex; justify-content: center; padding: 6px 0 2px; }
+.creator-sidebar-body { overflow-y: auto; flex: 1; }
+.creator-sidebar-body > .cs-toolsec:first-child { border-top: none; }
+.rpanel-back-to-convert { flex-shrink: 0; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--surface-secondary); }
+.rpanel-back-to-convert__btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 0; background: none; border: none; cursor: pointer; font: inherit; font-size: var(--text-xs); color: var(--text-secondary); }
+.rpanel-back-to-convert__btn:hover { color: var(--text-primary); }
+
+/* Palette: "In this pattern" */
+.pal-sec__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: var(--s-2); }
+.pal-picker__title { margin: 0; }
+.sb-mini-btn { padding: 2px 7px; font: inherit; font-size: var(--text-xs); font-weight: 500; line-height: 1.4; color: var(--text-secondary); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; }
+@media (hover: hover) { .sb-mini-btn:hover { color: var(--text-primary); background: var(--surface-secondary); } }
+.palette-counts { font-size: var(--text-xs); color: var(--text-tertiary); }
+.palette-counts-warn { display: inline-flex; width: 16px; height: 16px; color: var(--danger); }
+.pal-row__stash--owned { background: var(--success); }
+.pal-row__stash--partial { background: var(--warning); }
+.pal-row__stash--needed { background: var(--danger); }
+.pal-stash-filter { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-2); margin-bottom: var(--s-2); font-size: var(--text-xs); color: var(--text-secondary); }
+.pal-stash-filter__label { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+.pal-stash-filter__label input { margin: 0; }
+.pal-unowned { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--s-2); padding: 8px 10px; border-radius: var(--radius-md); background: var(--warning-soft); border: 1px solid var(--warning); font-size: var(--text-xs); color: var(--accent-ink); }
+.pal-unowned__head { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.pal-unowned__head svg { width: 14px; height: 14px; flex-shrink: 0; }
+.pal-unowned__text { line-height: 1.4; }
+.pal-unowned__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.pal-unowned__btn { padding: 5px 10px; font: inherit; font-size: var(--text-xs); font-weight: 600; color: var(--accent-ink); background: var(--surface); border: 1px solid var(--warning); border-radius: var(--radius-sm); cursor: pointer; }
+.pal-unowned__btn--strong { background: var(--warning-soft); }
+.pal-filter-note { margin-bottom: var(--s-2); padding: 5px 8px; border-radius: var(--radius-sm); background: var(--warning-soft); border: 0.5px solid var(--warning); font-size: var(--text-xs); color: var(--accent-ink); }
+.pal-filter-note--danger { background: var(--danger-soft); border-color: var(--danger-soft); color: var(--danger); }
+.pal-paint-hint { display: flex; align-items: center; gap: 7px; min-height: 30px; margin-bottom: var(--s-2); padding: 5px 8px; border-radius: var(--radius-md); background: var(--warning-soft); border: 1px solid var(--warning); font-size: var(--text-xs); }
+.pal-paint-hint--chosen { background: var(--accent-light); border-color: var(--accent-border); }
+.pal-paint-hint__swatch { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; border: 1px solid var(--border); }
+.pal-paint-hint__id { font-weight: 600; color: var(--accent); }
+.pal-paint-hint__name { flex: 1; min-width: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.pal-paint-hint__clear { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; padding: 0 2px; flex-shrink: 0; background: none; border: none; cursor: pointer; color: var(--text-tertiary); }
+.pal-paint-hint__clear svg, .pal-paint-hint__icon svg { width: 14px; height: 14px; }
+.pal-paint-hint__icon { display: inline-flex; color: var(--accent-ink); }
+.pal-paint-hint__text { color: var(--accent-ink); }
+
+/* Palette: Add colour (blank grid steps, single thread or blend) */
+.pal-steps { display: flex; align-items: center; justify-content: space-between; gap: var(--s-1); margin-bottom: var(--s-2); padding: 6px 8px; background: var(--surface-tertiary); border-radius: var(--radius-md); }
+.pal-steps__item { display: flex; align-items: center; gap: var(--s-1); }
+.pal-steps__num { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); color: var(--text-on-accent); font-size: 9px; font-weight: 700; }
+.pal-steps__label { font-size: var(--text-xs); font-weight: 500; color: var(--text-secondary); white-space: nowrap; }
+.pal-steps__sep { display: inline-flex; color: var(--text-tertiary); }
+.pal-steps__sep svg { width: 12px; height: 12px; }
+.sb-pair { margin: 0 0 var(--s-2); }
+.sb-pair .cs-seltools__btn { justify-content: center; }
+.blend-component-slots { display: flex; flex-direction: column; gap: var(--s-1); margin-bottom: 6px; }
+.blend-slot { display: flex; align-items: center; gap: var(--s-1); flex: 1; min-height: 24px; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: var(--text-xs); }
+.blend-slot--filled { background: var(--accent-light); }
+.blend-slot__swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; border: 1px solid var(--border); }
+.blend-slot__name { font-weight: 600; }
+.blend-slot__empty { color: var(--text-tertiary); }
+.blend-slot__plus { font-size: var(--text-xs); font-weight: 600; color: var(--text-tertiary); }
+.blend-pick-list { max-height: 200px; }
+.blend-pick-list .pal-pick-row--in { cursor: pointer; }
+.sb-more-link { align-self: flex-start; padding: 6px 8px; }
+.sb-error { margin-bottom: var(--s-2); font-size: var(--text-xs); color: var(--danger); }
+
+/* Shared rows and buttons */
+.sb-block-btn { display: flex; width: 100%; justify-content: center; margin-top: var(--s-2); }
+.sb-block-btn--tall { padding: 10px; margin-top: 0; }
+.sb-danger-btn { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+.cs-seltools--3 { grid-template-columns: 1fr 1fr 1fr; }
+.sb-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: var(--s-2); }
+.sb-chips .cs-seltools__btn { min-width: 32px; justify-content: center; }
+.sb-slider-row { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2); font-size: var(--text-xs); color: var(--text-secondary); }
+.sb-slider-row input[type="range"], .sb-range { flex: 1; min-width: 0; width: 100%; }
+.sb-slider-row__label { flex-shrink: 0; }
+.sb-slider-row__value { min-width: 40px; text-align: right; font-size: var(--text-sm); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.sb-colour-input { width: 24px; height: 20px; padding: 0; border: none; cursor: pointer; }
+.sb-auto-btn { flex-shrink: 0; }
+.sb-auto-btn svg { width: 12px; height: 12px; }
+.sb-subtitle { margin-top: var(--s-3); }
+.cv-sec--compare .sb-block-btn { gap: 6px; padding: 8px 10px; font-size: var(--text-sm); margin-top: 0; }
+.cv-sec--compare .sb-block-btn svg { width: 14px; height: 14px; }
+.cv-sec .cv-field__label + .cv-seg { margin-top: 4px; }
+/* A part of a section that opens on demand (Recolour's Shift colours and
+   Palette presets), like Convert's "Fix the picture". */
+.sb-disclosure { border-top: 1px solid var(--border); }
+.sb-disclosure:first-child { border-top: none; }
+.sb-disclosure > summary { display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 6px 0; cursor: pointer; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); }
+.sb-disclosure > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sb-disclosure[open] > summary { margin-bottom: var(--s-2); }
+.sb-disclosure > summary { list-style: none; }
+.sb-disclosure > summary::-webkit-details-marker { display: none; }
+.sb-disclosure__chev { display: inline-flex; color: var(--text-tertiary); transition: transform var(--motion, 0.15s); }
+.sb-disclosure__chev svg { width: 14px; height: 14px; }
+.sb-disclosure[open] .sb-disclosure__chev { transform: rotate(90deg); }
+.sb-disclosure > .ps-stack { margin: 0 0 var(--s-3); }
+@media (pointer: coarse) { .sb-disclosure > summary { min-height: 44px; } }
+.sb-fields { display: flex; flex-direction: column; gap: var(--s-2); padding: 4px 0 2px; }
+.sb-field { display: flex; flex-direction: column; gap: 3px; font-size: var(--text-xs); color: var(--text-secondary); }
+.sb-facts { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 4px; padding: 6px 0 10px; font-size: var(--text-sm); }
+.sb-facts__k { color: var(--text-tertiary); }
+.sb-facts__v { text-align: right; font-variant-numeric: tabular-nums; }
+.sb-facts--left .sb-facts__v { text-align: left; }
+.sb-glance { display: flex; flex-direction: column; gap: 10px; border-top: none; }
+.sb-btnrow { display: flex; gap: var(--s-2); }
+.sb-start { align-self: flex-start; }
+
+/* Canvas tab (a design drawn from scratch) */
+.creator-canvas-panel { display: flex; flex-direction: column; flex: 1; overflow-y: auto; }
+.creator-canvas-actions { flex-shrink: 0; padding: 12px; border-top: 1px solid var(--border); background: var(--surface); }
+.canvas-trace { display: flex; flex-direction: column; gap: var(--s-2); padding: 6px 0; }
+.canvas-trace .cs-toolsec__hint { margin: 0; }
+.canvas-trace__img { align-self: flex-start; max-width: 100%; max-height: 120px; object-fit: contain; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+
+/* ── Palette swap (palette-swap.js): Recolour the chart in Edit's Palette tab
+   and the Before / After check above the chart. Convert's controls
+   (.cs-seltools__btn, .cv-seg, .cv-note, .cv-input, .g-btn) plus these. */
+.ps-stack { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-2); }
+.ps-stack--flush { margin-top: 0; }
+.ps-stack--tight { gap: 6px; }
+.ps-rule { border-top: 0.5px solid var(--border); margin: 4px 0; }
+.ps-label { font-weight: 600; }
+.ps-spectrum { display: block; width: 100%; height: 24px; border-radius: var(--radius-md); }
+.ps-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ps-chips--fill .cs-seltools__btn { flex: 1; justify-content: center; }
+.ps-swatch { display: inline-block; flex-shrink: 0; border-radius: 3px; border: 1px solid var(--border); }
+.ps-swatch--button { cursor: pointer; }
+.ps-hexes { display: flex; flex-wrap: wrap; gap: 2px; }
+.ps-hex { display: inline-block; width: 16px; height: 16px; border-radius: 2px; border: 1px solid var(--border); }
+.ps-hexes--small .ps-hex { width: 14px; height: 14px; }
+.ps-badge { padding: 1px 6px; border-radius: 8px; font-size: var(--text-xs); white-space: nowrap; }
+.ps-badge--perfect { background: var(--success-soft); color: var(--success); }
+.ps-badge--close { background: var(--warning-soft); color: var(--accent-ink); }
+.ps-badge--approx { background: var(--danger-soft); color: var(--danger); }
+.ps-badge--locked { background: var(--warning-soft); color: var(--accent-ink); }
+.ps-lock { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 20px; height: 20px; padding: 0; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--text-tertiary); cursor: pointer; }
+.ps-lock svg { width: 12px; height: 12px; }
+.ps-lock--on { border-color: var(--warning); background: var(--warning-soft); color: var(--accent-ink); }
+.ps-shift-list { max-height: 250px; overflow: auto; }
+.ps-shift-row { display: flex; align-items: center; gap: 4px; padding: 3px 0; font-size: var(--text-xs); }
+.ps-shift-row__arrow, .ps-map__arrow { display: inline-flex; color: var(--text-tertiary); }
+.ps-shift-row__arrow svg, .ps-map__arrow svg { width: 12px; height: 12px; }
+.ps-actions { display: flex; gap: 6px; margin-top: 4px; }
+.ps-actions__main { flex: 1; justify-content: center; }
+.ps-wide-btn { justify-content: center; }
+.ps-small-btn { padding: 2px 8px; }
+.ps-small-btn svg { width: 12px; height: 12px; }
+.ps-preset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+.ps-tier { padding: 8px 10px; border-radius: var(--radius-md); background: var(--surface-secondary); border: 0.5px solid var(--border); }
+.ps-tier .ps-label { margin-bottom: 6px; }
+.ps-tier__preview { margin-top: 6px; }
+.ps-harmony-base { display: flex; align-items: center; gap: var(--s-2); }
+.ps-harmony-base__swatch { display: inline-block; width: 28px; height: 28px; border-radius: var(--radius-md); border: 2px solid var(--border); cursor: pointer; }
+.ps-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+.ps-hex-input { width: 84px; font-family: monospace; }
+.ps-harmony-threads { display: flex; gap: 3px; }
+.ps-harmony-threads__item { text-align: center; }
+.ps-harmony-threads__id { font-size: 9px; color: var(--text-tertiary); }
+.ps-saved { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--surface); }
+.ps-saved__head { display: flex; align-items: center; justify-content: space-between; }
+.ps-saved__name { font-size: var(--text-xs); font-weight: 500; }
+.ps-saved__actions { display: flex; gap: 4px; }
+.ps-custom-hex { display: flex; align-items: center; gap: 4px; padding-top: 6px; border-top: 0.5px solid var(--border); }
+.ps-revert { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+.ps-revert__btn { gap: 6px; margin-top: 0; color: var(--text-primary); }
+.ps-popover { position: absolute; top: 100%; z-index: 20; min-width: 200px; padding: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-md); }
+.ps-popover--right { right: 0; }
+.ps-popover--wide { left: 0; width: 260px; }
+.ps-popover__title { margin-bottom: 4px; font-size: var(--text-xs); font-weight: 600; color: var(--text-tertiary); }
+.ps-popover__search { margin-bottom: 4px; }
+.ps-popover__list { max-height: 200px; overflow: auto; }
+.ps-pick-row { display: flex; align-items: center; gap: 6px; width: 100%; padding: 3px 6px; font: inherit; font-size: var(--text-xs); text-align: left; color: var(--text-primary); background: transparent; border: none; border-radius: 4px; cursor: pointer; }
+.ps-pick-row:hover, .ps-pick-row:focus-visible { background: var(--surface-secondary); }
+.ps-pick-row__id { min-width: 36px; font-weight: 600; }
+.ps-pick-row__name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+.ps-map { max-height: 300px; overflow: auto; margin-bottom: 12px; }
+.ps-map__table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.ps-map__table th { padding: 2px 6px; text-align: left; font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; color: var(--text-tertiary); }
+.ps-map__table td { padding: 4px 6px; }
+.ps-map__row { border-bottom: 0.5px solid var(--border); }
+.ps-map__row--locked { opacity: 0.5; }
+.ps-map__thread { display: flex; align-items: center; gap: 6px; }
+.ps-map__id { min-width: 32px; font-family: monospace; font-size: var(--text-xs); font-weight: 600; }
+.ps-map__name { font-size: var(--text-xs); color: var(--text-secondary); }
+.ps-map__name--clip { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-map__table .ps-map__arrow { padding: 4px 2px; }
+.ps-map__dest { position: relative; }
+.ps-map__dest--pick { cursor: pointer; }
+.ps-map__table .ps-map__count { text-align: right; font-size: var(--text-xs); color: var(--text-tertiary); }
+.ps-map__similar { position: relative; }
+.ps-contrast { display: inline-flex; align-items: center; gap: 2px; margin-right: 8px; }
+.ps-confirm-overlay { padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.ps-confirm-overlay .cv-note { margin: 0 0 8px; }
+.ps-confirm__pair { display: flex; gap: 12px; margin-bottom: 16px; }
+.ps-confirm__side { flex: 1; min-width: 0; }
+.ps-confirm__frame { overflow: hidden; border-radius: var(--radius-md); background: var(--surface-tertiary); }
+.ps-confirm__canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.ps-confirm__bar { display: flex; align-items: center; gap: var(--s-2); margin-top: 8px; padding: 10px 0; border-top: 0.5px solid var(--border); }
+.ps-confirm__save { margin-right: auto; }
+
+/* ── Edit toolbar (creator/ToolStrip.js): the phone rail, the toolbar kept
+   while creator.desktopRail is off, the More panel, and the Fix outline
+   colours and Reduce confetti rows. */
+.tb-label { flex-shrink: 0; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-tertiary); }
+.tb-label--gap { margin-left: 4px; }
+.tb-label--end { margin-right: 6px; }
+.tb-hint { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; white-space: nowrap; font-size: 11px; color: var(--text-tertiary); }
+.tb-hint svg { width: 12px; height: 12px; }
+.tb-gap { margin-left: 4px; }
+.tb-error { flex-shrink: 1; max-width: 160px; margin-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: var(--danger); }
+.tb-note { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--warning-soft); font-size: 11px; color: var(--text-primary); }
+.tb-check { display: flex; align-items: center; gap: 3px; font-size: 11px; cursor: pointer; user-select: none; }
+.tb-radios { display: inline-flex; gap: 2px; }
+.tb-btn--sm { padding: 1px 8px; font-size: 11px; }
+.tb-btn--step { padding: 1px 7px; font-size: 12px; }
+.tb-btn--step svg, .tb-btn--history svg { width: 14px; height: 14px; }
+.tb-btn:disabled { opacity: 0.4; cursor: default; }
+.tb-btn--history:disabled { opacity: 0.3; }
+.tb-btn--apply { margin-left: 8px; }
+.tb-btn--apply-on { background: var(--accent); color: var(--text-on-accent); font-weight: 600; }
+.tb-btn--row { width: 100%; justify-content: flex-start; }
+.tb-step-val { min-width: 16px; text-align: center; font-size: 11px; color: var(--text-secondary); }
+.tb-mode-row { gap: var(--s-2); padding-top: var(--s-1); align-items: center; }
+.tb-mode-row--wrap { flex-wrap: wrap; }
+.tb-grp--wrap { flex-wrap: wrap; gap: 2px; }
+.tb-more-zoom { gap: 4px; align-items: center; }
+.tb-range { width: 100%; margin-top: 4px; }
+.tb-zoom-range { width: 55px; }
+.creator-optbar__zoom-range { width: 90px; }
+/* Fix outline colours: the target colour and its picker */
+.tb-target { display: inline-flex; }
+.tb-target__btn { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 5px; }
+.tb-target__swatch { display: inline-block; flex-shrink: 0; width: 12px; height: 12px; border-radius: 2px; border: 1.5px solid var(--border); }
+.tb-target__chev { display: inline-flex; margin-left: 1px; opacity: 0.6; }
+.tb-target__list { position: absolute; top: calc(100% + 2px); left: 0; z-index: 200; display: flex; flex-wrap: wrap; gap: 3px; min-width: 100px; max-width: 210px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+.tb-target__opt { flex-shrink: 0; width: 18px; height: 18px; padding: 0; border-radius: 3px; border: 1.5px solid var(--border); cursor: pointer; }
+.tb-target__opt--on { border: 2px solid var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
+/* The colour strip */
+.tb-colour-chip { display: inline-flex; align-items: center; gap: var(--s-1); flex-shrink: 0; max-width: 40vw; margin-right: 6px; padding: 1px 7px 1px 3px; border-radius: var(--radius-lg); background: var(--accent-light); border: 1px solid var(--accent-border); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.tb-colour-chip__swatch { display: inline-block; flex-shrink: 0; width: 12px; height: 12px; border-radius: 2px; border: 1px solid var(--border); }
+.tb-colour-chip__id { flex-shrink: 0; font-weight: 600; color: var(--accent); }
+.tb-colour-chip__name { min-width: 0; color: var(--accent-hover); overflow-wrap: anywhere; }
+.tb-swatch { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40px; height: 40px; padding: 0; border-radius: 6px; border: 1.5px solid var(--border); cursor: pointer; outline: none; }
+.tb-swatch--on { border: 2.5px solid var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
+.tb-swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The tool badge in the toolbar pill */
+.tb-badge { display: inline-flex; align-items: center; gap: var(--s-1); flex-shrink: 0; padding: 2px 8px 2px 6px; border-radius: var(--radius-lg); font-size: 10px; font-weight: 600; letter-spacing: 0.2px; line-height: 1.4; background: var(--surface-secondary); color: var(--text-secondary); }
+.tb-badge__dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); }
+.tb-badge--plain-strong { color: var(--text-primary); }
+.tb-badge--plain-accent { color: var(--accent); }
+.tb-badge--plain-accent .tb-badge__dot { background: var(--accent); }
+.tb-badge--accent, .tb-badge--accent-deep, .tb-badge--accent-ink { background: var(--accent-soft); color: var(--accent); }
+.tb-badge--accent-deep { color: var(--accent-hover); }
+.tb-badge--accent-ink { color: var(--accent-ink); }
+.tb-badge--accent .tb-badge__dot, .tb-badge--accent-deep .tb-badge__dot, .tb-badge--accent-ink .tb-badge__dot { background: var(--accent); }
+.tb-badge--success { background: var(--success-soft); color: var(--success); }
+.tb-badge--success .tb-badge__dot { background: var(--success); }
+.tb-badge--danger { background: var(--danger-soft); color: var(--danger); }
+.tb-badge--danger .tb-badge__dot { background: var(--danger); }
+.tb-badge--warning { background: var(--warning-soft); color: var(--text-primary); }
+.tb-badge--warning .tb-badge__dot { background: var(--warning); }
+
+/* ── Notes above the chart (creator/PatternTab.js), in the Convert panel's
+   note style (.cv-note): one size, one radius, a dismiss button. */
+.pt-note { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--s-2); margin-bottom: var(--s-2); padding: 6px 10px; border-radius: var(--radius-md); background: var(--surface-secondary); border: 1px solid var(--line); font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
+.pt-note svg { width: 14px; height: 14px; vertical-align: -2px; }
+.pt-note--centre { justify-content: center; }
+.pt-note--quiet { color: var(--text-tertiary); }
+.pt-note--small { font-size: var(--text-xs); }
+.pt-note--accent { border-left: 3px solid var(--accent); }
+.pt-note--danger { background: var(--danger-soft); border-color: var(--danger-soft); color: var(--danger); }
+.pt-note__text { flex: 1; min-width: 0; }
+.pt-note__title { font-weight: 500; }
+.pt-note__meta { color: var(--text-tertiary); }
+.pt-note__meta--good { color: var(--success); }
+.pt-note__close { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 24px; min-height: 24px; padding: 0; background: none; border: none; cursor: pointer; color: inherit; opacity: 0.75; }
+.pt-note__close:hover { opacity: 1; }
+.pt-note .cs-seltools__btn { flex-shrink: 0; }
+.cs-chart-scroll { overflow: auto; max-height: 550px; border: 0.5px solid var(--border); border-radius: var(--radius-md); background: var(--surface-tertiary); }
+.tb-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); }
+.tb-status__coords { flex-shrink: 0; font-family: monospace; font-size: 10px; color: var(--text-tertiary); }
+.tb-status__thread { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.tb-status__swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; border: 1px solid var(--border); }
+.tb-status__name { font-size: 10px; color: var(--text-secondary); }
+.pt-hi-clear { display: flex; justify-content: flex-end; gap: var(--s-1); margin: var(--s-1) 0; }
+.pt-hi-clear .cs-seltools__btn svg { width: 12px; height: 12px; }
+
+/* ── Chart / Stitched (creator/ChartStitchedView.js) ──────────────────────
+   The switch in a corner of the chart, and the stitched picture laid over
+   the chart's grid in the same scroll box. */
+.cs-chart-frame { position: relative; }
+.cs-chart-layer { position: relative; margin: auto; flex-shrink: 0; }
+.cs-chart-layer > canvas { display: block; }
+.cs-chart-layer__view { position: absolute; }
+.cs-chart-layer__view canvas { display: block; }
+/* Bottom right on a desktop, clear of "Your pattern is ready" over the
+   chart's top; top right on a phone, clear of the notices at the bottom. */
+.chart-view-bar { position: absolute; bottom: 12px; right: 16px; z-index: 5; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--s-2); max-width: calc(100% - 32px); pointer-events: none; }
+.chart-view-bar > * { pointer-events: auto; }
+body.creator-compact .chart-view-bar { top: 8px; bottom: auto; right: 8px; max-width: calc(100% - 16px); }
+.chart-view-switch { width: auto; margin: 0; box-shadow: var(--shadow-sm); }
+.chart-stitched-hint { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 6px 10px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-sm); font-size: var(--text-sm); color: var(--text-secondary); }
+.chart-stitched-hint svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--accent); }
+.chart-view-switch .lp-seg { min-width: 72px; min-height: 32px; padding: 4px 12px; }
+@media (pointer: coarse) { .chart-view-switch .lp-seg { min-height: 44px; } }
+/* Only a picture: clicks and touches reach the chart beneath, which treats
+   the Stitched view as Navigate. */
+.chart-stitched { position: absolute; z-index: 1; overflow: hidden; pointer-events: none; }
+.chart-stitched > canvas { display: block; }
+/* Replace colour says how far it reaches before it runs (Stage 3). */
+.colour-replace-reach { margin: 0 0 12px; font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
+.colour-replace-reach--marked { padding: 6px 10px; border-radius: var(--radius-md); background: var(--warning-soft); color: var(--accent-ink); }
+
+/* ── Comfortable targets in Edit (Stage 3, D7) ─────────────────────────────
+   Every button on the Edit screen is at least 32px tall with a mouse and
+   44px on a touch screen for the tool rail, options bar and tab row
+   (tests/e2e/creator-target-sizes.spec.js). Small icons keep their look: the
+   info button grows its hit area with padding and an equal negative margin,
+   so the row around it doesn't move (on touch it keeps its own padding). */
+.tb-page-btn, .tb-nav-link, .creator-actionbar [role="tab"] { min-height: 32px; }
+.tb-nav-link { display: inline-flex; align-items: center; }
+.cs-seltools__btn, .sb-mini-btn, .pal-row__btn, .ps-lock { min-height: 32px; }
+.pal-row__btn { height: 32px; }   /* 30px wide, as before, so thread names keep their room */
+.ps-lock { width: 32px; height: 32px; }
+.sb-mini-btn { display: inline-flex; align-items: center; }
+.cv-seg--sub .lp-seg { min-height: 32px; }
+@media (pointer: fine) { .info-icon__btn { padding: 9px; margin: -9px; } }
+.ready-bar .btn-sm, .ready-bar__close { min-height: 32px; }
+.ready-bar__close { min-width: 32px; justify-content: center; align-items: center; }
+.ready-bar__link { display: inline-flex; align-items: center; min-height: 32px; }
+.creator-optbar__seg-btn { min-height: 32px; }
+.pal-paint-hint__clear { width: 32px; height: 32px; margin: -6px -6px -6px auto; border-radius: var(--radius-sm); }
+@media (pointer: coarse) {
+  /* "Your pattern is ready" keeps 32px buttons on a phone: at 44px the card
+     grows over the chart it introduces. */
+  .tb-page-btn, .tb-nav-link, .creator-actionbar [role="tab"],
+  .sb-mini-btn, .cv-seg--sub .lp-seg { min-height: 44px; }
+  .ps-lock, .pal-paint-hint__clear { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+  .pal-row__btn { height: 44px; min-height: 44px; }
+}
+/* The info button's hit area is larger than its icon (above); the legacy
+   dark button rule would paint that area over the heading beside it. */
+html.pref-dark button.info-icon__btn.info-icon__btn { background: transparent !important; border: none !important; color: var(--text-tertiary) !important; }
+html.pref-dark button.info-icon__btn.info-icon__btn:hover,
+html.pref-dark button.info-icon__btn.info-icon__btn:focus-visible { color: var(--accent) !important; }

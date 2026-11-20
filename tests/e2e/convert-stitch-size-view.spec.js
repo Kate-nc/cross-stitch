@@ -1,4 +1,4 @@
-// Before / after can compare the chart with the picture at stitch size (one
+// Picture and chart can put the chart beside the picture at stitch size (one
 // colour per stitch, before threads are chosen), to tell detail lost to the
 // chart's size from detail lost in matching (reports/photo-conversion-audit-2026-11.md).
 // Compare options' size cards give the finished size.
@@ -23,7 +23,7 @@ test.describe('At stitch size', function() {
     await openConvertWithLogo(page);
     await previewView(page, 'compare');
     await expect(page.getByRole('status', { name: 'Updating preview' })).toHaveCount(0, { timeout: 20000 });
-    const group = page.getByRole('radiogroup', { name: 'Compare the chart with' });
+    const group = page.getByRole('radiogroup', { name: 'Picture beside the chart' });
     await expect(group.getByRole('radio', { name: 'Your picture' })).toHaveAttribute('aria-checked', 'true');
     const picture = await beforePixels(page);
 
