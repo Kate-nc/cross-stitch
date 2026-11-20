@@ -413,6 +413,11 @@
                 onClick: function () { setSelMenuOpen(false); a[4](); }
               }, icon(a[3]), a[1]);
             }),
+            // Cross / half / half for every stitch in the selection.
+            h("div", { className: "creator-optbar__menu-sep", role: "separator" }),
+            h("div", { className: "cs-sttype-row" },
+              h("span", { className: "cs-sttype-row__label", "aria-hidden": "true" }, "Stitch type"),
+              h(window.CreatorStitchTypeChoice, { inMenu: true, onPicked: function () { setSelMenuOpen(false); } })),
             h("div", { className: "creator-optbar__menu-sep", role: "separator" }),
             h("button", {
               type: "button", role: "menuitem", className: "creator-optbar__menu-item creator-optbar__menu-item--danger",

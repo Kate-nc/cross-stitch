@@ -535,6 +535,37 @@ window.useMagicWand = function useMagicWand(state) {
     };
   }
 
+  // Rebuild pal / cmap after an edit to the full stitches. The palette is
+  // rebuilt from full stitches only, so colours now used only by part
+  // stitches or backstitch lines are kept in the scratch palette, which
+  // keeps their palette entry and symbol through undo and redo.
+  function setPaletteKeepingParts(np, partials, lines) {
+    var r = state.buildPaletteWithScratch(np);
+    var stillUsed = {};
+    (partials || new Map()).forEach(function(entry) {
+      ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
+    });
+    (lines || []).forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
+    var keeps = [];
+    Object.keys(stillUsed).forEach(function(id) {
+      if (r.cmap[id]) return;
+      var old = state.cmap && state.cmap[id];
+      if (!old) return;
+      keeps.push(Object.assign({}, old, { count: 0 }));
+    });
+    keeps = dedupeChartSymbols(r.pal, keeps);
+    if (keeps.length) {
+      if (state.setScratchPalette) {
+        state.setScratchPalette(function(prev) {
+          return prev.filter(function(p) { return !keeps.some(function(k) { return k.id === p.id; }); }).concat(keeps);
+        });
+      }
+      var keepMap = {}; keeps.forEach(function(k) { keepMap[k.id] = k; });
+      r = { pal: r.pal.concat(keeps), cmap: Object.assign({}, r.cmap, keepMap) };
+    }
+    state.setPal(r.pal); state.setCmap(r.cmap);
+  }
+
   // ─── Delete: clear every stitch inside the selection ─────────────────────────
   // Full stitches become __empty__ (as the eraser leaves them), part stitches in
   // selected cells are removed, and backstitch lines lying wholly inside the
@@ -608,32 +639,7 @@ window.useMagicWand = function useMagicWand(state) {
     state.setRedoHistory([]);
     if (np) {
       state.setPat(np);
-      var r = state.buildPaletteWithScratch(np);
-      // The palette is rebuilt from full stitches only. Keep entries for
-      // colours still used by remaining part stitches / backstitch lines.
-      var stillUsed = {};
-      (nm || ps || new Map()).forEach(function(entry) {
-        ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
-      });
-      keptBs.forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
-      var keeps = [];
-      Object.keys(stillUsed).forEach(function(id) {
-        if (r.cmap[id]) return;
-        var old = state.cmap && state.cmap[id];
-        if (!old) return;
-        keeps.push(Object.assign({}, old, { count: 0 }));
-      });
-      keeps = dedupeChartSymbols(r.pal, keeps);
-      if (keeps.length) {
-        if (state.setScratchPalette) {
-          state.setScratchPalette(function(prev) {
-            return prev.filter(function(p) { return !keeps.some(function(k) { return k.id === p.id; }); }).concat(keeps);
-          });
-        }
-        var keepMap = {}; keeps.forEach(function(k) { keepMap[k.id] = k; });
-        r = { pal: r.pal.concat(keeps), cmap: Object.assign({}, r.cmap, keepMap) };
-      }
-      state.setPal(r.pal); state.setCmap(r.cmap);
+      setPaletteKeepingParts(np, nm || ps, keptBs);
     }
     if (nm) state.setPartialStitches(nm);
     if (bsRemoved) state.setBsLines(keptBs);
@@ -645,6 +651,57 @@ window.useMagicWand = function useMagicWand(state) {
     if (state.addToast) state.addToast("Deleted " + desc + ".", {type: "success", duration: 2000});
     return { entry: entry, counts: counts };
   }
+
+  // ─── Stitch type: make every stitch in the selection full or half ────────────
+  // Each cell keeps its colour (StitchTypeConvert has the rules). One undo
+  // step; stitched cells whose stitch changes are reset to not done.
+  var STC = window.StitchTypeConvert;
+  var STITCH_TYPE_NAMES = { "full": "cross stitches", "half-fwd": "half stitches (/)", "half-bck": "half stitches (\\)" };
+
+  function convertSelectionStitchType(target) {
+    var pat = state.pat, mask = selectionMask;
+    if (!pat || !mask || !STC) return null;
+    var res = STC.convertSelection(pat, state.partialStitches, mask, target, state.cmap);
+    var cells = {};
+    res.changes.forEach(function(c) { cells[c.idx] = true; });
+    res.psChanges.forEach(function(c) { cells[c.idx] = true; });
+    var n = Object.keys(cells).length;
+    if (!n) {
+      if (state.addToast) {
+        var any = STC.selectionKind(pat, state.partialStitches, mask);
+        state.addToast(any ? "The selection is already " + STITCH_TYPE_NAMES[target] + "." : "No stitches in the selection.", {type: "info", duration: 2000});
+      }
+      return null;
+    }
+
+    var entry = { type: "stitchType", changes: res.changes };
+    var reset = res.changes.length && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat);
+    if (reset) entry.doneReset = reset;
+    if (res.psChanges.length) entry.psChanges = res.psChanges;
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var h = prev.concat([entry]);
+      if (h.length > EDIT_HISTORY_MAX) h = h.slice(h.length - EDIT_HISTORY_MAX);
+      return h;
+    });
+    state.setRedoHistory([]);
+    if (res.changes.length) {
+      state.setPat(res.pat);
+      setPaletteKeepingParts(res.pat, res.partials, state.bsLines);
+    }
+    if (res.psChanges.length) state.setPartialStitches(res.partials);
+    if (state.addToast) {
+      state.addToast("Changed " + n.toLocaleString() + " stitch" + (n === 1 ? "" : "es") + " to " + STITCH_TYPE_NAMES[target] + ".", {type: "success", duration: 2000});
+    }
+    return { entry: entry, count: n };
+  }
+
+  // What the selection's stitches are now, so the control can show it:
+  // "full" | "half-fwd" | "half-bck" | "other" | "mixed" | null.
+  var selectionStitchKind = useMemo(function() {
+    if (!STC || !selectionMask) return null;
+    return STC.selectionKind(state.pat, state.partialStitches, selectionMask);
+  }, [selectionMask, state.pat, state.partialStitches]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
 
@@ -746,6 +803,7 @@ window.useMagicWand = function useMagicWand(state) {
     // Back-compat alias for any external caller still using the misspelled name.
     applyGlobalColorReplacement: applyGlobalColourReplacement,
     deleteSelection,
+    convertSelectionStitchType, selectionStitchKind,
     // Phase 3
     selectionStats, applyOutlineGeneration,
     // Derived

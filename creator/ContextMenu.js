@@ -77,7 +77,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       position:"fixed", left:pos.x, top:pos.y, zIndex:9999,
       background:"var(--surface)", border:"1px solid var(--border)", borderRadius:'var(--radius-md)',
       boxShadow:"0 4px 16px rgba(0,0,0,0.12)", padding:"4px 0",
-      minWidth:180, maxWidth:240
+      minWidth:180, maxWidth:264
     }
   },
     // Header: cell info
@@ -139,6 +139,11 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     cv.clip && cv.hasSelection && item([Icons.flipVertical(), " Flip vertically"], function() { cv.clip.transform("flipV"); }, {k: 'flipV'}),
     cv.clip && cv.hasSelection && item([Icons.rotateCcw(), " Rotate left"], function() { cv.clip.transform("rotCCW"); }, {k: 'rotCCW'}),
     cv.clip && cv.hasSelection && item([Icons.rotateCw(), " Rotate right"], function() { cv.clip.transform("rotCW"); }, {k: 'rotCW'}),
+
+    // Cross / half / half for every stitch in the selection
+    cv.hasSelection && h("div", { key: 'stitchType', className: "cs-sttype-row" },
+      h("span", { className: "cs-sttype-row__label", "aria-hidden": "true" }, "Stitch type"),
+      h(window.CreatorStitchTypeChoice, { onPicked: function() { cv.setContextMenu(null); } })),
 
     // Delete everything in the current selection
     cv.hasSelection && item([Icons.trash(), " Delete selected stitches"], function() {

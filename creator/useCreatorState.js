@@ -2003,7 +2003,8 @@ window.useCreatorState = function useCreatorState() {
   function removeScratchColour(id) {
     // E-5: don't let the user orphan stitches by removing an in-use scratch colour.
     var entry = pal ? pal.find(function(p) { return p.id === id; }) : null;
-    if (entry && entry.count > 0) {
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots) : new Set();
+    if ((entry && entry.count > 0) || inParts.has(String(id))) {
       addToast("Can't remove a scratch colour that's in use — paint over it first", { type: "warning", duration: 3500 });
       return;
     }
@@ -2032,7 +2033,10 @@ window.useCreatorState = function useCreatorState() {
 
   function removeUnusedColours() {
     if (!pal) return;
-    var unused = pal.filter(function(p) { return p.count === 0; });
+    // A count of 0 is full stitches only: keep colours that part stitches,
+    // backstitch or knots still use.
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots) : new Set();
+    var unused = pal.filter(function(p) { return p.count === 0 && !inParts.has(String(p.id)); });
     if (!unused.length) return;
     var unusedIds = new Set(unused.map(function(p) { return p.id; }));
     var removedFromScratch = scratchPalette.filter(function(p) { return unusedIds.has(p.id); });
@@ -3154,6 +3158,15 @@ window.useCreatorState = function useCreatorState() {
       }
       return wand.deleteSelection();
     },
+    // Blocked mid-move for the same reason as Delete.
+    convertSelectionStitchType: function(target) {
+      if (clip.floatActive || move.floatActive) {
+        addToast("Place the selection first, then change its stitch type.", {type: "info", duration: 3000});
+        return null;
+      }
+      return wand.convertSelectionStitchType(target);
+    },
+    selectionStitchKind: wand.selectionStitchKind,
     colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,

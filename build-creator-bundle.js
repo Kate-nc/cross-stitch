@@ -46,6 +46,8 @@ const ORDER = [
   'RealisticCanvas.js',
   // Pure colour-replace helpers used by useMagicWand + ColourReplaceModal.
   'colourReplace.js',
+  // Full / half stitch conversion for a selection (pure).
+  'stitchTypeConvert.js',
   // Keeps stitching progress consistent when cells are edited.
   'stitchedEdits.js',
   'useMagicWand.js',
@@ -75,6 +77,8 @@ const ORDER = [
   'CompareStrip.js',
   'GenerateProgress.js',
   'PatternCanvas.js',
+  // Cross / half / half for a selection (bar, menus, Tools tab).
+  'StitchTypeChoice.js',
   'SelectionBar.js',
   // Shapes and mirror drawing (audit DRAW-04).
   'MirrorHandle.js',

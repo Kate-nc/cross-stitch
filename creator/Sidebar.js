@@ -131,10 +131,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       });
     }
 
+    // A palette count is full stitches only. Colours still used by part
+    // stitches, backstitch or knots read 0 but aren't unused (as
+    // removeUnusedColours / removeScratchColour).
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(ctx.partialStitches, cv.bsLines, ctx.knots) : new Set();
     var chips = displayPal.map(function(p) {
       var isSelected = cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
-      var isUnused = app.appMode === "edit" && p.count === 0;
+      var isUnused = app.appMode === "edit" && p.count === 0 && !inParts.has(String(p.id));
       var stashStatus = stashStatusForChip(p);
       if (stashStatus === 'needed') _trackUnowned(p);
       // Brief D — when "limit to stash" filter is on, hide unowned chips.
@@ -223,7 +227,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, Icons.x())
       );
     }).filter(Boolean);
-    var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
+    var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0 && !inParts.has(String(p.id)); }).length : 0;
     return h("div", {style:{borderBottom:"0.5px solid var(--border)"}},
       h("div", {
         onClick:function(){setPalChipsOpen(function(o){return !o;});},
@@ -1233,6 +1237,10 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("button", {type:"button", className:"cs-seltools__btn cs-seltools__btn--primary", onClick:function(){ clip.commit(); }}, I.check(), h("span", null, "Done")))
       );
     })(),
+    // Cross / half / half for every stitch in the selection.
+    cv.hasSelection && h("div", {className:"cs-sttype-row", style:{padding:"8px 0 0"}},
+      h("span", {className:"cs-sttype-row__label", style:{margin:"0 0 4px"}, "aria-hidden":"true"}, "Stitch type"),
+      h(window.CreatorStitchTypeChoice, {labels:"auto"})),
     cv.hasSelection && h("button", {
       onClick:function(){ if (cv.deleteSelection) cv.deleteSelection(); },
       title:"Delete the stitches in the selection (Delete)",

@@ -8567,6 +8567,31 @@ body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start
 @media (pointer: coarse) {
   .cs-selbar__btn { min-width: 44px; min-height: 44px; }
 }
+/* Stitch type in the bar: the choice that matches the selection is pressed;
+   phones show the symbols without their words. */
+.cs-selbar__btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+@media (max-width: 599px) { .cs-selbar__label { display: none; } }
+
+/* Stitch type for a selection (StitchTypeChoice.js): Cross / Half / / Half \
+   as one segmented control, in the Selection menu, right-click menu and
+   Tools tab. --auto drops the words on narrow screens. */
+.cs-sttype { display: flex; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--surface-secondary); }
+.cs-sttype__btn {
+  flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 30px; padding: 0 8px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--text-sm);
+  white-space: nowrap; cursor: pointer;
+}
+.cs-sttype__btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+.cs-sttype__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cs-sttype__btn[aria-pressed="true"], .cs-sttype__btn[aria-checked="true"] {
+  background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: var(--shadow-sm);
+}
+@media (hover: hover) { .cs-sttype__btn:hover { color: var(--text-primary); } }
+@media (max-width: 599px) { .cs-sttype--auto .cs-sttype__label { display: none; } }
+@media (pointer: coarse) { .cs-sttype__btn { min-height: 44px; } }
+.cs-sttype-row { padding: 6px 6px 4px; }
+.cs-sttype-row__label { display: block; margin: 0 4px 4px; font-size: var(--text-xs); color: var(--text-tertiary); }
 /* The same actions in the Tools tab's Selection section. */
 .cs-seltools { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: var(--s-2); }
 .cs-seltools__btn {

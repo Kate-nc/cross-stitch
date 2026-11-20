@@ -208,6 +208,17 @@ window.Icons = (function() {
     halfStitch: function() {
       return svg(rc(4,4,16,16,2), l(4,20,20,4));
     },
+    // Stitch types for a cell: a faint cell outline with the stitch drawn
+    // over it. Used by "Stitch type" on a selection (full, half /, half \).
+    stitchFull: function() {
+      return svg16(h('rect', { x: 3, y: 3, width: 18, height: 18, rx: 2, strokeOpacity: 0.45 }), l(6,18,18,6), l(6,6,18,18));
+    },
+    stitchHalfFwd: function() {
+      return svg16(h('rect', { x: 3, y: 3, width: 18, height: 18, rx: 2, strokeOpacity: 0.45 }), l(6,18,18,6));
+    },
+    stitchHalfBck: function() {
+      return svg16(h('rect', { x: 3, y: 3, width: 18, height: 18, rx: 2, strokeOpacity: 0.45 }), l(6,6,18,18));
+    },
     // Info circle — replaces ℹ️
     info: function() {
       return svg(c(12,12,10), l(12,8,12.01,8), l(12,12,12,16));
