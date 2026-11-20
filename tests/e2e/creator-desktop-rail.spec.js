@@ -271,7 +271,8 @@ test.describe('Tool rail on a 1440 x 900 desktop', () => {
     await expect(page.getByRole('button', { name: 'Back to Convert' })).toHaveCount(0);
     await page.locator('.creator-sidebar-tab[data-tab-id="view"]').click();
     await expect(page.getByRole('checkbox', { name: 'Show the picture' })).toBeVisible();
-    await expect(page.locator('.rpanel').getByText('Preview', { exact: true })).toBeVisible();
+    // Stage 3 (X6): the views are named by what they show.
+    await expect(page.locator('.rpanel').getByText('Chart, flat or realistic', { exact: true })).toBeVisible();
 
     // Pattern menu: Resize canvas, Crop to the stitches, Re-generate from
     // image, Replace colour, Petite and long stitches.

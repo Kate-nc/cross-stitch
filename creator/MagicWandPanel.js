@@ -185,7 +185,7 @@ window.MagicWandPanel = function MagicWandPanel() {
     cv.confettiPreview
       ? h("span", { style: { color: "var(--warning)" } }, cv.confettiPreview.size + " stitches flagged")
       : null,
-    btn("Preview", cv.previewConfettiCleanup, { style: { fontSize: 10 } }),
+    btn("Show them", cv.previewConfettiCleanup, { style: { fontSize: 10 } }),
     btn("Apply", cv.applyConfettiCleanup, {
       green: true, disabled: !cv.confettiPreview || !cv.confettiPreview.size,
       style: { fontSize: 10 }

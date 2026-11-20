@@ -11,7 +11,6 @@ function read(rel) {
 const coord = read('cross-tab-coord.js');
 const storage = read('project-storage.js');
 const sw = read('sw.js');
-const plan = read('reports/integration-audit/INT-7-plan.md');
 
 describe('INT-7: cross-tab-coord.js shape', () => {
   test('declares the channel + idempotent install + tab id', () => {
@@ -62,16 +61,6 @@ describe('INT-7: service worker precaches the new module', () => {
     const match = sw.match(/CACHE_NAME\s*=\s*'cross-stitch-cache-v(\d+)'/);
     expect(match).not.toBeNull();
     expect(Number(match[1])).toBeGreaterThanOrEqual(46);
-  });
-});
-
-describe('INT-7: plan-of-action document exists and lists the phases', () => {
-  test('plan covers detection, resolution, locks, storage-event fallback, stash unification', () => {
-    expect(plan).toMatch(/Phase A.*Detection/);
-    expect(plan).toMatch(/Phase B.*Resolution/);
-    expect(plan).toMatch(/Phase C.*Locks/);
-    expect(plan).toMatch(/Phase D.*Storage-event fallback/);
-    expect(plan).toMatch(/Phase E.*Stash channel unification/);
   });
 });
 

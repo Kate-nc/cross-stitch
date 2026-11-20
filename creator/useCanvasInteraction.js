@@ -216,7 +216,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // Navigate mode (audit DRAW-01): no tool acts on the chart. One finger or a
   // mouse drag pans, a tap shows the stitch's thread, a long-press opens the
   // menu. Two fingers pan and zoom in either mode.
-  function isNavigate() { return !!(state.drawModeRef && state.drawModeRef.current === false); }
+  // The Stitched view (ChartStitchedView.js) is Navigate too, whatever tool is
+  // chosen: it moves and zooms like the chart, and nothing paints.
+  function isStitchedView() {
+    return !!(state.chartViewRef && state.chartViewRef.current === "stitched" && !state.previewActive && !state.splitPaneEnabled);
+  }
+  function isNavigate() { return isStitchedView() || !!(state.drawModeRef && state.drawModeRef.current === false); }
   // Tool-rail layout (Stage 2, body.creator-drail-tools): Space and drag, or
   // a middle-button drag, moves around the chart whatever tool is chosen.
   function tempPanAllowed() {
@@ -1382,7 +1387,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       // active — the user picked Hand to pan, not to summon a menu.
       longPressTriggeredRef.current = false;
       clearLongPressTimer();
-      if (isTouchPointer(e) && !isPanTool()
+      if (isTouchPointer(e) && !isPanTool() && !isStitchedView()
           && typeof state.setContextMenu === "function" && state.pat && state.pcRef && state.pcRef.current) {
         var pressClientX = e.clientX, pressClientY = e.clientY;
         var pressEvtLike = { clientX: pressClientX, clientY: pressClientY };

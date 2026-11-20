@@ -67,7 +67,7 @@ async function openConvert(page) {
 }
 
 const previewPixels = (page) => page.evaluate(async function() {
-  const img = document.querySelector('img[alt="Preview"]');
+  const img = document.querySelector('img[data-testid="cmp-chart"]');
   await img.decode();
   const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
   const x = c.getContext('2d'); x.drawImage(img, 0, 0);
@@ -108,7 +108,7 @@ test.describe('Convert preview fidelity', function() {
   test('the comparison box keeps the picture\'s shape while a size change is pending', async function({ page }) {
     await openConvert(page);
     const shape = () => page.evaluate(function() {
-      const img = document.querySelector('img[alt="Preview"]');
+      const img = document.querySelector('img[data-testid="cmp-chart"]');
       const box = document.querySelector('[data-testid="cmp-box"]').getBoundingClientRect();
       return { box: box.width / box.height, picture: img.naturalWidth / img.naturalHeight };
     });
@@ -245,7 +245,7 @@ test.describe('Comparison overlay lifecycle', () => {
       window.__cmpProps = {originalSrc:__pixelUrl('white'), previewSrc:__pixelUrl('red'), width:4, height:4, fabricColour:'#E8D9B5'};
       ReactDOM.flushSync(() => __cmpRoot.render(React.createElement(ComparisonSlider, __cmpProps)));
     });
-    await expect(page.locator('#comparison-test img[alt="Preview"]')).toBeVisible();
+    await expect(page.locator('#comparison-test img[data-testid="cmp-chart"]')).toBeVisible();
   }
   async function update(page, values) {
     await page.evaluate(values => {

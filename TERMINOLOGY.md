@@ -143,6 +143,35 @@ inside an Advanced disclosure.
 
 ---
 
+### Views and comparisons
+A **view** is one way of drawing a pattern; name it by what it shows. A
+**comparison** puts two things side by side; name it by its two sides. A
+control that says only "Compare" or "Preview" doesn't tell anyone what
+they will see. `npm run lint:terminology` flags a Creator string that is
+only one of those words.
+
+Views:
+
+- **Chart**: the grid you edit, in colour, symbols or both.
+- **Stitched**: crosses of thread on the project's fabric, as Convert's
+  preview draws them (`creator/StitchedPreview.js`). Edit's Chart / Stitched
+  switch shows it over the chart.
+- **Flat**: every stitch as a square of its thread colour (was "Pixel" in
+  Edit).
+- **Realistic**: Edit's textured stitch drawing, with quality levels.
+
+Comparisons:
+
+- **Picture and chart**: Convert's slider between your picture and the chart
+  (was "Before / after"). Its sides are labelled **Your picture** (or **At
+  stitch size**) and **Chart**.
+- **Chart and stitched**: Edit's side-by-side view, the chart on the left and
+  the pattern as stitches on the right (was "Compare side-by-side").
+- **Before and after**: a change you can still cancel, such as Recolour the
+  chart's check before a swap ("See before and after").
+
+---
+
 ## Verbs (Save vs. Download vs. Export)
 
 ### Save

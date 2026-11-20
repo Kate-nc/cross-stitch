@@ -141,9 +141,9 @@ function ComparisonSlider({originalSrc, originalPixelated = false, previewSrc, h
           if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
         }}
         onPointerLeave={function(){if(!dragging.current)setZoomPos(null);}}>
-        <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:originalPixelated?"pixelated":"auto"}} alt={leftLabel||"Original"} data-testid="cmp-original"/>
+        <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:originalPixelated?"pixelated":"auto"}} alt={leftLabel||"Your picture"} data-testid="cmp-original"/>
         <div data-testid="cmp-preview-layer" style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`,background:fabricBg}}>
-          <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
+          <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="The chart these settings make" data-testid="cmp-chart"/>
         </div>
         {!previewLoading&&changedSrc&&<img data-testid="cvp-changed" src={changedSrc} className="cvp-overlay" style={{clipPath:`inset(0 0 0 ${splitPos}%)`}} alt="" aria-hidden="true"/>}
         {!previewLoading&&showHeatmap&&heatmapSrc&&<img data-testid="cmp-heatmap" src={heatmapSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
@@ -177,8 +177,8 @@ function ComparisonSlider({originalSrc, originalPixelated = false, previewSrc, h
           style={{position:"absolute",top:0,bottom:0,left:`${splitPos}%`,width:3,background:"#fff",boxShadow:"0 0 4px rgba(0,0,0,0.3)",transform:"translateX(-50%)",zIndex:2,willChange:"left",cursor:"ew-resize"}}>
           <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:28,height:28,borderRadius:"50%",background:"var(--surface)",boxShadow:"0 1px 4px rgba(0,0,0,0.2)",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text-secondary)"}} aria-hidden="true"><span style={{display:"inline-flex",width:16,height:16}}>{Icons.arrowsHorizontal()}</span></div>
         </div>
-        <span style={{position:"absolute",top:8,left:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{leftLabel||"Original"}</span>
-        <span style={{position:"absolute",top:8,right:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{rightLabel||"Preview"}</span>
+        <span style={{position:"absolute",top:8,left:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{leftLabel||"Your picture"}</span>
+        <span style={{position:"absolute",top:8,right:8,fontSize:10,fontWeight:600,color:"#fff",background:"rgba(0,0,0,0.5)",padding:"2px 8px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{rightLabel||"Chart"}</span>
         {previewPw&&previewPh&&<span style={{position:"absolute",bottom:8,right:8,fontSize:9,fontWeight:500,color:"#fff",background:"rgba(0,0,0,0.45)",padding:"2px 6px",borderRadius:4,zIndex:3,pointerEvents:"none"}}>{previewPw}×{previewPh} px</span>}
         {zoomPos&&(function(){
           var cx=zoomPos.cx,cy=zoomPos.cy,W=zoomPos.W,H=zoomPos.H;
@@ -222,14 +222,17 @@ window.ComparisonSlider = ComparisonSlider;
 //   Stitched       crosses of thread on the chosen fabric (StitchedPreview.js),
 //                  the closest to the finished piece; the default.
 //   Flat           every stitch as a square of its thread colour, whole.
-//   Before / after the picture and the chart on either side of a slider.
+//   Picture and chart  the picture and the chart either side of a slider.
+// A comparison is named by its two sides (Stage 3, X6; TERMINOLOGY.md
+// "Views and comparisons"). Close up and its scroll position carry across
+// Stitched and Flat.
 // Above it, a line says what the last change did (usePreview.js
 // describePreviewChange). Once a chart exists, Convert still shows this live
 // preview, and says when it differs from the chart until Regenerate.
 const PREVIEW_VIEWS = [
   { id: 'stitched', label: 'Stitched', title: 'How the finished piece will look: crosses of thread on your fabric' },
   { id: 'flat', label: 'Flat', title: 'Every stitch as a square of its thread colour' },
-  { id: 'compare', label: 'Before / after', title: 'Your picture and the chart either side of a slider' }
+  { id: 'compare', label: 'Picture and chart', title: 'Your picture and the chart either side of a slider' }
 ];
 // What Before / after puts before the chart: the picture itself, or the
 // picture at stitch size (one colour per stitch, before threads are chosen).
@@ -271,6 +274,12 @@ function ConvertPreview({state, onRetry}) {
     try { if (window.UserPrefs) window.UserPrefs.set('creator.convertCompareBefore', v); } catch (_) {}
   }
   const [closeUp, setCloseUp] = useState(false);
+  // Close up's scroll position, kept when switching between Stitched and Flat.
+  const closeScroll = useRef({ left: 0, top: 0 });
+  const closeBoxRef = useCallback(function(el) {
+    if (el) { el.scrollLeft = closeScroll.current.left; el.scrollTop = closeScroll.current.top; }
+  }, []);
+  function saveCloseScroll(e) { closeScroll.current = { left: e.currentTarget.scrollLeft, top: e.currentTarget.scrollTop }; }
   const [showConfetti, setShowConfetti] = useState(false);
   const [showChanged, setShowChanged] = useState(false);
   // The stitched view is drawn at the size it is shown, in device pixels, so
@@ -335,14 +344,22 @@ function ConvertPreview({state, onRetry}) {
         onClick={function(e){ const r = e.currentTarget.getBoundingClientRect(); state.addKeepColourAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }}/>
     </div>;
   } else if (view === 'compare') {
-    body = <ComparisonSlider originalSrc={sampledBefore ? state.previewSampled : state.img.src} originalPixelated={sampledBefore} leftLabel={sampledBefore ? 'At stitch size' : 'Original'} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} backgroundSrc={state.showBackground ? state.previewBackground : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
+    body = <ComparisonSlider originalSrc={sampledBefore ? state.previewSampled : state.img.src} originalPixelated={sampledBefore} leftLabel={sampledBefore ? 'At stitch size' : 'Your picture'} rightLabel="Chart" previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} backgroundSrc={state.showBackground ? state.previewBackground : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
+  } else if (view === 'flat' && closeUp) {
+    // Close up, as in Stitched: 16 pixels a stitch in the same scrolling box.
+    body = <div className="cvp-stitched cvp-stitched--close" data-testid="cvp-flat" ref={closeBoxRef} onScroll={saveCloseScroll}>
+      <div className="cvp-stitched__inner cvp-flat-close" style={{width:pw*16,height:ph*16,background:fabricBg}}>
+        <img src={state.previewUrl} alt="The chart these settings make, flat" className="cvp-flat"/>
+        {overlays}
+      </div>
+    </div>;
   } else if (view === 'flat') {
     body = <div className="cvp-box" data-testid="cvp-flat" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
-      <img src={state.previewUrl} alt="Preview" className="cvp-flat"/>
+      <img src={state.previewUrl} alt="The chart these settings make, flat" className="cvp-flat"/>
       {overlays}
     </div>;
   } else {
-    body = <div className={'cvp-stitched' + (closeUp ? ' cvp-stitched--close' : '')} data-testid="cvp-stitched">
+    body = <div className={'cvp-stitched' + (closeUp ? ' cvp-stitched--close' : '')} data-testid="cvp-stitched" ref={closeUp ? closeBoxRef : undefined} onScroll={closeUp ? saveCloseScroll : undefined}>
       {shownStitchData && window.CreatorStitchedPreview
         ? <div className="cvp-stitched__inner">
             <window.CreatorStitchedPreview cells={shownStitchData.pat} width={shownStitchData.sW} height={shownStitchData.sH}
@@ -398,7 +415,7 @@ function ConvertPreview({state, onRetry}) {
       </div>}
       <div className="cvp-body" ref={bodyRef}>{body}</div>
       {<div className="cvp-tools">
-        {view === 'stitched' && <button type="button" className="cs-seltools__btn" aria-pressed={closeUp ? 'true' : 'false'} onClick={function(){ setCloseUp(function(c){ return !c; }); }}>
+        {view !== 'compare' && <button type="button" className="cs-seltools__btn" aria-pressed={closeUp ? 'true' : 'false'} onClick={function(){ setCloseUp(function(c){ return !c; }); }}>
           {closeUp ? Icons.magnifyMinus() : Icons.magnifyPlus()}<span>{closeUp ? 'Fit' : 'Close up'}</span></button>}
         {view !== 'compare' && state.previewHeatmap && <button type="button" className={'cs-seltools__btn' + (showConfetti ? ' cs-seltools__btn--on' : '')} aria-pressed={showConfetti ? 'true' : 'false'}
           onClick={function(){ setShowConfetti(function(c){ return !c; }); }}>{Icons.fire()}<span>Show confetti</span></button>}
@@ -412,7 +429,7 @@ function ConvertPreview({state, onRetry}) {
       </div>}
       {view === 'stitched' && <p className="cvp-caption">Simulated stitches: 2 strands on {window.fabricShortLabel(ct)} fabric in your fabric colour. Screens show thread colours only roughly.</p>}
       {view === 'compare' && <div className="cvp-before">
-        <div className="lp-segmented cvp-before__seg" role="radiogroup" aria-label="Compare the chart with">
+        <div className="lp-segmented cvp-before__seg" role="radiogroup" aria-label="Picture beside the chart">
           {COMPARE_BEFORE.map(function(b) {
             const on = before === b.id;
             return <button key={b.id} type="button" role="radio" aria-checked={on ? 'true' : 'false'}
@@ -996,6 +1013,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     showTidied: state.showTidied, setShowTidied: state.setShowTidied,
     previewChange: state.previewChange, previewTidied: state.previewTidied,
     showBackground: state.showBackground, setShowBackground: state.setShowBackground, previewBackground: state.previewBackground,
+    chartView: state.chartView, setChartView: state.setChartView,
     splitPaneEnabled: state.splitPaneEnabled, setSplitPaneEnabled: state.setSplitPaneEnabled,
     splitPaneRatio: state.splitPaneRatio, setSplitPaneRatio: state.setSplitPaneRatio,
     splitPaneSyncEnabled: state.splitPaneSyncEnabled, setSplitPaneSyncEnabled: state.setSplitPaneSyncEnabled,
@@ -1061,6 +1079,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.convertTab, state.convertSeen, state.showTidied, state.previewChange, state.previewTidied,
     state.showBackground, state.previewBackground,
+    state.chartView,
     state.splitPaneEnabled, state.splitPaneRatio,
     state.splitPaneSyncEnabled, state.rightPaneMode,
     state.exportPage, state.pageMode,
@@ -1547,7 +1566,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onClose:()=>state.setColourReplaceModal(null),
         pat:state.pat, sW:state.sW, sH:state.sH, pal:state.pal, threadBrand:state.threadBrand,
         partialStitches:state.partialStitches, bsLines:state.bsLines, fabricColour:state.fabricColour,
-        selectionMask:state.hasSelection?state.selectionMask:null,
+        selectionMask:state.hasSelection?state.selectionMask:null, done:state.done,
         onApply:function(dstThread,opts){
           var src=state.colourReplaceModal;
           var alsoIds=(opts&&opts.alsoIds)||[];

@@ -294,8 +294,8 @@ describe('what the user is told', () => {
     expect(state).not.toMatch(/Project \\u203a Backup/);
   });
   test('Edit shows the stitched banner when the project has progress', () => {
-    expect(tab).toMatch(/ctx\.progressPct > 0 && h\("div", \{\s*className:"stitched-banner"/);
-    expect(tab).toMatch(/% stitched\. Changing stitched cells resets them to not done\./);
+    expect(tab).toMatch(/ctx\.progressPct > 0 && h\("div", \{\s*className:"stitched-banner[" ]/);
+    expect(tab).toMatch(/"% stitched\."\),\s*" Changing a marked stitch clears its mark\.",/);
   });
   test('the banner offers a Show stitched overlay toggle', () => {
     expect(tab).toMatch(/"aria-pressed": !!cv\.showStitched/);
@@ -461,5 +461,35 @@ describe('Re-apply "keep look-alike colours apart" on a stitched pattern', () =>
     expect(src).toMatch(/!applyDisambiguatedRef\.current\(msg\.mapped\)/);
     expect(src).toMatch(/!applyDisambiguatedRef\.current\(mapped2\)/);
     expect(src).toMatch(/disambigBaseRef\.current = pat;/);
+  });
+});
+
+// Stage 3: before an action, say how far it can reach.
+describe('StitchedEdits.actionReach and marked counts (Stage 3)', () => {
+  const draw = (o) => Object.assign({ drawMode: true, brushSize: 1 }, o);
+  test('one stitch, a brush, every joined stitch, every stitch of a colour or the selection', () => {
+    expect(SE.actionReach(draw({ activeTool: 'paint' }))).toBe('Paint changes one stitch at a time.');
+    expect(SE.actionReach(draw({ activeTool: 'paint', brushSize: 3 }))).toBe('Paint changes up to 9 stitches at a time (a 3 × 3 brush).');
+    expect(SE.actionReach(draw({ activeTool: 'paint', mirrorOn: true }))).toMatch(/Mirror drawing changes the mirrored stitches too\.$/);
+    expect(SE.actionReach(draw({ activeTool: 'fill' }))).toBe('Fill changes every joined stitch of the colour you click.');
+    expect(SE.actionReach(draw({ stitchType: 'erase', brushSize: 2 }))).toBe('Erase clears up to 4 stitches at a time (a 2 × 2 brush).');
+    expect(SE.actionReach(draw({ activeTool: 'colourReplace' }))).toBe('Replace colour changes every stitch of the colour you click.');
+    expect(SE.actionReach(draw({ activeTool: 'magicWand', hasSelection: true, selectionCount: 1200 }))).toBe('Delete, Move and the Selection menu change only the ' + (1200).toLocaleString() + ' selected stitches.');
+    expect(SE.actionReach(draw({ activeTool: 'rect' }))).toBe('A shape changes only the stitches it covers.');
+  });
+  test('says nothing where nothing can change: Navigate, Stitched view, no tool', () => {
+    expect(SE.actionReach({ drawMode: false, activeTool: 'paint' })).toBeNull();
+    expect(SE.actionReach(draw({ activeTool: 'paint', stitchedView: true }))).toBeNull();
+    expect(SE.actionReach(draw({ activeTool: null }))).toBeNull();
+    expect(SE.actionReach(draw({ activeTool: 'eyedropper' }))).toBeNull();
+  });
+  test('counts marked stitches, of chosen threads and inside a selection', () => {
+    const pat = [BLACK, RED, BLACK, SKIP, RED];
+    const done = new Uint8Array([1, 1, 0, 0, 1]);
+    expect(SE.markedCount(done)).toBe(3);
+    expect(SE.markedWith(done, pat, ['321'])).toBe(2);
+    expect(SE.markedWith(done, pat, ['310', '321'])).toBe(3);
+    expect(SE.markedWith(done, pat, ['321'], new Uint8Array([0, 1, 0, 0, 0]))).toBe(1);
+    expect(SE.markedWith(null, pat, ['321'])).toBe(0);
   });
 });

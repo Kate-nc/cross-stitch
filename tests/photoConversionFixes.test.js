@@ -5,7 +5,7 @@
 //   3. the tidied count is what Reduce confetti changed (tidiedCells);
 //   4. blends are their two threads mixed as light (blendThreadRgb).
 const fs = require('fs'), vm = require('vm');
-const { runtime, runWorker } = require('../scripts/conversion-accuracy/harness');
+const { runtime, runWorker } = require('./_helpers/conversionHarness');
 
 function picture(w, h, colourAt) {
   const d = new Uint8ClampedArray(w * h * 4);

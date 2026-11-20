@@ -110,7 +110,7 @@ it('leaves skip and empty placeholders intact', () => {
   expect(run('restoreStitch({id:"__empty__"}).rgb')).toEqual([255, 255, 255]);
 });
 
-describe('colour calibration (reports/dmc-colour-calibration.md)', () => {
+describe('colour calibration (docs/dmc-colour-calibration.md)', () => {
   const cal = require('../scripts/calibrate-dmc-colours');
   const rows = cal.parseCsv(fs.readFileSync(cal.CSV_PATH, 'utf8')).rows;
   const hex = rgb => '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');

@@ -1,7 +1,7 @@
 /* Exact old effects vs new scheduler, with a controlled clock and worker
    protocol running in a Node vm. Clone and execution timings are isolated
    Node costs, NOT browser postMessage/worker scheduling or user latency. */
-const fs=require('fs'),vm=require('vm'),{execFileSync}=require('child_process');
+const fs=require('fs'),path=require('path'),vm=require('vm'),{execFileSync}=require('child_process');
 const old=execFileSync('git',['show','08c78b4fa3d6e02974eacc43cc7b4cbc004c64c5:tracker-app.js'],{encoding:'utf8'});
 const current=fs.readFileSync('tracker-app.js','utf8'),workerSource=fs.readFileSync('analysis-worker.js','utf8');
 const pat=Array.from({length:200000},(_,i)=>({id:String(i%60)}));
@@ -27,4 +27,6 @@ function run(after,demand){
  return{startup,steady30Marks:costs,published:published.length};
 }
 const out={environment:'Node '+process.version+'; controlled debounce clock, vm worker protocol, structuredClone. No browser rendering, storage, worker scheduling or interaction latency.',before:run(false,0),afterInactive:run(true,0),afterStatic:run(true,1),afterDynamic:run(true,2)};
-fs.writeFileSync('reports/track-mode-baseline/analysis-node.json',JSON.stringify(out,null,2));console.log(JSON.stringify(out,null,2));
+const outFile=process.env.OUT||'reports/track-mode-baseline/analysis-node.json';
+fs.mkdirSync(path.dirname(outFile),{recursive:true});
+fs.writeFileSync(outFile,JSON.stringify(out,null,2));console.log(JSON.stringify(out,null,2));

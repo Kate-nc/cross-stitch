@@ -93,6 +93,9 @@
       }));
   }
 
+  // Edit's side panel (creator/Sidebar.js) builds its sections from these
+  // same parts, so Convert and Edit read the same.
+  window.CreatorPanelParts = { sec: sec, hint: hint, note: note, check: check, seg: seg };
 
   // A warning when the chosen tidying is a lot for the pattern's size.
   function cleanupWarning(sW, sH, orphans, previewStats) {

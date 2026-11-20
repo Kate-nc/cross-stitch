@@ -60,7 +60,6 @@ const EXCLUDE_ROOT_FILES = new Set([
   'build-runtime-js.js',
   'build-sw.js',
   'build-symbol-font.js',
-  'run-build-and-tests.js',
   'serve.js',
   'package.json',
   'package-lock.json',
