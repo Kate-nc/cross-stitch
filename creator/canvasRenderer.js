@@ -1171,17 +1171,59 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
   }
 
   // Smooth edges preview (SmoothEdges.plan): hatch the half of each cell
-  // that changes, in the theme's accent colour.
+  // that changes, in the theme's accent colour, using a cached seamless tile
+  // so mouse-move hover repaints stay O(cells) without querying layout styles.
   var smoothPreview = state.smoothPreview;
   if (smoothPreview && smoothPreview.cells && smoothPreview.cells.length) {
-    var smCol = 'rgba(184,92,56,0.95)';
+    var smThemeKey = "";
     try {
-      var smAcc = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
-      if (smAcc) smCol = smAcc;
+      var smEl = document.documentElement;
+      smThemeKey = (smEl.getAttribute("data-theme") || "") + "|" + (smEl.className || "");
     } catch (_) {}
+    var smCache = window._smoothHatchCache || (window._smoothHatchCache = {});
+    if (smCache.themeKey !== smThemeKey || !smCache.col) {
+      var smColNext = 'rgba(184,92,56,0.95)';
+      try {
+        var smAcc = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+        if (smAcc) smColNext = smAcc;
+      } catch (_) {}
+      smCache.themeKey = smThemeKey;
+      smCache.col = smColNext;
+      smCache.tileCanvas = null;
+      smCache.pattern = null;
+      smCache.patternCtx = null;
+    }
+    var smCol = smCache.col;
+    var smTileSz = Math.max(4, Math.round(cSz * 0.28));
+    var smLw = Math.max(1, +(cSz * 0.09).toFixed(2));
+    if (!smCache.tileCanvas || smCache.tileSz !== smTileSz || smCache.lw !== smLw) {
+      var smTile = (typeof document !== "undefined" && document.createElement) ? document.createElement("canvas") : null;
+      if (smTile) {
+        smTile.width = smTileSz; smTile.height = smTileSz;
+        var stc = smTile.getContext && smTile.getContext("2d");
+        if (stc) {
+          stc.fillStyle = "rgba(255,255,255,0.75)";
+          stc.fillRect(0, 0, smTileSz, smTileSz);
+          stc.strokeStyle = smCol;
+          stc.lineWidth = smLw;
+          stc.beginPath();
+          stc.moveTo(-smTileSz, smTileSz); stc.lineTo(smTileSz, -smTileSz);
+          stc.moveTo(0, smTileSz); stc.lineTo(smTileSz, 0);
+          stc.moveTo(0, 2 * smTileSz); stc.lineTo(2 * smTileSz, 0);
+          stc.stroke();
+        }
+        smCache.tileCanvas = smTile;
+        smCache.tileSz = smTileSz;
+        smCache.lw = smLw;
+        smCache.pattern = null;
+        smCache.patternCtx = null;
+      }
+    }
+    if (smCache.tileCanvas && (smCache.patternCtx !== ctx2d || !smCache.pattern)) {
+      smCache.pattern = typeof ctx2d.createPattern === "function" ? ctx2d.createPattern(smCache.tileCanvas, "repeat") : null;
+      smCache.patternCtx = ctx2d;
+    }
     var SM_NB = { TL: ['TR', 'BL'], TR: ['TL', 'BR'], BL: ['TL', 'BR'], BR: ['TR', 'BL'] };
-    // Triangles on screen; the path is traced again for each pass, as
-    // save/restore doesn't keep it.
     var smTris = [];
     smoothPreview.cells.forEach(function(c) {
       var cx3 = (c.idx % sW) - offX, cy3 = Math.floor(c.idx / sW) - offY;
@@ -1192,35 +1234,14 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
         if (k) smTris.push([P3[k], P3[SM_NB[k][0]], P3[SM_NB[k][1]]]);
       });
     });
-    var smTrace = function() {
+    ctx2d.save();
+    if (smTris.length) {
       ctx2d.beginPath();
       smTris.forEach(function(t) {
         ctx2d.moveTo(t[0][0], t[0][1]); ctx2d.lineTo(t[1][0], t[1][1]); ctx2d.lineTo(t[2][0], t[2][1]); ctx2d.closePath();
       });
-    };
-    ctx2d.save();
-    if (smTris.length) {
-      smTrace();
-      ctx2d.fillStyle = "rgba(255,255,255,0.75)";
+      ctx2d.fillStyle = smCache.pattern || "rgba(255,255,255,0.75)";
       ctx2d.fill();
-      ctx2d.save();
-      ctx2d.clip();
-      ctx2d.strokeStyle = smCol;
-      ctx2d.lineWidth = Math.max(1, cSz * 0.09);
-      // Hatch lines over the triangles' bounding box only.
-      var smX0 = Infinity, smY0 = Infinity, smX1 = -Infinity, smY1 = -Infinity;
-      smTris.forEach(function(t) { t.forEach(function(pt) {
-        if (pt[0] < smX0) smX0 = pt[0]; if (pt[0] > smX1) smX1 = pt[0];
-        if (pt[1] < smY0) smY0 = pt[1]; if (pt[1] > smY1) smY1 = pt[1];
-      }); });
-      var smStep = Math.max(3, cSz * 0.28), smH = smY1 - smY0;
-      ctx2d.beginPath();
-      for (var smT = smX0 - smH; smT < smX1; smT += smStep) {
-        ctx2d.moveTo(smT, smY1); ctx2d.lineTo(smT + smH, smY0);
-      }
-      ctx2d.stroke();
-      ctx2d.restore();
-      smTrace();
       ctx2d.strokeStyle = smCol;
       ctx2d.lineWidth = Math.max(1, cSz * 0.07);
       ctx2d.setLineDash([Math.max(2, cSz * 0.2), Math.max(2, cSz * 0.14)]);

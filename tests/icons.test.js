@@ -58,14 +58,19 @@ const sourceFiles = [
   '../palette-swap.js',
   '../creator-main.js',
   '../creator/ContextMenu.js',
+  '../creator/DesktopRail.js',
   '../creator/ExportTab.js',
   '../creator/PatternTab.js',
+  '../creator/SelectionBar.js',
   '../creator/Sidebar.js',
+  '../creator/SmoothEdgesPanel.js',
+  '../creator/StitchTypeChoice.js',
   '../creator/ConvertPanel.js',
 ].map(function(f) { return path.join(__dirname, f); });
 
 const usedIconNames = new Set();
 const ICON_CALL_RE = /Icons\.(\w+)\s*\(/g;
+const ICON_ALIAS_RE = /\bI\.(\w+)/g;
 
 for (const filePath of sourceFiles) {
   if (!fs.existsSync(filePath)) continue;
@@ -75,6 +80,12 @@ for (const filePath of sourceFiles) {
     usedIconNames.add(m[1]);
   }
   ICON_CALL_RE.lastIndex = 0;
+  if (/\bvar\s+I\s*=\s*window\.Icons\b/.test(src)) {
+    while ((m = ICON_ALIAS_RE.exec(src)) !== null) {
+      usedIconNames.add(m[1]);
+    }
+    ICON_ALIAS_RE.lastIndex = 0;
+  }
 }
 
 // ---------------------------------------------------------------------------

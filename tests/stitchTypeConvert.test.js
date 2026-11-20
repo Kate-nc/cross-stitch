@@ -344,4 +344,20 @@ describe('convertSelectionStitchType', () => {
     const syms = [BLACK.symbol].concat(extras.map(e => e.symbol));
     expect(new Set(syms).size).toBe(syms.length);
   });
+
+  test('selectionStats counts half, 3/4 and 1/4 stitches at 0.25 per quadrant', () => {
+    global.skeinEst = () => 1;
+    const s = fixture();
+    // Convert top row (two red cells) to half stitches -> 2 * 0.5 = 1.0 stitch equivalent.
+    runWand(s, new Uint8Array([1, 1, 0, 0])).convertSelectionStitchType('half-fwd');
+    // Put a black quarter over cell 2 (black full) -> 1.0 black, or a red quarter over cell 2 -> 0.75 black + 0.25 red.
+    s.partialStitches.set(2, { TL: q(RED) });
+    const stats = runWand(s, new Uint8Array([1, 1, 1, 0])).selectionStats;
+    expect(stats.total).toBe(2);
+    expect(stats.colors).toBe(2);
+    expect(stats.rows).toEqual([
+      expect.objectContaining({ id: '321', count: 1.25 }),
+      expect.objectContaining({ id: '310', count: 0.75 })
+    ]);
+  });
 });

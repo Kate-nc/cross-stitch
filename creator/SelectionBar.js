@@ -157,7 +157,8 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
       { text: "Half \\", textClass: "cs-selbar__label", className: "cs-selbar__btn--st", pressed: kind === "half-bck", title: "Make every stitch in the selection a half stitch (\\)" }),
     h("span", { key: "stsep", className: "cs-selbar__sep", "aria-hidden": "true" }),
     btn("Smooth edges", I.smoothEdges(), function () { cv.setWandPanel("smooth"); },
-      { title: "Turn the steps along the selection's edge into \u00BE stitches" })
+      { text: "Smooth edges", textClass: "cs-selbar__label", className: "cs-selbar__btn--st",
+        title: "Turn the steps along the selection's edge into \u00BE stitches" })
   ] : [
     btn("Copy", I.copy(), function () { clip.copy(); }, { title: "Copy (Ctrl+C)" }),
     btn("Cut", I.scissors(), function () { clip.cut(); }, { title: "Cut (Ctrl+X)" }),

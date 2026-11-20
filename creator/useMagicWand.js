@@ -775,17 +775,29 @@ window.useMagicWand = function useMagicWand(state) {
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
 
   var selectionStats = useMemo(function() {
-    var pat = state.pat, cmap = state.cmap, fabricCt = state.fabricCt;
+    var pat = state.pat, cmap = state.cmap, fabricCt = state.fabricCt, partials = state.partialStitches;
     if (!pat || !cmap) return null;
     var counts = {};
     var total = 0;
+    var hasPs = !!(partials && typeof partials.get === "function" && partials.size > 0);
+    var QUADS = ["TL", "TR", "BL", "BR"];
     for (var i = 0; i < pat.length; i++) {
       var inSel = selectionMask ? selectionMask[i] : 1;
       if (!inSel) continue;
       var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      counts[cell.id] = (counts[cell.id] || 0) + 1;
-      total++;
+      var base = (cell && cell.id !== "__skip__" && cell.id !== "__empty__") ? cell : null;
+      var ps = hasPs ? partials.get(i) : null;
+      if (ps && (ps.TL || ps.TR || ps.BL || ps.BR)) {
+        for (var qi = 0; qi < 4; qi++) {
+          var qSrc = ps[QUADS[qi]] || base;
+          if (!qSrc || qSrc.id === "__skip__" || qSrc.id === "__empty__") continue;
+          counts[qSrc.id] = (counts[qSrc.id] || 0) + 0.25;
+          total += 0.25;
+        }
+      } else if (base) {
+        counts[base.id] = (counts[base.id] || 0) + 1;
+        total++;
+      }
     }
     var rows = Object.entries(counts).sort(function(a, b) { return b[1] - a[1]; })
       .map(function(e) {
@@ -796,7 +808,7 @@ window.useMagicWand = function useMagicWand(state) {
       });
     var totalSkeins = rows.reduce(function(s, r) { return s + r.skeins; }, 0);
     return { rows: rows, total: total, totalSkeins: totalSkeins, colors: rows.length };
-  }, [selectionMask, state.pat, state.cmap, state.fabricCt]);
+  }, [selectionMask, state.pat, state.partialStitches, state.cmap, state.fabricCt]);
 
   // ─── Phase 3.2: Auto backstitch outline ─────────────────────────────────────
 
