@@ -5,7 +5,8 @@
  *   - a selection on a touch screen: Copy, Cut, Duplicate, Flip, Rotate,
  *     Stitch type and Delete (desktops have the same in the Tools tab, the
  *     right-click menu and the keyboard). Stitch type swaps the buttons for
- *     Cross / Half / / Half \ (symbols only on phones) and a Back button;
+ *     Cross / Half / / Half \ (symbols only on phones), Smooth edges (which
+ *     opens its sheet, hiding this bar) and a Back button;
  *   - a floating paste or turned selection, on any screen: Flip both ways,
  *     Rotate both ways, Cancel and Done. Dragging moves it; tapping outside
  *     it also places it.
@@ -36,7 +37,8 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
   var floating = !!(clip && clip.floatActive);
   var selecting = !floating && !!cv.hasSelection && coarse && !cv.lassoInProgress &&
     cv.activeTool !== "move" && !cv.contextMenu;
-  var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive;
+  // Smooth edges' sheet takes the bar's place while it is open.
+  var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive && cv.wandPanel !== "smooth";
 
   var maskBox = React.useMemo(function () {
     if (!show || floating || !cv.selectionMask || !window.SelectionTransforms) return null;
@@ -151,7 +153,10 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     btn("Half /", I.stitchHalfFwd(), function () { pickStitch("half-fwd"); },
       { text: "Half /", textClass: "cs-selbar__label", className: "cs-selbar__btn--st", pressed: kind === "half-fwd", title: "Make every stitch in the selection a half stitch (/)" }),
     btn("Half \\", I.stitchHalfBck(), function () { pickStitch("half-bck"); },
-      { text: "Half \\", textClass: "cs-selbar__label", className: "cs-selbar__btn--st", pressed: kind === "half-bck", title: "Make every stitch in the selection a half stitch (\\)" })
+      { text: "Half \\", textClass: "cs-selbar__label", className: "cs-selbar__btn--st", pressed: kind === "half-bck", title: "Make every stitch in the selection a half stitch (\\)" }),
+    h("span", { key: "stsep", className: "cs-selbar__sep", "aria-hidden": "true" }),
+    btn("Smooth edges", I.smoothEdges(), function () { cv.setWandPanel("smooth"); },
+      { title: "Turn the steps along the selection's edge into \u00BE stitches" })
   ] : [
     btn("Copy", I.copy(), function () { clip.copy(); }, { title: "Copy (Ctrl+C)" }),
     btn("Cut", I.scissors(), function () { clip.cut(); }, { title: "Cut (Ctrl+X)" }),

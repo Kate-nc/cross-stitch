@@ -144,6 +144,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     cv.hasSelection && h("div", { key: 'stitchType', className: "cs-sttype-row" },
       h("span", { className: "cs-sttype-row__label", "aria-hidden": "true" }, "Stitch type"),
       h(window.CreatorStitchTypeChoice, { onPicked: function() { cv.setContextMenu(null); } })),
+    cv.hasSelection && item([Icons.smoothEdges(), " Smooth edges\u2026"], function() { cv.setWandPanel("smooth"); }, {k: 'smooth'}),
 
     // Delete everything in the current selection
     cv.hasSelection && item([Icons.trash(), " Delete selected stitches"], function() {

@@ -43,6 +43,10 @@ window.useMagicWand = function useMagicWand(state) {
     if (reducePreview !== null) setReducePreviewStale(true);
   }, [reduceMode, reduceTarget, reduceThreshold]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // sub-state for Smooth edges (SmoothEdges.plan options)
+  var _smOpts = React.useState({ mode: "trim", keepSquare: true });
+  var smoothOptions = _smOpts[0], setSmoothOptions = _smOpts[1];
+
   // sub-state for outline generation
   var _outlineColor = React.useState("310");
   var outlineColor  = _outlineColor[0], setOutlineColor = _outlineColor[1];
@@ -703,6 +707,47 @@ window.useMagicWand = function useMagicWand(state) {
     return STC.selectionKind(state.pat, state.partialStitches, selectionMask);
   }, [selectionMask, state.pat, state.partialStitches]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── Smooth edges: 3/4 stitches along the selection's outline ───────────────
+  // SmoothEdges has the rules. The preview is worked out only while the panel
+  // is open; Apply works it out again from the pattern as it is then.
+  var SME = window.SmoothEdges;
+  var smoothPreview = useMemo(function() {
+    if (wandPanel !== "smooth" || !SME || !selectionMask) return null;
+    return SME.plan(state.pat, state.partialStitches, selectionMask, state.sW, state.sH, smoothOptions);
+  }, [wandPanel, selectionMask, state.pat, state.partialStitches, state.sW, state.sH, smoothOptions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function applySmoothEdges() {
+    var pat = state.pat, mask = selectionMask;
+    if (!pat || !mask || !SME) return null;
+    var p = SME.plan(pat, state.partialStitches, mask, state.sW, state.sH, smoothOptions);
+    if (!p.cells.length) {
+      if (state.addToast) state.addToast("There are no steps to smooth along this selection's edge.", {type: "info", duration: 2500});
+      return null;
+    }
+    var res = SME.apply(pat, state.partialStitches, p.cells);
+    var entry = { type: "smoothEdges", changes: res.changes, psChanges: res.psChanges };
+    var reset = res.changes.length && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat);
+    if (reset) entry.doneReset = reset;
+    var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    state.setEditHistory(function(prev) {
+      var h = prev.concat([entry]);
+      if (h.length > EDIT_HISTORY_MAX) h = h.slice(h.length - EDIT_HISTORY_MAX);
+      return h;
+    });
+    state.setRedoHistory([]);
+    if (res.changes.length) {
+      state.setPat(res.pat);
+      setPaletteKeepingParts(res.pat, res.partials, state.bsLines);
+    }
+    state.setPartialStitches(res.partials);
+    setWandPanel(null);
+    if (state.addToast) {
+      var n = p.cells.length;
+      state.addToast("Smoothed " + n.toLocaleString() + " stitch" + (n === 1 ? "" : "es") + " along the edge.", {type: "success", duration: 2500});
+    }
+    return { entry: entry, counts: p.counts };
+  }
+
   // ─── Phase 3.1: Selection stats ─────────────────────────────────────────────
 
   var selectionStats = useMemo(function() {
@@ -804,6 +849,7 @@ window.useMagicWand = function useMagicWand(state) {
     applyGlobalColorReplacement: applyGlobalColourReplacement,
     deleteSelection,
     convertSelectionStitchType, selectionStitchKind,
+    smoothOptions, setSmoothOptions, smoothPreview, applySmoothEdges,
     // Phase 3
     selectionStats, applyOutlineGeneration,
     // Derived

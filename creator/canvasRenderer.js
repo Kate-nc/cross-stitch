@@ -1170,6 +1170,66 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
     ctx2d.restore();
   }
 
+  // Smooth edges preview (SmoothEdges.plan): hatch the half of each cell
+  // that changes, in the theme's accent colour.
+  var smoothPreview = state.smoothPreview;
+  if (smoothPreview && smoothPreview.cells && smoothPreview.cells.length) {
+    var smCol = 'rgba(184,92,56,0.95)';
+    try {
+      var smAcc = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      if (smAcc) smCol = smAcc;
+    } catch (_) {}
+    var SM_NB = { TL: ['TR', 'BL'], TR: ['TL', 'BR'], BL: ['TL', 'BR'], BR: ['TR', 'BL'] };
+    // Triangles on screen; the path is traced again for each pass, as
+    // save/restore doesn't keep it.
+    var smTris = [];
+    smoothPreview.cells.forEach(function(c) {
+      var cx3 = (c.idx % sW) - offX, cy3 = Math.floor(c.idx / sW) - offY;
+      if (cx3 < 0 || cx3 >= dW || cy3 < 0 || cy3 >= dH) return;
+      var px3 = gut + cx3 * cSz, py3 = gut + cy3 * cSz;
+      var P3 = { TL: [px3, py3], TR: [px3 + cSz, py3], BL: [px3, py3 + cSz], BR: [px3 + cSz, py3 + cSz] };
+      [c.hatch, c.hatch2].forEach(function(k) {
+        if (k) smTris.push([P3[k], P3[SM_NB[k][0]], P3[SM_NB[k][1]]]);
+      });
+    });
+    var smTrace = function() {
+      ctx2d.beginPath();
+      smTris.forEach(function(t) {
+        ctx2d.moveTo(t[0][0], t[0][1]); ctx2d.lineTo(t[1][0], t[1][1]); ctx2d.lineTo(t[2][0], t[2][1]); ctx2d.closePath();
+      });
+    };
+    ctx2d.save();
+    if (smTris.length) {
+      smTrace();
+      ctx2d.fillStyle = "rgba(255,255,255,0.75)";
+      ctx2d.fill();
+      ctx2d.save();
+      ctx2d.clip();
+      ctx2d.strokeStyle = smCol;
+      ctx2d.lineWidth = Math.max(1, cSz * 0.09);
+      // Hatch lines over the triangles' bounding box only.
+      var smX0 = Infinity, smY0 = Infinity, smX1 = -Infinity, smY1 = -Infinity;
+      smTris.forEach(function(t) { t.forEach(function(pt) {
+        if (pt[0] < smX0) smX0 = pt[0]; if (pt[0] > smX1) smX1 = pt[0];
+        if (pt[1] < smY0) smY0 = pt[1]; if (pt[1] > smY1) smY1 = pt[1];
+      }); });
+      var smStep = Math.max(3, cSz * 0.28), smH = smY1 - smY0;
+      ctx2d.beginPath();
+      for (var smT = smX0 - smH; smT < smX1; smT += smStep) {
+        ctx2d.moveTo(smT, smY1); ctx2d.lineTo(smT + smH, smY0);
+      }
+      ctx2d.stroke();
+      ctx2d.restore();
+      smTrace();
+      ctx2d.strokeStyle = smCol;
+      ctx2d.lineWidth = Math.max(1, cSz * 0.07);
+      ctx2d.setLineDash([Math.max(2, cSz * 0.2), Math.max(2, cSz * 0.14)]);
+      ctx2d.stroke();
+      ctx2d.setLineDash([]);
+    }
+    ctx2d.restore();
+  }
+
   // ─── Lasso in-progress overlay ───────────────────────────────────────────────
   var lassoMode   = state.lassoMode;
   var lassoPoints = state.lassoPoints;

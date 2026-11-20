@@ -270,6 +270,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     // Copy / paste / flip / rotate bar over the selection (audit DRAW-04)
     window.CreatorSelectionBar && h(window.CreatorSelectionBar, null),
+    // Smooth edges for the selection (card / phone sheet)
+    window.CreatorSmoothEdgesPanel && h(window.CreatorSmoothEdgesPanel, null),
     // Grips for moving the mirror-drawing axes (audit DRAW-04)
     window.CreatorMirrorHandle && h(window.CreatorMirrorHandle, null),
     // The text tool's sheet (audit DRAW-04)

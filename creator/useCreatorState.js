@@ -3167,6 +3167,16 @@ window.useCreatorState = function useCreatorState() {
       return wand.convertSelectionStitchType(target);
     },
     selectionStitchKind: wand.selectionStitchKind,
+    smoothOptions: wand.smoothOptions, setSmoothOptions: wand.setSmoothOptions,
+    smoothPreview: wand.smoothPreview,
+    // Blocked mid-move for the same reason as Delete.
+    applySmoothEdges: function() {
+      if (clip.floatActive || move.floatActive) {
+        addToast("Place the selection first, then smooth its edges.", {type: "info", duration: 3000});
+        return null;
+      }
+      return wand.applySmoothEdges();
+    },
     colourReplaceModal, setColourReplaceModal,
     selectionStats: wand.selectionStats,
     applyOutlineGeneration: wand.applyOutlineGeneration,

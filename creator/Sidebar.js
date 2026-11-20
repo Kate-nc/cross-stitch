@@ -1242,6 +1242,13 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("span", {className:"cs-sttype-row__label", style:{margin:"0 0 4px"}, "aria-hidden":"true"}, "Stitch type"),
       h(window.CreatorStitchTypeChoice, {labels:"auto"})),
     cv.hasSelection && h("button", {
+      type:"button", className:"cs-seltools__btn" + (cv.wandPanel === "smooth" ? " cs-seltools__btn--on" : ""),
+      style:{marginTop:'var(--s-2)', width:"100%"},
+      "aria-pressed": cv.wandPanel === "smooth" ? "true" : "false",
+      title:"Turn the steps along the selection's edge into \u00BE stitches",
+      onClick:function(){ cv.setWandPanel(cv.wandPanel === "smooth" ? null : "smooth"); }
+    }, window.Icons.smoothEdges(), h("span", null, "Smooth edges\u2026")),
+    cv.hasSelection && h("button", {
       onClick:function(){ if (cv.deleteSelection) cv.deleteSelection(); },
       title:"Delete the stitches in the selection (Delete)",
       style:{

@@ -219,6 +219,25 @@ window.Icons = (function() {
     stitchHalfBck: function() {
       return svg16(h('rect', { x: 3, y: 3, width: 18, height: 18, rx: 2, strokeOpacity: 0.45 }), l(6,6,18,18));
     },
+    // Smooth edges: a faint staircase with the diagonal that smooths it.
+    smoothEdges: function() {
+      return svg16(h('polyline', { points: '4 20 4 14 10 14 10 8 16 8 16 4', strokeOpacity: 0.45 }), l(4,18,18,4));
+    },
+    // Smooth edges methods, as small diagrams over the same staircase:
+    // trimming cuts it back to a diagonal inside the steps, filling builds
+    // it out to a diagonal outside them.
+    smoothTrim: function() {
+      return svg16(
+        h('polyline', { points: '3 3 9 3 9 9 15 9 15 15 21 15 21 21 3 21 3 3', strokeOpacity: 0.4, strokeDasharray: '2 2' }),
+        h('polygon', { points: '3 3 21 21 3 21', fill: 'currentColor', fillOpacity: 0.25 })
+      );
+    },
+    smoothFill: function() {
+      return svg16(
+        h('polyline', { points: '3 3 9 3 9 9 15 9 15 15 21 15 21 21 3 21 3 3', strokeOpacity: 0.4, strokeDasharray: '2 2' }),
+        h('polygon', { points: '3 3 9 3 21 15 21 21 3 21', fill: 'currentColor', fillOpacity: 0.25 })
+      );
+    },
     // Info circle — replaces ℹ️
     info: function() {
       return svg(c(12,12,10), l(12,8,12.01,8), l(12,12,12,16));

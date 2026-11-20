@@ -418,6 +418,12 @@
             h("div", { className: "cs-sttype-row" },
               h("span", { className: "cs-sttype-row__label", "aria-hidden": "true" }, "Stitch type"),
               h(window.CreatorStitchTypeChoice, { inMenu: true, onPicked: function () { setSelMenuOpen(false); } })),
+            h("button", {
+              type: "button", role: "menuitem",
+              className: "creator-optbar__menu-item" + (panel === "smooth" ? " creator-optbar__menu-item--on" : ""),
+              title: "Turn the steps along the selection's edge into \u00BE stitches",
+              onClick: function () { setSelMenuOpen(false); cv.setWandPanel(panel === "smooth" ? null : "smooth"); }
+            }, window.Icons.smoothEdges(), "Smooth edges\u2026"),
             h("div", { className: "creator-optbar__menu-sep", role: "separator" }),
             h("button", {
               type: "button", role: "menuitem", className: "creator-optbar__menu-item creator-optbar__menu-item--danger",

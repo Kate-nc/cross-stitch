@@ -48,6 +48,8 @@ const ORDER = [
   'colourReplace.js',
   // Full / half stitch conversion for a selection (pure).
   'stitchTypeConvert.js',
+  // Smooth edges: 3/4 stitches along a selection's outline (pure).
+  'smoothEdges.js',
   // Keeps stitching progress consistent when cells are edited.
   'stitchedEdits.js',
   'useMagicWand.js',
@@ -80,6 +82,8 @@ const ORDER = [
   // Cross / half / half for a selection (bar, menus, Tools tab).
   'StitchTypeChoice.js',
   'SelectionBar.js',
+  // Smooth edges card / phone sheet for a selection.
+  'SmoothEdgesPanel.js',
   // Shapes and mirror drawing (audit DRAW-04).
   'MirrorHandle.js',
   'TextToolSheet.js',
