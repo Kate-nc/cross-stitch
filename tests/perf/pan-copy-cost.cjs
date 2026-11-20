@@ -255,7 +255,9 @@ function threadBusy(trace) {
     proc.kill();
   }
   if (process.env.OUT) {
-    fs.writeFileSync(path.join(ROOT, process.env.OUT), JSON.stringify({
+    const outFile = path.resolve(ROOT, process.env.OUT);
+    fs.mkdirSync(path.dirname(outFile), { recursive: true });
+    fs.writeFileSync(outFile, JSON.stringify({
       commit: git(['rev-parse', '--short', 'HEAD']), dirty: (git(['status', '--porcelain']) || '').split('\n').filter(Boolean).length,
       browser: browser.version(), environment: 'headless Chromium, SwiftShader canvas, 4-core VM; emulated, not a physical device', results,
     }, null, 1));

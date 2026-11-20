@@ -1,7 +1,7 @@
 /* Isolated React reconciliation reproduction, not a browser/device benchmark.
    The baseline is the exact inline palette subtree from the recorded main.
    jsdom has no layout/paint. Callbacks are inert; behaviour is tested elsewhere. */
-const fs=require('fs'),{execFileSync}=require('child_process'),vm=require('vm');
+const fs=require('fs'),path=require('path'),{execFileSync}=require('child_process'),vm=require('vm');
 const babel=require('@babel/core'),{JSDOM}=require('jsdom');
 const dom=new JSDOM('<div id="root"></div>',{url:'http://localhost'});
 global.window=dom.window;global.document=dom.window.document;global.navigator=dom.window.navigator;
@@ -29,4 +29,6 @@ for(const open of [false,true])for(const compact of [false,true]){
  for(let i=0;i<30;i++){const j=i%200;rows=rows.map((r,k)=>k===j?{...r,dc:{...r.dc,done:r.dc.done+1},pct:r.pct+1}:r);render(open,compact);render(open,compact);}
  out.cases[`${open?'open':'closed'}-${compact?'compact':'comfortable'}`]={commits:commits.length,elements,renderMs:commits.reduce((a,b)=>a+b,0),elapsedMs:performance.now()-t};
 }
-console.log(JSON.stringify(out,null,2));fs.writeFileSync(process.env.OUT||'reports/track-mode-baseline/palette-node-before.json',JSON.stringify(out,null,2));root.unmount();
+const outFile=process.env.OUT||'reports/track-mode-baseline/palette-node-before.json';
+fs.mkdirSync(path.dirname(outFile),{recursive:true});
+console.log(JSON.stringify(out,null,2));fs.writeFileSync(outFile,JSON.stringify(out,null,2));root.unmount();

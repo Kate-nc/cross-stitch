@@ -250,5 +250,8 @@ for (const [w, h, cols] of [[100, 100, 12], [200, 250, 40]]) {
 
 test.afterAll(() => {
   // Opt-in JSON dump for before/after comparisons: AUDIT_OUT=path npx playwright test ...
-  if (process.env.AUDIT_OUT) fs.writeFileSync(process.env.AUDIT_OUT, JSON.stringify(OUT, null, 2));
+  if (process.env.AUDIT_OUT) {
+    fs.mkdirSync(path.dirname(process.env.AUDIT_OUT), { recursive: true });
+    fs.writeFileSync(process.env.AUDIT_OUT, JSON.stringify(OUT, null, 2));
+  }
 });
