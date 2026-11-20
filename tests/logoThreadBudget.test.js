@@ -1,4 +1,4 @@
-const {W, prepare, runWorker} = require('../scripts/conversion-accuracy/harness');
+const {W, prepare, runWorker} = require('./_helpers/conversionHarness');
 const fs = require('fs'), vm = require('vm');
 
 test('logo edge folding keeps at most five threads, no white fringe and the original coverage', async () => {

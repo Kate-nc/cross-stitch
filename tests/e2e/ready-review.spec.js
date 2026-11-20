@@ -45,7 +45,7 @@ async function setFabricCount(page, review, ct) {
   await page.getByRole('tab',{name:'Materials',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Ready to stitch',exact:true})).toBeVisible();
 }
-function screenshotPath(name) { const dir=path.resolve('reports/ready-to-stitch');fs.mkdirSync(dir,{recursive:true});return path.join(dir,name); }
+function screenshotPath(name) { const dir=path.resolve('test-results/ready-to-stitch');fs.mkdirSync(dir,{recursive:true});return path.join(dir,name); }
 
 for (const kind of ['pixel-art','low-colour','sparse','blends','no-source']) {
   test(kind+' chart is reviewable, sample export matches selection and fabric assumptions', async ({page}) => {

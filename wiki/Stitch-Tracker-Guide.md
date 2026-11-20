@@ -246,7 +246,7 @@ In More > Tools, enable **Use up stash thread as I stitch**. New full, half, qua
 
 On first use, an explicit baseline preserves existing stock without inventing earlier usage. Ordinary unmark, Undo and Reset correct accidental progress: only an actual recorded debit is credited. **Unpick area** records physical removal without returning stock; stitching that area again charges a new occurrence. Undoing an accidental Unpick area restores its state without using more thread.
 
-Marks made while Live is off are recorded without a stock debit; re-enabling affects subsequent stitching. This replaces the old high-water catch-up behaviour. **Thread consumption history** in Tools explains estimates, debits, corrections and the historical baseline. Full backups and stash sync preserve all events and assumptions. Update every device before syncing. Incompatible histories or combined offline usage beyond recorded stock require inventory reconciliation. See [the accounting rules](../reports/thread-deduction-accounting.md).
+Marks made while Live is off are recorded without a stock debit; re-enabling affects subsequent stitching. This replaces the old high-water catch-up behaviour. **Thread consumption history** in Tools explains estimates, debits, corrections and the historical baseline. Full backups and stash sync preserve all events and assumptions. Update every device before syncing. Incompatible histories or combined offline usage beyond recorded stock require inventory reconciliation.
 
 ### Undo, Redo and session totals
 

@@ -4,7 +4,7 @@
 // The community RGB table (threadcolors.com and copies) is consistently
 // lighter and paler than real thread. This script darkens it and corrects
 // the worst threads, using only the inputs in
-// reports/dmc-colour-calibration.csv:
+// scripts/dmc-colour-calibration.csv:
 //
 //   community_hex  the community table the app used up to 30 October 2026
 //   scan_hex       median of each swatch on a scanned DMC thread card
@@ -39,7 +39,7 @@ const FAR_DE = 12;
 const AGREE_DE = 5;
 
 const ROOT = path.join(__dirname, '..');
-const CSV_PATH = path.join(ROOT, 'reports', 'dmc-colour-calibration.csv');
+const CSV_PATH = path.join(__dirname, 'dmc-colour-calibration.csv');
 const DATA_PATH = path.join(ROOT, 'dmc-data.js');
 
 function parseCsv(text) {

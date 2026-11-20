@@ -168,7 +168,7 @@ describe('detectPublisher', () => {
   });
 
   it('detects DMC against the real fixture', () => {
-    const fixture = path.resolve(__dirname, '..', '..', 'reports', 'import-2-raw', 'PAT1968_2.analysis.json');
+    const fixture = path.resolve(__dirname, '..', 'fixtures', 'import-2-raw', 'PAT1968_2.analysis.json');
     if (!fs.existsSync(fixture)) return;
     const j = JSON.parse(fs.readFileSync(fixture, 'utf8'));
     const sample = (j.pages || []).map(p => p.longTextSample || '').join('\n');

@@ -14,7 +14,7 @@ for(const name of ['desktop','Pixel 5'])test.describe(name,()=>{
   const result=await page.evaluate(()=>{const p=document.querySelector('.cvp').getBoundingClientRect();return {width:p.width,screen:innerWidth,buttons:[...document.querySelectorAll('.cvp-source button,.cvp button')].map(b=>{const r=b.getBoundingClientRect();return {x:r.x,right:r.right};})};});
   if(name==='Pixel 5')expect(result.width).toBeGreaterThanOrEqual(result.screen*.9);
   for(const b of result.buttons){expect(b.x).toBeGreaterThanOrEqual(0);expect(b.right).toBeLessThanOrEqual(result.screen);}
-  await page.screenshot({path:`reports/convert-preview-finish/after-${name==='desktop'?'desktop':'phone'}.png`,fullPage:true});
+  await page.screenshot({path:`test-results/convert-preview-finish/after-${name==='desktop'?'desktop':'phone'}.png`,fullPage:true});
  });
  test('thread selection persists across all views and toggles off',async({page})=>{
   await open(page);const button=page.locator('.cv-thread').first();await button.click();await expect(button).toHaveAttribute('aria-pressed','true');
@@ -25,7 +25,7 @@ for(const name of ['desktop','Pixel 5'])test.describe(name,()=>{
   await open(page);await page.evaluate(()=>__previewState.setBri(35));await settled(page);
   const button=page.getByRole('button',{name:'Show what changed',exact:true});await expect(button).toBeVisible();
   await expect(page.getByTestId('cvp-changed')).toHaveCount(0);await button.click();
-  for(const view of ['stitched','flat','compare']){await previewView(page,view);await expect(page.getByTestId('cvp-changed')).toHaveCount(1);await expect(button).toHaveCount(1);await page.screenshot({path:`reports/convert-preview-finish/changed-${view}-${name==='desktop'?'desktop':'phone'}.png`,fullPage:true});}
+  for(const view of ['stitched','flat','compare']){await previewView(page,view);await expect(page.getByTestId('cvp-changed')).toHaveCount(1);await expect(button).toHaveCount(1);await page.screenshot({path:`test-results/convert-preview-finish/changed-${view}-${name==='desktop'?'desktop':'phone'}.png`,fullPage:true});}
   await button.click();await expect(page.getByTestId('cvp-changed')).toHaveCount(0);
  });
  test('pin survives settings changes, restores all settings and clears for another source',async({page})=>{
@@ -39,7 +39,7 @@ for(const name of ['desktop','Pixel 5'])test.describe(name,()=>{
   await page.evaluate(()=>{const s=__previewState;s.setSW(80);s.setSH(60);s.setArLock(false);s.setBri(12);s.setCon(14);s.setSat(-10);s.setSmooth(1);s.setSmoothType('gaussian');s.setPreSharpen(true);s.setPreSharpenAmount(.7);s.setMaxC(12);s.setDithMode('bayer8');s.setAllowBlends(true);s.setMinSt(2);s.setSkipBg(false);s.setBgCol([200,200,200]);s.setBgTh(12);s.setStitchCleanup({...s.stitchCleanup,protectDetails:false});s.setOrphans(1);s.setDisambig(true);s.setDisambigLevel('gentle');s.setFabricCt(14);s.setFabricColour('#E8D9B5');s.setGlobalStash({});s.setStashConstrained(true);s.setVariationSeed(1337);s.setVariationSubset(null);s.setPresetApplied(null);});
   await settled(page);expect(await page.evaluate(()=>JSON.stringify(__previewState.pinnedPreview))).toBe(before);
   const comparison=page.getByRole('region',{name:'Pinned comparison'});await expect(comparison).toContainText('Size changed; cells cannot be compared directly');await expect(comparison).toContainText('confetti');await expect(comparison).toContainText('skeins');
-  await page.screenshot({path:`reports/convert-preview-finish/pinned-${name==='desktop'?'desktop':'phone'}.png`,fullPage:true});
+  await page.screenshot({path:`test-results/convert-preview-finish/pinned-${name==='desktop'?'desktop':'phone'}.png`,fullPage:true});
   await page.getByRole('button',{name:'Apply pinned settings'}).click();await settled(page);
   expect(await page.evaluate(()=>__previewState.previewRestoreSettings)).toEqual(restore);
   expect(await page.evaluate(()=>__previewState.previewSnapshot.signature)).toBe(await page.evaluate(()=>__previewState.pinnedPreview.signature));

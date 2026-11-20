@@ -170,5 +170,9 @@ async function runCase(browser, port, spec) {
     proc.kill();
   }
   const out = process.env.OUT;
-  if (out) fs.writeFileSync(path.join(ROOT, out), JSON.stringify({ commit: git(['rev-parse', '--short', 'HEAD']), dirty: (git(['status', '--porcelain']) || '').split('\n').filter(Boolean).length, browser: browser.version ? browser.version() : null, results }, null, 1));
+  if (out) {
+    const outFile = path.resolve(ROOT, out);
+    fs.mkdirSync(path.dirname(outFile), { recursive: true });
+    fs.writeFileSync(outFile, JSON.stringify({ commit: git(['rev-parse', '--short', 'HEAD']), dirty: (git(['status', '--porcelain']) || '').split('\n').filter(Boolean).length, browser: browser.version ? browser.version() : null, results }, null, 1));
+  }
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -20,7 +20,9 @@ function instrument(src){return babel.transformSync(src,{configFile:false,babelr
  await ctx.page.addInitScript(()=>{window.__workerCosts=[];const W=window.Worker;window.Worker=class extends W{constructor(...args){super(...args);this.addEventListener('message',e=>{if(e.data.type==='result')window.__workerCosts.push({t:performance.now(),ms:e.data.executionMs});});}};});
  spec.setup=async()=>{await ctx.page.evaluate(()=>{window.__renderCosts=[];window.__workerCosts=[];});};
  try{const r=await B.runMarking(ctx,spec);r.renderCosts=await ctx.page.evaluate(()=>{const out={};for(const r of window.__renderCosts||[]){const a=out[r.name]||(out[r.name]={n:0,ms:0});a.n++;a.ms+=r.ms;}return out;});r.workerExecution=await ctx.page.evaluate(()=>window.__workerCosts);(out.scenarios[id]||(out.scenarios[id]=[])).push(r);console.log(id,JSON.stringify({interaction:r.interactions,react:r.react,render:r.renderCosts,worker:r.workerExecution}));}finally{await ctx.context.close();}
- fs.writeFileSync(process.env.OUT||'reports/track-mode-baseline/reconciliation-before.json',JSON.stringify(out,null,2));
+ const outFile=process.env.OUT||'reports/track-mode-baseline/reconciliation-before.json';
+ fs.mkdirSync(path.dirname(outFile),{recursive:true});
+ fs.writeFileSync(outFile,JSON.stringify(out,null,2));
  }}finally{await browser.close();}
  }finally{server.proc.kill();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -8,7 +8,7 @@
 //   3. Sharpen details works on the stitches (sharpenStitches): an edge stitch
 //      takes the colour of the nearer side, so no colour is new.
 const fs = require('fs'), vm = require('vm');
-const { runtime, runWorker } = require('../scripts/conversion-accuracy/harness');
+const { runtime, runWorker } = require('./_helpers/conversionHarness');
 
 function picture(w, h, colourAt) {
   const d = new Uint8ClampedArray(w * h * 4);
