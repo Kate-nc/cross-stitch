@@ -70,9 +70,30 @@ window.useMagicWand = function useMagicWand(state) {
     return Math.sqrt(dL * dL + da * da + db * db);
   }
 
-  function getCellLab(idx, pat, cmap) {
+  // Effective colour of a cell: its full stitch, or the dominant quadrant of
+  // its part stitches when pat[idx] is blank (e.g. half stitches / smoothed
+  // edges). Keeps half-stitched and smoothed regions selectable by Wand/All.
+  function effectiveCell(idx, pat, partials) {
     var cell = pat[idx];
-    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return null;
+    if (cell && cell.id !== "__skip__" && cell.id !== "__empty__") return cell;
+    var ps = partials && partials.get(idx);
+    if (!ps) return null;
+    if (window.StitchTypeConvert && window.StitchTypeConvert.dominantColour) {
+      return window.StitchTypeConvert.dominantColour(cell, ps, "full");
+    }
+    return ps.TL || ps.TR || ps.BL || ps.BR || null;
+  }
+
+  function getCellLab(idx, pat, cmap, partials) {
+    var cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+      var ps = partials && partials.get(idx);
+      if (!ps) return null;
+      cell = (typeof window !== "undefined" && window.StitchTypeConvert && window.StitchTypeConvert.dominantColour)
+        ? window.StitchTypeConvert.dominantColour(cell, ps, "full")
+        : (ps.TL || ps.TR || ps.BL || ps.BR || null);
+      if (!cell) return null;
+    }
     var entry = cmap ? cmap[cell.id] : null;
     return labFromEntry(entry || cell);
   }
@@ -80,12 +101,10 @@ window.useMagicWand = function useMagicWand(state) {
   // ─── Core selection operations ───────────────────────────────────────────────
 
   // Flood-fill BFS from (startX,startY), selects all 4-connected cells within tolerance
-  function floodSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+  function floodSelect(pat, cmap, sW, sH, startX, startY, tolerance, partials) {
     var mask = new Uint8Array(sW * sH);
     var startIdx = startY * sW + startX;
-    var startCell = pat[startIdx];
-    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
-    var startLab = getCellLab(startIdx, pat, cmap);
+    var startLab = getCellLab(startIdx, pat, cmap, partials);
     if (!startLab) return mask;
 
     var visited = new Uint8Array(sW * sH);
@@ -94,7 +113,7 @@ window.useMagicWand = function useMagicWand(state) {
 
     while (queue.length) {
       var idx = queue.pop();
-      var lab = getCellLab(idx, pat, cmap);
+      var lab = getCellLab(idx, pat, cmap, partials);
       if (!lab) continue;
       if (deltaE(startLab, lab) > tolerance) continue;
       mask[idx] = 1;
@@ -108,17 +127,13 @@ window.useMagicWand = function useMagicWand(state) {
   }
 
   // Global scan: selects ALL cells matching startCell within tolerance
-  function globalSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+  function globalSelect(pat, cmap, sW, sH, startX, startY, tolerance, partials) {
     var mask = new Uint8Array(sW * sH);
     var startIdx = startY * sW + startX;
-    var startCell = pat[startIdx];
-    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
-    var startLab = getCellLab(startIdx, pat, cmap);
+    var startLab = getCellLab(startIdx, pat, cmap, partials);
     if (!startLab) return mask;
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
+      var lab = getCellLab(i, pat, cmap, partials);
       if (!lab) continue;
       if (deltaE(startLab, lab) <= tolerance) mask[i] = 1;
     }
@@ -146,18 +161,18 @@ window.useMagicWand = function useMagicWand(state) {
   // ─── Actions: plain functions (no useCallback — matches codebase pattern) ────
 
   function applyWandSelect(gx, gy, opMode) {
-    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat || !cmap) return;
     if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
     var idx = gy * sW + gx;
-    var cell = pat[idx];
-    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+    var cell = effectiveCell(idx, pat, partials);
+    if (!cell) {
       if (state.addToast) state.addToast("That cell is empty \u2014 nothing to select.", {type:"warning", duration:1500});
       return;
     }
     var newMask = wandContiguous
-      ? floodSelect(pat, cmap, sW, sH, gx, gy, wandTolerance)
-      : globalSelect(pat, cmap, sW, sH, gx, gy, wandTolerance);
+      ? floodSelect(pat, cmap, sW, sH, gx, gy, wandTolerance, partials)
+      : globalSelect(pat, cmap, sW, sH, gx, gy, wandTolerance, partials);
     var merged = mergeMasks(selectionMask, newMask, opMode, sW * sH);
     setSelectionMask(merged);
 
@@ -180,40 +195,37 @@ window.useMagicWand = function useMagicWand(state) {
   }
 
   function invertSelection() {
-    var pat = state.pat, sW = state.sW, sH = state.sH;
+    var pat = state.pat, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat) return;
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (!effectiveCell(i, pat, partials)) continue;
       out[i] = selectionMask && selectionMask[i] ? 0 : 1;
     }
     setSelectionMask(out);
   }
 
   function selectAll() {
-    var pat = state.pat, sW = state.sW, sH = state.sH;
+    var pat = state.pat, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat) return;
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (!effectiveCell(i, pat, partials)) continue;
       out[i] = 1;
     }
     setSelectionMask(out);
   }
 
   function selectAllOfColorId(colorId, opMode) {
-    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat || !cmap) return;
     var entry = cmap[colorId];
     if (!entry) return;
     var startLab = labFromEntry(entry);
     var newMask = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
+      if (!effectiveCell(i, pat, partials)) continue;
+      var lab = getCellLab(i, pat, cmap, partials);
       if (!lab) continue;
       if (deltaE(startLab, lab) <= wandTolerance) newMask[i] = 1;
     }
@@ -541,17 +553,29 @@ window.useMagicWand = function useMagicWand(state) {
 
   // Rebuild pal / cmap after an edit to the full stitches. The palette is
   // rebuilt from full stitches only, so colours now used only by part
-  // stitches or backstitch lines are kept in the scratch palette, which
-  // keeps their palette entry and symbol through undo and redo.
-  function setPaletteKeepingParts(np, partials, lines) {
+  // stitches, backstitch lines, knots or specialty stitches are kept in the
+  // scratch palette, which keeps their palette entry and symbol through undo
+  // and redo.
+  function setPaletteKeepingParts(np, partials, lines, knots, specialty) {
     var r = state.buildPaletteWithScratch(np);
-    var stillUsed = {};
-    (partials || new Map()).forEach(function(entry) {
-      ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
-    });
-    (lines || []).forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
+    var stc = window.StitchTypeConvert;
+    var usedIds;
+    if (stc && stc.partColourIds) {
+      usedIds = stc.partColourIds(partials, lines, knots, specialty);
+    } else {
+      usedIds = new Set();
+      (partials || new Map()).forEach(function(entry) {
+        ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q] && entry[q].id != null) usedIds.add(String(entry[q].id)); });
+      });
+      (lines || []).forEach(function(ln) { if (ln && ln.colorId != null) usedIds.add(String(ln.colorId)); });
+      (knots || []).forEach(function(k) { if (k && k.id != null) usedIds.add(String(k.id)); });
+      (specialty || []).forEach(function(st) {
+        var sid = st && st.thread && st.thread.id != null ? st.thread.id : (st && st.id != null ? st.id : null);
+        if (sid != null) usedIds.add(String(sid));
+      });
+    }
     var keeps = [];
-    Object.keys(stillUsed).forEach(function(id) {
+    usedIds.forEach(function(id) {
       if (r.cmap[id]) return;
       var old = state.cmap && state.cmap[id];
       if (!old) return;
@@ -643,7 +667,7 @@ window.useMagicWand = function useMagicWand(state) {
     state.setRedoHistory([]);
     if (np) {
       state.setPat(np);
-      setPaletteKeepingParts(np, nm || ps, keptBs);
+      setPaletteKeepingParts(np, nm || ps, keptBs, keptKnots, state.specialtyStitches);
     }
     if (nm) state.setPartialStitches(nm);
     if (bsRemoved) state.setBsLines(keptBs);
@@ -679,7 +703,7 @@ window.useMagicWand = function useMagicWand(state) {
     }
 
     var entry = { type: "stitchType", changes: res.changes };
-    var reset = res.changes.length && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat);
+    var reset = (res.changes.length || res.psChanges.length) && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat, res.psChanges);
     if (reset) entry.doneReset = reset;
     if (res.psChanges.length) entry.psChanges = res.psChanges;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
@@ -691,7 +715,7 @@ window.useMagicWand = function useMagicWand(state) {
     state.setRedoHistory([]);
     if (res.changes.length) {
       state.setPat(res.pat);
-      setPaletteKeepingParts(res.pat, res.partials, state.bsLines);
+      setPaletteKeepingParts(res.pat, res.partials, state.bsLines, state.knots, state.specialtyStitches);
     }
     if (res.psChanges.length) state.setPartialStitches(res.partials);
     if (state.addToast) {
@@ -726,7 +750,7 @@ window.useMagicWand = function useMagicWand(state) {
     }
     var res = SME.apply(pat, state.partialStitches, p.cells);
     var entry = { type: "smoothEdges", changes: res.changes, psChanges: res.psChanges };
-    var reset = res.changes.length && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat);
+    var reset = (res.changes.length || res.psChanges.length) && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat, res.psChanges);
     if (reset) entry.doneReset = reset;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
@@ -737,7 +761,7 @@ window.useMagicWand = function useMagicWand(state) {
     state.setRedoHistory([]);
     if (res.changes.length) {
       state.setPat(res.pat);
-      setPaletteKeepingParts(res.pat, res.partials, state.bsLines);
+      setPaletteKeepingParts(res.pat, res.partials, state.bsLines, state.knots, state.specialtyStitches);
     }
     state.setPartialStitches(res.partials);
     setWandPanel(null);

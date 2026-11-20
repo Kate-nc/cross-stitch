@@ -164,7 +164,7 @@ function runWand(state, mask) {
   let first = true;
   global.React = {
     useState: (init) => {
-      if (first) { first = false; return [mask, () => {}]; }
+      if (first) { first = false; return [mask, (v) => { state.setSelectionMask(v); }]; }
       return [init, () => {}];
     },
     useMemo: (fn) => fn(),
@@ -252,5 +252,96 @@ describe('convertSelectionStitchType', () => {
     expect(runWand(s, new Uint8Array([0, 0, 0, 1])).convertSelectionStitchType('full')).toBeNull();
     expect(s.toasts.pop()).toEqual({ msg: 'No stitches in the selection.', type: 'info' });
     expect(s.editHistory).toHaveLength(0);
+  });
+
+  test('preserves brand and blend metadata across half-stitch conversion', () => {
+    const ANCHOR_RED = { id: '47', type: 'solid', brand: 'anchor', rgb: [199, 43, 59] };
+    const BLEND = { id: '310+321', type: 'blend', rgb: [99, 21, 29], threads: [BLACK, RED], blendRatio: [2, 1] };
+    const res = STC.convertSelection(clone([ANCHOR_RED, BLEND]), new Map(), new Uint8Array([1, 1]), 'half-fwd', {});
+    expect(res.partials.get(0).BL).toEqual({ id: '47', rgb: ANCHOR_RED.rgb, brand: 'anchor' });
+    expect(res.partials.get(1).BL).toEqual({ id: '310+321', rgb: BLEND.rgb, type: 'blend', threads: BLEND.threads, blendRatio: [2, 1] });
+    // Converting back without cmap preserves brand and blend type/ratio.
+    const back = STC.convertSelection(res.pat, res.partials, new Uint8Array([1, 1]), 'full', {});
+    expect(back.pat[0]).toMatchObject({ id: '47', type: 'solid', brand: 'anchor' });
+    expect(back.pat[1]).toMatchObject({ id: '310+321', type: 'blend', threads: BLEND.threads, blendRatio: [2, 1] });
+  });
+
+  test('partColourIds and setPaletteKeepingParts retain knots and specialty stitches', () => {
+    const ids = STC.partColourIds(null, null, [{ x: 1, y: 1, id: '310' }], [{ type: 'petite', thread: { id: '321' } }]);
+    expect([...ids].sort()).toEqual(['310', '321']);
+
+    const s = fixture();
+    s.specialtyStitches = [{ type: 'petite', thread: { id: '310' } }];
+    // Delete the only full black stitch; black stays in cmap because specialtyStitches uses it.
+    runWand(s, new Uint8Array([0, 0, 1, 0])).deleteSelection();
+    expect(s.cmap['310']).toBeDefined();
+  });
+
+  test('half-stitched cells remain selectable by Magic Wand, Select all, Invert and Select all of colour', () => {
+    const s = fixture();
+    global.formatThread = (e) => e.id;
+    global.rgbToLab = (r, g, b) => [r, g, b];
+    runWand(s, new Uint8Array([1, 1, 0, 0])).convertSelectionStitchType('half-fwd');
+    expect(s.pat[0].id).toBe('__empty__');
+
+    // Magic Wand on cell (0,0) selects both half-stitched red cells.
+    const wand = runWand(s, null);
+    wand.applyWandSelect(0, 0, 'replace');
+    expect(Array.from(s.selectionMask)).toEqual([1, 1, 0, 0]);
+
+    // Select all includes half-stitched cells alongside full stitches.
+    runWand(s, null).selectAll();
+    expect(Array.from(s.selectionMask)).toEqual([1, 1, 1, 0]);
+
+    // Invert includes half-stitched cells.
+    runWand(s, new Uint8Array([0, 0, 1, 0])).invertSelection();
+    expect(Array.from(s.selectionMask)).toEqual([1, 1, 0, 0]);
+
+    // Select all of colour finds half-stitched red cells.
+    runWand(s, null).selectAllOfColorId('321', 'replace');
+    expect(Array.from(s.selectionMask)).toEqual([1, 1, 0, 0]);
+  });
+
+  test('undo/redo toast counts changed cells when only partialStitches change (half / to half \\)', () => {
+    const s = fixture();
+    runWand(s, new Uint8Array([1, 1, 0, 0])).convertSelectionStitchType('half-fwd');
+    s.toasts.length = 0;
+    runWand(s, new Uint8Array([1, 1, 0, 0])).convertSelectionStitchType('half-bck');
+    expect(s.editHistory[1].changes).toEqual([]);
+    expect(s.editHistory[1].psChanges).toHaveLength(2);
+
+    window.useEditHistory(s).undoEdit();
+    expect(s.toasts.pop().msg).toBe('Undo: reverted 2 cells');
+    window.useEditHistory(s).redoEdit();
+    expect(s.toasts.pop().msg).toBe('Redo: restored 2 cells');
+  });
+
+  test('passes psChanges to guardStitchedEdit for full-plus-quarter cells converted to full', () => {
+    const s = fixture();
+    s.partialStitches.set(0, { TL: q(BLACK) });
+    const seen = [];
+    s.guardStitchedEdit = (changes, np, psChanges) => { seen.push({ changes, psChanges }); return [0]; };
+    runWand(s, new Uint8Array([1, 0, 0, 0])).convertSelectionStitchType('full');
+    expect(seen).toHaveLength(1);
+    expect(seen[0].psChanges).toHaveLength(1);
+    expect(s.editHistory[0].doneReset).toEqual([0]);
+  });
+
+  test('creatorPartOnlyPaletteEntries restores palette entries for part-only threads on load', () => {
+    const ioSrc = read('creator/useProjectIO.js');
+    const fnMatch = ioSrc.match(/function creatorPartOnlyPaletteEntries[\s\S]*?\n\}\nwindow\.creatorPartOnlyPaletteEntries/);
+    const restore = new Function('window', 'dedupeChartSymbols', 'restoreStitch',
+      fnMatch[0] + ' = creatorPartOnlyPaletteEntries; return creatorPartOnlyPaletteEntries;')(
+      window, global.dedupeChartSymbols, (m) => Object.assign({ name: 'Thread ' + m.id, rgb: m.rgb || [1, 2, 3] }, m)
+    );
+    const base = { pal: [BLACK], cmap: { '310': BLACK } };
+    const ps = new Map([[0, { BL: q(RED), TR: q(RED) }]]);
+    const extras = restore(base, ps, [{ colorId: '666', color: [200, 0, 0] }], [{ id: '700', rgb: [0, 128, 0] }], [{ thread: { id: '800', rgb: [0, 0, 200] } }], { '321': 'Z' }, 'dmc');
+    expect(extras.map(e => e.id)).toEqual(['321', '666', '700', '800']);
+    expect(extras[0].symbol).toBe('Z');
+    expect(extras[0].count).toBe(0);
+    // All assigned symbols are unique and don't collide with BLACK ('A').
+    const syms = [BLACK.symbol].concat(extras.map(e => e.symbol));
+    expect(new Set(syms).size).toBe(syms.length);
   });
 });

@@ -119,10 +119,53 @@
   }
   window.stitchedPreviewSizes = stitchedSizes;
 
+  var PART_OPP = { TL: "BR", TR: "BL", BL: "TR", BR: "TL" };
+
+  // Draw fractional stitch legs (1/4, 1/2, 3/4) for one cell onto `c` at
+  // (ox, oy) without overwriting the fabric underneath. Shared by
+  // CreatorStitchedPreview and CreatorRealisticCanvas.
+  function drawPartialStitchLegs(c, size, psEntry, baseCell, coverage, ox, oy) {
+    if (!psEntry || typeof analysePartialStitches !== "function") return;
+    var instrs = analysePartialStitches(psEntry, baseCell);
+    if (!instrs || !instrs.length) return;
+    var x0 = ox || 0, y0 = oy || 0;
+    var w = size * (0.25 + 0.30 * coverage);
+    var inset = size * 0.04;
+    var mx = x0 + size / 2, my = y0 + size / 2;
+    var corner = {
+      TL: [x0 + inset, y0 + inset],
+      TR: [x0 + size - inset, y0 + inset],
+      BL: [x0 + inset, y0 + size - inset],
+      BR: [x0 + size - inset, y0 + size - inset]
+    };
+    for (var k = 0; k < instrs.length; k++) {
+      var inst = instrs[k];
+      var strands = strandsFor(inst.colour);
+      if (!strands) continue;
+      if (inst.type === "quarter") {
+        var qp = corner[inst.corner];
+        if (qp) drawLeg(c, qp[0], qp[1], mx, my, w, strands, true);
+      } else if (inst.type === "half") {
+        if (inst.direction === "fwd") drawLeg(c, x0 + inset, y0 + size - inset, x0 + size - inset, y0 + inset, w, strands, true);
+        else drawLeg(c, x0 + inset, y0 + inset, x0 + size - inset, y0 + size - inset, w, strands, false);
+      } else if (inst.type === "three-quarter") {
+        var third = corner[PART_OPP[inst.emptyCorner]];
+        if (third) drawLeg(c, third[0], third[1], mx, my, w, strands, true);
+        if (inst.emptyCorner === "TL" || inst.emptyCorner === "BR") {
+          drawLeg(c, x0 + inset, y0 + size - inset, x0 + size - inset, y0 + inset, w, strands, false);
+        } else {
+          drawLeg(c, x0 + inset, y0 + inset, x0 + size - inset, y0 + size - inset, w, strands, false);
+        }
+      }
+    }
+  }
+  window.drawPartialStitchLegs = drawPartialStitchLegs;
+
   window.CreatorStitchedPreview = function CreatorStitchedPreview(props) {
     var h = React.createElement;
     var canvasRef = React.useRef(null);
     var cells = props.cells, W = props.width, H = props.height;
+    var partials = props.partialStitches;
     var dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
     // CSS pixels per stitch on screen.
     var cssCell = props.closeUp ? 16 : (props.displayWidth > 0 ? props.displayWidth / W : 8);
@@ -153,8 +196,16 @@
         tiles[key] = t;
         return t;
       }
+      var hasPartials = !!(partials && typeof partials.get === "function" && partials.size > 0);
       for (var i = 0; i < cells.length; i++) {
-        oc.drawImage(tileFor(cells[i]), (i % W) * tile, Math.floor(i / W) * tile);
+        var tx = (i % W) * tile, ty = Math.floor(i / W) * tile;
+        var ps = hasPartials ? partials.get(i) : null;
+        if (ps && (ps.TL || ps.TR || ps.BL || ps.BR)) {
+          oc.drawImage(tileFor(null), tx, ty);
+          drawPartialStitchLegs(oc, tile, ps, cells[i], coverage, tx, ty);
+        } else {
+          oc.drawImage(tileFor(cells[i]), tx, ty);
+        }
       }
       canvas.width = dispW; canvas.height = dispH;
       var dc = canvas.getContext("2d");
@@ -165,7 +216,7 @@
       }
       // Free the drawn chart's memory now rather than at collection.
       off.width = off.height = 0;
-    }, [cells, W, H, tile, dispW, dispH, coverage, fabric]);
+    }, [cells, partials, W, H, tile, dispW, dispH, coverage, fabric]);
 
     return h("canvas", {
       ref: canvasRef, className: "cvp-stitched__canvas", role: "img",

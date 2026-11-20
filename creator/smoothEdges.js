@@ -51,7 +51,15 @@ window.SmoothEdges = (function() {
     return !!ps && !!(ps.TL || ps.TR || ps.BL || ps.BR);
   }
 
-  function q(c) { return { id: c.id, rgb: c.rgb }; }
+  function q(c) {
+    var o = { id: c.id, rgb: c.rgb };
+    if (c.brand) o.brand = c.brand;
+    if (c.type && c.type !== "solid") o.type = c.type;
+    if (c.threads) o.threads = c.threads;
+    if (c.blendRatio) o.blendRatio = c.blendRatio;
+    if (c.blend_ratio) o.blend_ratio = c.blend_ratio;
+    return o;
+  }
 
   // The colour covering most of a cell, or null for bare fabric.
   function colourOf(cell, ps) {
@@ -114,17 +122,29 @@ window.SmoothEdges = (function() {
           cut = exposed;                                   // a 1-wide diagonal line
         }
         if (!cut) continue;
-        var entry = {}, quarters = 0, same = false;
-        QUADS.forEach(function(c) { if (cut.indexOf(c) === -1) entry[c] = q(cell); });
+        var actualCut = [], otherBy = {};
         cut.forEach(function(c) {
           var d = DIR[c];
           var other = majority([colourAt(x + d[0], y), colourAt(x, y + d[1]), colourAt(x + d[0], y + d[1])], 2);
-          if (other && other.id === cell.id) same = true;
-          else if (other) { entry[c] = q(other); quarters++; }
+          if (other && other.id === cell.id) return;       // this corner matches the cell: leave uncut
+          actualCut.push(c);
+          if (other) otherBy[c] = other;
         });
-        if (same) continue;                                // nothing would change
-        out.cells.push({ idx: i, entry: entry, hatch: cut[0], hatch2: cut[1] || null });
-        if (cut.length === 2) out.counts.half++; else out.counts.threeQuarter++;
+        if (!actualCut.length) continue;                   // nothing would change
+        // Cutting both opposite corners of a 1-wide diagonal against the same
+        // colour would pair those two quarters into a crossing half stitch (an
+        // X over the diagonal) in analysePartialStitches. Leave them empty.
+        if (actualCut.length === 2 && otherBy[actualCut[0]] && otherBy[actualCut[1]] &&
+            otherBy[actualCut[0]].id === otherBy[actualCut[1]].id) {
+          otherBy = {};
+        }
+        var entry = {}, quarters = 0;
+        QUADS.forEach(function(c) { if (actualCut.indexOf(c) === -1) entry[c] = q(cell); });
+        actualCut.forEach(function(c) {
+          if (otherBy[c]) { entry[c] = q(otherBy[c]); quarters++; }
+        });
+        out.cells.push({ idx: i, entry: entry, hatch: actualCut[0], hatch2: actualCut[1] || null });
+        if (actualCut.length === 2) out.counts.half++; else out.counts.threeQuarter++;
         out.counts.quarter += quarters;
       } else {
         if (inside(x, y)) continue;

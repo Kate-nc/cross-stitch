@@ -15,12 +15,25 @@
  */
 window.CreatorSmoothEdgesPanel = function CreatorSmoothEdgesPanel() {
   var h = React.createElement;
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var _top = React.useState(null); var top = _top[0], setTop = _top[1];
   var rootRef = React.useRef(null);
 
-  var open = cv.wandPanel === "smooth" && !!cv.hasSelection && app.tab === "pattern" && !app.previewActive;
+  var floating = !!(cv.clip && cv.clip.floatActive);
+  var stitchedOn = app.chartView === "stitched" && !app.previewActive && !app.splitPaneEnabled;
+  var open = cv.wandPanel === "smooth" && !!cv.hasSelection && app.tab === "pattern" && !app.previewActive && !stitchedOn && !floating;
+  function close() { cv.setWandPanel(null); }
+  var closeRef = React.useRef(close);
+  closeRef.current = close;
+  var onEsc = React.useCallback(function () { closeRef.current(); }, []);
+
+  // Esc closes this panel while keeping the selection intact (stable callback
+  // so re-renders don't push it above modals/menus opened on top of it).
+  if (typeof window !== "undefined" && typeof window.useEscape === "function") {
+    window.useEscape(open ? onEsc : null);
+  }
 
   // Dock just below the top of the chart's scroll area.
   React.useLayoutEffect(function () {
@@ -59,11 +72,16 @@ window.CreatorSmoothEdgesPanel = function CreatorSmoothEdgesPanel() {
   var plan = cv.smoothPreview;
   var counts = plan ? plan.counts : { threeQuarter: 0, half: 0, quarter: 0 };
   var n = counts.threeQuarter + counts.half;
+  var markedReset = 0;
+  if (ctx && ctx.done && plan && plan.cells) {
+    for (var mi = 0; mi < plan.cells.length; mi++) {
+      if (ctx.done[plan.cells[mi].idx] === 1) markedReset++;
+    }
+  }
   function setOpt(k, v) {
     if (!cv.setSmoothOptions) return;
     cv.setSmoothOptions(function (prev) { var o = Object.assign({}, prev); o[k] = v; return o; });
   }
-  function close() { cv.setWandPanel(null); }
 
   function method(id, label, icon) {
     var on = opts.mode === id;
@@ -86,6 +104,7 @@ window.CreatorSmoothEdgesPanel = function CreatorSmoothEdgesPanel() {
     parts.push(opts.mode === "fill" ? " added" : " made");
     if (counts.quarter) parts.push(", with " + counts.quarter.toLocaleString() + " ¼ stitch" + (counts.quarter === 1 ? "" : "es") + " in the colour beside " + (n === 1 ? "it" : "them"));
     parts.push(". Shown on the chart.");
+    if (markedReset > 0) parts.push(" Clears " + markedReset.toLocaleString() + " stitched mark" + (markedReset === 1 ? "" : "s") + ".");
     summary = parts;
   }
 

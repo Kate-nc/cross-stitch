@@ -92,10 +92,26 @@ window.StitchTypeConvert = (function() {
     return colours[best];
   }
 
+  function quadEntry(src) {
+    var o = { id: src.id, rgb: src.rgb };
+    if (src.brand) o.brand = src.brand;
+    if (src.type && src.type !== "solid") o.type = src.type;
+    if (src.threads) o.threads = src.threads;
+    if (src.blendRatio) o.blendRatio = src.blendRatio;
+    if (src.blend_ratio) o.blend_ratio = src.blend_ratio;
+    return o;
+  }
+
   function fullEntry(src, cmap) {
     var e = cmap && cmap[src.id];
     if (e) return Object.assign({}, e);
-    return { id: src.id, type: src.type || "solid", rgb: src.rgb };
+    var inferredType = src.type || (typeof src.id === "string" && src.id.indexOf("+") !== -1 ? "blend" : "solid");
+    var o = { id: src.id, type: inferredType, rgb: src.rgb };
+    if (src.brand) o.brand = src.brand;
+    if (src.threads) o.threads = src.threads;
+    if (src.blendRatio) o.blendRatio = src.blendRatio;
+    if (src.blend_ratio) o.blend_ratio = src.blend_ratio;
+    return o;
   }
 
   function convertSelection(pat, partials, mask, target, cmap) {
@@ -116,7 +132,7 @@ window.StitchTypeConvert = (function() {
       } else {
         if (!isBlank(cell)) nextCell = { id: "__empty__", rgb: [255, 255, 255] };
         nextPs = {};
-        DIAG[target].forEach(function(q) { nextPs[q] = { id: colour.id, rgb: colour.rgb }; });
+        DIAG[target].forEach(function(q) { nextPs[q] = quadEntry(colour); });
       }
 
       if (nextCell !== cell) {
@@ -135,19 +151,24 @@ window.StitchTypeConvert = (function() {
     return out;
   }
 
-  function partColourIds(partials, bsLines, knots) {
+  function partColourIds(partials, bsLines, knots, specialtyStitches) {
     var ids = new Set();
     if (partials) partials.forEach(function(entry) {
       QUADS.forEach(function(q) { if (entry && entry[q] && entry[q].id != null) ids.add(String(entry[q].id)); });
     });
     (bsLines || []).forEach(function(ln) { if (ln && ln.colorId != null) ids.add(String(ln.colorId)); });
     (knots || []).forEach(function(k) { if (k && k.id != null) ids.add(String(k.id)); });
+    (specialtyStitches || []).forEach(function(st) {
+      var sid = st && st.thread && st.thread.id != null ? st.thread.id : (st && st.id != null ? st.id : null);
+      if (sid != null) ids.add(String(sid));
+    });
     return ids;
   }
 
   return {
     TARGETS: TARGETS,
     partColourIds: partColourIds,
+    dominantColour: dominantColour,
     cellKind: cellKind,
     selectionKind: selectionKind,
     convertSelection: convertSelection

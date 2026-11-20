@@ -1575,10 +1575,10 @@ window.useCreatorState = function useCreatorState() {
   var doneRef = useRef(done); doneRef.current = done;
   // Set by CreatorApp: undoes the newest edit if it still carries these cells.
   var undoGuardRef = useRef(null);
-  var guardStitchedEdit = useCallback(function(changes, newPat) {
+  var guardStitchedEdit = useCallback(function(changes, newPat, psChanges) {
     var SE = window.StitchedEdits, cur = doneRef.current;
     if (!SE || !cur) return undefined;
-    var idxs = SE.stitchedResets(cur, changes, newPat);
+    var idxs = SE.stitchedResets(cur, changes, newPat, psChanges);
     if (!idxs.length) return undefined;
     var next = SE.clearDone(cur, idxs);
     doneRef.current = next;
@@ -2011,7 +2011,7 @@ window.useCreatorState = function useCreatorState() {
   function removeScratchColour(id) {
     // E-5: don't let the user orphan stitches by removing an in-use scratch colour.
     var entry = pal ? pal.find(function(p) { return p.id === id; }) : null;
-    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots) : new Set();
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots, specialtyStitches) : new Set();
     if ((entry && entry.count > 0) || inParts.has(String(id))) {
       addToast("Can't remove a scratch colour that's in use — paint over it first", { type: "warning", duration: 3500 });
       return;
@@ -2042,8 +2042,8 @@ window.useCreatorState = function useCreatorState() {
   function removeUnusedColours() {
     if (!pal) return;
     // A count of 0 is full stitches only: keep colours that part stitches,
-    // backstitch or knots still use.
-    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots) : new Set();
+    // backstitch, knots or specialty stitches still use.
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots, specialtyStitches) : new Set();
     var unused = pal.filter(function(p) { return p.count === 0 && !inParts.has(String(p.id)); });
     if (!unused.length) return;
     var unusedIds = new Set(unused.map(function(p) { return p.id; }));
@@ -2661,6 +2661,7 @@ window.useCreatorState = function useCreatorState() {
     pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt, threadBrand: threadBrand,
     bsLines: bsLines, setBsLines: setBsLines,
     knots: knots, setKnots: setKnots,
+    specialtyStitches: specialtyStitches,
     // Colour replacement also recolours half/quarter stitches.
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     setScratchPalette: setScratchPalette,

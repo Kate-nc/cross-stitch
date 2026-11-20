@@ -165,6 +165,50 @@ function creatorPartialStitchesForSave(partialStitches, state) {
   return psArr;
 }
 
+// Threads used only by part stitches, backstitch, French knots or specialty
+// stitches have no full-stitch cells in `pattern`, so buildPalette() omits
+// them. Rebuild palette entries for them on load (with count: 0, preserving
+// any saved symbol override) so they stay in the Palette tab and keep chart
+// symbols across save/reload.
+function creatorPartOnlyPaletteEntries(baseResult, partials, bsLines, knots, specialty, savedSyms, brand) {
+  var cmap = (baseResult && baseResult.cmap) || {};
+  var pal = (baseResult && baseResult.pal) || [];
+  var byId = {};
+  var order = [];
+  function consider(raw) {
+    if (!raw || raw.id == null) return;
+    var id = String(raw.id);
+    if (!id || id === "__skip__" || id === "__empty__" || cmap[id] || byId[id]) return;
+    var type = raw.type || (id.indexOf("+") !== -1 ? "blend" : "solid");
+    var restored = typeof restoreStitch === "function"
+      ? restoreStitch(Object.assign({}, raw, { id: id, type: type }), brand)
+      : Object.assign({}, raw, { id: id, type: type });
+    var entry = Object.assign({}, restored, { count: 0 });
+    if (savedSyms && savedSyms[id]) entry.symbol = savedSyms[id];
+    byId[id] = entry;
+    order.push(entry);
+  }
+  if (partials && typeof partials.forEach === "function") {
+    partials.forEach(function(v) {
+      if (!v) return;
+      ["TL", "TR", "BL", "BR"].forEach(function(q) { if (v[q]) consider(v[q]); });
+    });
+  }
+  (bsLines || []).forEach(function(ln) {
+    if (ln && ln.colorId != null) consider({ id: ln.colorId, rgb: ln.color, brand: ln.brand });
+  });
+  (knots || []).forEach(function(k) {
+    if (k && k.id != null) consider(k);
+  });
+  (specialty || []).forEach(function(st) {
+    if (st && st.thread && st.thread.id != null) consider(st.thread);
+    else if (st && st.id != null) consider(st);
+  });
+  if (!order.length) return [];
+  return typeof dedupeChartSymbols === "function" ? dedupeChartSymbols(pal, order) : order;
+}
+window.creatorPartOnlyPaletteEntries = creatorPartOnlyPaletteEntries;
+
 window.useProjectIO = function useProjectIO(state, history, options) {
   // The Convert draft this tab is working on: { id, blob, name, type,
   // createdAt, restore } (restore = settings to apply once the picture loads).
@@ -451,9 +495,12 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setSkipBg(!!s.skipBg); state.setBgTh(creatorRestoredBgTolerance(s.bgTh, s.bgThUnit, s.bgCol));
     state.setBgCol(s.bgCol || [255, 255, 255]); state.setMinSt(s.minSt || 0);
     state.setArLock(s.arLock !== false); state.setAr(s.ar || 1);
-    state.setBsLines(project.bsLines || []);
-    if(state.setSpecialtyStitches)state.setSpecialtyStitches(ProgressUnits.specialty.read(project,s.sW,s.sH,brand));
-    if (state.setKnots) state.setKnots(window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH, brand) : []);
+    var loadedBs = project.bsLines || [];
+    state.setBsLines(loadedBs);
+    var loadedSpec = ProgressUnits.specialty.read(project, s.sW, s.sH, brand);
+    if(state.setSpecialtyStitches)state.setSpecialtyStitches(loadedSpec);
+    var loadedKnots = window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH, brand) : [];
+    if (state.setKnots) state.setKnots(loadedKnots);
     state.setExactPixelArt(!!s.exactPixelArt);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     if (state.setCrispEdges) state.setCrispEdges(!!s.crispEdges);
@@ -502,8 +549,43 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var savedSyms = project.symbols && typeof project.symbols === "object" ? project.symbols : null;
     restored = applySavedSymbols(restored, savedSyms);
     if (state.setSymbolOverrides) state.setSymbolOverrides(savedSyms ? Object.assign({}, savedSyms) : {});
+
+    var loadedPartials;
+    if (project.partialStitches && Array.isArray(project.partialStitches)) {
+      loadedPartials = new Map();
+      project.partialStitches.forEach(function(entry) {
+        var idx = entry[0], v = entry[1];
+        var pe = {};
+        ["TL","TR","BL","BR"].forEach(function(q) {
+          if (v[q]) pe[q] = restoreStitch(Object.assign({}, v[q], { type: v[q].type || (typeof v[q].id === "string" && v[q].id.includes("+") ? "blend" : "solid") }), brand);
+        });
+        loadedPartials.set(idx, pe);
+      });
+    } else if (project.halfStitches && Array.isArray(project.halfStitches)) {
+      // Migrate v9 half-stitch format to v10 quadrant format
+      loadedPartials = new Map();
+      project.halfStitches.forEach(function(entry) {
+        var idx = entry[0], v = entry[1];
+        var migrated = migrateHalfStitch(v);
+        var pe = {};
+        ["TL","TR","BL","BR"].forEach(function(q) {
+          if (migrated[q]) pe[q] = restoreStitch(Object.assign({}, migrated[q], { type: migrated[q].type || (typeof migrated[q].id === "string" && migrated[q].id.includes("+") ? "blend" : "solid") }), brand);
+        });
+        loadedPartials.set(idx, pe);
+      });
+    } else {
+      loadedPartials = new Map();
+    }
     var result = buildPalette(restored);
+    var partExtras = creatorPartOnlyPaletteEntries(result, loadedPartials, loadedBs, loadedKnots, loadedSpec, savedSyms, brand);
+    if (partExtras.length) {
+      var extraMap = {};
+      partExtras.forEach(function(e) { extraMap[e.id] = e; });
+      result = { pal: result.pal.concat(partExtras), cmap: Object.assign({}, result.cmap, extraMap) };
+    }
+    if (state.setScratchPalette) state.setScratchPalette(partExtras);
     state.setPat(restored); state.setPal(result.pal); state.setCmap(result.cmap);
+    state.setPartialStitches(loadedPartials);
     state.setTab("pattern"); state.setActiveTool(null); state.setSelectedColorId(null);
     state.setEditHistory([]); state.setRedoHistory([]); state.setSidebarOpen(true);
     state.setThreadOwned(project.threadOwned || {});
@@ -519,34 +601,6 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (project.hlRow >= 0) state.setHlRow(project.hlRow);
     if (project.hlCol >= 0) state.setHlCol(project.hlCol);
     state.setIsScratchMode(!!s.isScratchMode);
-
-    if (project.partialStitches && Array.isArray(project.partialStitches)) {
-      var pm = new Map();
-      project.partialStitches.forEach(function(entry) {
-        var idx = entry[0], v = entry[1];
-        var pe = {};
-        ["TL","TR","BL","BR"].forEach(function(q) {
-          if (v[q]) pe[q] = restoreStitch(Object.assign({}, v[q], { type: v[q].type || (typeof v[q].id === "string" && v[q].id.includes("+") ? "blend" : "solid") }), brand);
-        });
-        pm.set(idx, pe);
-      });
-      state.setPartialStitches(pm);
-    } else if (project.halfStitches && Array.isArray(project.halfStitches)) {
-      // Migrate v9 half-stitch format to v10 quadrant format
-      var pm2 = new Map();
-      project.halfStitches.forEach(function(entry) {
-        var idx = entry[0], v = entry[1];
-        var migrated = migrateHalfStitch(v);
-        var pe = {};
-        ["TL","TR","BL","BR"].forEach(function(q) {
-          if (migrated[q]) pe[q] = restoreStitch(Object.assign({}, migrated[q], { type: migrated[q].type || (typeof migrated[q].id === "string" && migrated[q].id.includes("+") ? "blend" : "solid") }), brand);
-        });
-        pm2.set(idx, pe);
-      });
-      state.setPartialStitches(pm2);
-    } else {
-      state.setPartialStitches(new Map());
-    }
     state.setPartialStitchTool(null);
     state.setProjectName(project.name || "");
     state.setProjectDesigner(project.designer || "");

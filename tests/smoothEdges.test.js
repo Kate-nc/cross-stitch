@@ -219,4 +219,84 @@ describe('applySmoothEdges', () => {
     expect(s.toasts.pop().type).toBe('info');
     expect(s.editHistory).toEqual([]);
   });
+
+  test('1-wide diagonal surrounded by the same colour avoids a crossing opposite half stitch', () => {
+    const c = chart(['#ooo', 'o#oo', 'oo#o', 'ooo#']);
+    const p = plan(c, { mode: 'trim', keepSquare: true });
+    // Middle cells (1,1)=5 and (2,2)=10 become clean \ half stitches without crossing / black half stitches.
+    expect(byIdx(p)[5]).toEqual({ TL: r, BR: r });
+    expect(p.counts).toEqual({ threeQuarter: 0, half: 2, quarter: 0 });
+  });
+
+  test('1-wide diagonal between two different colours keeps each side as a quarter stitch', () => {
+    const BLUE = { id: '796', type: 'solid', rgb: [20, 40, 160] };
+    const b = { id: '796', rgb: BLUE.rgb };
+    const c = chart(['#ooo', '.#oo', '..#o', '...#']);
+    // Paint bottom-left side blue.
+    [4, 8, 9, 12, 13, 14].forEach(i => { c.pat[i] = Object.assign({}, BLUE); });
+    const p = plan(c, { mode: 'trim', keepSquare: true });
+    expect(byIdx(p)[5]).toEqual({ TL: r, BR: r, TR: k, BL: b });
+    expect(p.counts).toEqual({ threeQuarter: 0, half: 2, quarter: 4 });
+  });
+
+  test('1-wide diagonal matching its own colour on one side still trims the exposed side as a 3/4 stitch', () => {
+    // Only the diagonal is selected; bottom-left is unselected red, top-right is black.
+    const c = chart(['#ooo', '##oo', '###o', '####'], ['#...', '.#..', '..#.', '...#']);
+    const p = plan(c, { mode: 'trim', keepSquare: true });
+    expect(byIdx(p)[5]).toEqual({ TL: r, BL: r, BR: r, TR: k });
+    expect(p.counts).toEqual({ threeQuarter: 2, half: 0, quarter: 2 });
+  });
+
+  test('preserves brand metadata on smoothed quadrants', () => {
+    const c = chart(['#...', '##..', '###.', '####']);
+    c.pat.forEach(cell => { if (cell.id === '321') cell.brand = 'anchor'; });
+    const p = plan(c, { mode: 'trim', keepSquare: true });
+    expect(byIdx(p)[5].TL.brand).toBe('anchor');
+  });
+
+  test('undo/redo toast counts filled cells when smoothing onto bare fabric', () => {
+    const c = chart(['#...', '##..', '###.', '####']);
+    const s = store(c);
+    // Override useState so smoothOptions starts in fill mode.
+    let call = 0;
+    global.React = {
+      useState: (init) => {
+        call++;
+        if (call === 1) return [c.mask, () => {}];
+        if (init && init.mode === 'trim') return [{ mode: 'fill', keepSquare: true }, () => {}];
+        return [init, () => {}];
+      },
+      useMemo: (fn) => fn(),
+      useEffect: () => {}
+    };
+    window.useMagicWand(s).applySmoothEdges();
+    expect(s.editHistory[0].changes).toEqual([]);
+    expect(s.editHistory[0].psChanges).toHaveLength(3);
+    window.useEditHistory(s).undoEdit();
+    expect(s.toasts.pop().msg).toBe('Undo: reverted 3 cells');
+    window.useEditHistory(s).redoEdit();
+    expect(s.toasts.pop().msg).toBe('Redo: restored 3 cells');
+  });
+
+  test('drawPartialStitchLegs draws half, 3/4 and 1/4 stitch legs for Stitched/Realistic previews', () => {
+    const helperSrc = read('helpers.js');
+    const analyseMatch = helperSrc.match(/function analysePartialStitches\([\s\S]*?\n\}/);
+    const localWin = {};
+    new Function('window', 'analysePartialStitches',
+      analyseMatch[0] + '\n' + read('creator/StitchedPreview.js'))(localWin, null);
+    const strokes = [];
+    const ctx2d = {
+      beginPath: () => {},
+      moveTo: (x, y) => strokes.push(['M', x, y]),
+      lineTo: (x, y) => strokes.push(['L', x, y]),
+      stroke: () => strokes.push(['S'])
+    };
+    // 3/4 red + 1/4 black cell (as SmoothEdges produces against an outline)
+    localWin.drawPartialStitchLegs(ctx2d, 16, { TL: r, BL: r, BR: r, TR: k }, EMPTY, 0.85, 0, 0);
+    expect(strokes.filter(s => s[0] === 'S').length).toBeGreaterThanOrEqual(6);
+    // Half stitch /
+    strokes.length = 0;
+    localWin.drawPartialStitchLegs(ctx2d, 16, { BL: r, TR: r }, EMPTY, 0.85, 0, 0);
+    expect(strokes.filter(s => s[0] === 'S').length).toBeGreaterThanOrEqual(2);
+  });
 });

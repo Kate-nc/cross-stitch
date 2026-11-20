@@ -23,6 +23,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var pat = ctx.pat;
   var cmap = ctx.cmap;
   var pal = ctx.pal;
+  var partialStitches = ctx.partialStitches;
   var sW = ctx.sW;
   var sH = ctx.sH;
   var review = !!(props && props.review);
@@ -396,8 +397,12 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
       }
     }
 
+    var hasPartials = !!(partialStitches && typeof partialStitches.get === "function" && partialStitches.size > 0);
+
     // Render every stitched cell using its cached tile
     for (var i = 0; i < pat.length; i++) {
+      var psHere = hasPartials ? partialStitches.get(i) : null;
+      if (psHere && (psHere.TL || psHere.TR || psHere.BL || psHere.BR)) continue;
       var cell = pat[i];
       if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
 
@@ -443,11 +448,20 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
       oc.drawImage(getTile(rgb, rgb2, variant3), cellX, cellY);
     }
 
+    // Render partial stitches (half, 3/4, 1/4) as fractional thread legs on the woven fabric.
+    if (hasPartials && typeof window.drawPartialStitchLegs === "function") {
+      partialStitches.forEach(function(psEntry, pIdx) {
+        if (pIdx < 0 || pIdx >= pat.length || !psEntry || !(psEntry.TL || psEntry.TR || psEntry.BL || psEntry.BR)) return;
+        var pCol = pIdx % sW, pRow = Math.floor(pIdx / sW);
+        window.drawPartialStitchLegs(oc, CELL_SIZE, psEntry, pat[pIdx], coverage, pCol * CELL_SIZE, pRow * CELL_SIZE);
+      });
+    }
+
     offscreenRef.current = offscreen;
     setOffscreenVersion(function(v) { return v + 1; });
     }); // end of RAF callback
     return function() { if (realisticRafRef.current) { cancelAnimationFrame(realisticRafRef.current); realisticRafRef.current = null; } };
-  }, [pat, cmap, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride, app.fabricColour, review]);
+  }, [pat, cmap, partialStitches, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride, app.fabricColour, review]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.

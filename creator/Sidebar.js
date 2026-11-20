@@ -136,7 +136,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // A palette count is full stitches only. Colours still used by part
     // stitches, backstitch or knots read 0 but aren't unused (as
     // removeUnusedColours / removeScratchColour).
-    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(ctx.partialStitches, cv.bsLines, ctx.knots) : new Set();
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(ctx.partialStitches, cv.bsLines, ctx.knots, ctx.specialtyStitches) : new Set();
     var chips = displayPal.map(function(p) {
       var isSelected = cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;

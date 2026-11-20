@@ -17,6 +17,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var pat = ctx.pat;
   var cmap = ctx.cmap;
   var pal = ctx.pal;
+  var partialStitches = ctx.partialStitches;
   var sW = ctx.sW;
   var sH = ctx.sH;
   var cs = cv.cs;
@@ -46,10 +47,29 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     var FABRIC_R = _fabMatch ? parseInt(_fabMatch[1], 16) : 255;
     var FABRIC_G = _fabMatch ? parseInt(_fabMatch[2], 16) : 255;
     var FABRIC_B = _fabMatch ? parseInt(_fabMatch[3], 16) : 255;
+    var hasPs = !!(partialStitches && typeof partialStitches.get === "function" && partialStitches.size > 0);
+    var QUADS = ["TL", "TR", "BL", "BR"];
 
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
       var px = i * 4;
+      var ps = hasPs ? partialStitches.get(i) : null;
+
+      if (ps && (ps.TL || ps.TR || ps.BL || ps.BR)) {
+        var rSum = 0, gSum = 0, bSum = 0;
+        var baseRgb = (cell && cell.id !== "__skip__" && cell.id !== "__empty__") ? cell.rgb : null;
+        for (var qi = 0; qi < 4; qi++) {
+          var qRgb = (ps[QUADS[qi]] && ps[QUADS[qi]].rgb) || baseRgb;
+          rSum += qRgb ? qRgb[0] : FABRIC_R;
+          gSum += qRgb ? qRgb[1] : FABRIC_G;
+          bSum += qRgb ? qRgb[2] : FABRIC_B;
+        }
+        d[px]     = Math.round(rSum / 4);
+        d[px + 1] = Math.round(gSum / 4);
+        d[px + 2] = Math.round(bSum / 4);
+        d[px + 3] = 255;
+        continue;
+      }
 
       if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
         d[px]     = FABRIC_R;
@@ -86,7 +106,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     offscreenRef.current = offscreen;
     // Increment version so Effect B knows to re-draw
     setOffscreenVersion(function(v) { return v + 1; });
-  }, [pat, cmap, sW, sH, fabricColour]);
+  }, [pat, cmap, partialStitches, sW, sH, fabricColour]);
 
   // Effect B — draw the offscreen image onto the display canvas at the current zoom level,
   // then overlay the grid if enabled.
@@ -109,6 +129,32 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
 
     // Draw the upscaled pixel image (nearest-neighbour via pixelated CSS + disabled smoothing)
     ctx2d.drawImage(offscreenRef.current, 0, 0, sW * cs, sH * cs);
+
+    // Draw part stitches (half, 3/4, 1/4) at display resolution over fabric.
+    if (partialStitches && partialStitches.size > 0 && cs >= 2 && typeof analysePartialStitches === "function") {
+      var fabFill = /^#[0-9a-fA-F]{6}$/.test(fabricColour || "") ? fabricColour : "#FFFFFF";
+      partialStitches.forEach(function(psEntry, idx) {
+        if (idx < 0 || idx >= sW * sH || !psEntry || !(psEntry.TL || psEntry.TR || psEntry.BL || psEntry.BR)) return;
+        var gx = idx % sW, gy = Math.floor(idx / sW);
+        var cx = gx * cs, cy = gy * cs;
+        ctx2d.fillStyle = fabFill;
+        ctx2d.fillRect(cx, cy, cs, cs);
+        var instrs = analysePartialStitches(psEntry, pat && pat[idx]);
+        for (var k = 0; k < instrs.length; k++) {
+          var inst = instrs[k];
+          if (inst.type === "three-quarter" && typeof drawThreeQuarterStitch === "function") {
+            drawThreeQuarterStitch(ctx2d, cx, cy, cs, inst.colour, inst.emptyCorner, 1, "color", null);
+          } else if (inst.type === "quarter" && typeof drawQuarterStitch === "function") {
+            drawQuarterStitch(ctx2d, cx, cy, cs, inst.colour, inst.corner, 1, "color", null);
+          } else if (inst.type === "half" && typeof drawHalfTriangle === "function") {
+            drawHalfTriangle(ctx2d, cx, cy, cs, inst.direction, inst.colour.rgb, 1);
+            if (cs >= 4 && typeof drawHalfLine === "function") {
+              drawHalfLine(ctx2d, cx, cy, cs, inst.direction, inst.colour.rgb, 1, Math.max(1, cs * 0.14));
+            }
+          }
+        }
+      });
+    }
 
     // Grid overlay — drawn at display resolution so lines are always exactly 1px
     if (previewShowGrid && cs >= 2) {
@@ -145,7 +191,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
       }
       ctx2d.stroke();
     }
-  }, [offscreenVersion, cs, sW, sH, previewShowGrid]);
+  }, [offscreenVersion, partialStitches, pat, fabricColour, cs, sW, sH, previewShowGrid]);
 
   // Threads and chart symbols for the status bar (audit IMG-02).
   var countsText = typeof window.threadCountsShort === "function"

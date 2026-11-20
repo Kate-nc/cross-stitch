@@ -43,8 +43,17 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   }, [menu.x, menu.y]);
 
   var cell = menu.cell;
-  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
-  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
+  var effCell = (cell && cell.id !== "__skip__" && cell.id !== "__empty__") ? cell : null;
+  if (!effCell && ctx.partialStitches && menu.idx != null) {
+    var psCell = ctx.partialStitches.get(menu.idx);
+    if (psCell) {
+      effCell = window.StitchTypeConvert && window.StitchTypeConvert.dominantColour
+        ? window.StitchTypeConvert.dominantColour(cell, psCell, "full")
+        : (psCell.TL || psCell.TR || psCell.BL || psCell.BR || null);
+    }
+  }
+  var hasCellColour = !!(effCell && effCell.id !== "__skip__" && effCell.id !== "__empty__" && ctx.cmap && ctx.cmap[effCell.id]);
+  var cellInfo = hasCellColour ? ctx.cmap[effCell.id] : null;
 
   function item(label, onClick, opts) {
     opts = opts || {};

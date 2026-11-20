@@ -35,15 +35,26 @@ window.StitchedEdits = (function() {
     return a.id !== b.id || (a.type || "solid") !== (b.type || "solid");
   }
 
-  function stitchedResets(done, changes, newPat) {
+  function stitchedResets(done, changes, newPat, psChanges) {
     var out = [];
-    if (!done || !changes || !changes.length || !newPat) return out;
+    var hasChanges = !!(changes && changes.length);
+    var hasPs = !!(psChanges && psChanges.length);
+    if (!done || !newPat || (!hasChanges && !hasPs)) return out;
     var seen = {};
-    for (var i = 0; i < changes.length; i++) {
-      var c = changes[i], idx = c && c.idx;
-      if (idx == null || seen[idx] || idx < 0 || idx >= done.length || done[idx] !== 1) continue;
-      seen[idx] = true;
-      if (cellChanged(c.old, newPat[idx])) out.push(idx);
+    if (hasChanges) {
+      for (var i = 0; i < changes.length; i++) {
+        var c = changes[i], idx = c && c.idx;
+        if (idx == null || seen[idx] || idx < 0 || idx >= done.length || done[idx] !== 1) continue;
+        if (cellChanged(c.old, newPat[idx])) { seen[idx] = true; out.push(idx); }
+      }
+    }
+    if (hasPs) {
+      for (var j = 0; j < psChanges.length; j++) {
+        var pc = psChanges[j], pidx = pc && pc.idx;
+        if (pidx == null || seen[pidx] || pidx < 0 || pidx >= done.length || done[pidx] !== 1) continue;
+        seen[pidx] = true;
+        out.push(pidx);
+      }
     }
     return out;
   }
@@ -91,12 +102,15 @@ window.StitchedEdits = (function() {
   }
 
   // t: { drawMode, activeTool, brushMode, stitchType, brushSize, partialStitchTool,
-  //      hasSelection, selectionCount, mirrorOn, stitchedView }
+  //      hasSelection, selectionCount, mirrorOn, stitchedView, wandPanel, smoothMode }
   function actionReach(t) {
     if (!t || t.stitchedView || t.drawMode === false) return null;
     var tool = t.activeTool;
     if (t.hasSelection && (t.selectionCount || 0) > 0) {
       var n = t.selectionCount;
+      if (t.wandPanel === "smooth" && t.smoothMode === "fill") {
+        return "Smooth edges (Fill the steps) also changes steps just outside the " + n.toLocaleString() + " selected stitch" + (n === 1 ? "" : "es") + ".";
+      }
       return "Delete, Move and the Selection menu change only the " + n.toLocaleString() + " selected stitch" + (n === 1 ? "" : "es") + ".";
     }
     if (tool === "colourReplace") return "Replace colour changes every stitch of the colour you click.";
@@ -120,6 +134,7 @@ window.creatorActionReach = function(cv, ctx, stitchedView) {
     drawMode: cv.drawMode, activeTool: cv.activeTool, brushMode: cv.brushMode, stitchType: cv.stitchType,
     brushSize: cv.brushSize, partialStitchTool: ctx && ctx.partialStitchTool,
     hasSelection: !!cv.hasSelection, selectionCount: cv.selectionCount || 0,
-    mirrorOn: !!(cv.mirror && cv.mirror.on), stitchedView: !!stitchedView
+    mirrorOn: !!(cv.mirror && cv.mirror.on), stitchedView: !!stitchedView,
+    wandPanel: cv.wandPanel, smoothMode: cv.smoothOptions && cv.smoothOptions.mode
   });
 };

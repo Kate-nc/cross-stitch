@@ -8583,7 +8583,7 @@ body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start
 .cs-sttype { display: flex; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--surface-secondary); }
 .cs-sttype__btn {
   flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 30px; padding: 0 8px; border: none; border-radius: var(--radius-sm);
+  min-height: 32px; padding: 0 8px; border: none; border-radius: var(--radius-sm);
   background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--text-sm);
   white-space: nowrap; cursor: pointer;
 }
@@ -8664,6 +8664,10 @@ body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start
   /* Toasts sit just above the sheet while it is open. */
   body.cs-smooth-open .creator-toast-container,
   body.cs-smooth-open [data-toast-container] { bottom: calc(var(--cs-smooth-h, 0px) + 8px) !important; }
+}
+@media (pointer: coarse) {
+  .cs-smooth__close { width: 44px; height: 44px; }
+  .cs-smooth__check { min-height: 44px; }
 }
 .cs-sttype-row__label { display: block; margin: 0 4px 4px; font-size: var(--text-xs); color: var(--text-tertiary); }
 .cs-sttype-row--panel { padding: var(--s-2) 0 0; }

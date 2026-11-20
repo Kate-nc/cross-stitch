@@ -2805,6 +2805,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
   var pat = ctx.pat;
   var cmap = ctx.cmap;
   var pal = ctx.pal;
+  var partialStitches = ctx.partialStitches;
   var sW = ctx.sW;
   var sH = ctx.sH;
   var cs = cv.cs;
@@ -2834,10 +2835,29 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     var FABRIC_R = _fabMatch ? parseInt(_fabMatch[1], 16) : 255;
     var FABRIC_G = _fabMatch ? parseInt(_fabMatch[2], 16) : 255;
     var FABRIC_B = _fabMatch ? parseInt(_fabMatch[3], 16) : 255;
+    var hasPs = !!(partialStitches && typeof partialStitches.get === "function" && partialStitches.size > 0);
+    var QUADS = ["TL", "TR", "BL", "BR"];
 
     for (var i = 0; i < pat.length; i++) {
       var cell = pat[i];
       var px = i * 4;
+      var ps = hasPs ? partialStitches.get(i) : null;
+
+      if (ps && (ps.TL || ps.TR || ps.BL || ps.BR)) {
+        var rSum = 0, gSum = 0, bSum = 0;
+        var baseRgb = (cell && cell.id !== "__skip__" && cell.id !== "__empty__") ? cell.rgb : null;
+        for (var qi = 0; qi < 4; qi++) {
+          var qRgb = (ps[QUADS[qi]] && ps[QUADS[qi]].rgb) || baseRgb;
+          rSum += qRgb ? qRgb[0] : FABRIC_R;
+          gSum += qRgb ? qRgb[1] : FABRIC_G;
+          bSum += qRgb ? qRgb[2] : FABRIC_B;
+        }
+        d[px]     = Math.round(rSum / 4);
+        d[px + 1] = Math.round(gSum / 4);
+        d[px + 2] = Math.round(bSum / 4);
+        d[px + 3] = 255;
+        continue;
+      }
 
       if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
         d[px]     = FABRIC_R;
@@ -2874,7 +2894,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     offscreenRef.current = offscreen;
     // Increment version so Effect B knows to re-draw
     setOffscreenVersion(function(v) { return v + 1; });
-  }, [pat, cmap, sW, sH, fabricColour]);
+  }, [pat, cmap, partialStitches, sW, sH, fabricColour]);
 
   // Effect B — draw the offscreen image onto the display canvas at the current zoom level,
   // then overlay the grid if enabled.
@@ -2897,6 +2917,32 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
 
     // Draw the upscaled pixel image (nearest-neighbour via pixelated CSS + disabled smoothing)
     ctx2d.drawImage(offscreenRef.current, 0, 0, sW * cs, sH * cs);
+
+    // Draw part stitches (half, 3/4, 1/4) at display resolution over fabric.
+    if (partialStitches && partialStitches.size > 0 && cs >= 2 && typeof analysePartialStitches === "function") {
+      var fabFill = /^#[0-9a-fA-F]{6}$/.test(fabricColour || "") ? fabricColour : "#FFFFFF";
+      partialStitches.forEach(function(psEntry, idx) {
+        if (idx < 0 || idx >= sW * sH || !psEntry || !(psEntry.TL || psEntry.TR || psEntry.BL || psEntry.BR)) return;
+        var gx = idx % sW, gy = Math.floor(idx / sW);
+        var cx = gx * cs, cy = gy * cs;
+        ctx2d.fillStyle = fabFill;
+        ctx2d.fillRect(cx, cy, cs, cs);
+        var instrs = analysePartialStitches(psEntry, pat && pat[idx]);
+        for (var k = 0; k < instrs.length; k++) {
+          var inst = instrs[k];
+          if (inst.type === "three-quarter" && typeof drawThreeQuarterStitch === "function") {
+            drawThreeQuarterStitch(ctx2d, cx, cy, cs, inst.colour, inst.emptyCorner, 1, "color", null);
+          } else if (inst.type === "quarter" && typeof drawQuarterStitch === "function") {
+            drawQuarterStitch(ctx2d, cx, cy, cs, inst.colour, inst.corner, 1, "color", null);
+          } else if (inst.type === "half" && typeof drawHalfTriangle === "function") {
+            drawHalfTriangle(ctx2d, cx, cy, cs, inst.direction, inst.colour.rgb, 1);
+            if (cs >= 4 && typeof drawHalfLine === "function") {
+              drawHalfLine(ctx2d, cx, cy, cs, inst.direction, inst.colour.rgb, 1, Math.max(1, cs * 0.14));
+            }
+          }
+        }
+      });
+    }
 
     // Grid overlay — drawn at display resolution so lines are always exactly 1px
     if (previewShowGrid && cs >= 2) {
@@ -2933,7 +2979,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
       }
       ctx2d.stroke();
     }
-  }, [offscreenVersion, cs, sW, sH, previewShowGrid]);
+  }, [offscreenVersion, partialStitches, pat, fabricColour, cs, sW, sH, previewShowGrid]);
 
   // Threads and chart symbols for the status bar (audit IMG-02).
   var countsText = typeof window.threadCountsShort === "function"
@@ -2977,6 +3023,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var pat = ctx.pat;
   var cmap = ctx.cmap;
   var pal = ctx.pal;
+  var partialStitches = ctx.partialStitches;
   var sW = ctx.sW;
   var sH = ctx.sH;
   var review = !!(props && props.review);
@@ -3350,8 +3397,12 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
       }
     }
 
+    var hasPartials = !!(partialStitches && typeof partialStitches.get === "function" && partialStitches.size > 0);
+
     // Render every stitched cell using its cached tile
     for (var i = 0; i < pat.length; i++) {
+      var psHere = hasPartials ? partialStitches.get(i) : null;
+      if (psHere && (psHere.TL || psHere.TR || psHere.BL || psHere.BR)) continue;
       var cell = pat[i];
       if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
 
@@ -3397,11 +3448,20 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
       oc.drawImage(getTile(rgb, rgb2, variant3), cellX, cellY);
     }
 
+    // Render partial stitches (half, 3/4, 1/4) as fractional thread legs on the woven fabric.
+    if (hasPartials && typeof window.drawPartialStitchLegs === "function") {
+      partialStitches.forEach(function(psEntry, pIdx) {
+        if (pIdx < 0 || pIdx >= pat.length || !psEntry || !(psEntry.TL || psEntry.TR || psEntry.BL || psEntry.BR)) return;
+        var pCol = pIdx % sW, pRow = Math.floor(pIdx / sW);
+        window.drawPartialStitchLegs(oc, CELL_SIZE, psEntry, pat[pIdx], coverage, pCol * CELL_SIZE, pRow * CELL_SIZE);
+      });
+    }
+
     offscreenRef.current = offscreen;
     setOffscreenVersion(function(v) { return v + 1; });
     }); // end of RAF callback
     return function() { if (realisticRafRef.current) { cancelAnimationFrame(realisticRafRef.current); realisticRafRef.current = null; } };
-  }, [pat, cmap, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride, app.fabricColour, review]);
+  }, [pat, cmap, partialStitches, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride, app.fabricColour, review]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.
@@ -3845,10 +3905,26 @@ window.StitchTypeConvert = (function() {
     return colours[best];
   }
 
+  function quadEntry(src) {
+    var o = { id: src.id, rgb: src.rgb };
+    if (src.brand) o.brand = src.brand;
+    if (src.type && src.type !== "solid") o.type = src.type;
+    if (src.threads) o.threads = src.threads;
+    if (src.blendRatio) o.blendRatio = src.blendRatio;
+    if (src.blend_ratio) o.blend_ratio = src.blend_ratio;
+    return o;
+  }
+
   function fullEntry(src, cmap) {
     var e = cmap && cmap[src.id];
     if (e) return Object.assign({}, e);
-    return { id: src.id, type: src.type || "solid", rgb: src.rgb };
+    var inferredType = src.type || (typeof src.id === "string" && src.id.indexOf("+") !== -1 ? "blend" : "solid");
+    var o = { id: src.id, type: inferredType, rgb: src.rgb };
+    if (src.brand) o.brand = src.brand;
+    if (src.threads) o.threads = src.threads;
+    if (src.blendRatio) o.blendRatio = src.blendRatio;
+    if (src.blend_ratio) o.blend_ratio = src.blend_ratio;
+    return o;
   }
 
   function convertSelection(pat, partials, mask, target, cmap) {
@@ -3869,7 +3945,7 @@ window.StitchTypeConvert = (function() {
       } else {
         if (!isBlank(cell)) nextCell = { id: "__empty__", rgb: [255, 255, 255] };
         nextPs = {};
-        DIAG[target].forEach(function(q) { nextPs[q] = { id: colour.id, rgb: colour.rgb }; });
+        DIAG[target].forEach(function(q) { nextPs[q] = quadEntry(colour); });
       }
 
       if (nextCell !== cell) {
@@ -3888,19 +3964,24 @@ window.StitchTypeConvert = (function() {
     return out;
   }
 
-  function partColourIds(partials, bsLines, knots) {
+  function partColourIds(partials, bsLines, knots, specialtyStitches) {
     var ids = new Set();
     if (partials) partials.forEach(function(entry) {
       QUADS.forEach(function(q) { if (entry && entry[q] && entry[q].id != null) ids.add(String(entry[q].id)); });
     });
     (bsLines || []).forEach(function(ln) { if (ln && ln.colorId != null) ids.add(String(ln.colorId)); });
     (knots || []).forEach(function(k) { if (k && k.id != null) ids.add(String(k.id)); });
+    (specialtyStitches || []).forEach(function(st) {
+      var sid = st && st.thread && st.thread.id != null ? st.thread.id : (st && st.id != null ? st.id : null);
+      if (sid != null) ids.add(String(sid));
+    });
     return ids;
   }
 
   return {
     TARGETS: TARGETS,
     partColourIds: partColourIds,
+    dominantColour: dominantColour,
     cellKind: cellKind,
     selectionKind: selectionKind,
     convertSelection: convertSelection
@@ -3962,7 +4043,15 @@ window.SmoothEdges = (function() {
     return !!ps && !!(ps.TL || ps.TR || ps.BL || ps.BR);
   }
 
-  function q(c) { return { id: c.id, rgb: c.rgb }; }
+  function q(c) {
+    var o = { id: c.id, rgb: c.rgb };
+    if (c.brand) o.brand = c.brand;
+    if (c.type && c.type !== "solid") o.type = c.type;
+    if (c.threads) o.threads = c.threads;
+    if (c.blendRatio) o.blendRatio = c.blendRatio;
+    if (c.blend_ratio) o.blend_ratio = c.blend_ratio;
+    return o;
+  }
 
   // The colour covering most of a cell, or null for bare fabric.
   function colourOf(cell, ps) {
@@ -4025,17 +4114,29 @@ window.SmoothEdges = (function() {
           cut = exposed;                                   // a 1-wide diagonal line
         }
         if (!cut) continue;
-        var entry = {}, quarters = 0, same = false;
-        QUADS.forEach(function(c) { if (cut.indexOf(c) === -1) entry[c] = q(cell); });
+        var actualCut = [], otherBy = {};
         cut.forEach(function(c) {
           var d = DIR[c];
           var other = majority([colourAt(x + d[0], y), colourAt(x, y + d[1]), colourAt(x + d[0], y + d[1])], 2);
-          if (other && other.id === cell.id) same = true;
-          else if (other) { entry[c] = q(other); quarters++; }
+          if (other && other.id === cell.id) return;       // this corner matches the cell: leave uncut
+          actualCut.push(c);
+          if (other) otherBy[c] = other;
         });
-        if (same) continue;                                // nothing would change
-        out.cells.push({ idx: i, entry: entry, hatch: cut[0], hatch2: cut[1] || null });
-        if (cut.length === 2) out.counts.half++; else out.counts.threeQuarter++;
+        if (!actualCut.length) continue;                   // nothing would change
+        // Cutting both opposite corners of a 1-wide diagonal against the same
+        // colour would pair those two quarters into a crossing half stitch (an
+        // X over the diagonal) in analysePartialStitches. Leave them empty.
+        if (actualCut.length === 2 && otherBy[actualCut[0]] && otherBy[actualCut[1]] &&
+            otherBy[actualCut[0]].id === otherBy[actualCut[1]].id) {
+          otherBy = {};
+        }
+        var entry = {}, quarters = 0;
+        QUADS.forEach(function(c) { if (actualCut.indexOf(c) === -1) entry[c] = q(cell); });
+        actualCut.forEach(function(c) {
+          if (otherBy[c]) { entry[c] = q(otherBy[c]); quarters++; }
+        });
+        out.cells.push({ idx: i, entry: entry, hatch: actualCut[0], hatch2: actualCut[1] || null });
+        if (actualCut.length === 2) out.counts.half++; else out.counts.threeQuarter++;
         out.counts.quarter += quarters;
       } else {
         if (inside(x, y)) continue;
@@ -4123,15 +4224,26 @@ window.StitchedEdits = (function() {
     return a.id !== b.id || (a.type || "solid") !== (b.type || "solid");
   }
 
-  function stitchedResets(done, changes, newPat) {
+  function stitchedResets(done, changes, newPat, psChanges) {
     var out = [];
-    if (!done || !changes || !changes.length || !newPat) return out;
+    var hasChanges = !!(changes && changes.length);
+    var hasPs = !!(psChanges && psChanges.length);
+    if (!done || !newPat || (!hasChanges && !hasPs)) return out;
     var seen = {};
-    for (var i = 0; i < changes.length; i++) {
-      var c = changes[i], idx = c && c.idx;
-      if (idx == null || seen[idx] || idx < 0 || idx >= done.length || done[idx] !== 1) continue;
-      seen[idx] = true;
-      if (cellChanged(c.old, newPat[idx])) out.push(idx);
+    if (hasChanges) {
+      for (var i = 0; i < changes.length; i++) {
+        var c = changes[i], idx = c && c.idx;
+        if (idx == null || seen[idx] || idx < 0 || idx >= done.length || done[idx] !== 1) continue;
+        if (cellChanged(c.old, newPat[idx])) { seen[idx] = true; out.push(idx); }
+      }
+    }
+    if (hasPs) {
+      for (var j = 0; j < psChanges.length; j++) {
+        var pc = psChanges[j], pidx = pc && pc.idx;
+        if (pidx == null || seen[pidx] || pidx < 0 || pidx >= done.length || done[pidx] !== 1) continue;
+        seen[pidx] = true;
+        out.push(pidx);
+      }
     }
     return out;
   }
@@ -4179,12 +4291,15 @@ window.StitchedEdits = (function() {
   }
 
   // t: { drawMode, activeTool, brushMode, stitchType, brushSize, partialStitchTool,
-  //      hasSelection, selectionCount, mirrorOn, stitchedView }
+  //      hasSelection, selectionCount, mirrorOn, stitchedView, wandPanel, smoothMode }
   function actionReach(t) {
     if (!t || t.stitchedView || t.drawMode === false) return null;
     var tool = t.activeTool;
     if (t.hasSelection && (t.selectionCount || 0) > 0) {
       var n = t.selectionCount;
+      if (t.wandPanel === "smooth" && t.smoothMode === "fill") {
+        return "Smooth edges (Fill the steps) also changes steps just outside the " + n.toLocaleString() + " selected stitch" + (n === 1 ? "" : "es") + ".";
+      }
       return "Delete, Move and the Selection menu change only the " + n.toLocaleString() + " selected stitch" + (n === 1 ? "" : "es") + ".";
     }
     if (tool === "colourReplace") return "Replace colour changes every stitch of the colour you click.";
@@ -4208,7 +4323,8 @@ window.creatorActionReach = function(cv, ctx, stitchedView) {
     drawMode: cv.drawMode, activeTool: cv.activeTool, brushMode: cv.brushMode, stitchType: cv.stitchType,
     brushSize: cv.brushSize, partialStitchTool: ctx && ctx.partialStitchTool,
     hasSelection: !!cv.hasSelection, selectionCount: cv.selectionCount || 0,
-    mirrorOn: !!(cv.mirror && cv.mirror.on), stitchedView: !!stitchedView
+    mirrorOn: !!(cv.mirror && cv.mirror.on), stitchedView: !!stitchedView,
+    wandPanel: cv.wandPanel, smoothMode: cv.smoothOptions && cv.smoothOptions.mode
   });
 };
 
@@ -4286,9 +4402,30 @@ window.useMagicWand = function useMagicWand(state) {
     return Math.sqrt(dL * dL + da * da + db * db);
   }
 
-  function getCellLab(idx, pat, cmap) {
+  // Effective colour of a cell: its full stitch, or the dominant quadrant of
+  // its part stitches when pat[idx] is blank (e.g. half stitches / smoothed
+  // edges). Keeps half-stitched and smoothed regions selectable by Wand/All.
+  function effectiveCell(idx, pat, partials) {
     var cell = pat[idx];
-    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return null;
+    if (cell && cell.id !== "__skip__" && cell.id !== "__empty__") return cell;
+    var ps = partials && partials.get(idx);
+    if (!ps) return null;
+    if (window.StitchTypeConvert && window.StitchTypeConvert.dominantColour) {
+      return window.StitchTypeConvert.dominantColour(cell, ps, "full");
+    }
+    return ps.TL || ps.TR || ps.BL || ps.BR || null;
+  }
+
+  function getCellLab(idx, pat, cmap, partials) {
+    var cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+      var ps = partials && partials.get(idx);
+      if (!ps) return null;
+      cell = (typeof window !== "undefined" && window.StitchTypeConvert && window.StitchTypeConvert.dominantColour)
+        ? window.StitchTypeConvert.dominantColour(cell, ps, "full")
+        : (ps.TL || ps.TR || ps.BL || ps.BR || null);
+      if (!cell) return null;
+    }
     var entry = cmap ? cmap[cell.id] : null;
     return labFromEntry(entry || cell);
   }
@@ -4296,12 +4433,10 @@ window.useMagicWand = function useMagicWand(state) {
   // ─── Core selection operations ───────────────────────────────────────────────
 
   // Flood-fill BFS from (startX,startY), selects all 4-connected cells within tolerance
-  function floodSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+  function floodSelect(pat, cmap, sW, sH, startX, startY, tolerance, partials) {
     var mask = new Uint8Array(sW * sH);
     var startIdx = startY * sW + startX;
-    var startCell = pat[startIdx];
-    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
-    var startLab = getCellLab(startIdx, pat, cmap);
+    var startLab = getCellLab(startIdx, pat, cmap, partials);
     if (!startLab) return mask;
 
     var visited = new Uint8Array(sW * sH);
@@ -4310,7 +4445,7 @@ window.useMagicWand = function useMagicWand(state) {
 
     while (queue.length) {
       var idx = queue.pop();
-      var lab = getCellLab(idx, pat, cmap);
+      var lab = getCellLab(idx, pat, cmap, partials);
       if (!lab) continue;
       if (deltaE(startLab, lab) > tolerance) continue;
       mask[idx] = 1;
@@ -4324,17 +4459,13 @@ window.useMagicWand = function useMagicWand(state) {
   }
 
   // Global scan: selects ALL cells matching startCell within tolerance
-  function globalSelect(pat, cmap, sW, sH, startX, startY, tolerance) {
+  function globalSelect(pat, cmap, sW, sH, startX, startY, tolerance, partials) {
     var mask = new Uint8Array(sW * sH);
     var startIdx = startY * sW + startX;
-    var startCell = pat[startIdx];
-    if (!startCell || startCell.id === "__skip__" || startCell.id === "__empty__") return mask;
-    var startLab = getCellLab(startIdx, pat, cmap);
+    var startLab = getCellLab(startIdx, pat, cmap, partials);
     if (!startLab) return mask;
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
+      var lab = getCellLab(i, pat, cmap, partials);
       if (!lab) continue;
       if (deltaE(startLab, lab) <= tolerance) mask[i] = 1;
     }
@@ -4362,18 +4493,18 @@ window.useMagicWand = function useMagicWand(state) {
   // ─── Actions: plain functions (no useCallback — matches codebase pattern) ────
 
   function applyWandSelect(gx, gy, opMode) {
-    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat || !cmap) return;
     if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
     var idx = gy * sW + gx;
-    var cell = pat[idx];
-    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") {
+    var cell = effectiveCell(idx, pat, partials);
+    if (!cell) {
       if (state.addToast) state.addToast("That cell is empty \u2014 nothing to select.", {type:"warning", duration:1500});
       return;
     }
     var newMask = wandContiguous
-      ? floodSelect(pat, cmap, sW, sH, gx, gy, wandTolerance)
-      : globalSelect(pat, cmap, sW, sH, gx, gy, wandTolerance);
+      ? floodSelect(pat, cmap, sW, sH, gx, gy, wandTolerance, partials)
+      : globalSelect(pat, cmap, sW, sH, gx, gy, wandTolerance, partials);
     var merged = mergeMasks(selectionMask, newMask, opMode, sW * sH);
     setSelectionMask(merged);
 
@@ -4396,40 +4527,37 @@ window.useMagicWand = function useMagicWand(state) {
   }
 
   function invertSelection() {
-    var pat = state.pat, sW = state.sW, sH = state.sH;
+    var pat = state.pat, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat) return;
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (!effectiveCell(i, pat, partials)) continue;
       out[i] = selectionMask && selectionMask[i] ? 0 : 1;
     }
     setSelectionMask(out);
   }
 
   function selectAll() {
-    var pat = state.pat, sW = state.sW, sH = state.sH;
+    var pat = state.pat, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat) return;
     var out = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
+      if (!effectiveCell(i, pat, partials)) continue;
       out[i] = 1;
     }
     setSelectionMask(out);
   }
 
   function selectAllOfColorId(colorId, opMode) {
-    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH;
+    var pat = state.pat, cmap = state.cmap, sW = state.sW, sH = state.sH, partials = state.partialStitches;
     if (!pat || !cmap) return;
     var entry = cmap[colorId];
     if (!entry) return;
     var startLab = labFromEntry(entry);
     var newMask = new Uint8Array(sW * sH);
     for (var i = 0; i < pat.length; i++) {
-      var cell = pat[i];
-      if (!cell || cell.id === "__skip__" || cell.id === "__empty__") continue;
-      var lab = getCellLab(i, pat, cmap);
+      if (!effectiveCell(i, pat, partials)) continue;
+      var lab = getCellLab(i, pat, cmap, partials);
       if (!lab) continue;
       if (deltaE(startLab, lab) <= wandTolerance) newMask[i] = 1;
     }
@@ -4757,17 +4885,29 @@ window.useMagicWand = function useMagicWand(state) {
 
   // Rebuild pal / cmap after an edit to the full stitches. The palette is
   // rebuilt from full stitches only, so colours now used only by part
-  // stitches or backstitch lines are kept in the scratch palette, which
-  // keeps their palette entry and symbol through undo and redo.
-  function setPaletteKeepingParts(np, partials, lines) {
+  // stitches, backstitch lines, knots or specialty stitches are kept in the
+  // scratch palette, which keeps their palette entry and symbol through undo
+  // and redo.
+  function setPaletteKeepingParts(np, partials, lines, knots, specialty) {
     var r = state.buildPaletteWithScratch(np);
-    var stillUsed = {};
-    (partials || new Map()).forEach(function(entry) {
-      ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
-    });
-    (lines || []).forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
+    var stc = window.StitchTypeConvert;
+    var usedIds;
+    if (stc && stc.partColourIds) {
+      usedIds = stc.partColourIds(partials, lines, knots, specialty);
+    } else {
+      usedIds = new Set();
+      (partials || new Map()).forEach(function(entry) {
+        ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q] && entry[q].id != null) usedIds.add(String(entry[q].id)); });
+      });
+      (lines || []).forEach(function(ln) { if (ln && ln.colorId != null) usedIds.add(String(ln.colorId)); });
+      (knots || []).forEach(function(k) { if (k && k.id != null) usedIds.add(String(k.id)); });
+      (specialty || []).forEach(function(st) {
+        var sid = st && st.thread && st.thread.id != null ? st.thread.id : (st && st.id != null ? st.id : null);
+        if (sid != null) usedIds.add(String(sid));
+      });
+    }
     var keeps = [];
-    Object.keys(stillUsed).forEach(function(id) {
+    usedIds.forEach(function(id) {
       if (r.cmap[id]) return;
       var old = state.cmap && state.cmap[id];
       if (!old) return;
@@ -4859,7 +4999,7 @@ window.useMagicWand = function useMagicWand(state) {
     state.setRedoHistory([]);
     if (np) {
       state.setPat(np);
-      setPaletteKeepingParts(np, nm || ps, keptBs);
+      setPaletteKeepingParts(np, nm || ps, keptBs, keptKnots, state.specialtyStitches);
     }
     if (nm) state.setPartialStitches(nm);
     if (bsRemoved) state.setBsLines(keptBs);
@@ -4895,7 +5035,7 @@ window.useMagicWand = function useMagicWand(state) {
     }
 
     var entry = { type: "stitchType", changes: res.changes };
-    var reset = res.changes.length && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat);
+    var reset = (res.changes.length || res.psChanges.length) && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat, res.psChanges);
     if (reset) entry.doneReset = reset;
     if (res.psChanges.length) entry.psChanges = res.psChanges;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
@@ -4907,7 +5047,7 @@ window.useMagicWand = function useMagicWand(state) {
     state.setRedoHistory([]);
     if (res.changes.length) {
       state.setPat(res.pat);
-      setPaletteKeepingParts(res.pat, res.partials, state.bsLines);
+      setPaletteKeepingParts(res.pat, res.partials, state.bsLines, state.knots, state.specialtyStitches);
     }
     if (res.psChanges.length) state.setPartialStitches(res.partials);
     if (state.addToast) {
@@ -4942,7 +5082,7 @@ window.useMagicWand = function useMagicWand(state) {
     }
     var res = SME.apply(pat, state.partialStitches, p.cells);
     var entry = { type: "smoothEdges", changes: res.changes, psChanges: res.psChanges };
-    var reset = res.changes.length && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat);
+    var reset = (res.changes.length || res.psChanges.length) && state.guardStitchedEdit && state.guardStitchedEdit(res.changes, res.pat, res.psChanges);
     if (reset) entry.doneReset = reset;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
@@ -4953,7 +5093,7 @@ window.useMagicWand = function useMagicWand(state) {
     state.setRedoHistory([]);
     if (res.changes.length) {
       state.setPat(res.pat);
-      setPaletteKeepingParts(res.pat, res.partials, state.bsLines);
+      setPaletteKeepingParts(res.pat, res.partials, state.bsLines, state.knots, state.specialtyStitches);
     }
     state.setPartialStitches(res.partials);
     setWandPanel(null);
@@ -8681,10 +8821,10 @@ window.useCreatorState = function useCreatorState() {
   var doneRef = useRef(done); doneRef.current = done;
   // Set by CreatorApp: undoes the newest edit if it still carries these cells.
   var undoGuardRef = useRef(null);
-  var guardStitchedEdit = useCallback(function(changes, newPat) {
+  var guardStitchedEdit = useCallback(function(changes, newPat, psChanges) {
     var SE = window.StitchedEdits, cur = doneRef.current;
     if (!SE || !cur) return undefined;
-    var idxs = SE.stitchedResets(cur, changes, newPat);
+    var idxs = SE.stitchedResets(cur, changes, newPat, psChanges);
     if (!idxs.length) return undefined;
     var next = SE.clearDone(cur, idxs);
     doneRef.current = next;
@@ -9117,7 +9257,7 @@ window.useCreatorState = function useCreatorState() {
   function removeScratchColour(id) {
     // E-5: don't let the user orphan stitches by removing an in-use scratch colour.
     var entry = pal ? pal.find(function(p) { return p.id === id; }) : null;
-    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots) : new Set();
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots, specialtyStitches) : new Set();
     if ((entry && entry.count > 0) || inParts.has(String(id))) {
       addToast("Can't remove a scratch colour that's in use — paint over it first", { type: "warning", duration: 3500 });
       return;
@@ -9148,8 +9288,8 @@ window.useCreatorState = function useCreatorState() {
   function removeUnusedColours() {
     if (!pal) return;
     // A count of 0 is full stitches only: keep colours that part stitches,
-    // backstitch or knots still use.
-    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots) : new Set();
+    // backstitch, knots or specialty stitches still use.
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(partialStitches, bsLines, knots, specialtyStitches) : new Set();
     var unused = pal.filter(function(p) { return p.count === 0 && !inParts.has(String(p.id)); });
     if (!unused.length) return;
     var unusedIds = new Set(unused.map(function(p) { return p.id; }));
@@ -9767,6 +9907,7 @@ window.useCreatorState = function useCreatorState() {
     pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt, threadBrand: threadBrand,
     bsLines: bsLines, setBsLines: setBsLines,
     knots: knots, setKnots: setKnots,
+    specialtyStitches: specialtyStitches,
     // Colour replacement also recolours half/quarter stitches.
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     setScratchPalette: setScratchPalette,
@@ -10533,7 +10674,16 @@ window.useEditHistory = function useEditHistory(state) {
     if (last.type === 'move' && last.prevMask !== undefined) {
       state.setSelectionMask(last.prevMask ? last.prevMask.slice() : null);
     }
-    if (state.addToast) state.addToast("Undo: reverted " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
+    if (state.addToast) {
+      var undoCount = last.changes.length;
+      if (last.psChanges && last.psChanges.length) {
+        var undoCells = {};
+        last.changes.forEach(function(c) { undoCells[c.idx] = true; });
+        last.psChanges.forEach(function(c) { undoCells[c.idx] = true; });
+        undoCount = Object.keys(undoCells).length;
+      }
+      state.addToast("Undo: reverted " + undoCount + " cell" + (undoCount !== 1 ? "s" : ""), {type:"info", duration:1500});
+    }
   }
 
   function redoEdit() {
@@ -10674,7 +10824,16 @@ window.useEditHistory = function useEditHistory(state) {
     if (last.type === 'move' && last.nextMask !== undefined) {
       state.setSelectionMask(last.nextMask ? last.nextMask.slice() : null);
     }
-    if (state.addToast) state.addToast("Redo: restored " + last.changes.length + " cell" + (last.changes.length !== 1 ? "s" : ""), {type:"info", duration:1500});
+    if (state.addToast) {
+      var redoCount = last.changes.length;
+      if (last.psChanges && last.psChanges.length) {
+        var redoCells = {};
+        last.changes.forEach(function(c) { redoCells[c.idx] = true; });
+        last.psChanges.forEach(function(c) { redoCells[c.idx] = true; });
+        redoCount = Object.keys(redoCells).length;
+      }
+      state.addToast("Redo: restored " + redoCount + " cell" + (redoCount !== 1 ? "s" : ""), {type:"info", duration:1500});
+    }
   }
 
   return { undoEdit: undoEdit, redoEdit: redoEdit };
@@ -14892,6 +15051,50 @@ function creatorPartialStitchesForSave(partialStitches, state) {
   return psArr;
 }
 
+// Threads used only by part stitches, backstitch, French knots or specialty
+// stitches have no full-stitch cells in `pattern`, so buildPalette() omits
+// them. Rebuild palette entries for them on load (with count: 0, preserving
+// any saved symbol override) so they stay in the Palette tab and keep chart
+// symbols across save/reload.
+function creatorPartOnlyPaletteEntries(baseResult, partials, bsLines, knots, specialty, savedSyms, brand) {
+  var cmap = (baseResult && baseResult.cmap) || {};
+  var pal = (baseResult && baseResult.pal) || [];
+  var byId = {};
+  var order = [];
+  function consider(raw) {
+    if (!raw || raw.id == null) return;
+    var id = String(raw.id);
+    if (!id || id === "__skip__" || id === "__empty__" || cmap[id] || byId[id]) return;
+    var type = raw.type || (id.indexOf("+") !== -1 ? "blend" : "solid");
+    var restored = typeof restoreStitch === "function"
+      ? restoreStitch(Object.assign({}, raw, { id: id, type: type }), brand)
+      : Object.assign({}, raw, { id: id, type: type });
+    var entry = Object.assign({}, restored, { count: 0 });
+    if (savedSyms && savedSyms[id]) entry.symbol = savedSyms[id];
+    byId[id] = entry;
+    order.push(entry);
+  }
+  if (partials && typeof partials.forEach === "function") {
+    partials.forEach(function(v) {
+      if (!v) return;
+      ["TL", "TR", "BL", "BR"].forEach(function(q) { if (v[q]) consider(v[q]); });
+    });
+  }
+  (bsLines || []).forEach(function(ln) {
+    if (ln && ln.colorId != null) consider({ id: ln.colorId, rgb: ln.color, brand: ln.brand });
+  });
+  (knots || []).forEach(function(k) {
+    if (k && k.id != null) consider(k);
+  });
+  (specialty || []).forEach(function(st) {
+    if (st && st.thread && st.thread.id != null) consider(st.thread);
+    else if (st && st.id != null) consider(st);
+  });
+  if (!order.length) return [];
+  return typeof dedupeChartSymbols === "function" ? dedupeChartSymbols(pal, order) : order;
+}
+window.creatorPartOnlyPaletteEntries = creatorPartOnlyPaletteEntries;
+
 window.useProjectIO = function useProjectIO(state, history, options) {
   // The Convert draft this tab is working on: { id, blob, name, type,
   // createdAt, restore } (restore = settings to apply once the picture loads).
@@ -15178,9 +15381,12 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setSkipBg(!!s.skipBg); state.setBgTh(creatorRestoredBgTolerance(s.bgTh, s.bgThUnit, s.bgCol));
     state.setBgCol(s.bgCol || [255, 255, 255]); state.setMinSt(s.minSt || 0);
     state.setArLock(s.arLock !== false); state.setAr(s.ar || 1);
-    state.setBsLines(project.bsLines || []);
-    if(state.setSpecialtyStitches)state.setSpecialtyStitches(ProgressUnits.specialty.read(project,s.sW,s.sH,brand));
-    if (state.setKnots) state.setKnots(window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH, brand) : []);
+    var loadedBs = project.bsLines || [];
+    state.setBsLines(loadedBs);
+    var loadedSpec = ProgressUnits.specialty.read(project, s.sW, s.sH, brand);
+    if(state.setSpecialtyStitches)state.setSpecialtyStitches(loadedSpec);
+    var loadedKnots = window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH, brand) : [];
+    if (state.setKnots) state.setKnots(loadedKnots);
     state.setExactPixelArt(!!s.exactPixelArt);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     if (state.setCrispEdges) state.setCrispEdges(!!s.crispEdges);
@@ -15229,8 +15435,43 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var savedSyms = project.symbols && typeof project.symbols === "object" ? project.symbols : null;
     restored = applySavedSymbols(restored, savedSyms);
     if (state.setSymbolOverrides) state.setSymbolOverrides(savedSyms ? Object.assign({}, savedSyms) : {});
+
+    var loadedPartials;
+    if (project.partialStitches && Array.isArray(project.partialStitches)) {
+      loadedPartials = new Map();
+      project.partialStitches.forEach(function(entry) {
+        var idx = entry[0], v = entry[1];
+        var pe = {};
+        ["TL","TR","BL","BR"].forEach(function(q) {
+          if (v[q]) pe[q] = restoreStitch(Object.assign({}, v[q], { type: v[q].type || (typeof v[q].id === "string" && v[q].id.includes("+") ? "blend" : "solid") }), brand);
+        });
+        loadedPartials.set(idx, pe);
+      });
+    } else if (project.halfStitches && Array.isArray(project.halfStitches)) {
+      // Migrate v9 half-stitch format to v10 quadrant format
+      loadedPartials = new Map();
+      project.halfStitches.forEach(function(entry) {
+        var idx = entry[0], v = entry[1];
+        var migrated = migrateHalfStitch(v);
+        var pe = {};
+        ["TL","TR","BL","BR"].forEach(function(q) {
+          if (migrated[q]) pe[q] = restoreStitch(Object.assign({}, migrated[q], { type: migrated[q].type || (typeof migrated[q].id === "string" && migrated[q].id.includes("+") ? "blend" : "solid") }), brand);
+        });
+        loadedPartials.set(idx, pe);
+      });
+    } else {
+      loadedPartials = new Map();
+    }
     var result = buildPalette(restored);
+    var partExtras = creatorPartOnlyPaletteEntries(result, loadedPartials, loadedBs, loadedKnots, loadedSpec, savedSyms, brand);
+    if (partExtras.length) {
+      var extraMap = {};
+      partExtras.forEach(function(e) { extraMap[e.id] = e; });
+      result = { pal: result.pal.concat(partExtras), cmap: Object.assign({}, result.cmap, extraMap) };
+    }
+    if (state.setScratchPalette) state.setScratchPalette(partExtras);
     state.setPat(restored); state.setPal(result.pal); state.setCmap(result.cmap);
+    state.setPartialStitches(loadedPartials);
     state.setTab("pattern"); state.setActiveTool(null); state.setSelectedColorId(null);
     state.setEditHistory([]); state.setRedoHistory([]); state.setSidebarOpen(true);
     state.setThreadOwned(project.threadOwned || {});
@@ -15246,34 +15487,6 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (project.hlRow >= 0) state.setHlRow(project.hlRow);
     if (project.hlCol >= 0) state.setHlCol(project.hlCol);
     state.setIsScratchMode(!!s.isScratchMode);
-
-    if (project.partialStitches && Array.isArray(project.partialStitches)) {
-      var pm = new Map();
-      project.partialStitches.forEach(function(entry) {
-        var idx = entry[0], v = entry[1];
-        var pe = {};
-        ["TL","TR","BL","BR"].forEach(function(q) {
-          if (v[q]) pe[q] = restoreStitch(Object.assign({}, v[q], { type: v[q].type || (typeof v[q].id === "string" && v[q].id.includes("+") ? "blend" : "solid") }), brand);
-        });
-        pm.set(idx, pe);
-      });
-      state.setPartialStitches(pm);
-    } else if (project.halfStitches && Array.isArray(project.halfStitches)) {
-      // Migrate v9 half-stitch format to v10 quadrant format
-      var pm2 = new Map();
-      project.halfStitches.forEach(function(entry) {
-        var idx = entry[0], v = entry[1];
-        var migrated = migrateHalfStitch(v);
-        var pe = {};
-        ["TL","TR","BL","BR"].forEach(function(q) {
-          if (migrated[q]) pe[q] = restoreStitch(Object.assign({}, migrated[q], { type: migrated[q].type || (typeof migrated[q].id === "string" && migrated[q].id.includes("+") ? "blend" : "solid") }), brand);
-        });
-        pm2.set(idx, pe);
-      });
-      state.setPartialStitches(pm2);
-    } else {
-      state.setPartialStitches(new Map());
-    }
     state.setPartialStitchTool(null);
     state.setProjectName(project.name || "");
     state.setProjectDesigner(project.designer || "");
@@ -17872,10 +18085,11 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
   })();
 
   var floating = !!(clip && clip.floatActive);
+  var stitchedOn = app.chartView === "stitched" && !app.previewActive && !app.splitPaneEnabled;
   var selecting = !floating && !!cv.hasSelection && coarse && !cv.lassoInProgress &&
-    cv.activeTool !== "move" && !cv.contextMenu;
-  // Smooth edges' sheet takes the bar's place while it is open.
-  var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive && cv.wandPanel !== "smooth";
+    cv.activeTool !== "move" && !cv.contextMenu && cv.wandPanel !== "smooth";
+  // Smooth edges' sheet takes the bar's place while selecting (never hiding a float's Done/Cancel).
+  var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive && !stitchedOn;
 
   var maskBox = React.useMemo(function () {
     if (!show || floating || !cv.selectionMask || !window.SelectionTransforms) return null;
@@ -18036,12 +18250,25 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
  */
 window.CreatorSmoothEdgesPanel = function CreatorSmoothEdgesPanel() {
   var h = React.createElement;
+  var ctx = window.usePatternData();
   var cv = window.useCanvas();
   var app = window.useApp();
   var _top = React.useState(null); var top = _top[0], setTop = _top[1];
   var rootRef = React.useRef(null);
 
-  var open = cv.wandPanel === "smooth" && !!cv.hasSelection && app.tab === "pattern" && !app.previewActive;
+  var floating = !!(cv.clip && cv.clip.floatActive);
+  var stitchedOn = app.chartView === "stitched" && !app.previewActive && !app.splitPaneEnabled;
+  var open = cv.wandPanel === "smooth" && !!cv.hasSelection && app.tab === "pattern" && !app.previewActive && !stitchedOn && !floating;
+  function close() { cv.setWandPanel(null); }
+  var closeRef = React.useRef(close);
+  closeRef.current = close;
+  var onEsc = React.useCallback(function () { closeRef.current(); }, []);
+
+  // Esc closes this panel while keeping the selection intact (stable callback
+  // so re-renders don't push it above modals/menus opened on top of it).
+  if (typeof window !== "undefined" && typeof window.useEscape === "function") {
+    window.useEscape(open ? onEsc : null);
+  }
 
   // Dock just below the top of the chart's scroll area.
   React.useLayoutEffect(function () {
@@ -18080,11 +18307,16 @@ window.CreatorSmoothEdgesPanel = function CreatorSmoothEdgesPanel() {
   var plan = cv.smoothPreview;
   var counts = plan ? plan.counts : { threeQuarter: 0, half: 0, quarter: 0 };
   var n = counts.threeQuarter + counts.half;
+  var markedReset = 0;
+  if (ctx && ctx.done && plan && plan.cells) {
+    for (var mi = 0; mi < plan.cells.length; mi++) {
+      if (ctx.done[plan.cells[mi].idx] === 1) markedReset++;
+    }
+  }
   function setOpt(k, v) {
     if (!cv.setSmoothOptions) return;
     cv.setSmoothOptions(function (prev) { var o = Object.assign({}, prev); o[k] = v; return o; });
   }
-  function close() { cv.setWandPanel(null); }
 
   function method(id, label, icon) {
     var on = opts.mode === id;
@@ -18107,6 +18339,7 @@ window.CreatorSmoothEdgesPanel = function CreatorSmoothEdgesPanel() {
     parts.push(opts.mode === "fill" ? " added" : " made");
     if (counts.quarter) parts.push(", with " + counts.quarter.toLocaleString() + " ¼ stitch" + (counts.quarter === 1 ? "" : "es") + " in the colour beside " + (n === 1 ? "it" : "them"));
     parts.push(". Shown on the chart.");
+    if (markedReset > 0) parts.push(" Clears " + markedReset.toLocaleString() + " stitched mark" + (markedReset === 1 ? "" : "s") + ".");
     summary = parts;
   }
 
@@ -22467,7 +22700,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // A palette count is full stitches only. Colours still used by part
     // stitches, backstitch or knots read 0 but aren't unused (as
     // removeUnusedColours / removeScratchColour).
-    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(ctx.partialStitches, cv.bsLines, ctx.knots) : new Set();
+    var inParts = window.StitchTypeConvert ? window.StitchTypeConvert.partColourIds(ctx.partialStitches, cv.bsLines, ctx.knots, ctx.specialtyStitches) : new Set();
     var chips = displayPal.map(function(p) {
       var isSelected = cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;
@@ -24412,10 +24645,53 @@ window.CreatorSidebar = function CreatorSidebar() {
   }
   window.stitchedPreviewSizes = stitchedSizes;
 
+  var PART_OPP = { TL: "BR", TR: "BL", BL: "TR", BR: "TL" };
+
+  // Draw fractional stitch legs (1/4, 1/2, 3/4) for one cell onto `c` at
+  // (ox, oy) without overwriting the fabric underneath. Shared by
+  // CreatorStitchedPreview and CreatorRealisticCanvas.
+  function drawPartialStitchLegs(c, size, psEntry, baseCell, coverage, ox, oy) {
+    if (!psEntry || typeof analysePartialStitches !== "function") return;
+    var instrs = analysePartialStitches(psEntry, baseCell);
+    if (!instrs || !instrs.length) return;
+    var x0 = ox || 0, y0 = oy || 0;
+    var w = size * (0.25 + 0.30 * coverage);
+    var inset = size * 0.04;
+    var mx = x0 + size / 2, my = y0 + size / 2;
+    var corner = {
+      TL: [x0 + inset, y0 + inset],
+      TR: [x0 + size - inset, y0 + inset],
+      BL: [x0 + inset, y0 + size - inset],
+      BR: [x0 + size - inset, y0 + size - inset]
+    };
+    for (var k = 0; k < instrs.length; k++) {
+      var inst = instrs[k];
+      var strands = strandsFor(inst.colour);
+      if (!strands) continue;
+      if (inst.type === "quarter") {
+        var qp = corner[inst.corner];
+        if (qp) drawLeg(c, qp[0], qp[1], mx, my, w, strands, true);
+      } else if (inst.type === "half") {
+        if (inst.direction === "fwd") drawLeg(c, x0 + inset, y0 + size - inset, x0 + size - inset, y0 + inset, w, strands, true);
+        else drawLeg(c, x0 + inset, y0 + inset, x0 + size - inset, y0 + size - inset, w, strands, false);
+      } else if (inst.type === "three-quarter") {
+        var third = corner[PART_OPP[inst.emptyCorner]];
+        if (third) drawLeg(c, third[0], third[1], mx, my, w, strands, true);
+        if (inst.emptyCorner === "TL" || inst.emptyCorner === "BR") {
+          drawLeg(c, x0 + inset, y0 + size - inset, x0 + size - inset, y0 + inset, w, strands, false);
+        } else {
+          drawLeg(c, x0 + inset, y0 + inset, x0 + size - inset, y0 + size - inset, w, strands, false);
+        }
+      }
+    }
+  }
+  window.drawPartialStitchLegs = drawPartialStitchLegs;
+
   window.CreatorStitchedPreview = function CreatorStitchedPreview(props) {
     var h = React.createElement;
     var canvasRef = React.useRef(null);
     var cells = props.cells, W = props.width, H = props.height;
+    var partials = props.partialStitches;
     var dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
     // CSS pixels per stitch on screen.
     var cssCell = props.closeUp ? 16 : (props.displayWidth > 0 ? props.displayWidth / W : 8);
@@ -24446,8 +24722,16 @@ window.CreatorSidebar = function CreatorSidebar() {
         tiles[key] = t;
         return t;
       }
+      var hasPartials = !!(partials && typeof partials.get === "function" && partials.size > 0);
       for (var i = 0; i < cells.length; i++) {
-        oc.drawImage(tileFor(cells[i]), (i % W) * tile, Math.floor(i / W) * tile);
+        var tx = (i % W) * tile, ty = Math.floor(i / W) * tile;
+        var ps = hasPartials ? partials.get(i) : null;
+        if (ps && (ps.TL || ps.TR || ps.BL || ps.BR)) {
+          oc.drawImage(tileFor(null), tx, ty);
+          drawPartialStitchLegs(oc, tile, ps, cells[i], coverage, tx, ty);
+        } else {
+          oc.drawImage(tileFor(cells[i]), tx, ty);
+        }
       }
       canvas.width = dispW; canvas.height = dispH;
       var dc = canvas.getContext("2d");
@@ -24458,7 +24742,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       }
       // Free the drawn chart's memory now rather than at collection.
       off.width = off.height = 0;
-    }, [cells, W, H, tile, dispW, dispH, coverage, fabric]);
+    }, [cells, partials, W, H, tile, dispW, dispH, coverage, fabric]);
 
     return h("canvas", {
       ref: canvasRef, className: "cvp-stitched__canvas", role: "img",
@@ -24540,7 +24824,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       style: { left: G, top: G, width: ctx.sW * cs, height: ctx.sH * cs }
     },
       h(window.CreatorStitchedPreview, {
-        cells: ctx.pat, width: ctx.sW, height: ctx.sH,
+        cells: ctx.pat, partialStitches: ctx.partialStitches, width: ctx.sW, height: ctx.sH,
         fabricColour: app.fabricColour, fabricCt: ctx.fabricCt || 14,
         displayWidth: ctx.sW * cs
       }));
@@ -24687,8 +24971,17 @@ window.CreatorContextMenu = function CreatorContextMenu() {
   }, [menu.x, menu.y]);
 
   var cell = menu.cell;
-  var hasCellColour = cell && cell.id !== "__skip__" && cell.id !== "__empty__" && ctx.cmap && ctx.cmap[cell.id];
-  var cellInfo = hasCellColour ? ctx.cmap[cell.id] : null;
+  var effCell = (cell && cell.id !== "__skip__" && cell.id !== "__empty__") ? cell : null;
+  if (!effCell && ctx.partialStitches && menu.idx != null) {
+    var psCell = ctx.partialStitches.get(menu.idx);
+    if (psCell) {
+      effCell = window.StitchTypeConvert && window.StitchTypeConvert.dominantColour
+        ? window.StitchTypeConvert.dominantColour(cell, psCell, "full")
+        : (psCell.TL || psCell.TR || psCell.BL || psCell.BR || null);
+    }
+  }
+  var hasCellColour = !!(effCell && effCell.id !== "__skip__" && effCell.id !== "__empty__" && ctx.cmap && ctx.cmap[effCell.id]);
+  var cellInfo = hasCellColour ? ctx.cmap[effCell.id] : null;
 
   function item(label, onClick, opts) {
     opts = opts || {};

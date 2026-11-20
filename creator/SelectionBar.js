@@ -35,10 +35,11 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
   })();
 
   var floating = !!(clip && clip.floatActive);
+  var stitchedOn = app.chartView === "stitched" && !app.previewActive && !app.splitPaneEnabled;
   var selecting = !floating && !!cv.hasSelection && coarse && !cv.lassoInProgress &&
-    cv.activeTool !== "move" && !cv.contextMenu;
-  // Smooth edges' sheet takes the bar's place while it is open.
-  var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive && cv.wandPanel !== "smooth";
+    cv.activeTool !== "move" && !cv.contextMenu && cv.wandPanel !== "smooth";
+  // Smooth edges' sheet takes the bar's place while selecting (never hiding a float's Done/Cancel).
+  var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive && !stitchedOn;
 
   var maskBox = React.useMemo(function () {
     if (!show || floating || !cv.selectionMask || !window.SelectionTransforms) return null;
