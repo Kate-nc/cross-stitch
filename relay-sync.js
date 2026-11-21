@@ -24,6 +24,18 @@
   if (typeof window === 'undefined') return;
 
   var ENDPOINT = 'api/relay';
+  // The relay is a Vercel function beside the app. A copy served from a
+  // static host (GitHub Pages, or files opened from disk) cannot run it, so
+  // it sends relay requests to the Vercel deployment named here instead.
+  // While this is empty, pairing is switched off on static hosts. When you
+  // set it (an https origin, no path, e.g. 'https://stitchx.vercel.app'):
+  //   - add the same origin to connect-src in the CSP of every page that
+  //     loads this file (tests/syncRelayOrigin.test.js checks this);
+  //   - make sure the static host's origin is allowed by api/relay.js
+  //     (DEFAULT_ALLOWED_ORIGINS, or RELAY_ALLOWED_ORIGINS on Vercel).
+  // Browser storage belongs to an origin: devices paired through the
+  // GitHub Pages copy sync that copy's projects, not the Vercel copy's.
+  var REMOTE_RELAY_ORIGIN = '';
   var LS_STATE = 'cs_relay_v1';        // { space, key, pairedAt }
   // { space, sentRev, seen: {device: etag}, lastUploadAt, lastDownloadAt,
   //   hadPartner, ownEtag, pendingEtag }
@@ -124,9 +136,21 @@
   }
 
   // ── Network ──────────────────────────────────────────────────────────────
+  function onStaticHost() {
+    return location.protocol === 'file:' || /(^|\.)github\.io$/i.test(location.hostname);
+  }
+  // Where relay requests go, or null when this copy has no relay to use.
+  function endpointUrl() {
+    if (!onStaticHost()) return new URL(ENDPOINT, location.href);
+    if (!/^https:\/\/[A-Za-z0-9.-]+(:\d+)?$/.test(REMOTE_RELAY_ORIGIN)) return null;
+    return new URL('/api/relay', REMOTE_RELAY_ORIGIN);
+  }
+  function isAvailable() { return !!endpointUrl(); }
+
   async function api(op, opts) {
     opts = opts || {};
-    var url = new URL(ENDPOINT, location.href);
+    var url = endpointUrl();
+    if (!url) throw err('no-relay');
     url.searchParams.set('op', op);
     Object.keys(opts.query || {}).forEach(function (k) { url.searchParams.set(k, opts.query[k]); });
     var headers = Object.assign({}, opts.headers || {});
@@ -141,7 +165,9 @@
     if (res.status === 304) return { status: 304, res: res };
     if (!res.ok) {
       var body = await res.json().catch(function () { return {}; });
-      throw err(body.error || ('http-' + res.status), { status: res.status });
+      // A host with no relay answers with its own 404 or 405 page, not JSON.
+      var fallback = (res.status === 404 || res.status === 405) ? 'no-relay' : 'http-' + res.status;
+      throw err(body.error || fallback, { status: res.status });
     }
     return { status: res.status, res: res };
   }
@@ -427,10 +453,10 @@
   }
 
   window.SyncRelay = {
-    isPaired: function () { return !!getState(); },
+    isPaired: function () { return !!getState(); }, isAvailable: isAvailable,
     getStatus: getStatus, changed: changed, syncNow: syncNow, fixIdentity: fixIdentity, startPairing: startPairing,
     joinWithCode: joinWithCode, unpair: unpair, deviceCount: deviceCount,
-    _test: { normalizeCode: normalizeCode, formatCode: formatCode, newCode: newCode, sealBundle: sealBundle, openBundle: openBundle, pairId: pairId, accessToken: accessToken, run: run }
+    _test: { normalizeCode: normalizeCode, formatCode: formatCode, newCode: newCode, sealBundle: sealBundle, openBundle: openBundle, pairId: pairId, accessToken: accessToken, run: run, errorText: errorText, endpointUrl: endpointUrl, REMOTE_RELAY_ORIGIN: REMOTE_RELAY_ORIGIN }
   };
 
   if (typeof document !== 'undefined' && document.addEventListener) {
@@ -491,12 +517,18 @@
 
   function errorText(e) {
     var code = e && e.code;
+    // Over plain http (other than localhost) browsers withhold the encryption
+    // pairing needs, so the first step fails without a code of ours.
+    if (!code && window.isSecureContext === false) return 'Pairing needs this page to be opened over https. Open stitchx from its https address and try again.';
     if (code === 'bad-code') return 'That code is not right. It has 12 letters and numbers, like ABCD-EFGH-JKMN.';
     if (code === 'pairing-missing' || code === 'bad-bundle') return 'That code has expired or is not right. Show a new code on your other device and try again.';
     if (code === 'rate-limited') return 'Too many tries. Wait 10 minutes and try again.';
     if (code === 'not-configured') return 'Pairing sync is not set up on this server.';
+    if (code === 'no-relay') return 'Pairing sync is not available on this copy of stitchx: the site it is served from cannot run the sync relay. Your projects stay on this device.';
+    if (code === 'storage-full') return 'The sync relay is full at the moment. Try again later.';
     if (code === 'network' || /^http-5/.test(code || '') || code === 'store-unavailable') return 'Could not reach the sync relay. Check your connection and try again.';
-    return 'Something went wrong. Try again.';
+    // Name the code so a report of this message says what actually failed.
+    return 'Something went wrong' + (code ? ' (' + code + ')' : '') + '. Try again.';
   }
 
   // Shows a code (and its QR) for another device to join this one.

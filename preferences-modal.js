@@ -1326,6 +1326,12 @@
       window.SyncRelay ? (function () {
         var relay = window.SyncRelay.getStatus();
         var fmt = function (iso) { return iso ? new Date(iso).toLocaleString('en-GB') : "Not yet"; };
+        // A copy on a static host (GitHub Pages) with no relay set up for it.
+        if (typeof window.SyncRelay.isAvailable === "function" && !window.SyncRelay.isAvailable()) {
+          return h(Section, { title: "Sync by pairing" },
+            h(Row, { label: "Not available on this copy", last: true,
+              desc: "Pairing sync needs the stitchx sync relay, which the site this copy is served from cannot run. Your projects stay on this device. To move them to another device, use a sync folder or the Backup section below." }));
+        }
         return h(Section, { title: "Sync by pairing" },
           h(Row, { label: relay.paired ? "Paired" : "Pair your devices",
             desc: relay.paired

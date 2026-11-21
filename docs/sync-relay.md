@@ -43,6 +43,19 @@ Until this is done, `/api/relay` answers `503 not-configured` and the app says "
 
 The function needs no npm packages; it calls the Upstash REST API with `fetch`. No CSP change is needed, because the relay is on the app's own origin.
 
+## Serving the app from GitHub Pages
+
+GitHub Pages serves static files only, so it cannot run `api/relay.js`: a `POST` to `/cross-stitch/api/relay` there answers `405 Method Not Allowed`. A copy on a static host (any `*.github.io` page, or files opened from disk) therefore sends relay requests to a Vercel deployment instead:
+
+1. Set `REMOTE_RELAY_ORIGIN` near the top of `relay-sync.js` to the Vercel deployment's origin, for example `'https://stitchx.vercel.app'` (https, no path, no trailing slash).
+2. Add the same origin to `connect-src` in the Content-Security-Policy meta tag of every page that loads `relay-sync.js` (`create.html`, `home.html`, `index.html`, `manager.html`, `stitch.html`). `tests/syncRelayOrigin.test.js` fails until they all match.
+3. The relay answers cross-origin requests only from the origins in `DEFAULT_ALLOWED_ORIGINS` in `api/relay.js` (`https://kate-nc.github.io`). To change the list without a code change, set `RELAY_ALLOWED_ORIGINS` on the Vercel project to a comma-separated list of origins and redeploy. Requests still need a space's access token; the browser sends no cookies, so an allowed origin can talk to the relay and nothing more.
+4. Check it from the GitHub Pages origin: `curl -i -X OPTIONS -H 'Origin: https://kate-nc.github.io' -H 'Access-Control-Request-Method: POST' 'https://<your-deployment>/api/relay?op=create'` should answer `204` with `Access-Control-Allow-Origin: https://kate-nc.github.io`.
+
+While `REMOTE_RELAY_ORIGIN` is empty, a static-host copy shows "Not available on this copy" under Sync by pairing instead of the pairing buttons.
+
+Browser storage belongs to an origin. Projects saved on `kate-nc.github.io` are not visible on the Vercel address and the other way round, so every device in a pairing should open stitchx from the same address.
+
 ## Limits and costs
 
 | Limit | Value | Why |

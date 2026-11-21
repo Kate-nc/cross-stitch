@@ -443,7 +443,8 @@
             ["Conflicts", "Changes merge with the same rules as folder sync. Anything that needs a choice waits in Review sync."],
             ["Unpairing", "Unpair stops this device syncing and removes its copy from the relay. Projects on the device stay, and your other devices keep syncing."],
             ["Copied browsers", "If a browser was copied from another one (for example by copying a browser profile), both would sync as the same device. The copy stops and offers Give this browser its own identity in Preferences; choose it and both keep syncing."],
-            ["Limits", "Up to 10 devices. Libraries over 4 MB cannot sync this way, which usually only happens when Source photos is on in What to sync. If none of your devices syncs for 30 days, the relay deletes its copies; your devices keep theirs and send them again next time."]
+            ["Limits", "Up to 10 devices. Libraries over 4 MB cannot sync this way, which usually only happens when Source photos is on in What to sync. If none of your devices syncs for 30 days, the relay deletes its copies; your devices keep theirs and send them again next time."],
+            ["Where it works", "Pairing needs the stitchx sync relay. A copy of stitchx on a site that cannot run it, such as GitHub Pages, says so in Preferences until it is set up to use the main copy's relay. Each web address keeps its own projects, so pair devices that all open stitchx from the same address."]
           ]
         },
         {
