@@ -197,8 +197,13 @@ const BackupRestore = (() => {
   // restoring onto a new device after merely opening the Stash page used to
   // stop at the first thread the backup owned. A row with any field outside
   // this list, any stock, flag, shopping quantity or history is real data.
+  // So is a row that thread usage refers to: stitching a thread down to
+  // nothing sets owned to 0 without adding history (thread-accounting.js), and
+  // that 0 is a count, not an empty row. `usedKeys` holds every thread the same
+  // side's usage records name (stockUsageKeys).
   const BLANK_THREAD_FIELDS = ["owned", "tobuy", "partialStatus", "min_stock", "tobuy_qty", "tobuy_added_at", "addedAt", "lastAdjustedAt", "acquisitionSource", "history", "_v"];
-  function isBlankThread(entry) {
+  function isBlankThread(id, entry, usedKeys) {
+    if (usedKeys && usedKeys.has(id)) return false;
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
     if (Object.keys(entry).some(k => !BLANK_THREAD_FIELDS.includes(k))) return false;
     if (entry.owned != null && Number(entry.owned) !== 0) return false;
@@ -208,17 +213,36 @@ const BackupRestore = (() => {
     if (entry.history != null && !(Array.isArray(entry.history) && entry.history.length === 0)) return false;
     return true;
   }
+  // Every thread key named by a side's thread-usage records: the usage ledger
+  // (whole, or stored a record per event) and the Tracker's older per-project
+  // deduction checkpoints. Thread keys appear there as object keys.
+  function stockUsageKeys(rows) {
+    const keys = new Set();
+    const walk = value => {
+      if (!value || typeof value !== "object") return;
+      for (const k of Object.keys(value)) { keys.add(k); walk(value[k]); }
+    };
+    (rows || []).forEach(e => {
+      const k = String(e && e.key);
+      if (k === "thread_consumption_v2" || k.startsWith("tc2:") || k.startsWith("rt_deduction:")) walk(e.value);
+    });
+    return keys;
+  }
+  // "dmc:19" -> "DMC 19", "anchor:403" -> "Anchor 403".
   function threadLabel(id) {
     const m = /^([a-z]+):(.+)$/i.exec(String(id));
-    return m ? m[1].toUpperCase() + " " + m[2] : String(id);
+    if (!m) return String(id);
+    const brand = m[1].length <= 3 ? m[1].toUpperCase() : m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+    return brand + " " + m[2];
   }
-  function mergeManager(key, before, incoming) {
+  function mergeManager(key, before, incoming, used) {
     if (key === "threads") {
       const merged = Object.assign({}, before);
+      const deviceUsed = used && used.device, backupUsed = used && used.backup;
       for (const id of Object.keys(incoming)) {
         if (Object.prototype.hasOwnProperty.call(merged, id) && !sameData(merged[id], incoming[id])) {
-          if (isBlankThread(incoming[id])) continue;          // the backup holds nothing for it: keep this device's row
-          if (!isBlankThread(merged[id])) throw new Error("Identifier collision in threads: " + id + ". This device's stash already has different details for " + threadLabel(id) + " from the backup, so nothing was restored. To restore this backup, clear this site's data in the browser (or use another browser) and restore before opening the Stash.");
+          if (isBlankThread(id, incoming[id], backupUsed)) continue;   // the backup holds nothing for it: keep this device's row
+          if (!isBlankThread(id, merged[id], deviceUsed)) throw new Error("Identifier collision in threads: " + id + ". This device's stash has different details for " + threadLabel(id) + " from the backup's, so nothing was changed. To keep the backup's version, restore it in a new browser profile.");
         }
         merged[id] = incoming[id];
       }
@@ -788,8 +812,15 @@ const BackupRestore = (() => {
         const flushed = await window.__flushProjectToIDB();
         if (flushed && flushed.ok === false) throw new Error("Save the current project before restoring: " + flushed.reason);
       }
+      // Folder sync pauses while the restore runs. Publication reloads the page,
+      // which starts it again; a restore that publishes nothing restarts it below.
+      const wasWatching = !!(window.SyncEngine && window.SyncEngine.isWatching && window.SyncEngine.isWatching());
       if (window.SyncEngine && window.SyncEngine.stopWatching) window.SyncEngine.stopWatching();
-      await recovery.cleanup();
+      try { await recovery.cleanup(); }
+      catch (e) {
+        if (wasWatching && window.SyncEngine && window.SyncEngine.startWatching) { try { window.SyncEngine.startWatching(); } catch (_) {} }
+        throw e;
+      }
       const id = "restore_" + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now() + "_" + Math.random().toString(36).slice(2));
       const generation = { id, databases: { CrossStitchDB: "CrossStitchDB_" + id, stitch_manager_db: "stitch_manager_db_" + id }, keys: [], previous: expected ? Object.assign({}, JSON.parse(expected), { previous: null }) : null };
       const handles = [];
@@ -822,6 +853,7 @@ const BackupRestore = (() => {
           }
           let incoming = backup.databases[name] || {};
           if (name === "stitch_manager_db" && incoming.manager_state && window.StashBridge && window.StashBridge.prepareBackupState) incoming = { manager_state: window.StashBridge.prepareBackupState(incoming.manager_state) };
+          const used = name === "stitch_manager_db" ? { device: stockUsageKeys(data.manager_state), backup: stockUsageKeys(incoming.manager_state) } : null;
           for (const store of Object.keys(incoming)) {
             const map = new Map(data[store].map(e => [e.key, e]));
             for (const source of incoming[store]) {
@@ -829,7 +861,7 @@ const BackupRestore = (() => {
               if ((entry.key === "auto_save" || store === "sync_snapshots") && map.has(entry.key)) continue; // legacy alias never replaces an open project
               const old = map.get(entry.key);
               if (old && DERIVED_STORES.includes(store)) continue;   // this device's row stands for its project
-              if (old && store === "manager_state" && ["threads", "patterns"].includes(entry.key)) entry = { key: entry.key, value: mergeManager(entry.key, old.value, entry.value) };
+              if (old && store === "manager_state" && ["threads", "patterns"].includes(entry.key)) entry = { key: entry.key, value: mergeManager(entry.key, old.value, entry.value, used) };
               if (old && !sameData(old.value, entry.value) && !(store === "manager_state" && ["threads", "patterns"].includes(entry.key))) throw new Error("Identifier collision in " + store + ": " + entry.key + ". Nothing was replaced. Restore into a fresh browser profile to recover this version.");
               if (!old || !sameData(old.value, entry.value)) changed = true;
               else if (store === "projects" && entry.key !== "auto_save") duplicateProjects++;
@@ -901,6 +933,7 @@ const BackupRestore = (() => {
           // Keep the durable staging manifest until deletion actually completes.
           // A blocked deletion is retried after the blocking tab closes.
           try { await recovery.cleanup(); } catch (_) {}
+          if (wasWatching && window.SyncEngine && window.SyncEngine.startWatching) { try { window.SyncEngine.startWatching(); } catch (_) {} }
         } else recovery.unmarkStaging(id);
       }
     }
