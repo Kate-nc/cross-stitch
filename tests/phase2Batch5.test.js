@@ -18,6 +18,13 @@ function sess(date, added, seconds) {
     stitchesCompleted: added, stitchesUndone: 0, netStitches: added, units: added, unitsCompleted: added, unitsUndone: 0 };
 }
 // 10 stitching days in the last 25 (the audit's history project), 145 stitches on each.
+// computeOverviewStats reads the real clock, so a test that calls it runs at NOW:
+// the history is fixed around TODAY and falls out of the recent window as the
+// real date moves on (from 23 November 2026 the estimate came out as 0).
+function atNow(fn) {
+  jest.useFakeTimers({ now: NOW });
+  try { return fn(); } finally { jest.useRealTimers(); }
+}
 function historyProject() {
   const days = [-24, -22, -19, -17, -14, -11, -8, -5, -2, 0];
   return days.map(d => sess(dayStr(d), 145));
@@ -42,8 +49,8 @@ describe('the worked example from the audit', () => {
     const proj = InsightsEngine.generateProjections([{ id: 'p', name: 'P', totalStitches: 5000, completedStitches: 4750, statsSessions: sessions }], { now: NOW })[0];
     expect(proj.status).toBe('projected');
     expect(proj.daysRemaining).toBe(5);
-    const o = computeOverviewStats(sessions, 4750, 5000, true);
-    // the overview uses the real clock; its estimate is built by the same function
+    const o = atNow(() => computeOverviewStats(sessions, 4750, 5000, true));
+    // the overview uses the clock (pinned to NOW); its estimate is built by the same function
     expect(o.estimate.stitchesPerStitchingDay).toBe(145);
     const pace = InsightsEngine.calculateRecentPace(sessions, NOW);
     expect(Math.round(pace.pacePerDay)).toBe(145);
@@ -107,8 +114,10 @@ describe('what counts as a stitching day and the window', () => {
 describe('milestone dates and the required pace use it too', () => {
   test('a milestone ahead is dated by the same estimate', () => {
     const sessions = historyProject();
-    const o = computeOverviewStats(sessions, 1450, 5000, true);        // 29% done
-    const ms = getMilestones(sessions, 1450, 5000, o.estimate);
+    const { o, ms } = atNow(() => {
+      const o = computeOverviewStats(sessions, 1450, 5000, true);      // 29% done
+      return { o, ms: getMilestones(sessions, 1450, 5000, o.estimate) };
+    });
     const next = ms.find(m => m.isNext);
     expect(next.percent).toBe(50);
     expect(next.estimatedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
