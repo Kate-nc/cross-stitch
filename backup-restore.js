@@ -190,11 +190,36 @@ const BackupRestore = (() => {
     if (record.blob) { plain.bytes = record.blob.size; plain.type = record.blob.type || record.type || "application/octet-stream"; }
     return plain;
   }
+  // A stash row that records nothing the stitcher did. The Stash Manager fills
+  // in one of these for every DMC and Anchor thread the first time it opens
+  // (manager-app.js), and the stash migration stamps them with the legacy
+  // dates. Such a row must not block a backup's real row for the same thread:
+  // restoring onto a new device after merely opening the Stash page used to
+  // stop at the first thread the backup owned. A row with any field outside
+  // this list, any stock, flag, shopping quantity or history is real data.
+  const BLANK_THREAD_FIELDS = ["owned", "tobuy", "partialStatus", "min_stock", "tobuy_qty", "tobuy_added_at", "addedAt", "lastAdjustedAt", "acquisitionSource", "history", "_v"];
+  function isBlankThread(entry) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+    if (Object.keys(entry).some(k => !BLANK_THREAD_FIELDS.includes(k))) return false;
+    if (entry.owned != null && Number(entry.owned) !== 0) return false;
+    if (entry.min_stock != null && Number(entry.min_stock) !== 0) return false;
+    if (entry.tobuy_qty != null && Number(entry.tobuy_qty) !== 0) return false;
+    if (entry.tobuy || entry.partialStatus || entry.tobuy_added_at) return false;
+    if (entry.history != null && !(Array.isArray(entry.history) && entry.history.length === 0)) return false;
+    return true;
+  }
+  function threadLabel(id) {
+    const m = /^([a-z]+):(.+)$/i.exec(String(id));
+    return m ? m[1].toUpperCase() + " " + m[2] : String(id);
+  }
   function mergeManager(key, before, incoming) {
     if (key === "threads") {
       const merged = Object.assign({}, before);
       for (const id of Object.keys(incoming)) {
-        if (Object.prototype.hasOwnProperty.call(merged, id) && !sameData(merged[id], incoming[id])) throw new Error("Identifier collision in threads: " + id + ". Restore into a fresh browser profile.");
+        if (Object.prototype.hasOwnProperty.call(merged, id) && !sameData(merged[id], incoming[id])) {
+          if (isBlankThread(incoming[id])) continue;          // the backup holds nothing for it: keep this device's row
+          if (!isBlankThread(merged[id])) throw new Error("Identifier collision in threads: " + id + ". This device's stash already has different details for " + threadLabel(id) + " from the backup, so nothing was restored. To restore this backup, clear this site's data in the browser (or use another browser) and restore before opening the Stash.");
+        }
         merged[id] = incoming[id];
       }
       return merged;
